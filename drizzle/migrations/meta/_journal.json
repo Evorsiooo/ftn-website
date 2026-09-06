@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1787129962710,
+      "tag": "0000_huge_sharon_carter",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787167975478,
+      "tag": "0001_yummy_thundra",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1787168774359,
+      "tag": "0002_premium_absorbing_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1787172189067,
+      "tag": "0003_gorgeous_chronomancer",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1787234272432,
+      "tag": "0004_yummy_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1787235683782,
+      "tag": "0005_nebulous_dreadnoughts",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1787236766355,
+      "tag": "0006_conscious_thor",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1787241900000,
+      "tag": "0007_add_channel_handle",
+      "breakpoints": true
+    }
+  ]
+}

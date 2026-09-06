@@ -1,0 +1,1 @@
+ALTER TABLE `article_revisions` ADD `reverted_from_version` integer;
