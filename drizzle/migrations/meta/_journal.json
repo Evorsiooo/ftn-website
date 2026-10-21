@@ -57,6 +57,13 @@
       "when": 1787241900000,
       "tag": "0007_add_channel_handle",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792611640973,
+      "tag": "0008_quick_hiroim",
+      "breakpoints": true
     }
   ]
 }
