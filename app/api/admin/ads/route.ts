@@ -1,24 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/db";
-import { adCampaigns } from "@/db/schema";
-import { verifySessionToken } from "@/lib/auth";
-import { canManageAds } from "@/lib/rbac";
 import { desc, eq } from "drizzle-orm";
+import { getDb } from "@/db";
+import { adCampaigns, organizers } from "@/db/schema";
+import { canManageAds } from "@/lib/rbac";
+import { requireStaff } from "@/lib/admin-auth";
+import { AdInput, validateAdInput } from "@/lib/ads";
 
 export const runtime = "edge";
 
+const FORBIDDEN = "Forbidden: Commercial Division role required";
+
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "") || request.cookies.get("ftn_session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await verifySessionToken(token);
-    if (!user || !canManageAds(user.roles)) {
-      return NextResponse.json({ error: "Forbidden: Commercial Division role required" }, { status: 403 });
-    }
+    const auth = await requireStaff(request, canManageAds, FORBIDDEN);
+    if ("error" in auth) return auth.error;
 
     const d1 = (process.env as any).DB as D1Database;
     if (!d1) {
@@ -30,7 +25,11 @@ export async function GET(request: NextRequest) {
     const campaigns = rawCampaigns.map((c) => ({
       ...c,
       title: c.name,
-      format: c.zone === "sidebar_rectangle" ? "512x180" : "1024x180",
+      format: c.adFormat,
+      impressionsLeft:
+        c.postImpressionsPurchased === null
+          ? null
+          : Math.max(0, c.postImpressionsPurchased - c.postImpressionsUsed),
     }));
     return NextResponse.json({ campaigns });
   } catch (error: any) {
@@ -41,16 +40,8 @@ export async function GET(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "") || request.cookies.get("ftn_session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await verifySessionToken(token);
-    if (!user || !canManageAds(user.roles)) {
-      return NextResponse.json({ error: "Forbidden: Commercial Division role required" }, { status: 403 });
-    }
+    const auth = await requireStaff(request, canManageAds, FORBIDDEN);
+    if ("error" in auth) return auth.error;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -63,8 +54,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
     }
 
-    const db = getDb(d1);
-    await db.delete(adCampaigns).where(eq(adCampaigns.id, id));
+    await getDb(d1).delete(adCampaigns).where(eq(adCampaigns.id, id));
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("Delete ad campaign error:", error);
@@ -74,87 +64,44 @@ export async function DELETE(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "") || request.cookies.get("ftn_session")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireStaff(request, canManageAds, FORBIDDEN);
+    if ("error" in auth) return auth.error;
 
-    const user = await verifySessionToken(token);
-    if (!user || !canManageAds(user.roles)) {
-      return NextResponse.json({ error: "Forbidden: Commercial Division role required" }, { status: 403 });
-    }
-
-    const body = (await request.json().catch(() => ({}))) as {
-      title?: string;
-      advertiserName?: string;
-      imageUrl?: string;
-      targetUrl?: string;
-      format?: "1024x180" | "512x180";
-      zone?: string;
-      startDate?: string;
-      endDate?: string;
-    };
-
-    const title = body.title?.trim();
-    const advertiserName = (body.advertiserName?.trim() || "Official Sponsor").slice(0, 100);
-    const imageUrl = body.imageUrl?.trim();
-    const targetUrl = body.targetUrl?.trim();
-    const format = body.format;
-
-    if (!title || !imageUrl || !targetUrl || !format) {
-      return NextResponse.json({ error: "Missing required ad campaign fields" }, { status: 400 });
-    }
-
-    if (title.length > 150) {
-      return NextResponse.json({ error: "Ad title exceeds maximum length of 150 characters" }, { status: 400 });
-    }
-
-    if (imageUrl.length > 2048 || targetUrl.length > 2048) {
-      return NextResponse.json({ error: "URLs exceed maximum length of 2048 characters" }, { status: 400 });
-    }
-
-    const VALID_FORMATS = ["1024x180", "512x180"];
-    if (!VALID_FORMATS.includes(format)) {
-      return NextResponse.json({ error: "Invalid ad format. Must be 1024x180 or 512x180." }, { status: 400 });
-    }
-
-    // Protocol check against unsafe protocols / XSS (e.g. javascript:, data:)
-    if (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://") && !imageUrl.startsWith("/")) {
-      return NextResponse.json({ error: "Image URL must start with http://, https://, or /" }, { status: 400 });
-    }
-    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://") && !targetUrl.startsWith("/")) {
-      return NextResponse.json({ error: "Target URL must start with http://, https://, or /" }, { status: 400 });
+    const body = (await request.json().catch(() => ({}))) as AdInput;
+    const parsed = validateAdInput(body, true);
+    if ("error" in parsed) {
+      return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
     const d1 = (process.env as any).DB as D1Database;
     if (!d1) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
     }
-
     const db = getDb(d1);
-    const id = crypto.randomUUID();
-    const zoneMapping: Record<string, "header_leaderboard" | "sidebar_rectangle" | "in_feed_banner"> = {
-      homepage_top: "header_leaderboard",
-      articles_inline: "in_feed_banner",
-      sports_sidebar: "sidebar_rectangle",
-    };
 
-    const targetZone = body.zone ? zoneMapping[body.zone] || "header_leaderboard" : "header_leaderboard";
+    const organizer = await db.select().from(organizers).where(eq(organizers.id, body.organizerId!)).limit(1);
+    if (organizer.length === 0) {
+      return NextResponse.json({ error: "Organizer not found" }, { status: 400 });
+    }
 
+    const v = parsed.values as any;
     const newCampaign = {
-      id,
-      name: title,
-      advertiserName: body.advertiserName?.trim() || "Official Sponsor",
-      imageUrl: imageUrl,
-      targetUrl: targetUrl,
-      zone: targetZone,
+      id: crypto.randomUUID(),
+      name: v.name,
+      advertiserName: organizer[0].name,
+      organizerId: organizer[0].id,
+      imageUrl: v.imageUrl,
+      targetUrl: v.targetUrl,
+      messageLink: v.messageLink ?? null,
+      postImpressionsPurchased: v.postImpressionsPurchased ?? null,
+      adFormat: v.adFormat ?? "1024x180",
+      zone: v.zone ?? "header_leaderboard",
       weight: 1,
       status: "active" as const,
       impressionsCount: 0,
       clicksCount: 0,
-      startDate: body.startDate ? new Date(body.startDate) : new Date(),
-      endDate: body.endDate ? new Date(body.endDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      startDate: v.startDate ?? new Date(),
+      endDate: v.endDate ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       createdAt: new Date(),
     };
 
