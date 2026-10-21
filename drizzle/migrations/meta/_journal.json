@@ -71,6 +71,13 @@
       "when": 1792612875056,
       "tag": "0009_classy_wind_dancer",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792613411542,
+      "tag": "0010_slow_whirlwind",
+      "breakpoints": true
     }
   ]
 }

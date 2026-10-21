@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { posts } from "@/db/schema";
 import { isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
-import { releaseAdImpression } from "@/lib/posts";
+import { decidePost } from "@/lib/post-decision";
 
 export const runtime = "edge";
 
@@ -31,24 +29,12 @@ export async function POST(
     if (!d1) return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
     const db = getDb(d1);
 
-    // Only a pending post can be decided, and only once.
-    const updated = await db
-      .update(posts)
-      .set({
-        status: body.decision === "approve" ? "approved" : "denied",
-        denyReason: body.decision === "deny" ? reason : null,
-        decidedBy: auth.user.id,
-        decidedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(and(eq(posts.id, id), eq(posts.status, "pending")))
-      .returning({ id: posts.id, adId: posts.adId });
-    if (updated.length === 0) {
-      return NextResponse.json({ error: "This post was already decided or does not exist" }, { status: 409 });
-    }
-
-    // A denied post is never published, so its ad impression is given back.
-    if (body.decision === "deny") await releaseAdImpression(db, updated[0].adId);
+    const result = await decidePost(db, id, body.decision, reason, {
+      userId: auth.user.id,
+      label: `${auth.user.displayName} (website)`,
+    });
+    if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
+    if (result.warning) return NextResponse.json({ success: true, warning: result.warning });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Post decision error:", error);

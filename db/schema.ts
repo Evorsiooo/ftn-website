@@ -255,11 +255,14 @@ export const posts = sqliteTable("posts", {
   }).notNull().default("pending"),
   denyReason: text("deny_reason"),
   decidedBy: text("decided_by").references(() => users.id),
+  // Who decided, as shown in Discord ("Carol on the website" or a Discord name).
+  decidedByLabel: text("decided_by_label"),
   decidedAt: integer("decided_at", { mode: "timestamp" }),
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   // Filled in by the Discord integration.
+  leadershipMessageId: text("leadership_message_id"),
   ftnPlusMessageId: text("ftn_plus_message_id"),
   feedChannelId: text("feed_channel_id"),
   feedMessageId: text("feed_message_id"),

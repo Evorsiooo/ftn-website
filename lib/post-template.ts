@@ -8,10 +8,11 @@ export const TEMPLATE = {
   textColor: "#041E41",
   // Photo hole inside BOX.png.
   photo: { x: 21, y: 21, w: 981, h: 766 },
-  // Bottom edge of BOX.png, and the fill of the gap between it and the advert strip
-  // (the example export leaves it transparent; black keeps the white notice readable).
+  // Bottom edge of BOX.png, and the fill of the gap between it and the advert strip.
+  // Transparent, like the exported example; the editor shows a dark checkerboard behind
+  // the canvas so the white disclaimer stays readable there.
   boxBottom: 809,
-  gapFill: "#000" as string | null,
+  gapFill: null as string | null,
   // Advert strip.
   ad: { x: 0, y: 844, w: 1024, h: 180 },
   headline: {
