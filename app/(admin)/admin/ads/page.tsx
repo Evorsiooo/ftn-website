@@ -1,101 +1,253 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign, Trash2, Loader2 } from "lucide-react";
+import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign, Trash2, Loader2, Pencil, Pause, Play, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canManageAds } from "@/lib/rbac";
 
+type AdFormat = "1024x180" | "512x180";
+
+const FORMAT_DIMENSIONS: Record<AdFormat, [number, number]> = {
+  "1024x180": [1024, 180],
+  "512x180": [512, 180],
+};
+
+const ZONE_LABELS: Record<string, string> = {
+  header_leaderboard: "Homepage Top",
+  in_feed_banner: "Articles Inline",
+  sidebar_rectangle: "Sports Sidebar",
+};
+
+const ZONE_FORM_VALUES: Record<string, string> = {
+  header_leaderboard: "homepage_top",
+  in_feed_banner: "articles_inline",
+  sidebar_rectangle: "sports_sidebar",
+};
+
+const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
+const selectClass =
+  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+
+function readImageSize(file: File): Promise<[number, number]> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      resolve([img.naturalWidth, img.naturalHeight]);
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      reject(new Error("Could not read image"));
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+}
+
 export default function AdminAdsConsole() {
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [organizers, setOrganizers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [advertiser, setAdvertiser] = useState("");
+  const [organizerId, setOrganizerId] = useState("");
+  const [newOrganizer, setNewOrganizer] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
-  const [format, setFormat] = useState<"1024x180" | "512x180">("1024x180");
+  const [messageLink, setMessageLink] = useState("");
+  const [impressions, setImpressions] = useState("");
+  const [format, setFormat] = useState<AdFormat>("1024x180");
   const [zone, setZone] = useState("homepage_top");
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const loadCampaigns = async () => {
+  const loadData = async () => {
     try {
-      const res = await fetch("/api/admin/ads");
-      if (res.ok) {
-        const data = (await res.json()) as any;
-        if (Array.isArray(data.campaigns)) {
-          setCampaigns(data.campaigns);
-        }
+      const [adsRes, orgRes] = await Promise.all([fetch("/api/admin/ads"), fetch("/api/admin/organizers")]);
+      if (adsRes.ok) {
+        const data = (await adsRes.json()) as any;
+        if (Array.isArray(data.campaigns)) setCampaigns(data.campaigns);
+      }
+      if (orgRes.ok) {
+        const data = (await orgRes.json()) as any;
+        if (Array.isArray(data.organizers)) setOrganizers(data.organizers);
       }
     } catch (err) {
-      console.error("Failed to load campaigns:", err);
+      console.error("Failed to load ads:", err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadCampaigns();
+    loadData();
   }, []);
 
-  const handleCreateCampaign = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setEditingId(null);
+    setTitle("");
+    setOrganizerId("");
+    setNewOrganizer("");
+    setImageUrl("");
+    setTargetUrl("");
+    setMessageLink("");
+    setImpressions("");
+    setFormat("1024x180");
+    setZone("homepage_top");
+    if (fileInput.current) fileInput.current.value = "";
+  };
+
+  const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const [w, h] = await readImageSize(file);
+      const [expectedW, expectedH] = FORMAT_DIMENSIONS[format];
+      if (w !== expectedW || h !== expectedH) {
+        alert(`This image is ${w}x${h}. The ${format} format needs exactly ${expectedW}x${expectedH}.`);
+        e.target.value = "";
+        return;
+      }
+    } catch {
+      alert("Could not read this image.");
+      e.target.value = "";
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("folder", "ads");
+      const res = await fetch("/api/upload", { method: "POST", body });
+      const data = (await res.json()) as any;
+      if (!res.ok) {
+        alert(data.error || "Upload failed");
+        return;
+      }
+      setImageUrl(data.url);
+    } catch (err) {
+      console.error("Ad upload error:", err);
+      alert("Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const createOrganizer = async (name: string): Promise<string | null> => {
+    const res = await fetch("/api/admin/organizers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    const data = (await res.json()) as any;
+    if (!res.ok) {
+      alert(data.error || "Failed to create organizer");
+      return null;
+    }
+    return data.organizer.id as string;
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !imageUrl.trim() || !targetUrl.trim()) {
-      alert("Please fill in all required fields (title, image URL, and destination URL).");
+    if (!title.trim() || !imageUrl.trim() || !targetUrl.trim() || (!organizerId && !newOrganizer.trim())) {
+      alert("Please fill in the title, organizer, image and destination URL.");
+      return;
+    }
+    const purchased = impressions.trim() === "" ? null : Number(impressions);
+    if (purchased !== null && (!Number.isInteger(purchased) || purchased < 0)) {
+      alert("Post impressions must be a whole number, or empty for unlimited.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/admin/ads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          advertiserName: advertiser.trim() || "Official Partner",
-          format,
-          zone,
-          imageUrl: imageUrl.trim(),
-          targetUrl: targetUrl.trim(),
-        }),
-      });
-
-      const data = (await res.json()) as any;
-      if (!res.ok) {
-        alert(data.error || "Failed to create campaign");
-        return;
+      let orgId = organizerId;
+      if (!orgId) {
+        const created = await createOrganizer(newOrganizer.trim());
+        if (!created) return;
+        orgId = created;
       }
 
-      setTitle("");
-      setAdvertiser("");
-      setImageUrl("");
-      setTargetUrl("");
-      await loadCampaigns();
+      const payload = {
+        title: title.trim(),
+        organizerId: orgId,
+        imageUrl: imageUrl.trim(),
+        targetUrl: targetUrl.trim(),
+        messageLink: messageLink.trim(),
+        postImpressionsPurchased: purchased,
+        format,
+        zone,
+      };
+      const res = await fetch(editingId ? `/api/admin/ads/${editingId}` : "/api/admin/ads", {
+        method: editingId ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json()) as any;
+      if (!res.ok) {
+        alert(data.error || "Failed to save ad");
+        return;
+      }
+      resetForm();
+      await loadData();
     } catch (err) {
-      console.error("Create campaign error:", err);
-      alert("An unexpected error occurred while saving the campaign.");
+      console.error("Save ad error:", err);
+      alert("An unexpected error occurred while saving the ad.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDeleteCampaign = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this ad campaign?")) return;
+  const startEditing = (c: any) => {
+    setEditingId(c.id);
+    setTitle(c.title || c.name);
+    setOrganizerId(c.organizerId || "");
+    setNewOrganizer("");
+    setImageUrl(c.imageUrl);
+    setTargetUrl(c.targetUrl);
+    setMessageLink(c.messageLink || "");
+    setImpressions(c.postImpressionsPurchased === null || c.postImpressionsPurchased === undefined ? "" : String(c.postImpressionsPurchased));
+    setFormat((c.adFormat || "1024x180") as AdFormat);
+    setZone(ZONE_FORM_VALUES[c.zone] || "homepage_top");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const toggleStatus = async (c: any) => {
+    const next = c.status === "active" ? "paused" : "active";
+    const res = await fetch(`/api/admin/ads/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: next }),
+    });
+    if (res.ok) {
+      setCampaigns((prev) => prev.map((x) => (x.id === c.id ? { ...x, status: next } : x)));
+    } else {
+      const data = (await res.json()) as any;
+      alert(data.error || "Failed to update ad");
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this ad?")) return;
     try {
-      const res = await fetch(`/api/admin/ads?id=${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(`/api/admin/ads?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
         setCampaigns((prev) => prev.filter((c) => c.id !== id));
+        if (editingId === id) resetForm();
       } else {
         const data = (await res.json()) as any;
-        alert(data.error || "Failed to delete campaign");
+        alert(data.error || "Failed to delete ad");
       }
     } catch (err) {
-      console.error("Delete campaign error:", err);
-      alert("Failed to delete campaign");
+      console.error("Delete ad error:", err);
+      alert("Failed to delete ad");
     }
   };
 
@@ -103,179 +255,217 @@ export default function AdminAdsConsole() {
   const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicksCount || 0), 0);
   const averageCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0.00";
 
+  // Group ads under their organizer, keeping organizers without ads visible.
+  const groups = organizers.map((o) => ({
+    organizer: o,
+    ads: campaigns.filter((c) => c.organizerId === o.id),
+  }));
+  const unassigned = campaigns.filter((c) => !c.organizerId || !organizers.some((o) => o.id === c.organizerId));
+
+  const renderAd = (c: any) => {
+    const left = c.impressionsLeft;
+    const soldOut = left !== null && left !== undefined && left <= 0;
+    return (
+      <div key={c.id} className="flex gap-3 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
+        <img src={c.imageUrl} alt={c.title || c.name} className="h-12 w-auto max-w-[45%] rounded object-contain bg-neutral-100 dark:bg-neutral-900" />
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{c.title || c.name}</h4>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 mr-1">{c.adFormat}</span>
+              <button type="button" onClick={() => startEditing(c)} className="p-1 text-neutral-400 hover:text-blue-500 cursor-pointer" title="Edit">
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+              <button type="button" onClick={() => toggleStatus(c)} className="p-1 text-neutral-400 hover:text-amber-500 cursor-pointer" title={c.status === "active" ? "Pause" : "Resume"}>
+                {c.status === "active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+              </button>
+              <button type="button" onClick={() => handleDelete(c.id)} className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer" title="Delete">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Destination: {c.targetUrl}</p>
+          <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Message link: {c.messageLink || "same as destination"}</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
+            <span>Zone: {ZONE_LABELS[c.zone] || c.zone}</span>
+            <span>
+              Post impressions:{" "}
+              <strong className={soldOut ? "text-red-600 dark:text-red-400" : "text-neutral-900 dark:text-white"}>
+                {c.postImpressionsPurchased === null || c.postImpressionsPurchased === undefined
+                  ? "unlimited"
+                  : `${left} left of ${c.postImpressionsPurchased}`}
+              </strong>
+            </span>
+            <span>Views: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0).toLocaleString()}</strong></span>
+            <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount || 0}</strong></span>
+            <span className={c.status === "active" && !soldOut ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+              {soldOut ? "sold out (hidden)" : c.status}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Commercial & Advertisements Console">
       <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-        </Link>
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
-          <DollarSign className="h-7 w-7 text-emerald-600 dark:text-emerald-400" /> Commercial Advertisements
-        </h1>
-      </div>
+        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
+          <Link
+            href="/admin"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
+          </Link>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
+            <DollarSign className="h-7 w-7 text-emerald-600 dark:text-emerald-400" /> Commercial Advertisements
+          </h1>
+        </div>
 
-      {/* Analytics Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
-          <div>
-            <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">Impressions</span>
-            <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{totalImpressions.toLocaleString()}</p>
-          </div>
-          <Eye className="h-8 w-8 text-blue-500" />
-        </Card>
-
-        <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
-          <div>
-            <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">Clicks</span>
-            <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{totalClicks.toLocaleString()}</p>
-          </div>
-          <MousePointerClick className="h-8 w-8 text-neutral-700 dark:text-white" />
-        </Card>
-
-        <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
-          <div>
-            <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">CTR</span>
-            <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{averageCtr}%</p>
-          </div>
-          <TrendingUp className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Create Campaign Form */}
-        <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Create Campaign</h2>
-          <form onSubmit={handleCreateCampaign} className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
             <div>
-              <label className="block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1">
-                Campaign Title
-              </label>
-              <Input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Title"
-              />
+              <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">Site views</span>
+              <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{totalImpressions.toLocaleString()}</p>
             </div>
-
+            <Eye className="h-8 w-8 text-blue-500" />
+          </Card>
+          <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
             <div>
-              <label className="block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1">
-                Advertiser
-              </label>
-              <Input
-                value={advertiser}
-                onChange={(e) => setAdvertiser(e.target.value)}
-                placeholder="Organization name"
-              />
+              <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">Clicks</span>
+              <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{totalClicks.toLocaleString()}</p>
             </div>
+            <MousePointerClick className="h-8 w-8 text-neutral-700 dark:text-white" />
+          </Card>
+          <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
+            <div>
+              <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">CTR</span>
+              <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{averageCtr}%</p>
+            </div>
+            <TrendingUp className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+          </Card>
+        </div>
 
-            <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none self-start">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">{editingId ? "Edit Ad" : "Create Ad"}</h2>
+            <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1">
-                  Format
-                </label>
-                <select
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as any)}
-                  className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                >
-                  <option value="1024x180">1024x180</option>
-                  <option value="512x180">512x180</option>
-                </select>
+                <label className={labelClass}>Ad Title</label>
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Organizer</label>
+                  <select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className={selectClass}>
+                    <option value="">New organizer...</option>
+                    {organizers.map((o) => (
+                      <option key={o.id} value={o.id}>{o.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {!organizerId && (
+                  <div>
+                    <label className={labelClass}>New organizer name</label>
+                    <Input value={newOrganizer} onChange={(e) => setNewOrganizer(e.target.value)} placeholder="Organization name" />
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Format</label>
+                  <select value={format} onChange={(e) => setFormat(e.target.value as AdFormat)} className={selectClass}>
+                    <option value="1024x180">1024x180 (single ad)</option>
+                    <option value="512x180">512x180 (shared ad)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Website Zone</label>
+                  <select value={zone} onChange={(e) => setZone(e.target.value)} className={selectClass}>
+                    <option value="homepage_top">Homepage Top</option>
+                    <option value="articles_inline">Articles Inline</option>
+                    <option value="sports_sidebar">Sports Sidebar</option>
+                  </select>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1">
-                  Zone
-                </label>
-                <select
-                  value={zone}
-                  onChange={(e) => setZone(e.target.value)}
-                  className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-                >
-                  <option value="homepage_top">Homepage Top</option>
-                  <option value="articles_inline">Articles Inline</option>
-                  <option value="sports_sidebar">Sports Sidebar</option>
-                </select>
+                <label className={labelClass}>Ad Image</label>
+                <div className="flex items-center gap-2">
+                  <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleFileChosen} className="hidden" />
+                  <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()} className="cursor-pointer">
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Upload className="h-4 w-4 mr-1.5" />}
+                    {imageUrl ? "Replace image" : "Upload image"}
+                  </Button>
+                  <span className="text-[11px] text-neutral-500">Exactly {FORMAT_DIMENSIONS[format].join("x")} px</span>
+                </div>
+                {imageUrl && (
+                  <img src={imageUrl} alt="Ad preview" className="mt-2 w-full max-w-[512px] rounded border border-neutral-200 dark:border-neutral-800" />
+                )}
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1">
-                Image URL
-              </label>
-              <Input
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                placeholder="Image URL"
-              />
-            </div>
+              <div>
+                <label className={labelClass}>Destination URL (opened when the ad is clicked on the website)</label>
+                <Input value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)} placeholder="https://..." />
+              </div>
 
-            <div>
-              <label className="block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1">
-                Destination URL
-              </label>
-              <Input
-                value={targetUrl}
-                onChange={(e) => setTargetUrl(e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
+              <div>
+                <label className={labelClass}>Message link (used in Discord posts, optional)</label>
+                <Input value={messageLink} onChange={(e) => setMessageLink(e.target.value)} placeholder="Leave empty to use the destination URL" />
+              </div>
 
-            <Button type="submit" disabled={submitting} className="w-full font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
-              {submitting ? "Saving..." : "Save Campaign"}
-            </Button>
-          </form>
-        </Card>
+              <div>
+                <label className={labelClass}>Post impressions (empty = unlimited)</label>
+                <Input value={impressions} onChange={(e) => setImpressions(e.target.value)} inputMode="numeric" placeholder="e.g. 20" />
+                <p className="mt-1 text-[11px] text-neutral-500">The ad shows on the website only while it has post impressions left.</p>
+              </div>
 
-        {/* Active Campaigns Table */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Active Campaigns</h2>
-          <div className="space-y-3">
+              <div className="flex gap-2">
+                <Button type="submit" disabled={submitting || uploading} className="flex-1 font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
+                  {submitting ? "Saving..." : editingId ? "Save Changes" : "Save Ad"}
+                </Button>
+                {editingId && (
+                  <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            </form>
+          </Card>
+
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Organizers and Ads</h2>
             {loading ? (
               <div className="flex items-center justify-center p-8 text-neutral-500">
-                <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading campaigns...
+                <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading ads...
               </div>
-            ) : campaigns.length === 0 ? (
+            ) : groups.length === 0 && unassigned.length === 0 ? (
               <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
-                No active campaigns found. Create your first campaign above.
+                No ads yet. Create the first one on the left.
               </div>
             ) : (
-              campaigns.map((c) => (
-                <Card key={c.id} className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{c.title || c.name}</h3>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">{c.format || (c.zone === "sidebar_rectangle" ? "512x180" : "1024x180")}</span>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCampaign(c.id)}
-                        className="text-neutral-400 hover:text-red-500 transition cursor-pointer p-1"
-                        title="Delete Campaign"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                    <span>Client: {c.advertiserName}</span>
-                    <span>Zone: {c.zone}</span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-200 dark:border-neutral-800">
-                    <span>Impressions: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0).toLocaleString()}</strong></span>
-                    <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount || 0}</strong></span>
-                    <span>CTR: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0) > 0 ? (((c.clicksCount || 0) / c.impressionsCount) * 100).toFixed(2) : "0.00"}%</strong></span>
-                  </div>
-                </Card>
-              ))
+              <>
+                {groups.map(({ organizer, ads }) => (
+                  <Card key={organizer.id} className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-3">
+                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
+                      {organizer.name} <span className="font-normal text-neutral-500">({ads.length} {ads.length === 1 ? "ad" : "ads"})</span>
+                    </h3>
+                    {ads.length === 0 ? <p className="text-xs text-neutral-500">No ads yet.</p> : ads.map(renderAd)}
+                  </Card>
+                ))}
+                {unassigned.length > 0 && (
+                  <Card className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-3">
+                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">No organizer</h3>
+                    {unassigned.map(renderAd)}
+                  </Card>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
-    </div>
     </AdminAuthGuard>
   );
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { adCampaigns } from "@/db/schema";
-import { eq, and, lte, gte } from "drizzle-orm";
+import { eq, and, lte, gte, or, isNull, sql } from "drizzle-orm";
 
 export const runtime = "edge";
 
@@ -37,7 +37,12 @@ export async function GET(request: NextRequest) {
           eq(adCampaigns.zone, targetZone),
           eq(adCampaigns.status, "active"),
           lte(adCampaigns.startDate, now),
-          gte(adCampaigns.endDate, now)
+          gte(adCampaigns.endDate, now),
+          // Show an ad only while it has post impressions left (null = unlimited).
+          or(
+            isNull(adCampaigns.postImpressionsPurchased),
+            sql`${adCampaigns.postImpressionsUsed} < ${adCampaigns.postImpressionsPurchased}`
+          )
         )
       );
 
@@ -48,13 +53,21 @@ export async function GET(request: NextRequest) {
     // Pick random active ad for rotation
     const chosen = activeAds[Math.floor(Math.random() * activeAds.length)];
 
-    // Increment impressions in background
+    // Atomic increment so concurrent views are not lost.
     await db
       .update(adCampaigns)
-      .set({ impressionsCount: chosen.impressionsCount + 1 })
+      .set({ impressionsCount: sql`${adCampaigns.impressionsCount} + 1` })
       .where(eq(adCampaigns.id, chosen.id));
 
-    return NextResponse.json({ ad: chosen });
+    return NextResponse.json({
+      ad: {
+        id: chosen.id,
+        title: chosen.name,
+        imageUrl: chosen.imageUrl,
+        targetUrl: chosen.targetUrl,
+        zone: chosen.zone,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to fetch ad" }, { status: 500 });
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { adCampaigns } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "edge";
@@ -25,7 +25,7 @@ export async function GET(
         if (rateLimit.allowed) {
           await db
             .update(adCampaigns)
-            .set({ clicksCount: (ad[0].clicksCount || 0) + 1 })
+            .set({ clicksCount: sql`${adCampaigns.clicksCount} + 1` })
             .where(eq(adCampaigns.id, id));
         }
 
