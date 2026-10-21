@@ -15,16 +15,20 @@ export const TEMPLATE = {
   // Advert strip.
   ad: { x: 0, y: 844, w: 1024, h: 180 },
   headline: {
+    // Adrien's text frame is X 189.8, W 813.3 (right edge 1003.1). The example's text starts
+    // at x 221, so the frame has an inset: text starts at 220 and wraps at the same right edge.
     x: 220,
-    maxWidth: 802,
+    maxWidth: 783,
     firstBaseline: 44,
     lineHeight: 38,
     fontSize: 41.3,
     maxLines: 3,
   },
   body: {
-    x: 12,
-    maxWidth: 989,
+    // Frame is X 11.8, W 991.4. Wrapping at the full width would pull "(8" up to the end of
+    // line 5 (it fits by 0.1 px), unlike the example, so wrap just under it.
+    x: 11.8,
+    maxWidth: 990,
     firstBaseline: 149,
     lineHeight: 25,
     fontSize: 19.6,
