@@ -232,3 +232,35 @@ export const userModeration = sqliteTable("user_moderation", {
   moderatedBy: text("moderated_by").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
+
+// 15. Posts (generated post images, approved by leadership and published to Discord)
+export const posts = sqliteTable("posts", {
+  id: text("id").primaryKey(),
+  headline: text("headline").notNull(),
+  body: text("body").notNull().default(""),
+  logo: text("logo").notNull().default(""),
+  // Roblox Ro-State the post is for; decides which Discord feed it goes to.
+  roState: text("ro_state", {
+    enum: ["harrison", "ridgeway", "madison", "clark", "firestone", "international"],
+  }).notNull(),
+  // The ad used (null = boilerplate "your advertisement here"). Organizer name and links
+  // are copied at creation so later ad edits do not change an existing post.
+  adId: text("ad_id").references(() => adCampaigns.id, { onDelete: "set null" }),
+  organizationName: text("organization_name"),
+  messageLink: text("message_link"),
+  backgroundUrl: text("background_url"),
+  imageUrl: text("image_url").notNull(),
+  status: text("status", {
+    enum: ["pending", "approved", "denied"],
+  }).notNull().default("pending"),
+  denyReason: text("deny_reason"),
+  decidedBy: text("decided_by").references(() => users.id),
+  decidedAt: integer("decided_at", { mode: "timestamp" }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  // Filled in by the Discord integration.
+  ftnPlusMessageId: text("ftn_plus_message_id"),
+  feedChannelId: text("feed_channel_id"),
+  feedMessageId: text("feed_message_id"),
+});

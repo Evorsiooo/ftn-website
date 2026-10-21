@@ -50,7 +50,8 @@ export async function POST(request: NextRequest) {
     };
     try {
       await getDb(d1).insert(organizers).values(organizer);
-    } catch {
+    } catch (err: any) {
+      if (!String(err?.cause?.message || err?.message).includes("UNIQUE")) throw err;
       return NextResponse.json({ error: "An organizer with this name already exists" }, { status: 409 });
     }
     return NextResponse.json({ organizer }, { status: 201 });

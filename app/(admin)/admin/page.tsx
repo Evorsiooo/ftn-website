@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
-import { Shield, Newspaper, Trophy, Radio, DollarSign, MessageSquare, Settings } from "lucide-react";
+import { Shield, Newspaper, Trophy, Radio, DollarSign, MessageSquare, Settings, Images } from "lucide-react";
 import {
   canPublishArticles,
   canManageRadio,
   canManageSports,
   canManageAds,
+  canManagePosts,
   canAssignRoles,
   canConfigureSite,
 } from "@/lib/rbac";
@@ -34,6 +35,7 @@ export default function AdminCentralDashboard() {
   const showSports = canManageSports(roles);
   const showRadio = canManageRadio(roles);
   const showAds = canManageAds(roles);
+  const showPosts = canManagePosts(roles);
   const showTips = canPublishArticles(roles) || canConfigureSite(roles);
   const showRoles = canAssignRoles(roles);
   const showSettings = canConfigureSite(roles);
@@ -103,6 +105,20 @@ export default function AdminCentralDashboard() {
                 <Link href="/admin/ads" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
                   <DollarSign className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                   <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Advertisements →</span>
+                </Link>
+              }
+              className="md:col-span-1"
+            />
+          )}
+
+          {showPosts && (
+            <BentoGridItem
+              title="Posts"
+              description="Design news posts with an ad, send them for approval and track them."
+              header={
+                <Link href="/admin/posts" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
+                  <Images className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Posts →</span>
                 </Link>
               }
               className="md:col-span-1"
