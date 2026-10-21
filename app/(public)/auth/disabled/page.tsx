@@ -6,7 +6,7 @@ export const runtime = "edge";
 
 export default function AuthDisabledPage() {
   return (
-    <div className="min-h-[70vh] w-full bg-neutral-50 text-neutral-900 dark:bg-black dark:text-white flex flex-col items-center justify-center p-6 space-y-6">
+    <div className="min-h-[70vh] w-full bg-neutral-50 text-neutral-900 dark:bg-black dark:text-white flex flex-col items-center justify-center px-6 pt-24 pb-12 space-y-6">
       <div className="text-center space-y-4 max-w-sm">
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
           Sign in currently disabled

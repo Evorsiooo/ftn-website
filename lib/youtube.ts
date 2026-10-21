@@ -1,5 +1,5 @@
 import { DbClient } from "@/db";
-import { videos } from "@/db/schema";
+import { videos, siteSettings } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 
 export interface YouTubeVideoItem {
@@ -570,3 +570,182 @@ export async function syncYouTubeChannel(
     return 0;
   }
 }
+
+/**
+ * Synchronizes all configured YouTube channels into Cloudflare D1.
+ * Runs all channels concurrently via Promise.allSettled for maximum speed.
+ * Enforces cooldown to protect quota, and updates youtube_last_sync only upon completion.
+ */
+export async function syncAllConfiguredChannels(
+  db: DbClient,
+  options?: {
+    force?: boolean;
+    channelIds?: string[];
+    cooldownMs?: number;
+    apiKey?: string;
+  }
+): Promise<{
+  success: boolean;
+  synced: number;
+  channels: Array<{ channel: string; count: number }>;
+  message: string;
+  skipped?: boolean;
+}> {
+  const cooldownMs = options?.cooldownMs ?? 60 * 1000; // Default: 60s cooldown
+
+  // 1. Check cooldown unless forced
+  if (!options?.force) {
+    try {
+      const syncRow = await db
+        .select()
+        .from(siteSettings)
+        .where(eq(siteSettings.key, "youtube_last_sync"))
+        .limit(1);
+
+      if (syncRow.length > 0) {
+        const lastSyncTime = Number(syncRow[0].valueJson) || 0;
+        const elapsed = Date.now() - lastSyncTime;
+        if (elapsed < cooldownMs) {
+          return {
+            success: true,
+            synced: 0,
+            channels: [],
+            message: `Sync cooldown active (last synced ${Math.round(elapsed / 1000)}s ago).`,
+            skipped: true,
+          };
+        }
+      }
+    } catch (cdErr) {
+      console.warn("Cooldown check error:", cdErr);
+    }
+  }
+
+  // 2. Determine target channels
+  const targetChannels: string[] = [];
+
+  if (Array.isArray(options?.channelIds) && options.channelIds.length > 0) {
+    options.channelIds.forEach((c) => {
+      if (c && typeof c === "string" && c.trim() && !targetChannels.includes(c.trim())) {
+        targetChannels.push(c.trim());
+      }
+    });
+  }
+
+  // If no channels passed, load from site_settings main_config
+  if (targetChannels.length === 0) {
+    try {
+      const settingsRows = await db
+        .select()
+        .from(siteSettings)
+        .where(eq(siteSettings.key, "main_config"))
+        .limit(1);
+
+      if (settingsRows.length > 0) {
+        const config = JSON.parse(settingsRows[0].valueJson);
+        if (Array.isArray(config.youtubeChannels)) {
+          config.youtubeChannels.forEach((c: any) => {
+            if (c && typeof c === "string" && c.trim() && !targetChannels.includes(c.trim())) {
+              targetChannels.push(c.trim());
+            }
+          });
+        }
+      }
+    } catch (cfgErr) {
+      console.warn("Failed to load configured channels from site_settings:", cfgErr);
+    }
+  }
+
+  if (targetChannels.length === 0) {
+    return {
+      success: true,
+      synced: 0,
+      channels: [],
+      message: "No YouTube channels are currently configured to sync.",
+      skipped: true,
+    };
+  }
+
+  // 3. Execute channel sync across all channels concurrently
+  const results = await Promise.allSettled(
+    targetChannels.map(async (channel) => {
+      const count = await syncYouTubeChannel(db, channel, options?.apiKey);
+      return { channel, count };
+    })
+  );
+
+  let totalSynced = 0;
+  const channelResults: Array<{ channel: string; count: number }> = [];
+
+  for (let i = 0; i < results.length; i++) {
+    const res = results[i];
+    const chan = targetChannels[i];
+    if (res.status === "fulfilled") {
+      totalSynced += res.value.count;
+      channelResults.push(res.value);
+    } else {
+      console.warn(`Sync error for channel ${chan}:`, res.reason);
+      channelResults.push({ channel: chan, count: 0 });
+    }
+  }
+
+  // 4. Update last sync timestamp in siteSettings only AFTER sync completes
+  try {
+    const strNow = String(Date.now());
+    const syncRow = await db
+      .select()
+      .from(siteSettings)
+      .where(eq(siteSettings.key, "youtube_last_sync"))
+      .limit(1);
+
+    if (syncRow.length > 0) {
+      await db
+        .update(siteSettings)
+        .set({ valueJson: strNow, updatedAt: new Date() })
+        .where(eq(siteSettings.key, "youtube_last_sync"));
+    } else {
+      await db.insert(siteSettings).values({
+        key: "youtube_last_sync",
+        valueJson: strNow,
+        updatedAt: new Date(),
+      });
+    }
+  } catch (timeErr) {
+    console.warn("Failed to update youtube_last_sync timestamp:", timeErr);
+  }
+
+  return {
+    success: true,
+    synced: totalSynced,
+    channels: channelResults,
+    message: `Synced ${channelResults.length} channel(s). Total videos updated: ${totalSynced}.`,
+  };
+}
+
+/**
+ * Checks whether a video matches any channel in a list of channel targets.
+ * Matches against channelId, channelHandle (with or without @), or channelTitle (case-insensitive).
+ */
+export function isChannelMatching(
+  video: { channelId?: string | null; channelHandle?: string | null; channelTitle?: string | null },
+  channelTargets: string[]
+): boolean {
+  if (!channelTargets || channelTargets.length === 0 || !video) return false;
+  const vId = (video.channelId || "").toLowerCase();
+  const vHandle = (video.channelHandle || "").toLowerCase();
+  const vTitle = (video.channelTitle || "").toLowerCase();
+  const vHandleNoAt = vHandle.replace(/^@/, "");
+
+  return channelTargets.some((target) => {
+    if (!target) return false;
+    const t = target.trim().toLowerCase();
+    const tNoAt = t.replace(/^@/, "");
+
+    return (
+      (vId && vId === t) ||
+      (vHandleNoAt && (vHandleNoAt === tNoAt || vHandle === t)) ||
+      (vTitle && vTitle === t)
+    );
+  });
+}
+
+

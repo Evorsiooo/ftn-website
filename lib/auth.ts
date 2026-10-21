@@ -12,21 +12,22 @@ export interface RobloxUser {
   roles: string[];
 }
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "ftn-media-group-internal-jwt-signing-secret"
-);
+function getJwtSecret(): Uint8Array {
+  const secret = process.env.JWT_SECRET || "ftn-media-group-internal-jwt-signing-secret";
+  return new TextEncoder().encode(secret);
+}
 
 export async function createSessionToken(user: RobloxUser): Promise<string> {
   return new SignJWT({ user })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifySessionToken(token: string, db?: DbClient): Promise<RobloxUser | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     const user = (payload.user as RobloxUser) || null;
     if (!user) return null;
 

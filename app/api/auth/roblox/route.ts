@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
   }
 
   const returnUrl = searchParams.get("returnUrl");
-  const safeReturn = returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//") ? returnUrl : "/";
+  const isSafePath = returnUrl && /^\/[a-zA-Z0-9_\-\.\/?#&%=]*$/.test(returnUrl) && !returnUrl.startsWith("//");
+  const safeReturn = isSafePath ? returnUrl : "/";
 
   const authUrl = getRobloxAuthUrl(clientId, redirectUri, state);
   const response = NextResponse.redirect(authUrl);

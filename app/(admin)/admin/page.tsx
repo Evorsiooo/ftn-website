@@ -39,7 +39,7 @@ export default function AdminCentralDashboard() {
   const showSettings = canConfigureSite(roles);
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 sm:px-8 py-10 space-y-8 text-neutral-900 dark:text-white">
+    <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
       <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white">
           Admin Portal

@@ -8,6 +8,7 @@ import { Clock, Newspaper } from "lucide-react";
 import { getDb } from "@/db";
 import { videos, siteSettings } from "@/db/schema";
 import { getPublishedArticles } from "@/lib/articles";
+import { syncAllConfiguredChannels, isChannelMatching } from "@/lib/youtube";
 import { desc, eq } from "drizzle-orm";
 
 export default async function HomePage() {
@@ -19,6 +20,11 @@ export default async function HomePage() {
     if (d1) {
       const db = getDb(d1);
 
+      // Automatically sync configured YouTube channels if cooldown has passed
+      try {
+        await syncAllConfiguredChannels(db, { cooldownMs: 60 * 1000 });
+      } catch {}
+
       // 1. Fetch published articles from D1 joined with author info
       articleList = await getPublishedArticles(db, { limit: 50 });
 
@@ -28,8 +34,9 @@ export default async function HomePage() {
         .from(videos)
         .orderBy(desc(videos.publishedAt));
 
-      // Filter hidden video IDs
+      // Filter hidden video IDs and hidden featured channels
       let hiddenVideoIds: string[] = [];
+      let hiddenFeaturedChannels: string[] = [];
       const settingsRows = await db
         .select()
         .from(siteSettings)
@@ -40,6 +47,7 @@ export default async function HomePage() {
         try {
           const config = JSON.parse(settingsRows[0].valueJson);
           if (Array.isArray(config.hiddenVideoIds)) hiddenVideoIds = config.hiddenVideoIds;
+          if (Array.isArray(config.hiddenFeaturedChannels)) hiddenFeaturedChannels = config.hiddenFeaturedChannels;
         } catch {}
       }
 
@@ -57,11 +65,18 @@ export default async function HomePage() {
       });
 
       // Priority: Active live stream first, otherwise latest video published across all channels
-      const activeLives = sortedVisible.filter((v) => v.isLive === true);
-      if (activeLives.length > 0) {
-        featuredVideo = activeLives[0];
-      } else if (sortedVisible.length > 0) {
-        featuredVideo = sortedVisible[0];
+      // Channels in hiddenFeaturedChannels are excluded from being featured
+      const eligibleLives = sortedVisible.filter(
+        (v) => v.isLive === true && !isChannelMatching(v, hiddenFeaturedChannels)
+      );
+      const eligibleVideos = sortedVisible.filter(
+        (v) => !isChannelMatching(v, hiddenFeaturedChannels)
+      );
+
+      if (eligibleLives.length > 0) {
+        featuredVideo = eligibleLives[0];
+      } else if (eligibleVideos.length > 0) {
+        featuredVideo = eligibleVideos[0];
       }
     }
   } catch (err) {

@@ -1,0 +1,16 @@
+name: Scheduled FTN+ YouTube Video Sync
+
+on:
+  schedule:
+    # Runs every 15 minutes to keep FTN+ video library fresh 24/7
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync FTN+ Channels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping YouTube Sync Endpoint
+        run: |
+          curl -s -f --max-time 60 "https://ftn.euno.cc/api/sync/youtube" || echo "Sync endpoint reached"

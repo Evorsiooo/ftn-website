@@ -8,6 +8,10 @@ import { ArticleReadingClient } from "@/components/articles/article-reading-clie
 
 import { getArticleBySlug, getArticleComments } from "@/lib/articles";
 
+import { cookies } from "next/headers";
+import { verifySessionToken } from "@/lib/auth";
+import { canPublishArticles } from "@/lib/rbac";
+
 export async function generateMetadata({
   params,
 }: {
@@ -24,6 +28,17 @@ export async function generateMetadata({
       const db = getDb(d1);
       const article = await getArticleBySlug(db, slug);
       if (article) {
+        if (article.status !== "published") {
+          const cookieStore = await cookies();
+          const token = cookieStore.get("ftn_session")?.value;
+          const user = token ? await verifySessionToken(token) : null;
+          if (!user || !canPublishArticles(user.roles)) {
+            return {
+              title: "Article Not Found | FTN News",
+              description: "The requested article could not be found.",
+            };
+          }
+        }
         articleTitle = article.title;
         articleSummary = article.summary || articleSummary;
         if (article.coverImageUrl && article.coverImageUrl.trim().length > 0) {
@@ -72,8 +87,20 @@ export default async function ArticlePage({
       const db = getDb(d1);
       const matched = await getArticleBySlug(db, slug);
       if (matched) {
-        article = matched;
-        comments = await getArticleComments(db, matched.id);
+        let isAllowed = true;
+        if (matched.status !== "published") {
+          const cookieStore = await cookies();
+          const token = cookieStore.get("ftn_session")?.value;
+          const user = token ? await verifySessionToken(token) : null;
+          if (!user || !canPublishArticles(user.roles)) {
+            // Treat draft or archived articles as not found for non-editorial users
+            isAllowed = false;
+          }
+        }
+        if (isAllowed) {
+          article = matched;
+          comments = await getArticleComments(db, matched.id);
+        }
       }
     }
   } catch (err) {

@@ -13,7 +13,7 @@ import {
 } from "@tabler/icons-react";
 
 export function OTTPlayer({
-  youtubeId,
+  youtubeId: rawYoutubeId,
   title = "FTN Special Broadcast Stream",
   description = "",
   category,
@@ -33,6 +33,7 @@ export function OTTPlayer({
   publishedAt?: string | Date;
   isLive?: boolean;
 }) {
+  const youtubeId = (rawYoutubeId || "").replace(/[^a-zA-Z0-9_\-]/g, "");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
 

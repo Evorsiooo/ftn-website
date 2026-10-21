@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { videos, videoViews, siteSettings } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
-import { syncYouTubeChannel, verifyActiveLives } from "@/lib/youtube";
+import { syncAllConfiguredChannels, verifyActiveLives, isChannelMatching } from "@/lib/youtube";
 
 export const runtime = "edge";
 
@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     let configuredSwimlanes: any[] = [];
     let configuredChannels: string[] = [];
     let hiddenVideoIds: string[] = [];
+    let hiddenFeaturedChannels: string[] = [];
+    let hiddenTrendingChannels: string[] = [];
 
     try {
       const settingsRows = await db
@@ -43,6 +45,16 @@ export async function GET(request: NextRequest) {
           if (typeof config.allowSignIn === "boolean") allowSignIn = config.allowSignIn;
           if (Array.isArray(config.customSwimlanes)) configuredSwimlanes = config.customSwimlanes;
           if (Array.isArray(config.hiddenVideoIds)) hiddenVideoIds = config.hiddenVideoIds;
+          if (Array.isArray(config.hiddenFeaturedChannels)) {
+            hiddenFeaturedChannels = config.hiddenFeaturedChannels
+              .filter((c: any) => typeof c === "string" && c.trim())
+              .map((c: string) => c.trim());
+          }
+          if (Array.isArray(config.hiddenTrendingChannels)) {
+            hiddenTrendingChannels = config.hiddenTrendingChannels
+              .filter((c: any) => typeof c === "string" && c.trim())
+              .map((c: string) => c.trim());
+          }
           if (Array.isArray(config.youtubeChannels)) {
             configuredChannels = config.youtubeChannels
               .filter((c: any) => typeof c === "string" && c.trim())
@@ -54,83 +66,14 @@ export async function GET(request: NextRequest) {
       console.warn("Failed to query main_config:", cfgErr);
     }
 
-    // 2. Automated sync: Auto-sync configured channels every 60 seconds
-    const now = Date.now();
-    const SYNC_INTERVAL_MS = 60 * 1000; // 60 seconds (1 minute fast sync)
-
-    if (configuredChannels.length > 0) {
-      let lastSyncTime = 0;
-      try {
-        const syncRow = await db
-          .select()
-          .from(siteSettings)
-          .where(eq(siteSettings.key, "youtube_last_sync"))
-          .limit(1);
-
-        if (syncRow.length > 0) {
-          try {
-            lastSyncTime = Number(syncRow[0].valueJson) || 0;
-          } catch {}
-        }
-
-        if (now - lastSyncTime > SYNC_INTERVAL_MS) {
-          // Record timestamp lock immediately with conflict protection
-          const strNow = String(now);
-          if (syncRow.length > 0) {
-            try {
-              await db
-                .update(siteSettings)
-                .set({ valueJson: strNow, updatedAt: new Date() })
-                .where(eq(siteSettings.key, "youtube_last_sync"));
-            } catch {}
-          } else {
-            try {
-              await db.insert(siteSettings).values({
-                key: "youtube_last_sync",
-                valueJson: strNow,
-                updatedAt: new Date(),
-              });
-            } catch {
-              try {
-                await db
-                  .update(siteSettings)
-                  .set({ valueJson: strNow, updatedAt: new Date() })
-                  .where(eq(siteSettings.key, "youtube_last_sync"));
-              } catch {}
-            }
-          }
-
-          // Execute channel sync across all configured channels
-          const syncPromise = (async () => {
-            for (const chan of configuredChannels) {
-              try {
-                await syncYouTubeChannel(db, chan);
-              } catch (err) {
-                console.warn(`Auto-sync error for ${chan}:`, err);
-              }
-            }
-          })();
-
-          // Ensure Cloudflare Edge Worker keeps the execution context alive
-          try {
-            if ((request as any)?.waitUntil) {
-              (request as any).waitUntil(syncPromise);
-            } else {
-              await Promise.race([
-                syncPromise,
-                new Promise((resolve) => setTimeout(resolve, 1500)),
-              ]);
-            }
-          } catch {
-            await Promise.race([
-              syncPromise,
-              new Promise((resolve) => setTimeout(resolve, 1500)),
-            ]);
-          }
-        }
-      } catch (syncErr) {
-        console.warn("Auto-sync check bypassed:", syncErr);
-      }
+    // 2. Automated sync: Auto-sync configured channels if cooldown has passed
+    try {
+      await syncAllConfiguredChannels(db, {
+        cooldownMs: 60 * 1000,
+        channelIds: configuredChannels.length > 0 ? configuredChannels : undefined,
+      });
+    } catch (syncErr) {
+      console.warn("Auto-sync error:", syncErr);
     }
 
     // 3. Fetch all ingested videos
@@ -144,16 +87,11 @@ export async function GET(request: NextRequest) {
       console.error("Failed to query videos table:", vidErr);
     }
 
-    // 4. Real-time Live Status Verification: If any video is marked isLive, verify with YouTube API in background
+    // 4. Real-time Live Status Verification: If any video is marked isLive, verify with YouTube API
     try {
       const activeLivesInDb = rawVideos.filter((v) => v.isLive === true);
       if (activeLivesInDb.length > 0 && process.env.YOUTUBE_API_KEY) {
-        const verifyPromise = verifyActiveLives(db, activeLivesInDb).catch((err) => {
-          console.warn("Live verification error:", err);
-        });
-        if ((request as any)?.waitUntil) {
-          (request as any).waitUntil(verifyPromise);
-        }
+        await verifyActiveLives(db, activeLivesInDb);
       }
     } catch (liveErr) {
       console.warn("Live check error:", liveErr);
@@ -235,15 +173,20 @@ export async function GET(request: NextRequest) {
         return timeB - timeA;
       });
 
-    const trendingVideos = [...activeLives, ...nonLiveTrending];
+    const rawTrending = [...activeLives, ...nonLiveTrending];
+    const trendingVideos = rawTrending.filter((v) => !isChannelMatching(v, hiddenTrendingChannels));
 
     // 7. Featured Video Priority
     // If lives are running, feature the active live stream. Otherwise, feature the absolute latest video across all channels.
+    // Exclude channels configured in hiddenFeaturedChannels.
+    const eligibleLivesForFeatured = activeLives.filter((v) => !isChannelMatching(v, hiddenFeaturedChannels));
+    const eligibleVideosForFeatured = allVideos.filter((v) => !isChannelMatching(v, hiddenFeaturedChannels));
+
     let featuredVideo: any = null;
-    if (activeLives.length > 0) {
-      featuredVideo = activeLives[0]; // Active live stream
-    } else if (allVideos.length > 0) {
-      featuredVideo = allVideos[0]; // Guaranteed latest video published across all channels
+    if (eligibleLivesForFeatured.length > 0) {
+      featuredVideo = eligibleLivesForFeatured[0]; // Active live stream from eligible channel
+    } else if (eligibleVideosForFeatured.length > 0) {
+      featuredVideo = eligibleVideosForFeatured[0]; // Guaranteed latest video published across eligible channels
     }
 
     // 8. Map of allVideos by youtubeId for fast O(1) playlist hydration

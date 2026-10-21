@@ -87,7 +87,7 @@ export default function AdminRolesConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canAssignRoles} featureTitle="Staff Roles Management">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 py-10 space-y-8 text-neutral-900 dark:text-white">
+      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
       {/* Top Header with Back to Admin */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>

@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { adCampaigns } from "@/db/schema";
 import { verifySessionToken } from "@/lib/auth";
 import { canManageAds } from "@/lib/rbac";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export const runtime = "edge";
 
@@ -26,11 +26,49 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getDb(d1);
-    const campaigns = await db.select().from(adCampaigns).orderBy(desc(adCampaigns.createdAt));
+    const rawCampaigns = await db.select().from(adCampaigns).orderBy(desc(adCampaigns.createdAt));
+    const campaigns = rawCampaigns.map((c) => ({
+      ...c,
+      title: c.name,
+      format: c.zone === "sidebar_rectangle" ? "512x180" : "1024x180",
+    }));
     return NextResponse.json({ campaigns });
   } catch (error: any) {
     console.error("Load ad campaigns error:", error);
     return NextResponse.json({ error: "Failed to load campaigns" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "") || request.cookies.get("ftn_session")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await verifySessionToken(token);
+    if (!user || !canManageAds(user.roles)) {
+      return NextResponse.json({ error: "Forbidden: Commercial Division role required" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Missing campaign id" }, { status: 400 });
+    }
+
+    const d1 = (process.env as any).DB as D1Database;
+    if (!d1) {
+      return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
+    }
+
+    const db = getDb(d1);
+    await db.delete(adCampaigns).where(eq(adCampaigns.id, id));
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Delete ad campaign error:", error);
+    return NextResponse.json({ error: "Failed to delete campaign" }, { status: 500 });
   }
 }
 

@@ -4,6 +4,7 @@ import { leagues } from "@/db/schema";
 import { verifySessionToken } from "@/lib/auth";
 import { canManageSports } from "@/lib/rbac";
 import { slugify } from "@/lib/utils";
+import { eq } from "drizzle-orm";
 
 export const runtime = "edge";
 
@@ -100,5 +101,37 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ league: newLeague }, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message || "Failed to create league" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "") || request.cookies.get("ftn_session")?.value;
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const user = await verifySessionToken(token);
+    if (!user || !canManageSports(user.roles)) {
+      return NextResponse.json({ error: "Forbidden: Sports Division role required" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Missing league id" }, { status: 400 });
+    }
+
+    const d1 = (process.env as any).DB as D1Database;
+    if (!d1) {
+      return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
+    }
+
+    const db = getDb(d1);
+    await db.delete(leagues).where(eq(leagues.id, id));
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || "Failed to delete league" }, { status: 500 });
   }
 }

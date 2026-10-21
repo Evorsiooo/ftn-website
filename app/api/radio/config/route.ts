@@ -35,6 +35,8 @@ export interface SiteConfig {
   socialLinks: SocialLinkConfig[];
   customSwimlanes: CustomSwimlaneConfig[];
   hiddenVideoIds: string[];
+  hiddenFeaturedChannels?: string[];
+  hiddenTrendingChannels?: string[];
   autoModEnabled: boolean;
   autoModThreshold: number;
   autoModMuteDuration: "24h" | "1w" | "1m" | "indefinite";
@@ -48,6 +50,8 @@ const DEFAULT_CONFIG: SiteConfig = {
   authMode: "roblox",
   discordUrl: "https://discord.gg/ftn",
   youtubeChannels: [],
+  hiddenFeaturedChannels: [],
+  hiddenTrendingChannels: [],
   bannedWords: "fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy\nnigger\nfaggot",
   ftnPlusAccess: "public",
   tiplineAccess: "public",
@@ -160,6 +164,12 @@ export async function POST(req: Request) {
       socialLinks: Array.isArray(body.socialLinks) ? body.socialLinks.slice(0, 20) : inMemoryConfig.socialLinks,
       customSwimlanes: Array.isArray(body.customSwimlanes) ? body.customSwimlanes.slice(0, 50) : inMemoryConfig.customSwimlanes,
       hiddenVideoIds: Array.isArray(body.hiddenVideoIds) ? body.hiddenVideoIds.filter((id: any) => typeof id === "string" && id.trim()).map((id: string) => id.trim()) : inMemoryConfig.hiddenVideoIds || [],
+      hiddenFeaturedChannels: Array.isArray(body.hiddenFeaturedChannels)
+        ? body.hiddenFeaturedChannels.filter((c: any) => typeof c === "string" && c.trim()).map((c: string) => c.trim().slice(0, 100))
+        : inMemoryConfig.hiddenFeaturedChannels || [],
+      hiddenTrendingChannels: Array.isArray(body.hiddenTrendingChannels)
+        ? body.hiddenTrendingChannels.filter((c: any) => typeof c === "string" && c.trim()).map((c: string) => c.trim().slice(0, 100))
+        : inMemoryConfig.hiddenTrendingChannels || [],
       autoModEnabled: typeof body.autoModEnabled === "boolean" ? body.autoModEnabled : inMemoryConfig.autoModEnabled,
       autoModThreshold: typeof body.autoModThreshold === "number" ? Math.min(20, Math.max(1, body.autoModThreshold)) : inMemoryConfig.autoModThreshold,
       autoModMuteDuration: ["24h", "1w", "1m", "indefinite"].includes(body.autoModMuteDuration) ? body.autoModMuteDuration : inMemoryConfig.autoModMuteDuration,

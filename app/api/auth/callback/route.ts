@@ -17,9 +17,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/?error=missing_authorization_code", request.url));
     }
 
-    // CSRF state verification
-    if (expectedState && state && state !== expectedState) {
-      console.warn("Roblox OAuth CSRF state mismatch");
+    // Strict CSRF state verification
+    if (!expectedState || !state || state !== expectedState) {
+      console.warn("Roblox OAuth CSRF state mismatch or missing");
       return NextResponse.redirect(new URL("/?error=oauth_state_invalid", request.url));
     }
 
@@ -144,8 +144,10 @@ export async function GET(request: NextRequest) {
     }
 
     const token = await createSessionToken(user);
+
     const returnUrl = request.cookies.get("oauth_return_url")?.value || "/";
-    const safeTarget = returnUrl.startsWith("/") && !returnUrl.startsWith("//") && !returnUrl.startsWith("/\\") ? returnUrl : "/";
+    const isSafePath = /^\/[a-zA-Z0-9_\-\.\/?#&%=]*$/.test(returnUrl) && !returnUrl.startsWith("//");
+    const safeTarget = isSafePath ? returnUrl : "/";
 
     const response = NextResponse.redirect(new URL(safeTarget, request.url));
 

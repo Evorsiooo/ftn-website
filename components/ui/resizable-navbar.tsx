@@ -65,7 +65,7 @@ export const Navbar = ({ children, className }: NavbarProps) => {
       ref={ref}
       className={cn("fixed inset-x-0 top-0 z-50 w-full pt-4 px-4 pointer-events-none", className)}
     >
-      <div className="pointer-events-auto w-full">
+      <div className="pointer-events-none w-full">
         {React.Children.map(children, (child) =>
           React.isValidElement(child)
             ? React.cloneElement(
@@ -99,7 +99,7 @@ export const NavBody = ({ children, className, visible }: NavBodyProps) => {
         minWidth: "680px",
       }}
       className={cn(
-        "relative z-[60] mx-auto hidden w-full max-w-6xl flex-row items-center justify-between self-start rounded-full bg-white/85 border border-neutral-200/90 text-neutral-900 shadow-sm px-6 py-2.5 lg:flex backdrop-blur-md dark:bg-neutral-950/70 dark:border-neutral-800/80 dark:text-white dark:shadow-none",
+        "pointer-events-auto relative z-[60] mx-auto hidden w-full max-w-6xl flex-row items-center justify-between self-start rounded-full bg-white/85 border border-neutral-200/90 text-neutral-900 shadow-sm px-6 py-2.5 lg:flex backdrop-blur-md dark:bg-neutral-950/70 dark:border-neutral-800/80 dark:text-white dark:shadow-none",
         visible && "bg-white/95 border-neutral-300 shadow-md dark:bg-neutral-950/90 dark:border-neutral-700/80",
         className,
       )}
@@ -161,7 +161,7 @@ export const MobileNav = ({ children, className, visible }: MobileNavProps) => {
         damping: 40,
       }}
       className={cn(
-        "relative z-50 mx-auto flex w-full max-w-[calc(100vw-2rem)] flex-col items-center justify-between rounded-2xl bg-white/90 border border-neutral-200 text-neutral-900 shadow-md px-4 py-3 lg:hidden backdrop-blur-md dark:bg-neutral-950/80 dark:border-neutral-800 dark:text-neutral-100 dark:shadow-none",
+        "pointer-events-auto relative z-50 mx-auto flex w-full max-w-[calc(100vw-2rem)] flex-col items-center justify-between rounded-2xl bg-white/90 border border-neutral-200 text-neutral-900 shadow-md px-4 py-3 lg:hidden backdrop-blur-md dark:bg-neutral-950/80 dark:border-neutral-800 dark:text-neutral-100 dark:shadow-none",
         visible && "bg-white/95 border-neutral-300 dark:bg-neutral-950/95 dark:border-neutral-700",
         className,
       )}

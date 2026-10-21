@@ -117,13 +117,21 @@ export default function SiteSettingsPage() {
   // Profanity
   const [bannedWordsInput, setBannedWordsInput] = useState("fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy");
 
+  // Tab Navigation State
+  const [activeTab, setActiveTab] = useState<"general" | "auth" | "moderation" | "plus">("general");
+
   // YouTube Channels & Video Management
   const [youtubeChannels, setYoutubeChannels] = useState<string[]>([]);
   const [newChannelInput, setNewChannelInput] = useState("");
+  const [hiddenFeaturedChannels, setHiddenFeaturedChannels] = useState<string[]>([]);
+  const [hiddenTrendingChannels, setHiddenTrendingChannels] = useState<string[]>([]);
   const [hiddenVideoIds, setHiddenVideoIds] = useState<string[]>([]);
   const [ingestedVideos, setIngestedVideos] = useState<any[]>([]);
   const [videoSearchQuery, setVideoSearchQuery] = useState("");
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
+  const [loadingVideos, setLoadingVideos] = useState(false);
+  const [videosLoaded, setVideosLoaded] = useState(false);
+  const [visibleVideoCount, setVisibleVideoCount] = useState(25);
 
   // Custom Swimlanes
   const [swimlanes, setSwimlanes] = useState<CustomSwimlane[]>([]);
@@ -174,6 +182,8 @@ export default function SiteSettingsPage() {
           if (data.bannedWords !== undefined) setBannedWordsInput(data.bannedWords);
           if (Array.isArray(data.socialLinks)) setSocialLinks(data.socialLinks);
           if (Array.isArray(data.youtubeChannels)) setYoutubeChannels(data.youtubeChannels);
+          if (Array.isArray(data.hiddenFeaturedChannels)) setHiddenFeaturedChannels(data.hiddenFeaturedChannels);
+          if (Array.isArray(data.hiddenTrendingChannels)) setHiddenTrendingChannels(data.hiddenTrendingChannels);
           if (Array.isArray(data.customSwimlanes)) setSwimlanes(data.customSwimlanes);
           if (Array.isArray(data.hiddenVideoIds)) setHiddenVideoIds(data.hiddenVideoIds);
           if (data.autoModEnabled !== undefined) setAutoModEnabled(data.autoModEnabled);
@@ -183,17 +193,7 @@ export default function SiteSettingsPage() {
       })
       .catch(() => {});
 
-    // 2. Fetch all ingested videos for video management
-    fetch("/api/plus/videos")
-      .then((res) => res.json())
-      .then((data: any) => {
-        if (data && Array.isArray(data.videos)) {
-          setIngestedVideos(data.videos);
-        }
-      })
-      .catch(() => {});
-
-    // 3. Fetch registered users for moderation dropdown
+    // 2. Fetch registered users for moderation dropdown
     fetch("/api/admin/users")
       .then((res) => res.json())
       .then((data: any) => {
@@ -205,7 +205,49 @@ export default function SiteSettingsPage() {
 
     // 3. Fetch active moderations
     fetchModerations();
+
+    // 4. Sync initial tab from URL if present
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "general" || tabParam === "auth" || tabParam === "moderation" || tabParam === "plus") {
+        setActiveTab(tabParam);
+      }
+    }
   }, []);
+
+  const handleSelectTab = (tab: "general" | "auth" | "moderation" | "plus") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
+  const fetchVideosCatalog = async (force = false) => {
+    if ((videosLoaded && !force) || loadingVideos) return;
+    setLoadingVideos(true);
+    try {
+      const res = await fetch("/api/plus/videos");
+      const data = (await res.json()) as any;
+      if (data && Array.isArray(data.videos)) {
+        setIngestedVideos(data.videos);
+        setVideosLoaded(true);
+      }
+    } catch (err) {
+      console.error("Failed to load video catalog:", err);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  // Lazy-load videos on demand when plus tab is opened
+  useEffect(() => {
+    if (activeTab === "plus" && !videosLoaded) {
+      fetchVideosCatalog();
+    }
+  }, [activeTab, videosLoaded]);
 
   const handleSearchUsers = (query: string = userSearchQuery) => {
     if (!query.trim()) {
@@ -419,7 +461,51 @@ export default function SiteSettingsPage() {
   };
 
   const handleRemoveChannel = (ch: string) => {
-    setYoutubeChannels(youtubeChannels.filter((c) => c !== ch));
+    const updatedChannels = youtubeChannels.filter((c) => c !== ch);
+    const nextFeatured = hiddenFeaturedChannels.filter((c) => c !== ch);
+    const nextTrending = hiddenTrendingChannels.filter((c) => c !== ch);
+    setYoutubeChannels(updatedChannels);
+    setHiddenFeaturedChannels(nextFeatured);
+    setHiddenTrendingChannels(nextTrending);
+    fetch("/api/radio/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        youtubeChannels: updatedChannels,
+        hiddenFeaturedChannels: nextFeatured,
+        hiddenTrendingChannels: nextTrending,
+      }),
+    }).catch(() => {});
+  };
+
+  const handleToggleHideFeatured = async (channel: string) => {
+    const isHidden = hiddenFeaturedChannels.includes(channel);
+    const updated = isHidden
+      ? hiddenFeaturedChannels.filter((c) => c !== channel)
+      : [...hiddenFeaturedChannels, channel];
+    setHiddenFeaturedChannels(updated);
+    try {
+      await fetch("/api/radio/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hiddenFeaturedChannels: updated }),
+      });
+    } catch {}
+  };
+
+  const handleToggleHideTrending = async (channel: string) => {
+    const isHidden = hiddenTrendingChannels.includes(channel);
+    const updated = isHidden
+      ? hiddenTrendingChannels.filter((c) => c !== channel)
+      : [...hiddenTrendingChannels, channel];
+    setHiddenTrendingChannels(updated);
+    try {
+      await fetch("/api/radio/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hiddenTrendingChannels: updated }),
+      });
+    } catch {}
   };
 
   const handleAddSocialLink = (e: React.FormEvent) => {
@@ -697,6 +783,8 @@ export default function SiteSettingsPage() {
           socialLinks,
           bannedWords: bannedWordsInput,
           youtubeChannels,
+          hiddenFeaturedChannels,
+          hiddenTrendingChannels,
           customSwimlanes: swimlanes,
           hiddenVideoIds,
           autoModEnabled,
@@ -751,7 +839,7 @@ export default function SiteSettingsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
-      <div className="container mx-auto max-w-5xl px-4 sm:px-8 py-10 space-y-8 text-neutral-900 dark:text-white">
+      <div className="container mx-auto max-w-5xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
       {/* Top Header with Back Button */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <div>
@@ -787,8 +875,66 @@ export default function SiteSettingsPage() {
         </Button>
       </div>
 
-      {/* 1. Webradio Stream Settings */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      {/* Modern Tabs Navigation */}
+      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-neutral-200/60 dark:bg-neutral-900 border border-neutral-300/60 dark:border-neutral-800 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          onClick={() => handleSelectTab("general")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "general"
+              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
+              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+          }`}
+        >
+          <Radio className="h-3.5 w-3.5 text-[#00a9d2]" />
+          <span>General & Media</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectTab("auth")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "auth"
+              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
+              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+          }`}
+        >
+          <Lock className="h-3.5 w-3.5 text-[#00a9d2]" />
+          <span>Authentication & Users</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectTab("moderation")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "moderation"
+              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
+              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+          }`}
+        >
+          <Shield className="h-3.5 w-3.5 text-red-500" />
+          <span>Moderation & Safety</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleSelectTab("plus")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === "plus"
+              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
+              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+          }`}
+        >
+          <Video className="h-3.5 w-3.5 text-[#FFBB14]" />
+          <span>FTN+ Video Network</span>
+        </button>
+      </div>
+
+      {/* 1. GENERAL & MEDIA TAB */}
+      {activeTab === "general" && (
+        <div className="space-y-8">
+          {/* 1. Webradio Stream Settings */}
+          <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
             <Radio className="h-4 w-4 text-[#00a9d2]" />
@@ -882,6 +1028,83 @@ export default function SiteSettingsPage() {
         </div>
       </Card>
 
+      {/* 3. Discord & Social Media Links */}
+      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
+          <Share2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Discord & Social Media Links</h2>
+        </div>
+
+        <div className="space-y-6">
+          {/* Discord Button URL */}
+          <div className="space-y-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              Navbar Discord Button URL
+            </label>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              The purple Discord button next to FTN+ in the navigation bar links here.
+            </p>
+            <Input
+              value={discordUrl}
+              onChange={(e) => setDiscordUrl(e.target.value)}
+              placeholder="https://discord.gg/ftn"
+              className="font-mono text-xs"
+            />
+          </div>
+
+          {/* Custom Footer Social Links */}
+          <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              Footer Social Links ({socialLinks.length})
+            </label>
+
+            <form onSubmit={handleAddSocialLink} className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={newSocialName}
+                onChange={(e) => setNewSocialName(e.target.value)}
+                placeholder="Platform Name (e.g. Bluesky / Twitter)"
+                className="text-xs"
+              />
+              <Input
+                value={newSocialUrl}
+                onChange={(e) => setNewSocialUrl(e.target.value)}
+                placeholder="https://..."
+                className="font-mono text-xs"
+              />
+              <Button type="submit" size="sm" className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm">
+                <Plus className="h-3.5 w-3.5" /> Add Link
+              </Button>
+            </form>
+
+            <div className="space-y-2">
+              {socialLinks.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
+                >
+                  <div>
+                    <span className="text-xs font-bold text-neutral-900 dark:text-white mr-2">{link.name}:</span>
+                    <span className="font-mono text-xs text-neutral-600 dark:text-neutral-400">{link.url}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSocialLink(link.id)}
+                    className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )}
+
+  {/* 2. AUTHENTICATION & ACCESS CONTROL TAB */}
+  {activeTab === "auth" && (
+    <div className="space-y-8">
       {/* 2. Access Control, Authentication Mode & User Management */}
       <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
         <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
@@ -1364,79 +1587,12 @@ export default function SiteSettingsPage() {
           </div>
         </div>
       </Card>
+    </div>
+  )}
 
-      {/* 3. Discord & Social Media Links */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <Share2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Discord & Social Media Links</h2>
-        </div>
-
-        <div className="space-y-6">
-          {/* Discord Button URL */}
-          <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-              Navbar Discord Button URL
-            </label>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              The purple Discord button next to FTN+ in the navigation bar links here.
-            </p>
-            <Input
-              value={discordUrl}
-              onChange={(e) => setDiscordUrl(e.target.value)}
-              placeholder="https://discord.gg/ftn"
-              className="font-mono text-xs"
-            />
-          </div>
-
-          {/* Custom Footer Social Links */}
-          <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-              Footer Social Links ({socialLinks.length})
-            </label>
-
-            <form onSubmit={handleAddSocialLink} className="flex flex-col sm:flex-row gap-2">
-              <Input
-                value={newSocialName}
-                onChange={(e) => setNewSocialName(e.target.value)}
-                placeholder="Platform Name (e.g. Bluesky / Twitter)"
-                className="text-xs"
-              />
-              <Input
-                value={newSocialUrl}
-                onChange={(e) => setNewSocialUrl(e.target.value)}
-                placeholder="https://..."
-                className="font-mono text-xs"
-              />
-              <Button type="submit" size="sm" className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm">
-                <Plus className="h-3.5 w-3.5" /> Add Link
-              </Button>
-            </form>
-
-            <div className="space-y-2">
-              {socialLinks.map((link) => (
-                <div
-                  key={link.id}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
-                >
-                  <div>
-                    <span className="text-xs font-bold text-neutral-900 dark:text-white mr-2">{link.name}:</span>
-                    <span className="font-mono text-xs text-neutral-600 dark:text-neutral-400">{link.url}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSocialLink(link.id)}
-                    className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Card>
-
+  {/* 3. MODERATION & SAFETY TAB */}
+  {activeTab === "moderation" && (
+    <div className="space-y-8">
       {/* 4. User Moderation & Auto-Mod */}
       <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
         <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
@@ -1599,6 +1755,38 @@ export default function SiteSettingsPage() {
         </div>
       </Card>
 
+      {/* 7. Comment Profanity Filter */}
+      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
+          <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
+          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Comment Profanity Filter</h2>
+        </div>
+
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              Banned Words (One per line)
+            </label>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
+              Comments containing any of these words will be blocked and processed by auto-moderation.
+            </p>
+          </div>
+
+          <Textarea
+            value={bannedWordsInput}
+            onChange={(e) => setBannedWordsInput(e.target.value)}
+            rows={5}
+            placeholder="swear_word_1&#10;swear_word_2"
+            className="font-mono text-xs"
+          />
+        </div>
+      </Card>
+    </div>
+  )}
+
+  {/* 4. FTN+ VIDEO NETWORK TAB */}
+  {activeTab === "plus" && (
+    <div className="space-y-8">
       {/* 5. FTN+ YouTube Channels & Library Purge */}
       <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
@@ -1674,33 +1862,80 @@ export default function SiteSettingsPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {youtubeChannels.map((channel, idx) => (
-                <div
-                  key={idx}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
-                >
-                  <span className="font-mono text-xs text-neutral-800 dark:text-neutral-200">{channel}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveChannel(channel)}
-                    className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
+              {youtubeChannels.map((channel, idx) => {
+                const isFeaturedHidden = hiddenFeaturedChannels.includes(channel);
+                const isTrendingHidden = hiddenTrendingChannels.includes(channel);
+                return (
+                  <div
+                    key={idx}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+                    <span className="font-mono text-xs text-neutral-800 dark:text-neutral-200 truncate">{channel}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleToggleHideFeatured(channel)}
+                        className={`text-xs h-7 px-2.5 cursor-pointer transition ${
+                          isFeaturedHidden
+                            ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 font-medium"
+                            : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                        }`}
+                        title={
+                          isFeaturedHidden
+                            ? "Channel is hidden from FTN & FTN+ featured sections. Click to allow."
+                            : "Hide this channel's videos from FTN and FTN+ featured sections"
+                        }
+                      >
+                        {isFeaturedHidden ? "Hidden from featured" : "Hide channel from featured"}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleToggleHideTrending(channel)}
+                        className={`text-xs h-7 px-2.5 cursor-pointer transition ${
+                          isTrendingHidden
+                            ? "bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-400 font-medium"
+                            : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                        }`}
+                        title={
+                          isTrendingHidden
+                            ? "Channel is hidden from the trending swimlane. Click to allow."
+                            : "Hide this channel's videos from the trending swimlane"
+                        }
+                      >
+                        {isTrendingHidden ? "Hidden from trending" : "Hide channel from trending"}
+                      </Button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveChannel(channel)}
+                        className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
+                        title="Delete Channel"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
       </Card>
 
-      {/* 5b. Synced Video Library & Stream Visibility Controls */}
+        {/* 5b. Synced Video Library & Stream Visibility Controls */}
       <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
             <Film className="h-4 w-4 text-[#FFBB14]" />
             <div>
-              <h2 className="text-base font-bold text-neutral-900 dark:text-white">FTN+ Synced Video Catalog ({ingestedVideos.length})</h2>
+              <h2 className="text-base font-bold text-neutral-900 dark:text-white">
+                FTN+ Synced Video Catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}
+              </h2>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 Hide duplicate or superseded streams from appearing on FTN+ swimlanes and the homepage.
               </p>
@@ -1710,122 +1945,156 @@ export default function SiteSettingsPage() {
           <div className="w-full sm:w-64">
             <Input
               value={videoSearchQuery}
-              onChange={(e) => setVideoSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setVideoSearchQuery(e.target.value);
+                setVisibleVideoCount(25);
+              }}
               placeholder="Search synced videos..."
               className="text-xs h-8"
             />
           </div>
         </div>
 
-        {ingestedVideos.filter((v) =>
-          !videoSearchQuery.trim() ||
-          (v.title || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
-          (v.channelTitle || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
-          (v.youtubeId || "").toLowerCase().includes(videoSearchQuery.toLowerCase())
-        ).length === 0 ? (
-          <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-6 text-center text-xs text-neutral-500">
-            {ingestedVideos.length === 0 ? "No videos ingested yet. Use 'Sync Channels' to populate." : "No videos match your search query."}
+        {loadingVideos && !videosLoaded ? (
+          <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-12 text-center text-xs text-neutral-500 flex flex-col items-center justify-center space-y-3">
+            <RefreshCw className="h-6 w-6 animate-spin text-[#FFBB14]" />
+            <span>Loading synced video catalog...</span>
           </div>
-        ) : (
-          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-            {ingestedVideos
-              .filter((v) =>
-                !videoSearchQuery.trim() ||
-                (v.title || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
-                (v.channelTitle || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
-                (v.youtubeId || "").toLowerCase().includes(videoSearchQuery.toLowerCase())
-              )
-              .map((video) => {
-                const ytid = video.youtubeId || video.id;
-                const isHidden = hiddenVideoIds.includes(ytid) || hiddenVideoIds.includes(video.id);
+        ) : (() => {
+          const filteredVideos = ingestedVideos.filter((v) =>
+            !videoSearchQuery.trim() ||
+            (v.title || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
+            (v.channelTitle || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
+            (v.youtubeId || "").toLowerCase().includes(videoSearchQuery.toLowerCase())
+          );
+          const displayedVideos = filteredVideos.slice(0, visibleVideoCount);
+          const hasMoreVideos = filteredVideos.length > displayedVideos.length;
 
-                return (
-                  <div
-                    key={ytid}
-                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-3 transition ${
-                      isHidden
-                        ? "border-red-300 bg-red-50 dark:border-red-950/60 dark:bg-red-950/10 opacity-70"
-                        : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/80 hover:border-neutral-300 dark:hover:border-neutral-700"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={video.thumbnailUrl || `https://img.youtube.com/vi/${ytid}/hqdefault.jpg`}
-                        alt={video.title}
-                        className="h-12 w-20 rounded object-cover shrink-0 border border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-950"
-                      />
-                      <div className="space-y-0.5 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-neutral-900 dark:text-white truncate max-w-md" title={video.title}>
-                            {video.title}
-                          </span>
-                          {video.isLive && (
-                            <span className="rounded bg-red-600 px-1.5 py-0.2 text-[9px] font-bold uppercase text-white">
-                              LIVE
+          if (filteredVideos.length === 0) {
+            return (
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-6 text-center text-xs text-neutral-500">
+                {ingestedVideos.length === 0 ? "No videos ingested yet. Use 'Sync Channels' to populate." : "No videos match your search query."}
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-3">
+              <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+                {displayedVideos.map((video) => {
+                  const ytid = video.youtubeId || video.id;
+                  const isHidden = hiddenVideoIds.includes(ytid) || hiddenVideoIds.includes(video.id);
+
+                  return (
+                    <div
+                      key={ytid}
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-3 transition ${
+                        isHidden
+                          ? "border-red-300 bg-red-50 dark:border-red-950/60 dark:bg-red-950/10 opacity-70"
+                          : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/80 hover:border-neutral-300 dark:hover:border-neutral-700"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={video.thumbnailUrl || `https://img.youtube.com/vi/${ytid}/hqdefault.jpg`}
+                          alt={video.title}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-12 w-20 rounded object-cover shrink-0 border border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-950"
+                        />
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-neutral-900 dark:text-white truncate max-w-md" title={video.title}>
+                              {video.title}
                             </span>
-                          )}
-                          {isHidden && (
-                            <span className="rounded bg-red-100 border border-red-300 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300 px-1.5 py-0.2 text-[9px] font-bold uppercase">
-                              HIDDEN
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-                          <span>{video.channelTitle || "FTN"}</span>
-                          <span>•</span>
-                          <span className="text-neutral-400 dark:text-neutral-500">{ytid}</span>
+                            {video.isLive && (
+                              <span className="rounded bg-red-600 px-1.5 py-0.2 text-[9px] font-bold uppercase text-white">
+                                LIVE
+                              </span>
+                            )}
+                            {isHidden && (
+                              <span className="rounded bg-red-100 border border-red-300 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300 px-1.5 py-0.2 text-[9px] font-bold uppercase">
+                                HIDDEN
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                            <span>{video.channelTitle || "FTN"}</span>
+                            <span>•</span>
+                            <span className="text-neutral-400 dark:text-neutral-500">{ytid}</span>
+                          </div>
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                        <a
+                          href={`https://www.youtube.com/watch?v=${ytid}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition"
+                          title="Watch on YouTube"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </a>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleToggleHideVideo(ytid)}
+                          className={`text-xs h-7 px-2.5 gap-1.5 border-neutral-300 dark:border-neutral-800 cursor-pointer ${
+                            isHidden ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/60" : "text-neutral-700 hover:text-black dark:text-neutral-300 dark:hover:text-white"
+                          }`}
+                        >
+                          {isHidden ? (
+                            <>
+                              <Eye className="h-3 w-3" /> Unhide
+                            </>
+                          ) : (
+                            <>
+                              <EyeOff className="h-3 w-3" /> Hide
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="destructive"
+                          disabled={deletingVideoId === ytid}
+                          onClick={() => handleDeleteVideo(ytid, video.title)}
+                          className="text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/60 dark:hover:bg-red-900 dark:text-red-300 dark:border-red-800/60 cursor-pointer"
+                          title="Delete completely"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
 
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                      <a
-                        href={`https://www.youtube.com/watch?v=${ytid}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition"
-                        title="Watch on YouTube"
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleToggleHideVideo(ytid)}
-                        className={`text-xs h-7 px-2.5 gap-1.5 border-neutral-300 dark:border-neutral-800 cursor-pointer ${
-                          isHidden ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/60" : "text-neutral-700 hover:text-black dark:text-neutral-300 dark:hover:text-white"
-                        }`}
-                      >
-                        {isHidden ? (
-                          <>
-                            <Eye className="h-3 w-3" /> Unhide
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="h-3 w-3" /> Hide
-                          </>
-                        )}
-                      </Button>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="destructive"
-                        disabled={deletingVideoId === ytid}
-                        onClick={() => handleDeleteVideo(ytid, video.title)}
-                        className="text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/60 dark:hover:bg-red-900 dark:text-red-300 dark:border-red-800/60 cursor-pointer"
-                        title="Delete completely"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        )}
+              {/* Progressive Load More Footer */}
+              <div className="pt-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-t border-neutral-200 dark:border-neutral-800 text-xs text-neutral-500">
+                <span>
+                  Showing {displayedVideos.length} of {filteredVideos.length} video{filteredVideos.length === 1 ? "" : "s"}
+                  {filteredVideos.length < ingestedVideos.length ? ` (filtered from ${ingestedVideos.length})` : ""}
+                </span>
+                {hasMoreVideos && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setVisibleVideoCount((prev) => prev + 25)}
+                    className="text-xs h-7 px-3 border-neutral-300 text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:text-neutral-200 dark:hover:text-white cursor-pointer"
+                  >
+                    Load 25 More Videos
+                  </Button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* 6. Custom FTN+ Swimlanes (Dynamic Filter & Curated Playlist) */}
@@ -2318,33 +2587,8 @@ export default function SiteSettingsPage() {
           )}
         </div>
       </Card>
-
-      {/* 7. Comment Profanity Filter */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
-          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Comment Profanity Filter</h2>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-              Banned Words (One per line)
-            </label>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Comments containing any of these words will be blocked and processed by auto-moderation.
-            </p>
-          </div>
-
-          <Textarea
-            value={bannedWordsInput}
-            onChange={(e) => setBannedWordsInput(e.target.value)}
-            rows={5}
-            placeholder="swear_word_1&#10;swear_word_2"
-            className="font-mono text-xs"
-          />
-        </div>
-      </Card>
+    </div>
+  )}
     </div>
     </AdminAuthGuard>
   );

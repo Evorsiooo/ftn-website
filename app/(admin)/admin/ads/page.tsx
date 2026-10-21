@@ -1,40 +1,17 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
-import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign } from "lucide-react";
+import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign, Trash2, Loader2 } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canManageAds } from "@/lib/rbac";
 
 export default function AdminAdsConsole() {
-  const [campaigns, setCampaigns] = useState([
-    {
-      id: "c1",
-      title: "District Transit Authority Commuter Card",
-      advertiserName: "Metro Transit Corp",
-      format: "1024x180",
-      zone: "homepage_top",
-      impressionsCount: 14820,
-      clicksCount: 542,
-      status: "active",
-      startDate: "2026-08-01",
-      endDate: "2026-08-31",
-    },
-    {
-      id: "c2",
-      title: "Apex Motorsport Season 5 Grand Prix Ticket",
-      advertiserName: "Apex Racing League",
-      format: "512x180",
-      zone: "sports_sidebar",
-      impressionsCount: 8930,
-      clicksCount: 412,
-      status: "active",
-      startDate: "2026-08-10",
-      endDate: "2026-08-25",
-    },
-  ]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   const [title, setTitle] = useState("");
   const [advertiser, setAdvertiser] = useState("");
@@ -43,40 +20,92 @@ export default function AdminAdsConsole() {
   const [format, setFormat] = useState<"1024x180" | "512x180">("1024x180");
   const [zone, setZone] = useState("homepage_top");
 
-  const handleCreateCampaign = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !imageUrl.trim() || !targetUrl.trim()) return;
-
-    setCampaigns([
-      {
-        id: crypto.randomUUID(),
-        title: title.trim(),
-        advertiserName: advertiser.trim() || "Official Partner",
-        format,
-        zone,
-        impressionsCount: 0,
-        clicksCount: 0,
-        status: "active",
-        startDate: "2026-08-18",
-        endDate: "2026-09-18",
-      },
-      ...campaigns,
-    ]);
-
-    setTitle("");
-    setAdvertiser("");
-    setImageUrl("");
-    setTargetUrl("");
-    alert("Campaign created successfully.");
+  const loadCampaigns = async () => {
+    try {
+      const res = await fetch("/api/admin/ads");
+      if (res.ok) {
+        const data = (await res.json()) as any;
+        if (Array.isArray(data.campaigns)) {
+          setCampaigns(data.campaigns);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load campaigns:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const totalImpressions = campaigns.reduce((acc, c) => acc + c.impressionsCount, 0);
-  const totalClicks = campaigns.reduce((acc, c) => acc + c.clicksCount, 0);
+  useEffect(() => {
+    loadCampaigns();
+  }, []);
+
+  const handleCreateCampaign = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title.trim() || !imageUrl.trim() || !targetUrl.trim()) {
+      alert("Please fill in all required fields (title, image URL, and destination URL).");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/ads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          advertiserName: advertiser.trim() || "Official Partner",
+          format,
+          zone,
+          imageUrl: imageUrl.trim(),
+          targetUrl: targetUrl.trim(),
+        }),
+      });
+
+      const data = (await res.json()) as any;
+      if (!res.ok) {
+        alert(data.error || "Failed to create campaign");
+        return;
+      }
+
+      setTitle("");
+      setAdvertiser("");
+      setImageUrl("");
+      setTargetUrl("");
+      await loadCampaigns();
+    } catch (err) {
+      console.error("Create campaign error:", err);
+      alert("An unexpected error occurred while saving the campaign.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteCampaign = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this ad campaign?")) return;
+    try {
+      const res = await fetch(`/api/admin/ads?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setCampaigns((prev) => prev.filter((c) => c.id !== id));
+      } else {
+        const data = (await res.json()) as any;
+        alert(data.error || "Failed to delete campaign");
+      }
+    } catch (err) {
+      console.error("Delete campaign error:", err);
+      alert("Failed to delete campaign");
+    }
+  };
+
+  const totalImpressions = campaigns.reduce((acc, c) => acc + (c.impressionsCount || 0), 0);
+  const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicksCount || 0), 0);
   const averageCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0.00";
 
   return (
     <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Commercial & Advertisements Console">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 py-10 space-y-8 text-neutral-900 dark:text-white">
+      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
       <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
         <Link
           href="/admin"
@@ -196,8 +225,8 @@ export default function AdminAdsConsole() {
               />
             </div>
 
-            <Button type="submit" className="w-full font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm">
-              Save Campaign
+            <Button type="submit" disabled={submitting} className="w-full font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
+              {submitting ? "Saving..." : "Save Campaign"}
             </Button>
           </form>
         </Card>
@@ -206,23 +235,43 @@ export default function AdminAdsConsole() {
         <div className="space-y-4">
           <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Active Campaigns</h2>
           <div className="space-y-3">
-            {campaigns.map((c) => (
-              <Card key={c.id} className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{c.title}</h3>
-                  <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">{c.format}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-                  <span>Client: {c.advertiserName}</span>
-                  <span>Zone: {c.zone}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-200 dark:border-neutral-800">
-                  <span>Impressions: <strong className="text-neutral-900 dark:text-white">{c.impressionsCount.toLocaleString()}</strong></span>
-                  <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount}</strong></span>
-                  <span>CTR: <strong className="text-neutral-900 dark:text-white">{c.impressionsCount > 0 ? ((c.clicksCount / c.impressionsCount) * 100).toFixed(2) : 0}%</strong></span>
-                </div>
-              </Card>
-            ))}
+            {loading ? (
+              <div className="flex items-center justify-center p-8 text-neutral-500">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading campaigns...
+              </div>
+            ) : campaigns.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
+                No active campaigns found. Create your first campaign above.
+              </div>
+            ) : (
+              campaigns.map((c) => (
+                <Card key={c.id} className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{c.title || c.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400">{c.format || (c.zone === "sidebar_rectangle" ? "512x180" : "1024x180")}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCampaign(c.id)}
+                        className="text-neutral-400 hover:text-red-500 transition cursor-pointer p-1"
+                        title="Delete Campaign"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                    <span>Client: {c.advertiserName}</span>
+                    <span>Zone: {c.zone}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-200 dark:border-neutral-800">
+                    <span>Impressions: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0).toLocaleString()}</strong></span>
+                    <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount || 0}</strong></span>
+                    <span>CTR: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0) > 0 ? (((c.clicksCount || 0) / c.impressionsCount) * 100).toFixed(2) : "0.00"}%</strong></span>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
         </div>
       </div>
