@@ -8,6 +8,7 @@ import {
   FTN_PLUS_EMOJI,
   IS_COMPONENTS_V2,
   LEADERSHIP_CHANNEL_ID,
+  LEADERSHIP_ROLE_ID,
   discordApi,
   siteUrl,
 } from "@/lib/discord";
@@ -41,7 +42,7 @@ function learnMoreLine(post: Post): string | null {
   return `🔗  Learn more about ${post.organizationName}\n${post.messageLink}`;
 }
 
-// The message people see (FTN+ channel and feeds): optional text box, then the image.
+// The message people see (FTN+ channel and feeds): the image in a box of its own, then the optional text box (timed line, Learn more) beneath it.
 export function buildPostMessage(post: Post, timedLine: string | null = null, amendments: string[] = []) {
   const lines: string[] = [];
   if (timedLine) lines.push(timedLine, "");
@@ -49,10 +50,9 @@ export function buildPostMessage(post: Post, timedLine: string | null = null, am
   if (learnMore) lines.push(learnMore);
   for (const note of amendments) lines.push("", `*edit: ${note}*`);
 
-  const components: any[] = [];
+  const components: any[] = [{ type: 17, components: [{ type: 12, items: [{ media: { url: imageUrl(post) } }] }] }];
   const text = lines.join("\n").trim();
   if (text) components.push({ type: 17, components: [{ type: 10, content: text }] });
-  components.push({ type: 12, items: [{ media: { url: imageUrl(post) } }] });
   return { flags: IS_COMPONENTS_V2, components, allowed_mentions: { parse: [] } };
 }
 
@@ -72,12 +72,9 @@ export function buildLeadershipMessage(post: Post, creatorName: string | null) {
   if (post.status === "approved") status = `✅ Approved by ${post.decidedByLabel || "leadership"}`;
   if (post.status === "denied") status = `❌ Denied by ${post.decidedByLabel || "leadership"}: ${post.denyReason || "no reason given"}`;
 
-  const inner: any[] = [
-    { type: 10, content: status ? `${header}\n\n${status}` : header },
-    { type: 12, items: [{ media: { url: imageUrl(post) } }] },
-  ];
+  const image: any[] = [{ type: 12, items: [{ media: { url: imageUrl(post) } }] }];
   if (post.status === "pending") {
-    inner.push({
+    image.push({
       type: 1,
       components: [
         { type: 2, style: 3, label: "Approve", custom_id: `post:approve:${post.id}` },
@@ -88,8 +85,12 @@ export function buildLeadershipMessage(post: Post, creatorName: string | null) {
   const accent = post.status === "approved" ? 0x2ecc71 : post.status === "denied" ? 0xe74c3c : 0xf1c40f;
   return {
     flags: IS_COMPONENTS_V2,
-    components: [{ type: 17, accent_color: accent, components: inner }],
-    allowed_mentions: { parse: [] },
+    components: [
+      { type: 10, content: `<@&${LEADERSHIP_ROLE_ID}>` },
+      { type: 17, accent_color: accent, components: [{ type: 10, content: status ? `${header}\n\n${status}` : header }] },
+      { type: 17, accent_color: accent, components: image },
+    ],
+    allowed_mentions: { parse: [], roles: [LEADERSHIP_ROLE_ID] },
   };
 }
 
