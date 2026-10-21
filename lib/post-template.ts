@@ -61,7 +61,7 @@ export function logoForRoState(roState: string): string {
 }
 
 const ASSET_PATHS = {
-  box: "/post-template/BOX.png",
+  box: "/post-template/BOX.png?v=2",
   boilerplate: "/post-template/BOILERPLATE_ADVERT.png",
   notice: "/post-template/ADVERT_NOTICE.png",
   rounding: "/post-template/ROUNDING.png",
