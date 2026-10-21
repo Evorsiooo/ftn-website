@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth";
-import { canPublishArticles } from "@/lib/rbac";
+import { canManageAds, canManagePosts, canPublishArticles } from "@/lib/rbac";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "edge";
@@ -13,6 +13,15 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
   "image/png": "png",
   "image/webp": "webp",
   "image/gif": "gif",
+};
+
+// Upload folders and the permission each one requires. The folder is chosen by the
+// client via the optional "folder" form field; "articles" is the default so the
+// article editor keeps working unchanged.
+const UPLOAD_FOLDERS: Record<string, (roles: string[]) => boolean> = {
+  articles: canPublishArticles,
+  ads: canManageAds,
+  posts: canManagePosts,
 };
 
 function validateMagicBytes(buffer: Uint8Array, mime: string): boolean {
@@ -77,9 +86,9 @@ export async function POST(request: NextRequest) {
     }
 
     const user = await verifySessionToken(token);
-    if (!user || !canPublishArticles(user.roles)) {
+    if (!user || !user.roles || user.roles.length === 0) {
       return NextResponse.json(
-        { error: "Forbidden: Digital Publishing staff permissions required." },
+        { error: "Forbidden: Staff permissions required." },
         { status: 403 }
       );
     }
@@ -106,6 +115,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Invalid form data submission." },
         { status: 400 }
+      );
+    }
+
+    const folderField = formData.get("folder");
+    const folder = typeof folderField === "string" && folderField ? folderField : "articles";
+    const isAllowed = Object.hasOwn(UPLOAD_FOLDERS, folder) ? UPLOAD_FOLDERS[folder] : undefined;
+    if (!isAllowed) {
+      return NextResponse.json({ error: "Invalid upload folder." }, { status: 400 });
+    }
+    if (!isAllowed(user.roles)) {
+      return NextResponse.json(
+        { error: `Forbidden: you do not have permission to upload to "${folder}".` },
+        { status: 403 }
       );
     }
 
@@ -163,7 +185,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const year = now.getUTCFullYear();
     const month = String(now.getUTCMonth() + 1).padStart(2, "0");
-    const uniqueKey = `articles/${year}/${month}/${crypto.randomUUID()}.${extension}`;
+    const uniqueKey = `${folder}/${year}/${month}/${crypto.randomUUID()}.${extension}`;
 
     if (bucket) {
       await bucket.put(uniqueKey, arrayBuffer, {

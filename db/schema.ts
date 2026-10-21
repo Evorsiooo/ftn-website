@@ -163,6 +163,15 @@ export const radioShows = sqliteTable("radio_shows", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
+// 11a. Organizers (advertisers that own one or more ads)
+export const organizers = sqliteTable("organizers", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  logoUrl: text("logo_url"),
+  notes: text("notes"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
 // 11. Advertising Campaigns (Commercial Division)
 export const adCampaigns = sqliteTable("ad_campaigns", {
   id: text("id").primaryKey(),
@@ -182,6 +191,14 @@ export const adCampaigns = sqliteTable("ad_campaigns", {
   impressionsCount: integer("impressions_count").notNull().default(0),
   clicksCount: integer("clicks_count").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  // Posts feature: an ad belongs to an organizer (one organizer, many ads).
+  organizerId: text("organizer_id").references(() => organizers.id, { onDelete: "set null" }),
+  // Used in Discord posts; falls back to targetUrl when empty.
+  messageLink: text("message_link"),
+  // Post impressions bought for this ad (null = unlimited) and how many posts have used.
+  postImpressionsPurchased: integer("post_impressions_purchased"),
+  postImpressionsUsed: integer("post_impressions_used").notNull().default(0),
+  adFormat: text("ad_format", { enum: ["1024x180", "512x180"] }).notNull().default("1024x180"),
 });
 
 // 12. Anonymous Tipline Submissions (100% Tracking-Free)
