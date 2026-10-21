@@ -33,7 +33,8 @@ export async function PATCH(
         .update(organizers)
         .set({ name, notes: body.notes?.trim().slice(0, 500) || null })
         .where(eq(organizers.id, id));
-    } catch {
+    } catch (err: any) {
+      if (!String(err?.cause?.message || err?.message).includes("UNIQUE")) throw err;
       return NextResponse.json({ error: "An organizer with this name already exists" }, { status: 409 });
     }
     // Keep the denormalised advertiser name on the organizer's ads in sync.

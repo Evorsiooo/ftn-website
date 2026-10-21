@@ -64,6 +64,13 @@
       "when": 1792611640973,
       "tag": "0008_quick_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792612875056,
+      "tag": "0009_classy_wind_dancer",
+      "breakpoints": true
     }
   ]
 }
