@@ -379,7 +379,7 @@ export default function AdminPostsPage() {
 
           <div className="space-y-2 lg:sticky lg:top-24 self-start">
             <h2 className="text-lg font-bold">Live preview</h2>
-            <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[640px] rounded-xl border border-neutral-200 dark:border-neutral-800"
+            <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[640px]"
               style={CHECKERBOARD} />
             {previewError && <p className="text-xs text-red-600">{previewError}</p>}
           </div>
