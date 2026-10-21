@@ -1,14 +1,14 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, Check, Download, Loader2, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
-import { LOGOS, PostLayout, loadImage, renderPost } from "@/lib/post-template";
+import { PostLayout, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
 
 const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
 const fieldClass =
@@ -50,7 +50,6 @@ export default function AdminPostsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [headline, setHeadline] = useState("");
   const [body, setBody] = useState("");
-  const [logo, setLogo] = useState(LOGOS[0]?.key ?? "");
   const [roState, setRoState] = useState("");
   const [adId, setAdId] = useState("");
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
@@ -98,6 +97,7 @@ export default function AdminPostsPage() {
   }, [loadAll]);
 
   const selectedAd = ads.find((a) => a.id === adId) || null;
+  const logo = logoForRoState(roState);
 
   // Live preview: redraw the canvas whenever an input changes.
   useEffect(() => {
@@ -132,11 +132,24 @@ export default function AdminPostsPage() {
     })();
   }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd]);
 
+  // Downloads the image as it is now, without saving the post or using an ad impression.
+  const handleExport = async () => {
+    if (previewError || !canvasRef.current) return alert(previewError || "Preview is not ready.");
+    const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
+    if (!blob) return alert("Could not create the image");
+    const slug = headline.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${slug || "post"}.png`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setHeadline("");
     setBody("");
-    setLogo(LOGOS[0]?.key ?? "");
     setRoState("");
     setAdId("");
     setBackgroundUrl(null);
@@ -173,7 +186,6 @@ export default function AdminPostsPage() {
     setEditingId(post.id);
     setHeadline(post.headline);
     setBody(post.body || "");
-    setLogo(post.logo || "");
     setRoState(post.roState);
     setAdId(post.adId || "");
     setBackgroundUrl(post.backgroundUrl || null);
@@ -294,22 +306,13 @@ export default function AdminPostsPage() {
               {layout?.bodyTooLong && <p className="mt-1 text-[11px] text-red-600">Too long for the post.</p>}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3">
               <div>
                 <label className={labelClass}>Ro-State (required)</label>
                 <select value={roState} onChange={(e) => setRoState(e.target.value)} className={fieldClass}>
                   <option value="">Choose...</option>
                   {RO_STATES.map((s) => (
                     <option key={s.key} value={s.key}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Logo</label>
-                <select value={logo} onChange={(e) => setLogo(e.target.value)} className={fieldClass}>
-                  <option value="">None</option>
-                  {LOGOS.map((l) => (
-                    <option key={l.key} value={l.key}>{l.label}</option>
                   ))}
                 </select>
               </div>
@@ -364,6 +367,9 @@ export default function AdminPostsPage() {
             <div className="flex gap-2">
               <Button type="button" onClick={handleSave} disabled={saving || uploadingBg} className="flex-1 font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
                 {saving ? "Saving..." : editingId ? "Save Changes" : "Generate Post"}
+              </Button>
+              <Button type="button" variant="outline" onClick={handleExport} className="cursor-pointer">
+                <Download className="h-4 w-4 mr-1.5" /> Export post
               </Button>
               {editingId && (
                 <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">Cancel</Button>
