@@ -122,8 +122,8 @@ export async function DELETE(
       return NextResponse.json({ error: `Could not delete the Discord messages: ${discord.error}` }, { status: 502 });
     }
 
-    // A post that never went out gives its impression back; a published one keeps it.
-    if (rows[0].status !== "approved") await releaseAdImpression(db, rows[0].adId);
+    // Deleting gives the impression back, except for a denied post, which already gave it back.
+    if (rows[0].status !== "denied") await releaseAdImpression(db, rows[0].adId);
     await db.delete(posts).where(eq(posts.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {
