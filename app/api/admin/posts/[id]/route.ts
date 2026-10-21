@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { adCampaigns, posts } from "@/db/schema";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
+import { deletePostMessages, refreshPostMessages } from "@/lib/discord-posts";
 import { PostInput, consumeAdImpression, releaseAdImpression, resolveMessageLink, validatePostInput } from "@/lib/posts";
 
 export const runtime = "edge";
@@ -86,7 +87,9 @@ export async function PATCH(
     }
 
     await db.update(posts).set(values).where(eq(posts.id, id));
-    return NextResponse.json({ success: true });
+    // Keep the Discord messages in step with the edit.
+    const discord = await refreshPostMessages(db, id);
+    return NextResponse.json({ success: true, discordWarning: discord.ok ? undefined : discord.error });
   } catch (error) {
     console.error("Update post error:", error);
     return NextResponse.json({ error: "Failed to update post" }, { status: 500 });
@@ -110,6 +113,13 @@ export async function DELETE(
     if (rows.length === 0) return NextResponse.json({ error: "Post not found" }, { status: 404 });
     if (!canChange(auth.user, rows[0].createdBy)) {
       return NextResponse.json({ error: "Only the creator or leadership can delete this post" }, { status: 403 });
+    }
+
+    // Remove it from #ftn-plus, #leadership and the feed first. If Discord refuses, keep the
+    // post so it can be deleted again instead of leaving orphan messages behind.
+    const discord = await deletePostMessages(rows[0]);
+    if (!discord.ok) {
+      return NextResponse.json({ error: `Could not delete the Discord messages: ${discord.error}` }, { status: 502 });
     }
 
     // A post that never went out gives its impression back; a published one keeps it.

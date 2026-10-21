@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { adCampaigns, posts, users } from "@/db/schema";
 import { canManagePosts } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
+import { sendPostToDiscord } from "@/lib/discord-posts";
 import { PostInput, consumeAdImpression, releaseAdImpression, resolveMessageLink, validatePostInput } from "@/lib/posts";
 
 export const runtime = "edge";
@@ -83,7 +84,10 @@ export async function POST(request: NextRequest) {
       await releaseAdImpression(db, adId);
       throw err;
     }
-    return NextResponse.json({ post }, { status: 201 });
+    // Send it to #ftn-plus and #leadership. The post is saved either way; if Discord fails
+    // the page offers a Resend button.
+    const discord = await sendPostToDiscord(db, post.id);
+    return NextResponse.json({ post, discordWarning: discord.ok ? undefined : discord.error }, { status: 201 });
   } catch (error) {
     console.error("Create post error:", error);
     return NextResponse.json({ error: "Failed to create post" }, { status: 500 });

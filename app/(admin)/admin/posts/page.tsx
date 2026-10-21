@@ -216,6 +216,9 @@ export default function AdminPostsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to save post");
       resetForm();
       await loadAll();
+      if (data.discordWarning) {
+        alert(`The post was saved, but sending it to Discord failed:\n${data.discordWarning}\nUse Resend on the post to try again.`);
+      }
     } catch (err: any) {
       alert(err.message || "Failed to save post");
     } finally {
@@ -234,6 +237,12 @@ export default function AdminPostsPage() {
     }
   };
 
+  const handleResend = async (post: any) => {
+    const res = await fetch(`/api/admin/posts/${post.id}/resend`, { method: "POST" });
+    if (!res.ok) alert(((await res.json()) as any).error || "Failed to resend post");
+    await loadAll();
+  };
+
   const handleDecision = async (post: any, decision: "approve" | "deny") => {
     let reason = "";
     if (decision === "deny") {
@@ -245,7 +254,9 @@ export default function AdminPostsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision, reason }),
     });
-    if (!res.ok) alert(((await res.json()) as any).error || "Failed to save decision");
+    const data = (await res.json()) as any;
+    if (!res.ok) alert(data.error || "Failed to save decision");
+    else if (data.warning) alert(`Saved, but updating the Discord message failed:\n${data.warning}`);
     await loadAll();
   };
 
@@ -391,10 +402,17 @@ export default function AdminPostsPage() {
                       </p>
                       <p className="text-[11px]">
                         <span className={`font-semibold ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
+                        {p.decidedByLabel ? ` by ${p.decidedByLabel}` : ""}
                         {p.status === "denied" && p.denyReason ? ` — ${p.denyReason}` : ""}
                       </p>
                     </div>
+                    {p.status === "pending" && (!p.ftnPlusMessageId || !p.leadershipMessageId) && (
+                      <p className="text-[11px] text-red-600">Not fully sent to Discord yet.</p>
+                    )}
                     <div className="flex flex-wrap gap-1.5">
+                      {p.status === "pending" && canChange && (!p.ftnPlusMessageId || !p.leadershipMessageId) && (
+                        <Button size="sm" variant="outline" onClick={() => handleResend(p)} className="cursor-pointer">Resend to Discord</Button>
+                      )}
                       {p.status === "pending" && isLeadership && (
                         <>
                           <Button size="sm" onClick={() => handleDecision(p, "approve")} className="cursor-pointer"><Check className="h-3.5 w-3.5" /> Approve</Button>
