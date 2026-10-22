@@ -6,6 +6,7 @@ import { OTTBillboard, BillboardItem } from "@/components/ott/ott-billboard";
 import { OTTSwimlane } from "@/components/ott/ott-swimlane";
 import { PageShell, PageHeader } from "@/components/ftn/page";
 import { Button, Chip, EmptyState, GUTTER } from "@/components/ftn/ui";
+import { ContinueWatching } from "@/components/ftn/continue-watching";
 import { ChannelAvatar, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { useFTNPlus } from "@/lib/ftnplus-context";
 import { cn } from "@/lib/utils";
@@ -120,6 +121,8 @@ export default function LibraryPage() {
       {isAll && billboardItem && <OTTBillboard item={billboardItem} />}
 
       <div className={cn("space-y-10", isAll && billboardItem && "relative z-20 -mt-10")}>
+        {isAll && <ContinueWatching />}
+
         {loadingLibrary && <LaneSkeleton />}
 
         {isAll && trendingVideos.length > 0 && <OTTSwimlane title="Trending on FTN+" videos={trendingVideos} />}

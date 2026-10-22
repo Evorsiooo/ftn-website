@@ -6,6 +6,7 @@ import { OTTSwimlane } from "@/components/ott/ott-swimlane";
 import { PageShell } from "@/components/ftn/page";
 import { Button, EmptyState, GUTTER, Tag } from "@/components/ftn/ui";
 import { ArtTile, CardSurface, LaneSkeleton } from "@/components/ftn/media";
+import { ContinueWatching } from "@/components/ftn/continue-watching";
 import { OnAirStrip } from "@/components/ftn/on-air-strip";
 import { useSchedule, type ScheduleEntry } from "@/components/ftn/use-schedule";
 import { useFTNPlus } from "@/lib/ftnplus-context";
@@ -146,6 +147,8 @@ export default function FTNPlusHomePage() {
             </div>
           </section>
         )}
+
+        <ContinueWatching />
 
         {loadingLibrary && <LaneSkeleton />}
 

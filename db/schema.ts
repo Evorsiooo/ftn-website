@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
 
 // 1. Users (Roblox OAuth & Password Authenticated)
 export const users = sqliteTable("users", {
@@ -122,6 +122,19 @@ export const videoViews = sqliteTable("video_views", {
   videoId: text("video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
   viewedAt: integer("viewed_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
+
+// 7b. Watch progress (FTN+ Continue watching). Keyed by YouTube id so curated external videos work too.
+export const watchProgress = sqliteTable(
+  "watch_progress",
+  {
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    youtubeId: text("youtube_id").notNull(),
+    positionSeconds: integer("position_seconds").notNull(),
+    durationSeconds: integer("duration_seconds").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.youtubeId] }), index("watch_progress_user_updated_idx").on(t.userId, t.updatedAt)]
+);
 
 // 8. Sports (FTN+ Sports)
 // A league is a racing series or a team competition; one active season per league.
