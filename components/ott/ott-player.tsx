@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   IconArrowLeft,
@@ -12,6 +12,13 @@ import {
   IconCalendar,
 } from "@tabler/icons-react";
 import { Button, LivePill } from "@/components/ftn/ui";
+import {
+  fetchServerProgress,
+  isResumable,
+  pushServerProgress,
+  readLocalProgress,
+  writeLocalProgress,
+} from "@/lib/watch-progress";
 
 export function OTTPlayer({
   youtubeId: rawYoutubeId,
@@ -37,6 +44,90 @@ export function OTTPlayer({
   const youtubeId = (rawYoutubeId || "").replace(/[^a-zA-Z0-9_\-]/g, "");
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  // null until the resume position is known, so the iframe loads once with the right start time.
+  const [startAt, setStartAt] = useState<number | null>(null);
+
+  // Resume position: the newest of this device's and the server's record.
+  useEffect(() => {
+    if (!youtubeId) return;
+    if (isLive) {
+      setStartAt(0);
+      return;
+    }
+    let done = false;
+    const finish = (seconds: number) => {
+      if (done) return;
+      done = true;
+      setStartAt(seconds);
+    };
+    const local = readLocalProgress().find((p) => p.youtubeId === youtubeId);
+    const timer = setTimeout(() => finish(local && isResumable(local) ? local.position : 0), 1200);
+    fetchServerProgress().then((server) => {
+      const remote = server.find((p) => p.youtubeId === youtubeId);
+      const best = [local, remote].filter(Boolean).sort((a: any, b: any) => b.updatedAt - a.updatedAt)[0];
+      clearTimeout(timer);
+      finish(best && isResumable(best) ? best.position : 0);
+    });
+    return () => clearTimeout(timer);
+  }, [youtubeId, isLive]);
+
+  // Record watch position from the embedded player (YouTube iframe postMessage API).
+  useEffect(() => {
+    if (!youtubeId || isLive || startAt === null) return;
+    const frame = iframeRef.current;
+    if (!frame) return;
+    let position = 0;
+    let duration = 0;
+    let lastLocal = 0;
+    let lastServer = 0;
+    const save = (force?: boolean) => {
+      if (!duration || position < 1) return;
+      const now = Date.now();
+      if (force || now - lastLocal > 5000) {
+        lastLocal = now;
+        writeLocalProgress({
+          youtubeId,
+          position,
+          duration,
+          updatedAt: now,
+          title,
+          thumbnailUrl: `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`,
+          channelId,
+          channelTitle,
+          channelLogoUrl,
+        });
+      }
+      if (force || now - lastServer > 20000) {
+        lastServer = now;
+        pushServerProgress(youtubeId, position, duration);
+      }
+    };
+    const onMessage = (e: MessageEvent) => {
+      if (e.source !== frame.contentWindow || typeof e.data !== "string") return;
+      try {
+        const msg = JSON.parse(e.data);
+        const info = msg?.info;
+        if (msg?.event === "infoDelivery" && info) {
+          if (typeof info.currentTime === "number") position = info.currentTime;
+          if (typeof info.duration === "number" && info.duration > 0) duration = info.duration;
+          save();
+        }
+      } catch {}
+    };
+    const listen = () =>
+      frame.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: "ftn-player", channel: "widget" }), "*");
+    frame.addEventListener("load", listen);
+    window.addEventListener("message", onMessage);
+    const onHide = () => save(true);
+    window.addEventListener("pagehide", onHide);
+    return () => {
+      frame.removeEventListener("load", listen);
+      window.removeEventListener("message", onMessage);
+      window.removeEventListener("pagehide", onHide);
+      save(true);
+    };
+  }, [youtubeId, isLive, startAt, title, channelId, channelTitle, channelLogoUrl]);
 
   useEffect(() => {
     // Record view analytics for 7-day trending
@@ -173,13 +264,16 @@ export function OTTPlayer({
       {/* 1. INITIAL FULL SCREEN VIEWPORT */}
       <div className="relative w-full h-screen bg-ftn-bg overflow-hidden">
         {/* Full-bleed YouTube Embed */}
+        {startAt !== null && (
         <iframe
-          src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1`}
+          ref={iframeRef}
+          src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${startAt > 0 ? `&start=${Math.floor(startAt)}` : ""}`}
           title={title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
           className="w-full h-full border-0 absolute inset-0 z-0"
         />
+        )}
 
         {/* Top Header Overlay: Back button positioned with isolated footprint */}
         <div className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 pointer-events-auto">

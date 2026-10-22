@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 import Link from "next/link";
 import { IconArrowNarrowLeft, IconArrowNarrowRight, IconChevronRight, IconPlayerPlay } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
-import { ArtBadge, GUTTER } from "./ui";
+import { ArtBadge, GUTTER, ProgressBar } from "./ui";
 
 /** Art with a consistent fallback (brand mark on a soft gradient). */
 export function ArtTile({
@@ -116,6 +116,7 @@ export function MediaCard({
   badgeLive,
   showPlay,
   corner,
+  progress,
   title,
   children,
   lead,
@@ -130,6 +131,8 @@ export function MediaCard({
   showPlay?: boolean;
   /** Top-right slot over the art (e.g. a remove button). */
   corner?: React.ReactNode;
+  /** 0 to 100: watched share, drawn along the bottom of the art. */
+  progress?: number;
   title: string;
   /** Meta lines under the title. */
   children?: React.ReactNode;
@@ -149,6 +152,11 @@ export function MediaCard({
       )}
       {badge && <ArtBadge live={badgeLive}>{badge}</ArtBadge>}
       {corner && <div className="absolute top-2 right-2 z-20">{corner}</div>}
+      {progress !== undefined && (
+        <div className="absolute inset-x-0 top-0 aspect-video z-10 flex items-end pointer-events-none">
+          <ProgressBar value={progress} className="rounded-none" />
+        </div>
+      )}
       <div className="p-3.5 flex items-start gap-2.5">
         {lead}
         <div className="min-w-0 flex-1 space-y-1">

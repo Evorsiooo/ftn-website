@@ -1,46 +1,15 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { IconHeadphones, IconPlayerPlay } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
-import { addDays } from "@/lib/schedule-client";
+import type { ScheduleEntry } from "./use-schedule";
 import { Button, GUTTER, LivePill, ProgressBar } from "./ui";
 import { ArtTile } from "./media";
 import { cn } from "@/lib/utils";
 
-interface Entry {
-  id: string;
-  title: string;
-  presenter: string | null;
-  artUrl: string | null;
-  onRadio: boolean;
-  onStream: boolean;
-  status: "scheduled" | "cancelled";
-  youtubeId: string | null;
-  start: string;
-  end: string;
-}
-
 /** "On air now" across radio and streams. Renders nothing when nothing is live. */
-export function OnAirStrip() {
+export function OnAirStrip({ live, now }: { live: ScheduleEntry[]; now: number }) {
   const { webradioEnabled } = useSiteConfig();
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const d = new Date();
-    const from = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1);
-    const to = addDays(from, 3);
-    fetch(`/api/schedule?from=${from.toISOString()}&to=${to.toISOString()}`)
-      .then((res) => res.json())
-      .then((data: any) => setEntries(Array.isArray(data?.schedule) ? data.schedule : []))
-      .catch(() => {});
-    const tick = setInterval(() => setNow(Date.now()), 30000);
-    return () => clearInterval(tick);
-  }, []);
-
-  const live = entries.filter(
-    (e) => e.status !== "cancelled" && new Date(e.start).getTime() <= now && new Date(e.end).getTime() > now
-  );
   if (live.length === 0) return null;
 
   return (

@@ -6,6 +6,7 @@ import { OTTLoader } from "@/components/ott/ott-loader";
 import { Button } from "@/components/ftn/ui";
 import {
   IconHome,
+  IconVideo,
   IconBookmark,
   IconCalendar,
   IconRadio,
@@ -81,10 +82,10 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       ),
     },
     {
-      label: "Saved",
-      href: "/plus/watchlist",
+      label: "Library",
+      href: "/plus/library",
       icon: (
-        <IconBookmark className="h-5 w-5 flex-shrink-0" />
+        <IconVideo className="h-5 w-5 flex-shrink-0" />
       ),
     },
     {
@@ -114,6 +115,13 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       href: "/plus/sports",
       icon: (
         <IconTrophy className="h-5 w-5 flex-shrink-0" />
+      ),
+    },
+    {
+      label: "Saved",
+      href: "/plus/watchlist",
+      icon: (
+        <IconBookmark className="h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
