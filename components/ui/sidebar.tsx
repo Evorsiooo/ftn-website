@@ -9,6 +9,8 @@ interface Links {
   label: string;
   href: string;
   icon: React.JSX.Element | React.ReactNode;
+  /** Leave the current app shell with a full page load instead of a client-side transition. */
+  hardNavigate?: boolean;
 }
 
 interface SidebarContextProps {
@@ -165,8 +167,9 @@ export const SidebarLink = ({
   props?: LinkProps;
 }) => {
   const { open, animate } = useSidebar();
+  const Anchor = link.hardNavigate ? "a" : Link;
   return (
-    <Link
+    <Anchor
       href={link.href}
       className={cn(
         "flex items-center justify-start gap-2 group/sidebar py-2",
@@ -185,6 +188,6 @@ export const SidebarLink = ({
       >
         {link.label}
       </motion.span>
-    </Link>
+    </Anchor>
   );
 };

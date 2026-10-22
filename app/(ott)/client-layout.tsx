@@ -14,14 +14,25 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { FTNPlusProvider } from "@/lib/ftnplus-context";
+import { FTNPlusProvider, useFTNPlus } from "@/lib/ftnplus-context";
 import { useSiteConfig } from "@/lib/site-config-context";
 
+// The provider sits above the session gate so the library request starts
+// immediately, in parallel with the session check, while the splash is shown.
 export default function OTTClientLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <FTNPlusProvider>
+      <OTTShell>{children}</OTTShell>
+    </FTNPlusProvider>
+  );
+}
+
+function OTTShell({ children }: { children: React.ReactNode }) {
+  const { loadingLibrary } = useFTNPlus();
   const [open, setOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [ftnPlusAccess, setFtnPlusAccess] = useState<"public" | "members_only">("public");
@@ -118,15 +129,19 @@ export default function OTTClientLayout({
     },
   ];
 
-  // While validating session on initial load, show clean black backdrop
+  const gated = ftnPlusAccess === "members_only" && !currentUser;
+  const splash = <OTTLoader ready={!loadingSession && (gated || !loadingLibrary)} />;
+
+  // While validating session on initial load, only the splash is visible
   if (loadingSession) {
-    return <div className="h-screen w-screen bg-black" />;
+    return <div className="h-screen w-screen bg-black">{splash}</div>;
   }
 
   // If members only and logged out: Mask and render only the clean black authentication screen
-  if (ftnPlusAccess === "members_only" && !currentUser) {
+  if (gated) {
     return (
       <div className="min-h-screen w-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-6 select-none">
+        {splash}
         <div className="text-center space-y-4 max-w-sm">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
             Authenticate with Roblox to view FTN+
@@ -151,14 +166,14 @@ export default function OTTClientLayout({
   }
 
   return (
-    <FTNPlusProvider>
+    <>
       <div
         className={cn(
           "dark flex flex-col md:flex-row bg-neutral-900 text-white w-full flex-1 overflow-hidden h-screen ott-scroll no-scrollbar"
         )}
       >
         {/* Session Entry Loader */}
-        <OTTLoader />
+        {splash}
 
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10">
@@ -175,6 +190,9 @@ export default function OTTClientLayout({
                 link={{
                   label: "Exit to FTN Main",
                   href: "/",
+                  // Full load: a soft transition into the heavy public home page
+                  // can stall behind its server render and look like a dead button.
+                  hardNavigate: true,
                   icon: (
                     <IconArrowLeft className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
                   ),
@@ -189,7 +207,7 @@ export default function OTTClientLayout({
           </div>
         </div>
       </div>
-    </FTNPlusProvider>
+    </>
   );
 }
 
