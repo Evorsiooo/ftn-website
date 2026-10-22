@@ -225,7 +225,7 @@ export default function FTNPlusSchedulePage() {
                     (past || cancelled) && "opacity-60"
                   )}
                 >
-                  <div className="w-16 sm:w-20 flex-shrink-0 ftn-mono text-sm font-medium leading-tight">
+                  <div className="w-20 sm:w-24 flex-shrink-0 ftn-mono text-sm font-medium leading-tight whitespace-nowrap">
                     {fmtTime(start)}
                     <div className="text-xs text-ftn-text-3">until {fmtTime(end)}</div>
                   </div>

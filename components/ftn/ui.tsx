@@ -127,7 +127,7 @@ export function Segmented<T extends string>({
 }
 
 const pill =
-  "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-eyebrow font-bold tracking-wide whitespace-nowrap border";
+  "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[length:var(--text-eyebrow)] font-bold tracking-wide whitespace-nowrap border";
 
 /** Red pulsing LIVE / ON AIR pill. */
 export function LivePill({ children = "LIVE", className }: { children?: React.ReactNode; className?: string }) {

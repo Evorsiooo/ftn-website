@@ -75,7 +75,7 @@ export function Lane({
       </div>
       <div
         ref={scrollRef}
-        className={cn("flex gap-4 overflow-x-auto scroll-smooth snap-x py-1 no-scrollbar [&>*]:snap-start", GUTTER)}
+        className={cn("flex gap-4 overflow-x-auto scroll-smooth snap-x scroll-px-5 md:scroll-px-12 py-1 no-scrollbar [&>*]:snap-start", GUTTER)}
       >
         {children}
       </div>

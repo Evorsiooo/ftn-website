@@ -299,7 +299,7 @@ export default function FTNPlusRadioPage() {
             <ArtTile
               src={artUrl}
               onError={() => setArtFailed(true)}
-              className="relative h-44 w-44 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-3xl border border-ftn-line-strong shadow-2xl"
+              className="relative h-36 w-36 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-3xl border border-ftn-line-strong shadow-2xl"
             />
           </motion.div>
         </div>
