@@ -254,7 +254,7 @@ export default function SiteSettingsPage() {
     if ((videosLoaded && !force) || loadingVideos) return;
     setLoadingVideos(true);
     try {
-      const res = await fetch("/api/plus/videos");
+      const res = await fetch("/api/plus/videos?fresh=1");
       const data = (await res.json()) as any;
       if (data && Array.isArray(data.videos)) {
         setIngestedVideos(data.videos);
@@ -466,7 +466,7 @@ export default function SiteSettingsPage() {
         const data = (await res.json().catch(() => ({}))) as any;
         if (res.ok) {
           setSyncStatus(`Channel added! ${data.synced || 0} video(s) synced from ${val}. Click "Save Changes" above to persist.`);
-          fetch("/api/plus/videos")
+          fetch("/api/plus/videos?fresh=1")
             .then((r) => r.json())
             .then((vd: any) => {
               if (vd && Array.isArray(vd.videos)) setIngestedVideos(vd.videos);
@@ -850,7 +850,7 @@ export default function SiteSettingsPage() {
       if (res.ok) {
         setSyncStatus(`Sync completed! ${data.synced || 0} videos updated across ${data.channels?.length || youtubeChannels.length} channel(s).`);
         // Refresh video list in admin table immediately
-        fetch("/api/plus/videos")
+        fetch("/api/plus/videos?fresh=1")
           .then((r) => r.json())
           .then((vd: any) => {
             if (vd && Array.isArray(vd.videos)) setIngestedVideos(vd.videos);
