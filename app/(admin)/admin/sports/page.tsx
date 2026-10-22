@@ -295,6 +295,19 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
     <div className="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-3">
       <Field label="Accent colour"><Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#2DD4BF" /></Field>
       <div>
+        <label className={labelClass}>Logo</label>
+        <div className="flex items-center gap-3">
+          {league.logoUrl && <img src={league.logoUrl} alt="" className="h-12 w-12 object-contain" />}
+          <PhotoButton label={league.logoUrl ? "Replace" : "Upload"} onUploaded={(url) => run(() => api("PATCH", "leagues", { logoUrl: url }, league.id))} />
+          {league.logoUrl && (
+            <button type="button" className="text-xs text-neutral-500 hover:text-red-500 cursor-pointer" onClick={() => run(() => api("PATCH", "leagues", { logoUrl: null }, league.id))}>
+              Remove
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">Shown on a transparent background; a PNG with transparency works best. Initials are used until one is uploaded.</p>
+      </div>
+      <div>
         <label className={labelClass}>Banner photo</label>
         <div className="flex items-center gap-3">
           {league.bannerUrl && <img src={league.bannerUrl} alt="" className="h-12 w-20 rounded-md object-cover" />}
@@ -380,6 +393,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
   const [teamName, setTeamName] = useState("");
   const [shortName, setShortName] = useState("");
   const [teamColor, setTeamColor] = useState("");
+  const [teamLogo, setTeamLogo] = useState("");
   const [driverName, setDriverName] = useState("");
   const [driverNumber, setDriverNumber] = useState("");
   const [driverTeam, setDriverTeam] = useState("");
@@ -395,8 +409,8 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
             className="space-y-3"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (await run(() => api("POST", "teams", { leagueId: league.id, name: teamName, shortName, color: teamColor }))) {
-                setTeamName(""); setShortName(""); setTeamColor("");
+              if (await run(() => api("POST", "teams", { leagueId: league.id, name: teamName, shortName, color: teamColor, logoUrl: teamLogo || null }))) {
+                setTeamName(""); setShortName(""); setTeamColor(""); setTeamLogo("");
               }
             }}
           >
@@ -405,17 +419,29 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
               <Field label="Short name"><Input value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="ABC" /></Field>
               <Field label="Colour"><Input value={teamColor} onChange={(e) => setTeamColor(e.target.value)} placeholder="#FF0000" /></Field>
             </div>
+            <div className="flex items-center gap-3">
+              {teamLogo && <img src={teamLogo} alt="" className="h-10 w-10 object-contain" />}
+              <PhotoButton label={teamLogo ? "Replace logo" : "Upload logo"} onUploaded={(url) => setTeamLogo(url)} />
+            </div>
             <Button type="submit" disabled={busy || !teamName.trim()} className={`w-full ${primaryBtn}`}>Add</Button>
           </form>
         </Card>
         {teams.map((t) => (
           <Card key={t.id} className="p-3 flex items-center justify-between border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
             <span className="flex items-center gap-2 text-sm font-semibold">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.color || "#525252" }} /> {t.name}
+              {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-8 w-8 object-contain" /> : <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />} {t.name}
             </span>
+            <span className="flex items-center gap-1">
+              <PhotoButton label={t.logoUrl ? "Replace logo" : "Upload logo"} onUploaded={(url) => run(() => api("PATCH", "teams", { logoUrl: url }, t.id))} />
+              {t.logoUrl && (
+                <button type="button" className="text-xs text-neutral-500 hover:text-red-500 cursor-pointer px-1.5" onClick={() => run(() => api("PATCH", "teams", { logoUrl: null }, t.id))}>
+                  Remove
+                </button>
+              )}
             <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={() => confirm(`Delete ${t.name}?`) && run(() => api("DELETE", "teams", undefined, t.id))}>
               <Trash2 className="h-4 w-4" />
             </button>
+            </span>
           </Card>
         ))}
       </div>
