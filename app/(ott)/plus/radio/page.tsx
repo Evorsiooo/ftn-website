@@ -15,11 +15,12 @@ import {
   IconAlertTriangle,
 } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
-import { PageShell, Equalizer } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, LivePill, ProgressBar, Tag } from "@/components/ftn/ui";
+import { PageShell } from "@/components/ftn/page";
+import { Button, EmptyState, GUTTER, ProgressBar, Tag } from "@/components/ftn/ui";
 import { ArtTile, Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
 import { useRadioPlayer } from "@/components/radio/use-radio-player";
+import { Waveform } from "@/components/radio/waveform";
 
 interface ShowInfo {
   name: string;
@@ -63,6 +64,8 @@ function untilLabel(ms: number): string {
 
 export default function FTNPlusRadioPage() {
   const { streamUrl, webradioEnabled } = useSiteConfig();
+  const [latest, setLatest] = useState<NowPlaying | null>(null);
+  // What the hero shows: text and art switch together once the new art has loaded.
   const [info, setInfo] = useState<NowPlaying | null>(null);
   const [schedule, setSchedule] = useState<ScheduleEntry[] | null>(null);
   const [copied, setCopied] = useState(false);
@@ -72,7 +75,7 @@ export default function FTNPlusRadioPage() {
   const refresh = useCallback(() => {
     fetch("/api/radio/now-playing")
       .then((res) => res.json())
-      .then((data) => setInfo(data as NowPlaying))
+      .then((data) => setLatest(data as NowPlaying))
       .catch(() => {});
   }, []);
 
@@ -96,6 +99,28 @@ export default function FTNPlusRadioPage() {
       .then((data: any) => setSchedule(Array.isArray(data?.schedule) ? data.schedule : []))
       .catch(() => setSchedule([]));
   }, []);
+
+  useEffect(() => {
+    if (!latest) return;
+    const commit = () => setInfo(latest);
+    const artChanged = info && latest.artUrl && latest.artUrl !== info.artUrl;
+    if (!artChanged) return commit();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      commit();
+    };
+    const img = new Image();
+    img.onload = finish;
+    img.onerror = finish;
+    img.src = latest.artUrl!;
+    const timer = setTimeout(finish, 3000);
+    return () => {
+      done = true;
+      clearTimeout(timer);
+    };
+  }, [latest]);
 
   useEffect(() => {
     setArtFailed(false);
@@ -157,7 +182,7 @@ export default function FTNPlusRadioPage() {
     <PageShell>
       {/* HERO: ambient glow from the current art */}
       <div className="relative w-full overflow-hidden select-none">
-        <AnimatePresence>
+        <AnimatePresence initial={false}>
           <motion.div
             key={artUrl || "no-art"}
             initial={{ opacity: 0 }}
@@ -188,10 +213,7 @@ export default function FTNPlusRadioPage() {
             className="max-w-2xl space-y-5 w-full"
           >
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              {info?.online ? <LivePill>Live</LivePill> : <Tag>Offline</Tag>}
-              <span className="ftn-eyebrow text-brand">
-                {isAuto && info?.online ? "AutoDJ" : info?.stationName || "FTN Radio"}
-              </span>
+              {info && !info.online && <Tag>Offline</Tag>}
               {show && show.tag !== "live" && <Tag>{show.tag}</Tag>}
               {info?.listeners !== null && info?.listeners !== undefined && info.listeners >= 2 && (
                 <span className="inline-flex items-center gap-1 text-xs text-ftn-text-2">
@@ -202,10 +224,16 @@ export default function FTNPlusRadioPage() {
 
             {isAuto && track && (
               <div className="flex items-center gap-3 ftn-eyebrow text-ftn-text-3">
-                <Equalizer active={isPlaying} /> Now playing
+                <Waveform playing={status === "playing"} /> Now playing
               </div>
             )}
-            <AnimatePresence mode="wait">
+            {!info ? (
+              <div className="space-y-3" aria-hidden>
+                <div className="ftn-skeleton h-12 sm:h-16 w-3/4 rounded-xl" />
+                <div className="ftn-skeleton h-5 w-1/3 rounded-lg" />
+              </div>
+            ) : (
+            <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={`${headline}|${subline}`}
                 initial={{ opacity: 0, y: 12 }}
@@ -218,11 +246,12 @@ export default function FTNPlusRadioPage() {
                 <p className="text-base sm:text-lg text-ftn-text-2 max-w-2xl">{subline}</p>
               </motion.div>
             </AnimatePresence>
+            )}
             {show?.description && <p className="text-sm text-ftn-text-3 line-clamp-2 max-w-2xl">{show.description}</p>}
 
             {show && info?.track && (
               <div className="flex items-center gap-3 text-sm text-ftn-text-2">
-                <Equalizer active={isPlaying} />
+                <Waveform playing={status === "playing"} className="h-5" />
                 <span>
                   Now playing <span className="font-semibold text-ftn-text">{info.track.title}</span>
                   {info.track.artist ? ` · ${info.track.artist}` : ""}
@@ -254,11 +283,27 @@ export default function FTNPlusRadioPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Button onClick={togglePlay} disabled={!streamUrl} size="lg">
-                {isPlaying ? <IconPlayerPause className="h-5 w-5 fill-current" /> : <IconPlayerPlay className="h-5 w-5 fill-current" />}
-                {isPlaying ? "Pause" : "Listen live"}
+              <Button onClick={togglePlay} disabled={!streamUrl} size="lg" aria-busy={isBusy}>
+                {isBusy ? (
+                  <IconLoader2 className="h-5 w-5 animate-spin" />
+                ) : isPlaying ? (
+                  <IconPlayerPause className="h-5 w-5 fill-current" />
+                ) : (
+                  <IconPlayerPlay className="h-5 w-5 fill-current" />
+                )}
+                {status === "connecting"
+                  ? "Connecting…"
+                  : status === "buffering"
+                    ? "Buffering…"
+                    : status === "reconnecting"
+                      ? "Reconnecting…"
+                      : isPlaying
+                        ? "Pause"
+                        : status === "error"
+                          ? "Try again"
+                          : "Listen live"}
               </Button>
-              <div className="flex items-center gap-2 rounded-full bg-ftn-surface border border-ftn-line h-14 px-5">
+              <div className="flex items-center gap-3 rounded-full bg-ftn-surface border border-ftn-line h-14 px-5">
                 <IconVolume className="h-4 w-4 text-ftn-text-2" />
                 <input
                   type="range"
@@ -268,19 +313,16 @@ export default function FTNPlusRadioPage() {
                   value={volume}
                   onChange={(e) => changeVolume(Number(e.target.value))}
                   aria-label="Volume"
-                  className="w-24 accent-brand"
+                  style={{ "--fill": `${volume * 100}%` } as React.CSSProperties}
+                  className="ftn-range w-28"
                 />
               </div>
-              {info?.discordBot.link && (
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  onClick={() => document.getElementById("radio-discord")?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                >
-                  <IconBrandDiscord className="h-4 w-4 text-brand" /> Listen in Discord
-                </Button>
-              )}
             </div>
+            {status === "error" && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
+                <IconAlertTriangle className="h-4 w-4" /> The stream stopped responding. Press Try again to reconnect.
+              </div>
+            )}
           </motion.div>
 
           {/* Cover art */}
@@ -299,7 +341,7 @@ export default function FTNPlusRadioPage() {
             <ArtTile
               src={artUrl}
               onError={() => setArtFailed(true)}
-              className="relative h-36 w-36 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-3xl border border-ftn-line-strong shadow-2xl"
+              className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-96 md:w-96 rounded-3xl border border-ftn-line-strong shadow-2xl"
             />
           </motion.div>
         </div>
@@ -348,11 +390,11 @@ export default function FTNPlusRadioPage() {
           <div id="radio-discord" className={GUTTER}>
             <div className="relative overflow-hidden rounded-3xl border border-ftn-line bg-ftn-surface p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-brand/10 blur-3xl" />
-              <div className="relative space-y-2 max-w-xl">
+              <div className="relative space-y-2 max-w-2xl">
                 <div className="ftn-title text-xl flex items-center gap-2">
                   <IconBrandDiscord className="h-6 w-6 text-brand" /> Take FTN Radio to your Discord
                 </div>
-                <p className="text-sm text-ftn-text-2 leading-relaxed">
+                <p className="text-sm text-ftn-text-2 leading-relaxed text-pretty">
                   Invite the radio bot to your server, then run the setup command from the voice channel you are in.
                 </p>
               </div>
