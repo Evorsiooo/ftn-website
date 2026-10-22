@@ -13,6 +13,7 @@
     --color-brand-hover: #e5a710;
     --color-brand-ink: #1a1100;
     --color-live: #ff4d3d;
+    --color-live-ink: #ff8a7d;
     --color-ftn-bg: #0b0a09;
     --color-ftn-surface: #151311;
     --color-ftn-surface-2: #1d1a17;
@@ -374,4 +375,65 @@
   color: #71717a;
   pointer-events: none;
   height: 0;
+}
+/* FTN+ design system utilities (see components/ftn) */
+@utility ftn-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+@utility ftn-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+@utility ftn-eyebrow {
+  font-size: var(--text-eyebrow);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+@utility ftn-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes ftn-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ftn-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes ftn-pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(255 77 61 / 0.5); }
+  50% { box-shadow: 0 0 0 4px rgb(255 77 61 / 0); }
+}
+.ftn-page-enter {
+  animation: ftn-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.ftn-skeleton {
+  background: linear-gradient(90deg, var(--color-ftn-surface) 30%, var(--color-ftn-surface-2) 50%, var(--color-ftn-surface) 70%);
+  background-size: 300% 100%;
+  animation: ftn-shimmer 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ftn-page-enter,
+  .ftn-skeleton,
+  .ftn-live-dot {
+    animation: none !important;
+  }
 }
