@@ -176,7 +176,7 @@ export const SidebarLink = ({
       className={cn(
         "relative flex items-center justify-start gap-2 group/sidebar py-2",
         link.active &&
-          "-mx-2 px-2 rounded-xl bg-white/[0.06] text-brand before:absolute before:-left-4 before:top-2.5 before:bottom-2.5 before:w-[3px] before:rounded-full before:bg-brand",
+          "-mx-1.5 px-1.5 rounded-xl bg-white/[0.06] text-brand before:absolute before:-left-2.5 before:top-2.5 before:bottom-2.5 before:w-[3px] before:rounded-full before:bg-brand",
         className
       )}
       {...props}
