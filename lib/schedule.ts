@@ -27,6 +27,7 @@ export async function loadShowsAndBroadcasts(
       kind: b.kind,
       tag: b.tag,
       status: b.status,
+      timezone: b.timezone,
       dayOfWeek: b.dayOfWeek ?? null,
       startMinute: b.startMinute ?? null,
       durationMinutes: b.durationMinutes ?? null,

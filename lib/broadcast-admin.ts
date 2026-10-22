@@ -15,6 +15,7 @@ export function recordToInput(b: BroadcastRecord): BroadcastInput {
     kind: b.kind,
     tag: b.tag,
     status: b.status,
+    timezone: b.timezone,
     dayOfWeek: b.dayOfWeek ?? undefined,
     startTime: b.startMinute !== null ? `${pad(Math.floor(b.startMinute / 60))}:${pad(b.startMinute % 60)}` : undefined,
     durationMinutes: b.durationMinutes ?? undefined,

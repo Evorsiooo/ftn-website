@@ -8,10 +8,10 @@ import {
   DAYS,
   ShowRecord,
   TAGS,
-  localZone,
-  toLocalInput,
-  weeklyLocalToUtc,
-  weeklyUtcToLocal,
+  defaultTimezone,
+  timezoneList,
+  toWallInput,
+  wallInputToUtc,
 } from "@/lib/schedule-client";
 import { labelClass, selectClass } from "./styles";
 
@@ -31,12 +31,10 @@ interface Props {
 
 export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onDelete }: Props) {
   const editing = !!broadcast;
-  const weeklyLocal =
-    broadcast?.kind === "weekly" && broadcast.dayOfWeek !== null && broadcast.startMinute !== null
-      ? weeklyUtcToLocal(broadcast.dayOfWeek, broadcast.startMinute)
-      : null;
+  const [timezone, setTimezone] = useState(broadcast?.timezone ?? defaultTimezone());
   const defaultStart = preset?.start ?? new Date(Math.ceil(Date.now() / 3600000) * 3600000 + 3600000);
   const defaultEnd = preset?.end ?? new Date(defaultStart.getTime() + 2 * 3600000);
+  const hhmm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 
   const [onRadio, setOnRadio] = useState(broadcast ? broadcast.onRadio : true);
   const [onStream, setOnStream] = useState(broadcast ? broadcast.onStream : false);
@@ -47,13 +45,27 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
   const [tag, setTag] = useState(broadcast?.tag ?? "live");
   const [cancelled, setCancelled] = useState(broadcast?.status === "cancelled");
   const [youtube, setYoutube] = useState(broadcast?.youtubeId ?? "");
-  const [day, setDay] = useState(weeklyLocal?.day ?? defaultStart.getDay());
-  const [time, setTime] = useState(weeklyLocal?.time ?? toLocalInput(defaultStart).slice(11));
+  const [day, setDay] = useState(broadcast?.dayOfWeek ?? defaultStart.getDay());
+  const [time, setTime] = useState(broadcast?.startMinute != null ? hhmm(broadcast.startMinute) : toWallInput(defaultStart, timezone).slice(11));
   const [duration, setDuration] = useState(broadcast?.durationMinutes ?? 120);
-  const [from, setFrom] = useState(toLocalInput(broadcast?.startsAt ?? defaultStart));
-  const [to, setTo] = useState(toLocalInput(broadcast?.endsAt ?? defaultEnd));
+  const [from, setFrom] = useState(toWallInput(broadcast?.startsAt ?? defaultStart, timezone));
+  const [to, setTo] = useState(toWallInput(broadcast?.endsAt ?? defaultEnd, timezone));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Switching zone keeps a one-off at the same instant (its wall-clock fields are re-expressed);
+  // weekly times keep their typed wall-clock values, which is what "set it in zone X" means.
+  const changeTimezone = (next: string) => {
+    if (kind === "once") {
+      const s = wallInputToUtc(from, timezone);
+      const en = wallInputToUtc(to, timezone);
+      if (!isNaN(s.getTime()) && !isNaN(en.getTime())) {
+        setFrom(toWallInput(s, next));
+        setTo(toWallInput(en, next));
+      }
+    }
+    setTimezone(next);
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,14 +78,15 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       description,
       kind,
       tag,
+      timezone,
       status: cancelled ? "cancelled" : "scheduled",
       youtubeId: onStream ? youtube : null,
     };
     if (kind === "weekly") {
-      Object.assign(body, weeklyLocalToUtc(day, time), { durationMinutes: duration });
+      Object.assign(body, { dayOfWeek: day, startTime: time, durationMinutes: duration });
     } else {
-      const s = new Date(from);
-      const en = new Date(to);
+      const s = wallInputToUtc(from, timezone);
+      const en = wallInputToUtc(to, timezone);
       if (isNaN(s.getTime()) || isNaN(en.getTime())) {
         setError("Valid start and end times are required.");
         return;
@@ -211,7 +224,22 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
           </div>
         </div>
       )}
-      <p className="text-[11px] text-neutral-500">Times are in your local time ({localZone()}).</p>
+      <div>
+        <label className={labelClass}>Timezone</label>
+        <select value={timezone} onChange={(e) => changeTimezone(e.target.value)} className={selectClass}>
+          {timezoneList([timezone, defaultTimezone()]).map((z) => (
+            <option key={z} value={z}>
+              {z}
+              {z === defaultTimezone() ? " (yours)" : ""}
+            </option>
+          ))}
+        </select>
+        <p className="text-[11px] text-neutral-500 mt-1">
+          {kind === "weekly"
+            ? "Weekly shows keep this local time all year: if the zone changes between summer and winter time, the show stays at the same wall-clock time."
+            : "The start and end above are read in this zone."}
+        </p>
+      </div>
 
       {editing && (
         <label className={check}>
