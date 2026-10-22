@@ -15,6 +15,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { FTNPlusProvider } from "@/lib/ftnplus-context";
+import { useSiteConfig } from "@/lib/site-config-context";
 
 export default function OTTClientLayout({
   children,
@@ -26,6 +27,7 @@ export default function OTTClientLayout({
   const [ftnPlusAccess, setFtnPlusAccess] = useState<"public" | "members_only">("public");
   const [loadingSession, setLoadingSession] = useState(true);
   const pathname = usePathname();
+  const { webradioEnabled } = useSiteConfig();
 
   // Dynamic favicon and title synchronization
   useEffect(() => {
@@ -92,13 +94,21 @@ export default function OTTClientLayout({
         <IconCalendar className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
       ),
     },
-    {
-      label: "Webradio",
-      href: "#",
-      icon: (
-        <IconRadio className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
-      ),
-    },
+    webradioEnabled
+      ? {
+          label: "Webradio",
+          href: "/plus/radio",
+          icon: (
+            <IconRadio className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+          ),
+        }
+      : {
+          label: "Webradio",
+          href: "#",
+          icon: (
+            <IconRadio className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
+          ),
+        },
     {
       label: "Sports",
       href: "#",

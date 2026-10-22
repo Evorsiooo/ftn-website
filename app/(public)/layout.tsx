@@ -1,7 +1,6 @@
 export const runtime = "edge";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { AudioPlayerDock } from "@/components/layout/audio-player-dock";
 
 export default function PublicLayout({
   children,
@@ -13,7 +12,6 @@ export default function PublicLayout({
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
-      <AudioPlayerDock />
     </div>
   );
 }

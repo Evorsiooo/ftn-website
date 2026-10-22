@@ -3,8 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { AudioPlayerDock } from "@/components/layout/audio-player-dock";
-import { AudioProvider } from "@/lib/audio-context";
+import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
 
 const geistSans = Geist({
@@ -71,9 +70,9 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
         <ThemeProvider>
-          <AudioProvider>
+          <SiteConfigProvider>
             {children}
-          </AudioProvider>
+          </SiteConfigProvider>
         </ThemeProvider>
       </body>
     </html>

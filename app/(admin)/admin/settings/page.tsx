@@ -5,12 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useAudio } from "@/lib/audio-context";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canConfigureSite } from "@/lib/rbac";
 import {
-  Play,
-  Pause,
   Radio,
   Check,
   Shield,
@@ -66,12 +63,31 @@ interface SocialLink {
 }
 
 export default function SiteSettingsPage() {
-  const { isPlaying, togglePlay, setStreamUrl, webradioEnabled, setWebradioEnabled } = useAudio();
 
   // Webradio
   const [streamUrlInput, setStreamUrlInput] = useState("https://icecast.ftnmedia.org/live.mp3");
   const [statusJsonInput, setStatusJsonInput] = useState("https://icecast.ftnmedia.org/status-json.xsl");
   const [webradioToggle, setWebradioToggle] = useState(true);
+  const [radioPublic, setRadioPublic] = useState({
+    stationName: "FTN Radio",
+    discordBotLink: "",
+    discordBotCommand: "/setup",
+    defaultArtUrl: "",
+  });
+  const [radioSecure, setRadioSecure] = useState({
+    icecastAdminUrl: "",
+    icecastUsername: "admin",
+    icecastPassword: "",
+    icecastMount: "",
+    lastFmApiKey: "",
+    fanartTvApiKey: "",
+    artPriority: ["lastfm", "itunes", "fanart"] as string[],
+    discordWebhookUrl: "",
+    rotationEndpointUrl: "",
+    rotationEndpointToken: "",
+    rotationFrequencyHours: 0,
+    rotationTimeUtc: "00:00",
+  });
 
   // Access & Authentication Mode
   const [allowSignIn, setAllowSignIn] = useState(true);
@@ -190,6 +206,15 @@ export default function SiteSettingsPage() {
           if (data.autoModThreshold !== undefined) setAutoModThreshold(data.autoModThreshold);
           if (data.autoModMuteDuration) setAutoModMuteDuration(data.autoModMuteDuration);
         }
+      })
+      .catch(() => {});
+
+    // 1b. Fetch radio settings (site administrators only)
+    fetch("/api/admin/radio/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: any) => {
+        if (data?.public) setRadioPublic((prev) => ({ ...prev, ...data.public }));
+        if (data?.secure) setRadioSecure((prev) => ({ ...prev, ...data.secure }));
       })
       .catch(() => {});
 
@@ -793,9 +818,13 @@ export default function SiteSettingsPage() {
         }),
       });
 
-      if (res.ok) {
-        setStreamUrl(streamUrlInput.trim());
-        setWebradioEnabled(webradioToggle);
+      const radioRes = await fetch("/api/admin/radio/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ public: radioPublic, secure: radioSecure }),
+      });
+
+      if (res.ok && radioRes.ok) {
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
       } else {
@@ -993,38 +1022,131 @@ export default function SiteSettingsPage() {
           </div>
         </div>
 
-        {/* Live Audio Player Test */}
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/60 p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-[#00a9d2] text-white flex items-center justify-center font-black">
-              <Radio className="h-5 w-5" />
+        {/* Radio branding & Discord bot */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Station & Discord Bot</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Station Name</label>
+              <Input value={radioPublic.stationName} onChange={(e) => setRadioPublic({ ...radioPublic, stationName: e.target.value })} />
             </div>
-            <div>
-              <div className="text-xs font-bold text-neutral-900 dark:text-white">Test Stream Playback</div>
-              <div className="text-[11px] text-neutral-500 dark:text-neutral-400 font-mono truncate max-w-sm">
-                {streamUrlInput}
-              </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Default Album Art URL</label>
+              <Input value={radioPublic.defaultArtUrl} onChange={(e) => setRadioPublic({ ...radioPublic, defaultArtUrl: e.target.value })} placeholder="Shown when no show or track art is found" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Bot Invite Link</label>
+              <Input value={radioPublic.discordBotLink} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotLink: e.target.value })} placeholder="https://discord.com/oauth2/authorize?client_id=..." />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Bot Setup Command</label>
+              <Input value={radioPublic.discordBotCommand} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotCommand: e.target.value })} placeholder="/setup" className="font-mono text-xs" />
             </div>
           </div>
+        </div>
 
-          <Button
-            type="button"
-            onClick={togglePlay}
-            disabled={!webradioToggle}
-            variant="outline"
-            size="sm"
-            className="text-xs gap-1.5 border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-700 dark:bg-neutral-800 dark:text-white cursor-pointer"
-          >
-            {isPlaying ? (
-              <>
-                <Pause className="h-3.5 w-3.5 text-[#00a9d2]" /> Pause Test Stream
-              </>
-            ) : (
-              <>
-                <Play className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Play Test Stream
-              </>
-            )}
-          </Button>
+        {/* Icecast */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Icecast</h3>
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+            Optional admin credentials let the site read live listener counts and track metadata. They are stored encrypted and never sent to visitors.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin URL</label>
+              <Input value={radioSecure.icecastAdminUrl} onChange={(e) => setRadioSecure({ ...radioSecure, icecastAdminUrl: e.target.value })} placeholder="http://127.0.0.1:8000" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Mount Point</label>
+              <Input value={radioSecure.icecastMount} onChange={(e) => setRadioSecure({ ...radioSecure, icecastMount: e.target.value })} placeholder="/autodj" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin Username</label>
+              <Input value={radioSecure.icecastUsername} onChange={(e) => setRadioSecure({ ...radioSecure, icecastUsername: e.target.value })} className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin Password</label>
+              <Input type="password" value={radioSecure.icecastPassword} onChange={(e) => setRadioSecure({ ...radioSecure, icecastPassword: e.target.value })} className="font-mono text-xs" />
+            </div>
+          </div>
+        </div>
+
+        {/* Password rotation */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Broadcast Password Rotation</h3>
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+            Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown on the Webradio admin page.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Endpoint URL</label>
+              <Input value={radioSecure.rotationEndpointUrl} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointUrl: e.target.value })} placeholder="https://euno.cc/rotate" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Endpoint Token</label>
+              <Input type="password" value={radioSecure.rotationEndpointToken} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointToken: e.target.value })} className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Auto-Rotate Frequency</label>
+              <select
+                value={radioSecure.rotationFrequencyHours}
+                onChange={(e) => setRadioSecure({ ...radioSecure, rotationFrequencyHours: Number(e.target.value) })}
+                className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs"
+              >
+                <option value={0}>Off</option>
+                <option value={12}>Every 12 hours</option>
+                <option value={24}>Every 24 hours</option>
+                <option value={48}>Every 48 hours</option>
+                <option value={72}>Every 72 hours</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Time (UTC, 24h+ only)</label>
+              <input
+                type="time"
+                value={radioSecure.rotationTimeUtc}
+                onChange={(e) => setRadioSecure({ ...radioSecure, rotationTimeUtc: e.target.value })}
+                className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs"
+              />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Webhook (rotation notices)</label>
+              <Input type="password" value={radioSecure.discordWebhookUrl} onChange={(e) => setRadioSecure({ ...radioSecure, discordWebhookUrl: e.target.value })} placeholder="https://discord.com/api/webhooks/..." className="font-mono text-xs" />
+            </div>
+          </div>
+        </div>
+
+        {/* API keys */}
+        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
+          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Album Art API Keys</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Last.fm API Key</label>
+              <Input type="password" value={radioSecure.lastFmApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, lastFmApiKey: e.target.value })} className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Fanart.tv API Key</label>
+              <Input type="password" value={radioSecure.fanartTvApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, fanartTvApiKey: e.target.value })} className="font-mono text-xs" />
+            </div>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Lookup Priority {i + 1}</label>
+                <select
+                  value={radioSecure.artPriority[i] || ""}
+                  onChange={(e) => {
+                    const next = [...radioSecure.artPriority];
+                    next[i] = e.target.value;
+                    setRadioSecure({ ...radioSecure, artPriority: next.filter(Boolean) });
+                  }}
+                  className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs"
+                >
+                  <option value="lastfm">Last.fm</option>
+                  <option value="itunes">iTunes</option>
+                  <option value="fanart">Fanart.tv</option>
+                </select>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 

@@ -13,13 +13,13 @@ import {
 } from "@/components/ui/resizable-navbar";
 import { AuthButton } from "./auth-button";
 import { ThemeToggle } from "./theme-toggle";
-import { useAudio } from "@/lib/audio-context";
+import { useSiteConfig } from "@/lib/site-config-context";
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { webradioEnabled, discordUrl } = useAudio();
+  const { discordUrl } = useSiteConfig();
 
-  const radioLink = webradioEnabled ? "/radio" : "https://euno.cc/";
+  const radioLink = "/plus/radio";
 
   const navItems = [
     {
