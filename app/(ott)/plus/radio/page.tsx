@@ -316,7 +316,7 @@ export default function FTNPlusRadioPage() {
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={togglePlay}
-                disabled={!info?.online}
+                disabled={!streamUrl}
                 className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] disabled:opacity-40 disabled:cursor-not-allowed text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer"
               >
                 {isPlaying ? (
