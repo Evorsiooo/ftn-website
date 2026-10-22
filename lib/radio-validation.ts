@@ -1,5 +1,3 @@
-import type { SlotTag } from "@/lib/radio";
-
 export interface ShowInput {
   name?: string;
   presenter?: string;
@@ -39,63 +37,4 @@ export function validateShowInput(
     }
   }
   return { values };
-}
-
-export interface SlotInput {
-  kind?: string;
-  tag?: string;
-  dayOfWeek?: number;
-  startTime?: string; // "HH:MM" UTC
-  durationMinutes?: number;
-  startsAt?: string; // ISO
-  endsAt?: string; // ISO
-}
-
-const TAGS: SlotTag[] = ["live", "simulcast", "rebroadcast"];
-
-export function validateSlotInput(
-  body: SlotInput
-):
-  | {
-      values: {
-        kind: "weekly" | "once";
-        tag: SlotTag;
-        dayOfWeek: number | null;
-        startMinute: number | null;
-        durationMinutes: number | null;
-        startsAt: Date | null;
-        endsAt: Date | null;
-      };
-    }
-  | { error: string } {
-  const tag = (TAGS as string[]).includes(body.tag || "") ? (body.tag as SlotTag) : "live";
-
-  if (body.kind === "once") {
-    const startsAt = new Date(body.startsAt || "");
-    const endsAt = new Date(body.endsAt || "");
-    if (isNaN(startsAt.getTime()) || isNaN(endsAt.getTime())) return { error: "Valid start and end times are required." };
-    if (endsAt <= startsAt) return { error: "End must be after start." };
-    if (endsAt.getTime() - startsAt.getTime() > 24 * 60 * 60 * 1000) return { error: "A slot can last at most 24 hours." };
-    return { values: { kind: "once", tag, dayOfWeek: null, startMinute: null, durationMinutes: null, startsAt, endsAt } };
-  }
-
-  const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(body.startTime || "");
-  if (!match) return { error: "Start time must be HH:MM (UTC)." };
-  const day = Number(body.dayOfWeek);
-  if (!Number.isInteger(day) || day < 0 || day > 6) return { error: "Day of week must be 0 (Sunday) to 6 (Saturday)." };
-  const duration = Number(body.durationMinutes);
-  if (!Number.isInteger(duration) || duration < 5 || duration > 24 * 60) {
-    return { error: "Duration must be between 5 minutes and 24 hours." };
-  }
-  return {
-    values: {
-      kind: "weekly",
-      tag,
-      dayOfWeek: day,
-      startMinute: Number(match[1]) * 60 + Number(match[2]),
-      durationMinutes: duration,
-      startsAt: null,
-      endsAt: null,
-    },
-  };
 }
