@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
-import { Shield, Newspaper, Trophy, Radio, DollarSign, MessageSquare, Settings, Images } from "lucide-react";
+import { Shield, Newspaper, Trophy, CalendarDays, DollarSign, MessageSquare, Settings, Images } from "lucide-react";
 import {
   canPublishArticles,
   canManageRadio,
@@ -85,12 +85,12 @@ export default function AdminCentralDashboard() {
 
           {showRadio && (
             <BentoGridItem
-              title="Webradio"
-              description="Manage the 24/7 web radio weekly timetable and DJs."
+              title="Schedule"
+              description="Schedule radio shows and livestreams, manage shows and the broadcast password."
               header={
                 <Link href="/admin/radio" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <Radio className="h-6 w-6 text-red-600 dark:text-red-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Webradio →</span>
+                  <CalendarDays className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Schedule →</span>
                 </Link>
               }
               className="md:col-span-1"
