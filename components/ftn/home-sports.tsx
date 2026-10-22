@@ -1,49 +1,79 @@
 "use client";
 import { useMemo } from "react";
-import Link from "next/link";
-import { IconChevronRight } from "@tabler/icons-react";
-import { NextUpCard, ResultCard, broadcastLabel, indexDrivers, indexTeams } from "@/components/sports/sports-ui";
+import {
+  LeagueMark,
+  broadcastLabel,
+  countdown,
+  eventPhoto,
+  fmtDay,
+  fmtTime,
+  indexDrivers,
+  indexTeams,
+  indexVenues,
+  isMatch,
+  roundTitle,
+} from "@/components/sports/sports-ui";
+import { parseRaceResults } from "@/lib/sports";
+import type { SportsEvent, SportsLeague } from "@/lib/use-sports-data";
 import { useSportsData } from "@/lib/use-sports-data";
-import { GUTTER } from "./ui";
-import { cn } from "@/lib/utils";
+import { Lane, MediaCard } from "./media";
 
-/** Home's Sports row: the next event and the latest results. Renders nothing without sports data. */
+/** Home's Sports lane: the next event, then the latest results, as video-style cards with the venue photo as thumbnail. Renders nothing without sports data. */
 export function HomeSports() {
   const { data, loading } = useSportsData();
   const teams = useMemo(() => indexTeams(data), [data]);
   const drivers = useMemo(() => indexDrivers(data), [data]);
+  const venues = useMemo(() => indexVenues(data), [data]);
   const leagues = useMemo(() => new Map(data.leagues.map((l) => [l.id, l])), [data.leagues]);
 
-  const { next, results } = useMemo(() => {
+  const items = useMemo(() => {
     const now = Date.now();
     const upcoming = data.events
       .filter((e) => e.status === "scheduled" && new Date(e.startsAt).getTime() >= now - 3 * 3600_000)
       .sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
-    const results = data.events.filter((e) => e.status === "final").sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
-    return { next: upcoming[0], results: results.slice(0, 4) };
+    const done = data.events.filter((e) => e.status === "final").sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
+    return [...upcoming.slice(0, 1).map((e) => ({ e, next: true })), ...done.slice(0, 5).map((e) => ({ e, next: false }))];
   }, [data.events]);
 
-  // A lone "next up" card reads as out of place; show the row once there are results beside it.
-  if (loading || results.length === 0) return null;
+  if (loading || items.length === 0) return null;
+
+  const summary = (e: SportsEvent) => {
+    if (isMatch(e)) {
+      return `${teams.get(e.homeTeamId!)?.name ?? "TBD"} ${e.homeScore ?? 0}–${e.awayScore ?? 0} ${teams.get(e.awayTeamId!)?.name ?? "TBD"}${e.overtime ? " (OT)" : ""}`;
+    }
+    const winner = parseRaceResults(e.resultsJson).find((r) => r.status === "finished" && r.position === 1);
+    return winner ? `Winner: ${drivers.get(winner.driverId)?.name ?? "Unknown"}` : "Final";
+  };
+  const gradient = (l?: SportsLeague) => (
+    <div
+      className="h-full w-full"
+      style={{ backgroundImage: `linear-gradient(135deg, ${l?.color || "var(--color-ftn-surface-2)"}, var(--color-ftn-bg) 85%)` }}
+    />
+  );
 
   return (
-    <section className={cn("space-y-3.5", GUTTER)}>
-      <div className="flex items-end justify-between gap-4">
-        <h2 className="ftn-title text-xl sm:text-2xl">Sports</h2>
-        <Link href="/plus/sports" className="inline-flex items-center gap-0.5 text-xs text-ftn-text-2 hover:text-ftn-text">
-          Sports hub <IconChevronRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
-      <div className="grid gap-3 lg:grid-cols-[1.2fr_2fr]">
-        {next && (
-          <NextUpCard event={next} league={leagues.get(next.leagueId)} teams={teams} badge={broadcastLabel(next.id, data.broadcasts)} />
-        )}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {results.map((e) => (
-            <ResultCard key={e.id} event={e} league={leagues.get(e.leagueId)} teams={teams} drivers={drivers} />
-          ))}
-        </div>
-      </div>
-    </section>
+    <Lane title="Sports" href="/plus/sports" hrefLabel="Sports hub">
+      {items.map(({ e, next }) => {
+        const league = leagues.get(e.leagueId);
+        const badge = next ? broadcastLabel(e.id, data.broadcasts) : null;
+        return (
+          <MediaCard
+            key={e.id}
+            href={league ? `/plus/sports/${league.slug}?tab=${next ? "calendar" : "results"}` : "/plus/sports"}
+            art={eventPhoto(e, venues)}
+            fallback={gradient(league)}
+            title={roundTitle(e, teams)}
+            badge={next ? `Next up · ${countdown(e.startsAt)}` : "Final"}
+            className="w-64 sm:w-72 md:w-80"
+            lead={league ? <LeagueMark league={league} size={28} /> : undefined}
+          >
+            <p className="text-xs text-ftn-text-3 truncate">{league?.name}</p>
+            <p className="text-xs text-ftn-text-3 truncate">
+              {next ? `${fmtDay(e.startsAt)} · ${fmtTime(e.startsAt)}${badge ? ` · ${badge}` : ""}` : summary(e)}
+            </p>
+          </MediaCard>
+        );
+      })}
+    </Lane>
   );
 }

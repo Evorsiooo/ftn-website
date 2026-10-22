@@ -297,7 +297,7 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
       <div>
         <label className={labelClass}>Logo</label>
         <div className="flex items-center gap-3">
-          {league.logoUrl && <img src={league.logoUrl} alt="" className="h-12 w-12 object-contain" />}
+          {league.logoUrl && <img src={league.logoUrl} alt="" className="h-12 w-12 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-1.5 object-contain" />}
           <PhotoButton label={league.logoUrl ? "Replace" : "Upload"} onUploaded={(url) => run(() => api("PATCH", "leagues", { logoUrl: url }, league.id))} />
           {league.logoUrl && (
             <button type="button" className="text-xs text-neutral-500 hover:text-red-500 cursor-pointer" onClick={() => run(() => api("PATCH", "leagues", { logoUrl: null }, league.id))}>
@@ -420,7 +420,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
               <Field label="Colour"><Input value={teamColor} onChange={(e) => setTeamColor(e.target.value)} placeholder="#FF0000" /></Field>
             </div>
             <div className="flex items-center gap-3">
-              {teamLogo && <img src={teamLogo} alt="" className="h-10 w-10 object-contain" />}
+              {teamLogo && <img src={teamLogo} alt="" className="h-10 w-10 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-1 object-contain" />}
               <PhotoButton label={teamLogo ? "Replace logo" : "Upload logo"} onUploaded={(url) => setTeamLogo(url)} />
             </div>
             <Button type="submit" disabled={busy || !teamName.trim()} className={`w-full ${primaryBtn}`}>Add</Button>
@@ -429,7 +429,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
         {teams.map((t) => (
           <Card key={t.id} className="p-3 flex items-center justify-between border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
             <span className="flex items-center gap-2 text-sm font-semibold">
-              {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-8 w-8 object-contain" /> : <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />} {t.name}
+              {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-8 w-8 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-1 object-contain" /> : <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />} {t.name}
             </span>
             <span className="flex items-center gap-1">
               <PhotoButton label={t.logoUrl ? "Replace logo" : "Upload logo"} onUploaded={(url) => run(() => api("PATCH", "teams", { logoUrl: url }, t.id))} />
