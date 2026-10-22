@@ -24,6 +24,8 @@ export function OTTBillboard({
         src={item.backdropUrl}
         alt={item.title}
         className="absolute inset-0 w-full h-full object-cover object-center"
+        fetchPriority="high"
+        decoding="async"
       />
 
       {/* Cinematic Vignette & Gradients */}
