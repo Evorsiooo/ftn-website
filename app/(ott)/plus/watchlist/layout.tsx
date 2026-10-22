@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Watchlist | FTN+",
+    absolute: "Saved | FTN+",
   },
   description: "Your saved FTN+ broadcasts, episodes, and live streams.",
 };

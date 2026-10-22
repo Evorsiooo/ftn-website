@@ -40,9 +40,8 @@ function OTTShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { webradioEnabled, ftnPlusAccess } = useSiteConfig();
 
-  // Dynamic favicon and title synchronization
+  // Favicon synchronization (page titles come from each route's metadata)
   useEffect(() => {
-    document.title = "FTN+";
     let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
     if (!link) {
       link = document.createElement("link");
