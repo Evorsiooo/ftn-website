@@ -47,6 +47,14 @@ interface ScheduleEntry {
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
 const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 
+function untilLabel(ms: number): string {
+  const mins = Math.max(1, Math.round(ms / 60000));
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  if (h < 24) return `${h}h ${mins % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
 function EqualizerBars({ active }: { active: boolean }) {
   return (
     <div className="flex items-end gap-[3px] h-5" aria-hidden>
@@ -157,14 +165,17 @@ export default function FTNPlusRadioPage() {
 
   const show = info?.currentShow || null;
   const artUrl = info?.artUrl && !artFailed ? info.artUrl : null;
-  const headline = show ? show.name : info?.track ? info.track.title : info?.stationName || "FTN Radio";
+  const isAuto = !show;
+  const track = info?.track || null;
+  const headline = show ? show.name : track ? track.title : info?.stationName || "FTN Radio";
   const subline = show
     ? `with ${show.presenter}`
-    : info?.track
-      ? info.track.artist
+    : track
+      ? track.artist || "Unknown artist"
       : info && !info.online
         ? "The stream is offline right now"
         : "Non-stop music on FTN Radio";
+  const nextShow = info?.nextShow || null;
 
   // Progress through the current show
   let progress = 0;
@@ -219,7 +230,7 @@ export default function FTNPlusRadioPage() {
                 </span>
               )}
               <span className="text-xs font-semibold uppercase tracking-widest text-[#FFBB14]">
-                {info?.stationName || "FTN Radio"}
+                {isAuto && info?.online ? "AutoDJ" : info?.stationName || "FTN Radio"}
               </span>
               {show && show.tag !== "live" && (
                 <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{show.tag}</span>
@@ -231,10 +242,26 @@ export default function FTNPlusRadioPage() {
               )}
             </div>
 
-            <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight drop-shadow-md">
-              {headline}
-            </h1>
-            <p className="text-sm sm:text-base text-neutral-300 leading-relaxed max-w-2xl drop-shadow">{subline}</p>
+            {isAuto && track && (
+              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
+                <EqualizerBars active={isPlaying} /> Now playing
+              </div>
+            )}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={`${headline}|${subline}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.35 }}
+                className="space-y-3"
+              >
+                <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight drop-shadow-md">
+                  {headline}
+                </h1>
+                <p className="text-sm sm:text-lg text-neutral-300 leading-relaxed max-w-2xl drop-shadow">{subline}</p>
+              </motion.div>
+            </AnimatePresence>
             {show?.description && (
               <p className="text-sm text-neutral-400 line-clamp-2 max-w-2xl">{show.description}</p>
             )}
@@ -260,6 +287,28 @@ export default function FTNPlusRadioPage() {
                 <div className="flex justify-between text-[11px] font-mono text-neutral-400">
                   <span>{timeFmt.format(new Date(show.start))}</span>
                   <span>On air until {timeFmt.format(new Date(show.end))}</span>
+                </div>
+              </div>
+            )}
+
+            {isAuto && nextShow && (
+              <div className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-sm p-2.5 pr-4 max-w-md">
+                {nextShow.artUrl ? (
+                  <img src={nextShow.artUrl} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+                ) : (
+                  <div className="h-12 w-12 rounded-lg bg-neutral-800 flex-shrink-0 flex items-center justify-center">
+                    <IconRadio className="h-5 w-5 text-[#FFBB14]" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#FFBB14]">
+                    Up next · in {untilLabel(new Date(nextShow.start).getTime() - now)}
+                  </div>
+                  <div className="text-sm font-bold text-white truncate">{nextShow.name}</div>
+                  <div className="text-[11px] text-neutral-400 truncate">
+                    with {nextShow.presenter} · {dayFmt.format(new Date(nextShow.start))}{" "}
+                    {timeFmt.format(new Date(nextShow.start))}
+                  </div>
                 </div>
               </div>
             )}
@@ -290,6 +339,15 @@ export default function FTNPlusRadioPage() {
                   className="w-24 accent-[#FFBB14]"
                 />
               </div>
+              {info?.discordBot.link && (
+                <button
+                  type="button"
+                  onClick={() => document.getElementById("radio-discord")?.scrollIntoView({ behavior: "smooth", block: "center" })}
+                  className="gap-2 h-12 px-4 rounded-lg bg-neutral-900/80 border border-neutral-800 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold flex items-center transition cursor-pointer backdrop-blur-sm"
+                >
+                  <IconBrandDiscord className="h-4 w-4 text-[#FFBB14]" /> Listen in Discord
+                </button>
+              )}
             </div>
           </motion.div>
 
@@ -373,7 +431,7 @@ export default function FTNPlusRadioPage() {
         )}
 
         {info?.discordBot.link && (
-          <div className="px-6 md:px-12 pt-4">
+          <div id="radio-discord" className="px-6 md:px-12 pt-4">
             <div className="relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="absolute -left-10 -top-10 h-48 w-48 rounded-full bg-[#FFBB14]/10 blur-3xl" />
               <div className="relative space-y-2 max-w-xl">
