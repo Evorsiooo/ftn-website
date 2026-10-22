@@ -78,6 +78,13 @@
       "when": 1792613411542,
       "tag": "0010_slow_whirlwind",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1792662009987,
+      "tag": "0011_wet_midnight",
+      "breakpoints": true
     }
   ]
 }

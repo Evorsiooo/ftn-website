@@ -19,9 +19,6 @@ export const FEED_CHANNELS: Record<string, string> = {
   international: "1487549180770783273",
 };
 
-// Message flag that turns on Components V2 (text displays, containers, media galleries).
-export const IS_COMPONENTS_V2 = 1 << 15;
-
 export function siteUrl(): string {
   return ((process.env as any).SITE_URL as string | undefined) || "https://ftn.euno.cc";
 }
@@ -32,25 +29,42 @@ export class DiscordError extends Error {
   }
 }
 
-export async function discordApi<T = any>(method: string, path: string, body?: unknown, retried = false): Promise<T> {
+export type DiscordFile = { name: string; data: ArrayBuffer; type: string };
+
+// Calls the Discord REST API. With files, the request is multipart: the JSON body goes in
+// payload_json and each file becomes an attachment (referenced by index in `attachments`).
+export async function discordApi<T = any>(
+  method: string,
+  path: string,
+  body?: unknown,
+  files?: DiscordFile[],
+  retried = false
+): Promise<T> {
   const token = (process.env as any).DISCORD_BOT_TOKEN as string | undefined;
   if (!token) throw new DiscordError(500, "DISCORD_BOT_TOKEN is not set");
 
-  const res = await fetch(`${DISCORD_API}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bot ${token}`,
-      "Content-Type": "application/json",
-      "User-Agent": "FTN-Posts (https://ftn.euno.cc, 1)",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const headers: Record<string, string> = {
+    Authorization: `Bot ${token}`,
+    "User-Agent": "FTN-Posts (https://ftn.euno.cc, 1)",
+  };
+  let payload: BodyInit | undefined;
+  if (files && files.length > 0) {
+    const form = new FormData();
+    form.append("payload_json", JSON.stringify(body ?? {}));
+    files.forEach((f, i) => form.append(`files[${i}]`, new Blob([f.data], { type: f.type }), f.name));
+    payload = form; // fetch sets the multipart boundary header itself
+  } else if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
+
+  const res = await fetch(`${DISCORD_API}${path}`, { method, headers, body: payload });
 
   if (res.status === 429 && !retried) {
     const data = (await res.json().catch(() => ({}))) as any;
     const wait = Math.min(Number(data.retry_after) || 1, 3);
     await new Promise((r) => setTimeout(r, wait * 1000));
-    return discordApi<T>(method, path, body, true);
+    return discordApi<T>(method, path, body, files, true);
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -3,10 +3,10 @@ import { DbClient } from "@/db";
 import { posts, users } from "@/db/schema";
 import {
   DiscordError,
+  DiscordFile,
   FEED_CHANNELS,
   FTN_PLUS_CHANNEL_ID,
   FTN_PLUS_EMOJI,
-  IS_COMPONENTS_V2,
   LEADERSHIP_CHANNEL_ID,
   LEADERSHIP_ROLE_ID,
   discordApi,
@@ -33,27 +33,45 @@ export function timedExclusiveLine(createdAt: Date, publishedAt: Date): string |
   return `${FTN_PLUS_EMOJI} FTN+ Timed exclusive. (Published in our server ${roughAgo(waited)})`;
 }
 
-function imageUrl(post: Post): string {
-  return `${siteUrl()}${post.imageUrl}`;
-}
-
 function learnMoreLine(post: Post): string | null {
   if (!post.organizationName || !post.messageLink) return null;
   return `🔗  Learn more about ${post.organizationName}\n${post.messageLink}`;
 }
 
-// The message people see (FTN+ channel and feeds): the image in a box of its own, then the optional text box (timed line, Learn more) beneath it.
+export function amendmentsOf(post: Post): string[] {
+  try {
+    const list = JSON.parse(post.amendments || "[]");
+    return Array.isArray(list) ? list.filter((n) => typeof n === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+const IMAGE_NAME = "post.png";
+
+// The post image as bytes, read straight from R2 when possible. It is uploaded with each
+// message, so the message is a plain text-and-image message.
+async function loadPostImage(post: Post): Promise<DiscordFile> {
+  const key = post.imageUrl.replace(/^\/api\/media\//, "");
+  const bucket = ((process.env as any).ftn_media as R2Bucket) || ((process.env as any).MEDIA_BUCKET as R2Bucket);
+  if (bucket && key !== post.imageUrl) {
+    const object = await bucket.get(key);
+    if (object) return { name: IMAGE_NAME, data: await object.arrayBuffer(), type: "image/png" };
+  }
+  const res = await fetch(`${siteUrl()}${post.imageUrl}`);
+  if (!res.ok) throw new DiscordError(502, `Could not read the post image (${res.status})`);
+  return { name: IMAGE_NAME, data: await res.arrayBuffer(), type: "image/png" };
+}
+
+// The message people see (FTN+ channel and feeds): the optional timed-exclusive line, the
+// Learn more line and any edit notes as normal text, with the image attached.
 export function buildPostMessage(post: Post, timedLine: string | null = null, amendments: string[] = []) {
   const lines: string[] = [];
   if (timedLine) lines.push(timedLine, "");
   const learnMore = learnMoreLine(post);
   if (learnMore) lines.push(learnMore);
   for (const note of amendments) lines.push("", `*edit: ${note}*`);
-
-  const components: any[] = [{ type: 17, components: [{ type: 12, items: [{ media: { url: imageUrl(post) } }] }] }];
-  const text = lines.join("\n").trim();
-  if (text) components.push({ type: 17, components: [{ type: 10, content: text }] });
-  return { flags: IS_COMPONENTS_V2, components, allowed_mentions: { parse: [] } };
+  return { content: lines.join("\n").trim(), allowed_mentions: { parse: [] as string[] } };
 }
 
 function stateLabel(post: Post): string {
@@ -61,36 +79,33 @@ function stateLabel(post: Post): string {
 }
 
 // The review message in #leadership. While pending it carries the Approve and Deny buttons.
-export function buildLeadershipMessage(post: Post, creatorName: string | null) {
-  const header = [
+// `ping` is only set on the first send, so later edits never ping the role again.
+export function buildLeadershipMessage(post: Post, creatorName: string | null, ping = false) {
+  const lines = [
+    ping ? `<@&${LEADERSHIP_ROLE_ID}>` : "",
     `**New post for review** · ${stateLabel(post)} · by ${creatorName || "unknown"}`,
     `**${post.headline}**`,
     post.organizationName ? `Ad: ${post.organizationName}` : "No ad (boilerplate)",
-  ].join("\n");
+  ];
+  if (post.status === "approved") lines.push("", `✅ Approved by ${post.decidedByLabel || "leadership"}`);
+  if (post.status === "denied") lines.push("", `❌ Denied by ${post.decidedByLabel || "leadership"}: ${post.denyReason || "no reason given"}`);
 
-  let status: string | null = null;
-  if (post.status === "approved") status = `✅ Approved by ${post.decidedByLabel || "leadership"}`;
-  if (post.status === "denied") status = `❌ Denied by ${post.decidedByLabel || "leadership"}: ${post.denyReason || "no reason given"}`;
-
-  const image: any[] = [{ type: 12, items: [{ media: { url: imageUrl(post) } }] }];
-  if (post.status === "pending") {
-    image.push({
-      type: 1,
-      components: [
-        { type: 2, style: 3, label: "Approve", custom_id: `post:approve:${post.id}` },
-        { type: 2, style: 4, label: "Deny", custom_id: `post:deny:${post.id}` },
-      ],
-    });
-  }
-  const accent = post.status === "approved" ? 0x2ecc71 : post.status === "denied" ? 0xe74c3c : 0xf1c40f;
+  const components =
+    post.status === "pending"
+      ? [
+          {
+            type: 1,
+            components: [
+              { type: 2, style: 3, label: "Approve", custom_id: `post:approve:${post.id}` },
+              { type: 2, style: 4, label: "Deny", custom_id: `post:deny:${post.id}` },
+            ],
+          },
+        ]
+      : [];
   return {
-    flags: IS_COMPONENTS_V2,
-    components: [
-      { type: 10, content: `<@&${LEADERSHIP_ROLE_ID}>` },
-      { type: 17, accent_color: accent, components: [{ type: 10, content: status ? `${header}\n\n${status}` : header }] },
-      { type: 17, accent_color: accent, components: image },
-    ],
-    allowed_mentions: { parse: [], roles: [LEADERSHIP_ROLE_ID] },
+    content: lines.filter((l, i) => l !== "" || i > 0).join("\n").trim(),
+    components,
+    allowed_mentions: ping ? { parse: [] as string[], roles: [LEADERSHIP_ROLE_ID] } : { parse: [] as string[] },
   };
 }
 
@@ -109,15 +124,26 @@ export async function sendPostToDiscord(db: DbClient, postId: string): Promise<{
   let post = await reload(db, postId);
   try {
     if (!post.ftnPlusMessageId) {
-      const msg = await discordApi("POST", `/channels/${FTN_PLUS_CHANNEL_ID}/messages`, buildPostMessage(post));
+      const image = await loadPostImage(post);
+      const msg = await discordApi(
+        "POST",
+        `/channels/${FTN_PLUS_CHANNEL_ID}/messages`,
+        { ...buildPostMessage(post, null, amendmentsOf(post)), attachments: [{ id: 0, filename: IMAGE_NAME }] },
+        [image]
+      );
       await db.update(posts).set({ ftnPlusMessageId: msg.id }).where(eq(posts.id, postId));
     }
     post = await reload(db, postId);
     if (!post.leadershipMessageId) {
+      const image = await loadPostImage(post);
       const msg = await discordApi(
         "POST",
         `/channels/${LEADERSHIP_CHANNEL_ID}/messages`,
-        buildLeadershipMessage(post, await creatorName(db, post.createdBy))
+        {
+          ...buildLeadershipMessage(post, await creatorName(db, post.createdBy), true),
+          attachments: [{ id: 0, filename: IMAGE_NAME }],
+        },
+        [image]
       );
       await db.update(posts).set({ leadershipMessageId: msg.id }).where(eq(posts.id, postId));
     }
@@ -135,7 +161,13 @@ export async function publishToFeed(db: DbClient, post: Post): Promise<void> {
   if (!channelId) throw new DiscordError(400, `No feed channel for ${post.roState}`);
 
   const timedLine = timedExclusiveLine(post.createdAt, new Date());
-  const msg = await discordApi("POST", `/channels/${channelId}/messages`, buildPostMessage(post, timedLine));
+  const image = await loadPostImage(post);
+  const msg = await discordApi(
+    "POST",
+    `/channels/${channelId}/messages`,
+    { ...buildPostMessage(post, timedLine, amendmentsOf(post)), attachments: [{ id: 0, filename: IMAGE_NAME }] },
+    [image]
+  );
   await db.update(posts).set({ feedChannelId: channelId, feedMessageId: msg.id }).where(eq(posts.id, post.id));
 
   try {
@@ -146,25 +178,46 @@ export async function publishToFeed(db: DbClient, post: Post): Promise<void> {
   }
 }
 
-// Brings the existing Discord messages in line with the post (after an edit or a decision).
-export async function refreshPostMessages(db: DbClient, postId: string): Promise<{ ok: boolean; error?: string }> {
+type RefreshWhich = { ftnPlus?: boolean; leadership?: boolean; feed?: boolean; image?: boolean };
+
+// Brings the existing Discord messages in line with the post. Only the messages named in
+// `which` are edited, so a message that did not change is never marked as edited. With
+// `image`, the attached image is replaced too.
+export async function refreshPostMessages(
+  db: DbClient,
+  postId: string,
+  which: RefreshWhich = { ftnPlus: true, leadership: true, feed: true }
+): Promise<{ ok: boolean; error?: string }> {
   const post = await reload(db, postId);
   try {
-    if (post.ftnPlusMessageId) {
-      await discordApi("PATCH", `/channels/${FTN_PLUS_CHANNEL_ID}/messages/${post.ftnPlusMessageId}`, buildPostMessage(post));
+    const amendments = amendmentsOf(post);
+    const image = which.image ? await loadPostImage(post) : null;
+    const withImage = (body: object) =>
+      image ? { ...body, attachments: [{ id: 0, filename: IMAGE_NAME }] } : body;
+    const files = image ? [image] : undefined;
+
+    if (which.ftnPlus && post.ftnPlusMessageId) {
+      await discordApi(
+        "PATCH",
+        `/channels/${FTN_PLUS_CHANNEL_ID}/messages/${post.ftnPlusMessageId}`,
+        withImage(buildPostMessage(post, null, amendments)),
+        files
+      );
     }
-    if (post.leadershipMessageId) {
+    if (which.leadership && post.leadershipMessageId) {
       await discordApi(
         "PATCH",
         `/channels/${LEADERSHIP_CHANNEL_ID}/messages/${post.leadershipMessageId}`,
-        buildLeadershipMessage(post, await creatorName(db, post.createdBy))
+        withImage(buildLeadershipMessage(post, await creatorName(db, post.createdBy))),
+        files
       );
     }
-    if (post.feedMessageId && post.feedChannelId) {
+    if (which.feed && post.feedMessageId && post.feedChannelId) {
       await discordApi(
         "PATCH",
         `/channels/${post.feedChannelId}/messages/${post.feedMessageId}`,
-        buildPostMessage(post, timedExclusiveLine(post.createdAt, post.decidedAt ?? new Date()))
+        withImage(buildPostMessage(post, timedExclusiveLine(post.createdAt, post.decidedAt ?? new Date()), amendments)),
+        files
       );
     }
     return { ok: true };
