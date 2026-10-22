@@ -18,7 +18,7 @@ type Tab = "schedule" | "results" | "standings";
 
 const tabClass = (active: boolean) =>
   `rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${
-    active ? "bg-[#FFBB14] text-black" : "bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white"
+    active ? "bg-brand text-black" : "bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white"
   }`;
 
 export default function LeaguePage() {
@@ -59,7 +59,7 @@ export default function LeaguePage() {
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-8 text-center text-white">
         <div className="space-y-3">
           <h1 className="text-2xl font-black">League not found</h1>
-          <Link href="/plus/sports" className="text-xs text-[#FFBB14] hover:underline">Back to Sports</Link>
+          <Link href="/plus/sports" className="text-xs text-brand hover:underline">Back to Sports</Link>
         </div>
       </div>
     );

@@ -64,7 +64,7 @@ function EqualizerBars({ active }: { active: boolean }) {
       {[0.5, 1, 0.7, 0.9, 0.4].map((peak, i) => (
         <motion.span
           key={i}
-          className="w-[3px] rounded-full bg-[#FFBB14]"
+          className="w-[3px] rounded-full bg-brand"
           animate={active ? { height: ["20%", `${peak * 100}%`, "30%", `${peak * 85}%`, "20%"] } : { height: "20%" }}
           transition={active ? { duration: 1 + i * 0.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
         />
@@ -131,7 +131,7 @@ export default function FTNPlusRadioPage() {
     return (
       <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-8 text-center">
         <div className="space-y-3 max-w-md">
-          <IconRadio className="h-10 w-10 text-[#FFBB14] mx-auto" />
+          <IconRadio className="h-10 w-10 text-brand mx-auto" />
           <h1 className="text-2xl font-black text-white">Webradio is offline</h1>
           <p className="text-xs text-neutral-400">The FTN webradio is currently switched off. Check back soon.</p>
         </div>
@@ -184,7 +184,7 @@ export default function FTNPlusRadioPage() {
             )}
           </motion.div>
         </AnimatePresence>
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#FFBB14]/15 blur-3xl animate-pulse" />
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-brand/15 blur-3xl animate-pulse" />
         <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/50 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/60 to-transparent w-full md:w-3/4" />
 
@@ -205,7 +205,7 @@ export default function FTNPlusRadioPage() {
                   Offline
                 </span>
               )}
-              <span className="text-xs font-semibold uppercase tracking-widest text-[#FFBB14]">
+              <span className="text-xs font-semibold uppercase tracking-widest text-brand">
                 {isAuto && info?.online ? "AutoDJ" : info?.stationName || "FTN Radio"}
               </span>
               {show && show.tag !== "live" && (
@@ -256,7 +256,7 @@ export default function FTNPlusRadioPage() {
               <div className="max-w-md space-y-1.5">
                 <div className="h-[3px] w-full rounded-full bg-neutral-800 overflow-hidden">
                   <div
-                    className="h-full bg-[#FFBB14] shadow-[0_0_10px_#FFBB14] transition-all duration-1000"
+                    className="h-full bg-brand shadow-[0_0_10px_#FFBB14] transition-all duration-1000"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -273,11 +273,11 @@ export default function FTNPlusRadioPage() {
                   <img src={nextShow.artUrl} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
                 ) : (
                   <div className="h-12 w-12 rounded-lg bg-neutral-800 flex-shrink-0 flex items-center justify-center">
-                    <IconRadio className="h-5 w-5 text-[#FFBB14]" />
+                    <IconRadio className="h-5 w-5 text-brand" />
                   </div>
                 )}
                 <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#FFBB14]">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-brand">
                     Up next · in {untilLabel(new Date(nextShow.start).getTime() - now)}
                   </div>
                   <div className="text-sm font-bold text-white truncate">{nextShow.name}</div>
@@ -298,7 +298,7 @@ export default function FTNPlusRadioPage() {
               <button
                 onClick={togglePlay}
                 disabled={!streamUrl}
-                className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] disabled:opacity-40 disabled:cursor-not-allowed text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer"
+                className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-40 disabled:cursor-not-allowed text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer"
               >
                 {isBusy ? (
                   <IconLoader2 className="h-5 w-5 animate-spin" />
@@ -329,7 +329,7 @@ export default function FTNPlusRadioPage() {
                   value={volume}
                   onChange={(e) => changeVolume(Number(e.target.value))}
                   aria-label="Volume"
-                  className="w-24 accent-[#FFBB14]"
+                  className="w-24 accent-brand"
                 />
               </div>
               {info?.discordBot.link && (
@@ -338,7 +338,7 @@ export default function FTNPlusRadioPage() {
                   onClick={() => document.getElementById("radio-discord")?.scrollIntoView({ behavior: "smooth", block: "center" })}
                   className="gap-2 h-12 px-4 rounded-lg bg-neutral-900/80 border border-neutral-800 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold flex items-center transition cursor-pointer backdrop-blur-sm"
                 >
-                  <IconBrandDiscord className="h-4 w-4 text-[#FFBB14]" /> Listen in Discord
+                  <IconBrandDiscord className="h-4 w-4 text-brand" /> Listen in Discord
                 </button>
               )}
             </div>
@@ -352,7 +352,7 @@ export default function FTNPlusRadioPage() {
             className="relative flex-shrink-0 self-center md:self-end"
           >
             <div
-              className={`absolute -inset-3 rounded-3xl bg-[#FFBB14]/30 blur-2xl transition-opacity duration-700 ${
+              className={`absolute -inset-3 rounded-3xl bg-brand/30 blur-2xl transition-opacity duration-700 ${
                 isPlaying ? "opacity-100 animate-pulse" : "opacity-30"
               }`}
             />
@@ -426,10 +426,10 @@ export default function FTNPlusRadioPage() {
         {info?.discordBot.link && (
           <div id="radio-discord" className="px-6 md:px-12 pt-4">
             <div className="relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="absolute -left-10 -top-10 h-48 w-48 rounded-full bg-[#FFBB14]/10 blur-3xl" />
+              <div className="absolute -left-10 -top-10 h-48 w-48 rounded-full bg-brand/10 blur-3xl" />
               <div className="relative space-y-2 max-w-xl">
                 <div className="flex items-center gap-2 text-xl font-bold tracking-tight">
-                  <IconBrandDiscord className="h-6 w-6 text-[#FFBB14]" /> Take FTN Radio to your Discord
+                  <IconBrandDiscord className="h-6 w-6 text-brand" /> Take FTN Radio to your Discord
                 </div>
                 <p className="text-sm text-neutral-400 leading-relaxed">
                   Invite the radio bot to your server, then run the setup command from the voice channel you are in.
@@ -452,7 +452,7 @@ export default function FTNPlusRadioPage() {
                   href={info.discordBot.link}
                   target="_blank"
                   rel="noreferrer"
-                  className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200"
+                  className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-brand hover:bg-brand-hover text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200"
                 >
                   Invite the Bot
                 </a>

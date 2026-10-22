@@ -5,7 +5,7 @@ import { IconTrophy, IconMapPin, IconPlayerPlay } from "@tabler/icons-react";
 import type { SportsData, SportsEvent, SportsLeague, SportsTeam } from "@/lib/use-sports-data";
 import { parseRaceResults } from "@/lib/sports";
 
-const ACCENT = "#FFBB14";
+const ACCENT = "var(--color-brand)";
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -204,7 +204,7 @@ export function EventRow({
         {event.videoUrl && (
           <a
             href={event.videoUrl}
-            className="inline-flex items-center gap-1 rounded-full bg-[#FFBB14] px-3 py-1 text-[11px] font-bold text-black hover:bg-[#e5a710] transition"
+            className="inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-[11px] font-bold text-black hover:bg-brand-hover transition"
           >
             <IconPlayerPlay className="h-3 w-3" /> Watch
           </a>

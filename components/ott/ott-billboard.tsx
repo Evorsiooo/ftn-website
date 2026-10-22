@@ -53,7 +53,7 @@ export function OTTBillboard({
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 pt-2">
           <Link href={`/plus/watch/${item.id}`}>
-            <button className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer">
+            <button className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-brand hover:bg-brand-hover text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer">
               <IconPlayerPlay className="h-5 w-5 fill-current" />
               Watch Now
             </button>

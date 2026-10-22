@@ -29,7 +29,7 @@ export default function FTNPlusHomePage() {
       ) : !loadingLibrary ? (
         <div className="relative w-full h-[40vh] min-h-[300px] bg-gradient-to-br from-neutral-900 to-black flex items-center justify-center p-8 text-center">
           <div className="space-y-3 max-w-md">
-            <Video className="h-10 w-10 text-[#FFBB14] mx-auto" />
+            <Video className="h-10 w-10 text-brand mx-auto" />
             <h1 className="text-2xl font-black text-white">FTN+ Streaming Library</h1>
             <p className="text-xs text-neutral-400">
               {error
@@ -40,7 +40,7 @@ export default function FTNPlusHomePage() {
               <div className="pt-2">
                 <button
                   onClick={() => refreshLibrary()}
-                  className="px-4 py-2 text-xs font-bold bg-[#FFBB14] text-black rounded-lg hover:bg-[#e5a710] transition cursor-pointer"
+                  className="px-4 py-2 text-xs font-bold bg-brand text-black rounded-lg hover:bg-brand-hover transition cursor-pointer"
                 >
                   Retry Connection
                 </button>

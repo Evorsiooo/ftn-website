@@ -78,21 +78,21 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       label: "Home",
       href: "/plus",
       icon: (
-        <IconHome className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconHome className="h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Saved",
       href: "/plus/watchlist",
       icon: (
-        <IconBookmark className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconBookmark className="h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Schedule",
       href: "/plus/schedule",
       icon: (
-        <IconCalendar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconCalendar className="h-5 w-5 flex-shrink-0" />
       ),
     },
     webradioEnabled
@@ -100,21 +100,21 @@ function OTTShell({ children }: { children: React.ReactNode }) {
           label: "Webradio",
           href: "/plus/radio",
           icon: (
-            <IconRadio className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+            <IconRadio className="h-5 w-5 flex-shrink-0" />
           ),
         }
       : {
           label: "Webradio",
           href: "#",
           icon: (
-            <IconRadio className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
+            <IconRadio className="h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
           ),
         },
     {
       label: "Sports",
       href: "/plus/sports",
       icon: (
-        <IconTrophy className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconTrophy className="h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
@@ -139,7 +139,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
 
           <div className="pt-2">
             <a href="/api/auth/roblox?returnUrl=/plus">
-              <Button className="w-full bg-[#FFBB14] hover:bg-[#e5a710] text-black font-bold text-xs h-11 cursor-pointer">
+              <Button className="w-full bg-brand hover:bg-brand-hover text-black font-bold text-xs h-11 cursor-pointer">
                 Sign In
               </Button>
             </a>
@@ -184,7 +184,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
                   // can stall behind its server render and look like a dead button.
                   hardNavigate: true,
                   icon: (
-                    <IconArrowLeft className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+                    <IconArrowLeft className="h-5 w-5 flex-shrink-0" />
                   ),
                 }}
               />

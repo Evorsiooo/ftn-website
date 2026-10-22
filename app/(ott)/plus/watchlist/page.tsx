@@ -87,7 +87,7 @@ export default function WatchlistPage() {
           <p className="text-neutral-400 text-sm">No saved content.</p>
           <Link
             href="/plus"
-            className="text-xs font-semibold text-[#FFBB14] hover:underline"
+            className="text-xs font-semibold text-brand hover:underline"
           >
             Browse FTN+
           </Link>
@@ -121,7 +121,7 @@ export default function WatchlistPage() {
 
                   {/* Play Button Overlay */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-200">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FFBB14] text-black shadow-lg backdrop-blur-sm">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-black shadow-lg backdrop-blur-sm">
                       <IconPlayerPlay className="h-5 w-5 fill-current" />
                     </div>
                   </div>
@@ -160,7 +160,7 @@ export default function WatchlistPage() {
                         <img
                           src={item.channelLogoUrl}
                           alt={item.channelTitle || "Channel"}
-                          className="h-6 w-6 rounded-full object-cover border border-neutral-700 hover:ring-2 hover:ring-[#FFBB14] transition cursor-pointer"
+                          className="h-6 w-6 rounded-full object-cover border border-neutral-700 hover:ring-2 hover:ring-brand transition cursor-pointer"
                         />
                       </a>
                     ) : (

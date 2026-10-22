@@ -35,7 +35,7 @@ export function OTTLoader({ ready }: { ready: boolean }) {
           className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black select-none pointer-events-none"
         >
           {/* Ambient pulsing gold glow */}
-          <div className="absolute h-72 w-72 rounded-full bg-[#FFBB14]/25 blur-3xl animate-pulse" />
+          <div className="absolute h-72 w-72 rounded-full bg-brand/25 blur-3xl animate-pulse" />
 
           {/* Logo animation container */}
           <motion.div
@@ -60,7 +60,7 @@ export function OTTLoader({ ready }: { ready: boolean }) {
               initial={{ width: "0%" }}
               animate={{ width: "100%" }}
               transition={{ duration: MIN_VISIBLE_MS / 1000, ease: "easeInOut" }}
-              className="h-full bg-[#FFBB14] shadow-[0_0_10px_#FFBB14]"
+              className="h-full bg-brand shadow-[0_0_10px_#FFBB14]"
             />
           </div>
         </motion.div>

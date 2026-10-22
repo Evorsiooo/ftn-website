@@ -88,7 +88,7 @@ export function RadioCard({ title, presenter, artUrl, badge, badgeTone = "neutra
         </h3>
         <div className="text-[11px] text-neutral-400 truncate">with {presenter}</div>
         {timeLabel && (
-          <div className="text-[11px] font-semibold text-[#FFBB14] leading-snug">
+          <div className="text-[11px] font-semibold text-brand leading-snug">
             {timeLabel}
             {tag && tag !== "live" ? ` · ${tag}` : ""}
           </div>

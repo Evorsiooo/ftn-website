@@ -235,7 +235,7 @@ export function OTTPlayer({
                   <img
                     src={channelLogoUrl}
                     alt={channelTitle}
-                    className="h-8 w-8 rounded-full object-cover border border-neutral-700 group-hover:ring-2 group-hover:ring-[#FFBB14] transition"
+                    className="h-8 w-8 rounded-full object-cover border border-neutral-700 group-hover:ring-2 group-hover:ring-brand transition"
                   />
                 ) : (
                   <div className="h-8 w-8 rounded-full bg-neutral-800 border border-neutral-700 text-xs font-bold text-neutral-300 flex items-center justify-center">
@@ -257,7 +257,7 @@ export function OTTPlayer({
             onClick={toggleSave}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold border transition cursor-pointer ${
               saved
-                ? "bg-[#FFBB14] border-[#FFBB14] text-black font-bold shadow-[0px_2px_0px_0px_#FFFFFF40_inset]"
+                ? "bg-brand border-brand text-black font-bold shadow-[0px_2px_0px_0px_#FFFFFF40_inset]"
                 : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800"
             }`}
           >

@@ -90,7 +90,7 @@ export function OTTSwimlane({
 
                 {/* Play icon overlay on hover */}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-200">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#FFBB14] text-black shadow-lg backdrop-blur-sm">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand text-black shadow-lg backdrop-blur-sm">
                     <IconPlayerPlay className="h-6 w-6 fill-current" />
                   </div>
                 </div>
@@ -114,7 +114,7 @@ export function OTTSwimlane({
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
                     title={video.channelTitle || "YouTube Channel"}
-                    className="h-6 w-6 rounded-full overflow-hidden shrink-0 border border-neutral-700 bg-neutral-800 mt-0.5 hover:ring-2 hover:ring-[#FFBB14] transition"
+                    className="h-6 w-6 rounded-full overflow-hidden shrink-0 border border-neutral-700 bg-neutral-800 mt-0.5 hover:ring-2 hover:ring-brand transition"
                   >
                     <img
                       src={video.channelLogoUrl}

@@ -28,10 +28,10 @@ export default function SportsHubPage() {
   return (
     <div className="min-h-screen bg-neutral-950 pb-20 text-white">
       <div className="relative w-full overflow-hidden">
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#FFBB14]/15 blur-3xl" />
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-brand/15 blur-3xl" />
         <div className="absolute inset-0 bg-gradient-to-b from-neutral-900 via-neutral-950 to-neutral-950" />
         <div className="relative z-10 px-6 md:px-12 pt-20 pb-10 space-y-6 max-w-5xl">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[#FFBB14]">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-brand">
             <IconTrophy className="h-4 w-4" /> FTN Sports
           </div>
           {next ? (

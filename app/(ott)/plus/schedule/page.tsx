@@ -43,7 +43,7 @@ function Actions({ entry, radioEnabled }: { entry: Entry; radioEnabled: boolean 
   return (
     <div className="flex flex-wrap gap-2">
       {entry.onStream && entry.youtubeId && (
-        <Link href={`/plus/watch/${entry.youtubeId}`} className={`${btn} bg-[#FFBB14] text-black hover:bg-[#e5a710]`}>
+        <Link href={`/plus/watch/${entry.youtubeId}`} className={`${btn} bg-brand text-black hover:bg-brand-hover`}>
           <IconPlayerPlay className="h-3.5 w-3.5" /> Watch
         </Link>
       )}
@@ -126,7 +126,7 @@ export default function FTNPlusSchedulePage() {
   return (
     <div className="min-h-screen bg-neutral-950 text-white pb-16">
       <div className="px-6 md:px-12 pt-24 pb-6 space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-widest text-[#FFBB14]">FTN+</div>
+        <div className="text-xs font-semibold uppercase tracking-widest text-brand">FTN+</div>
         <h1 className="text-3xl sm:text-5xl font-black tracking-tight">Schedule</h1>
         <p className="text-sm text-neutral-400">Everything coming up on FTN Radio and the livestreams. Times are in your local time ({localZone()}).</p>
       </div>
@@ -181,12 +181,12 @@ export default function FTNPlusSchedulePage() {
             type="button"
             onClick={() => setDayIndex(i)}
             className={`flex-shrink-0 w-16 rounded-xl border py-2 text-center transition cursor-pointer ${
-              i === dayIndex ? "bg-[#FFBB14] text-black border-[#FFBB14]" : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:border-neutral-600"
+              i === dayIndex ? "bg-brand text-black border-brand" : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:border-neutral-600"
             }`}
           >
             <div className="text-[11px] font-semibold uppercase">{i === 0 ? "Today" : dayName.format(d)}</div>
             <div className="text-lg font-black leading-tight">{d.getDate()}</div>
-            <div className={`mx-auto mt-1 h-1 w-1 rounded-full ${counts[i] ? (i === dayIndex ? "bg-black" : "bg-[#FFBB14]") : "bg-transparent"}`} />
+            <div className={`mx-auto mt-1 h-1 w-1 rounded-full ${counts[i] ? (i === dayIndex ? "bg-black" : "bg-brand") : "bg-transparent"}`} />
           </button>
         ))}
       </div>
@@ -211,7 +211,7 @@ export default function FTNPlusSchedulePage() {
                 key={e.id}
                 className={`flex gap-4 rounded-xl border bg-neutral-900 p-4 ${live ? "border-red-900/70" : "border-neutral-800"} ${past || cancelled ? "opacity-60" : ""}`}
               >
-                <div className="w-20 flex-shrink-0 text-sm font-bold text-[#FFBB14] leading-tight">
+                <div className="w-20 flex-shrink-0 text-sm font-bold text-brand leading-tight">
                   {fmtTime(start)}
                   <div className="text-[11px] font-medium text-neutral-500">until {fmtTime(end)}</div>
                 </div>
