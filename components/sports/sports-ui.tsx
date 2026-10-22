@@ -101,16 +101,27 @@ export function Avatar({ name, src, color, size = 32 }: { name: string; src?: st
   );
 }
 
-/** Round mark. An uploaded logo is shown whole (contained, with padding) on a neutral disc; initials on a colour disc are only the fallback. */
+/** Round mark. Near-square logos (full-bleed art) fill and are cropped to the circle; wide or tall logos are contained with a little padding on a neutral disc. Initials on a colour disc are only the fallback. */
 function Mark({ logoUrl, color, label, size, fontScale }: { logoUrl?: string | null; color?: string | null; label: string; size: number; fontScale: number }) {
+  const [ratio, setRatio] = useState<number | null>(null);
+  useEffect(() => setRatio(null), [logoUrl]);
   if (logoUrl) {
-    const pad = Math.max(2, Math.round(size * 0.14));
+    const fill = ratio !== null && ratio >= 0.75 && ratio <= 1.5;
+    const pad = fill || ratio === null ? 0 : Math.max(2, Math.round(size * 0.1));
     return (
       <span
         style={{ width: size, height: size, padding: pad }}
         className="inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-ftn-line bg-ftn-surface-2"
       >
-        <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+        <img
+          src={logoUrl}
+          alt=""
+          ref={(img) => {
+            if (img?.complete && img.naturalHeight) setRatio(img.naturalWidth / img.naturalHeight);
+          }}
+          onLoad={(e) => setRatio(e.currentTarget.naturalWidth / (e.currentTarget.naturalHeight || 1))}
+          className={cn("h-full w-full", fill || ratio === null ? "object-cover" : "object-contain")}
+        />
       </span>
     );
   }
