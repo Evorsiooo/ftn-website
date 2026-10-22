@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { sportsDrivers, sportsEvents, sportsLeagues, sportsTeams } from "@/db/schema";
+import { sportsDrivers, sportsEvents, sportsLeagues, sportsTeams, sportsVenues } from "@/db/schema";
 import { verifySessionToken } from "@/lib/auth";
 import { canManageSports } from "@/lib/rbac";
 import { slugify } from "@/lib/utils";
@@ -9,12 +9,13 @@ import { defaultRules, parseRaceResults, parseRules, type LeagueKind } from "@/l
 
 export const runtime = "edge";
 
-type Entity = "leagues" | "teams" | "drivers" | "events";
+type Entity = "leagues" | "teams" | "drivers" | "events" | "venues";
 const TABLES = {
   leagues: sportsLeagues,
   teams: sportsTeams,
   drivers: sportsDrivers,
   events: sportsEvents,
+  venues: sportsVenues,
 } as const;
 
 type Body = Record<string, unknown>;
@@ -38,6 +39,11 @@ const color = (v: unknown) => {
   const c = str(v, 9);
   if (c && !/^#[0-9a-fA-F]{6}$/.test(c)) throw new Error("Colour must look like #FFBB14");
   return c;
+};
+const roblox = (v: unknown) => {
+  const n = str(v, 20);
+  if (n && !/^[A-Za-z0-9_]{3,20}$/.test(n)) throw new Error("Roblox usernames are 3 to 20 letters, numbers or underscores");
+  return n;
 };
 const required = <T,>(v: T | null | undefined, label: string): T => {
   if (v === null || v === undefined) throw new Error(`${label} is required`);
@@ -71,8 +77,13 @@ async function buildValues(entity: Entity, body: Body, partial: boolean, db: Ret
       } else if (!partial) {
         rulesJson = JSON.stringify(defaultRules(required(kind, "Type")));
       }
+      const scoring = body.scoring as string | undefined;
+      if (scoring !== undefined && scoring !== "points" && scoring !== "order") throw new Error("Invalid scoring mode");
       return strip({
         name: partial ? name : required(name, "Name"),
+        scoring,
+        constructors: body.constructors === undefined ? undefined : !!body.constructors,
+        bannerUrl: str(body.bannerUrl, 500),
         slug: partial ? undefined : slugify(required(name, "Name")),
         kind: partial ? undefined : required(kind, "Type"),
         sport: partial ? str(body.sport, 50) : required(str(body.sport, 50), "Sport"),
@@ -96,6 +107,12 @@ async function buildValues(entity: Entity, body: Body, partial: boolean, db: Ret
         teamId: str(body.teamId, 64),
         name: partial ? str(body.name, 100) : required(str(body.name, 100), "Name"),
         number: int(body.number),
+        robloxUsername: roblox(body.robloxUsername),
+      });
+    case "venues":
+      return strip({
+        name: partial ? str(body.name, 100) : required(str(body.name, 100), "Name"),
+        photoUrl: str(body.photoUrl, 500),
       });
     case "events": {
       const status = body.status as string | undefined;
@@ -120,6 +137,8 @@ async function buildValues(entity: Entity, body: Body, partial: boolean, db: Ret
         name: str(body.name, 150),
         round: int(body.round),
         venue: str(body.venue, 150),
+        venueId: str(body.venueId, 64),
+        articleId: str(body.articleId, 64),
         startsAt,
         status,
         homeTeamId: home,
@@ -155,7 +174,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ entity
     return NextResponse.json({ item: row }, { status: 201 });
   } catch (error: any) {
     const msg = String(error.message || "");
-    if (msg.includes("UNIQUE")) return NextResponse.json({ error: "A league with that name already exists" }, { status: 409 });
+    if (msg.includes("UNIQUE")) return NextResponse.json({ error: "That name is already taken" }, { status: 409 });
     return NextResponse.json({ error: msg || "Failed to save" }, { status: 400 });
   }
 }

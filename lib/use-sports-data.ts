@@ -10,6 +10,9 @@ export interface SportsLeague {
   season: string;
   color: string | null;
   logoUrl: string | null;
+  bannerUrl: string | null;
+  scoring: "points" | "order";
+  constructors: boolean;
   rulesJson: string;
 }
 export interface SportsTeam {
@@ -26,6 +29,24 @@ export interface SportsDriver {
   teamId: string | null;
   name: string;
   number: number | null;
+  robloxUsername: string | null;
+}
+export interface SportsVenue {
+  id: string;
+  name: string;
+  photoUrl: string | null;
+}
+/** A scheduled broadcast linked to a sports event (drives the Livestream / Radio badges). */
+export interface SportsBroadcast {
+  sportsEventId: string;
+  onRadio: boolean;
+  onStream: boolean;
+  youtubeId: string | null;
+}
+export interface SportsArticle {
+  id: string;
+  slug: string;
+  title: string;
 }
 export interface SportsEvent {
   id: string;
@@ -33,6 +54,8 @@ export interface SportsEvent {
   name: string | null;
   round: number | null;
   venue: string | null;
+  venueId: string | null;
+  articleId: string | null;
   startsAt: string;
   status: "scheduled" | "final" | "postponed" | "cancelled";
   homeTeamId: string | null;
@@ -48,9 +71,12 @@ export interface SportsData {
   teams: SportsTeam[];
   drivers: SportsDriver[];
   events: SportsEvent[];
+  venues: SportsVenue[];
+  broadcasts: SportsBroadcast[];
+  articles: SportsArticle[];
 }
 
-const EMPTY: SportsData = { leagues: [], teams: [], drivers: [], events: [] };
+const EMPTY: SportsData = { leagues: [], teams: [], drivers: [], events: [], venues: [], broadcasts: [], articles: [] };
 
 export function useSportsData() {
   const [data, setData] = useState<SportsData>(EMPTY);
@@ -67,6 +93,9 @@ export function useSportsData() {
         teams: json.teams ?? [],
         drivers: json.drivers ?? [],
         events: json.events ?? [],
+        venues: json.venues ?? [],
+        broadcasts: (json.broadcasts ?? []) as SportsBroadcast[],
+        articles: json.articles ?? [],
       });
       setError(null);
     } catch (e: any) {
