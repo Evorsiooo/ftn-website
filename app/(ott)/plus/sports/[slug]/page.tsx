@@ -9,6 +9,7 @@ import { Button, Chip, EmptyState, GUTTER } from "@/components/ftn/ui";
 import { cn } from "@/lib/utils";
 import { EventRow, LeagueMark, StandingsTable, TeamMark, indexTeams } from "@/components/sports/sports-ui";
 import { useSportsData } from "@/lib/use-sports-data";
+import { usePageTitle } from "@/lib/use-page-title";
 import {
   computeRacingStandings,
   computeTeamStandings,
@@ -26,6 +27,7 @@ export default function LeaguePage() {
   const [racingView, setRacingView] = useState<"drivers" | "constructors">("drivers");
 
   const league = data.leagues.find((l) => l.slug === slug);
+  usePageTitle(league ? `${league.name} · Sports` : null);
   const teams = useMemo(() => indexTeams(data), [data]);
   const drivers = useMemo(() => new Map(data.drivers.map((d) => [d.id, d])), [data.drivers]);
   const events = useMemo(() => data.events.filter((e) => e.leagueId === league?.id), [data.events, league?.id]);
