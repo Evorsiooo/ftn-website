@@ -52,9 +52,14 @@ export function parseRules(kind: LeagueKind, json: string | null | undefined): T
 export interface RaceResultEntry {
   driverId: string;
   position: number;
-  status: "finished" | "dnf";
+  /** dnf = did not finish, dsq = disqualified. Neither scores or counts as a finish. */
+  status: "finished" | "dnf" | "dsq";
   fastestLap?: boolean;
+  /** Finishing time or gap, shown as typed ("48:12.4", "+6.8"). */
+  time?: string;
 }
+
+export type Scoring = "points" | "order";
 
 export function parseRaceResults(json: string | null | undefined): RaceResultEntry[] {
   if (!json) return [];
@@ -66,8 +71,9 @@ export function parseRaceResults(json: string | null | undefined): RaceResultEnt
       .map((r) => ({
         driverId: r.driverId,
         position: Number(r.position),
-        status: r.status === "dnf" ? "dnf" : "finished",
+        status: r.status === "dnf" ? "dnf" : r.status === "dsq" ? "dsq" : "finished",
         fastestLap: !!r.fastestLap,
+        time: typeof r.time === "string" && r.time.trim() ? r.time.trim().slice(0, 20) : undefined,
       }));
   } catch {
     return [];
@@ -75,7 +81,7 @@ export function parseRaceResults(json: string | null | undefined): RaceResultEnt
 }
 
 export function racePoints(entry: RaceResultEntry, rules: RacingRules): number {
-  if (entry.status === "dnf") return 0;
+  if (entry.status !== "finished") return 0;
   const base = rules.points[entry.position - 1] ?? 0;
   return base + (entry.fastestLap ? rules.fastestLapPoint : 0);
 }
@@ -158,6 +164,10 @@ export interface DriverStandingRow {
   podiums: number;
   dnfs: number;
   points: number;
+  /** Finishing position per round in date order; null for a DNF or disqualification. */
+  finishes: (number | null)[];
+  best: number | null;
+  avgFinish: number | null;
 }
 
 export interface ConstructorStandingRow {
@@ -171,24 +181,30 @@ export function computeRacingStandings(
   drivers: { id: string; teamId: string | null }[],
   teamIds: string[],
   events: Pick<EventLike, "status" | "resultsJson">[],
-  rules: RacingRules
+  rules: RacingRules,
+  scoring: Scoring = "points"
 ): { drivers: DriverStandingRow[]; constructors: ConstructorStandingRow[] } {
   const dRows = new Map<string, DriverStandingRow>();
   drivers.forEach((d) =>
-    dRows.set(d.id, { driverId: d.id, teamId: d.teamId, races: 0, wins: 0, podiums: 0, dnfs: 0, points: 0 })
+    dRows.set(d.id, {
+      driverId: d.id, teamId: d.teamId, races: 0, wins: 0, podiums: 0, dnfs: 0, points: 0,
+      finishes: [], best: null, avgFinish: null,
+    })
   );
   const cRows = new Map<string, ConstructorStandingRow>();
   teamIds.forEach((id) => cRows.set(id, { teamId: id, wins: 0, podiums: 0, points: 0 }));
 
+  // `events` must be in date order so `finishes` reads as the season's form.
   for (const e of events) {
     if (e.status !== "final") continue;
     for (const r of parseRaceResults(e.resultsJson)) {
       const d = dRows.get(r.driverId);
       if (!d) continue;
-      const pts = racePoints(r, rules);
+      const pts = scoring === "points" ? racePoints(r, rules) : 0;
       d.races++;
       d.points += pts;
-      if (r.status === "dnf") d.dnfs++;
+      d.finishes.push(r.status === "finished" ? r.position : null);
+      if (r.status !== "finished") d.dnfs++;
       else {
         if (r.position === 1) d.wins++;
         if (r.position <= 3) d.podiums++;
@@ -196,7 +212,7 @@ export function computeRacingStandings(
       const c = d.teamId ? cRows.get(d.teamId) : undefined;
       if (c) {
         c.points += pts;
-        if (r.status !== "dnf") {
+        if (r.status === "finished") {
           if (r.position === 1) c.wins++;
           if (r.position <= 3) c.podiums++;
         }
@@ -205,9 +221,20 @@ export function computeRacingStandings(
   }
 
   const cmp = <T extends { points: number; wins: number; podiums: number }>(x: T, y: T) =>
-    y.points - x.points || y.wins - x.wins || y.podiums - x.podiums;
+    scoring === "points"
+      ? y.points - x.points || y.wins - x.wins || y.podiums - x.podiums
+      : y.wins - x.wins || y.podiums - x.podiums;
+  const drows = Array.from(dRows.values());
+  for (const d of drows) {
+    const done = d.finishes.filter((f): f is number => f !== null);
+    d.best = done.length ? Math.min(...done) : null;
+    d.avgFinish = done.length ? done.reduce((a, b) => a + b, 0) / done.length : null;
+  }
+  // Finishing-order ranking breaks remaining ties by best finish, then average finish.
+  const driverCmp = (x: DriverStandingRow, y: DriverStandingRow) =>
+    cmp(x, y) || (scoring === "order" ? (x.best ?? 99) - (y.best ?? 99) || (x.avgFinish ?? 99) - (y.avgFinish ?? 99) : 0);
   return {
-    drivers: Array.from(dRows.values()).sort(cmp),
+    drivers: drows.sort(driverCmp),
     constructors: Array.from(cRows.values()).sort(cmp),
   };
 }
