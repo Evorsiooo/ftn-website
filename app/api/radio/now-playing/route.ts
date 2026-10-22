@@ -71,7 +71,7 @@ export async function GET() {
         currentShow: mapOcc(current),
         nextShow: mapOcc(next),
       },
-      { headers: { "Cache-Control": "public, s-maxage=10, stale-while-revalidate=20" } }
+      { headers: { "Cache-Control": "public, s-maxage=5, stale-while-revalidate=10" } }
     );
   } catch (err) {
     console.error("now-playing error:", err);

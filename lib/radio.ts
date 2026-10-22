@@ -261,7 +261,65 @@ export async function fetchTrackInfo(
   const publicInfo = stream.statusJson
     ? await readIcecastStats(stream.statusJson, {}, secure.icecastMount, stream.streamUrl)
     : null;
-  return publicInfo || { artist: "", title: "", listeners: null, online: false };
+  if (publicInfo) return publicInfo;
+  // Stats unreachable (e.g. blocked port or proxy from the edge): the stream itself still
+  // answering is a better "online" signal than the metadata endpoints.
+  const live = await probeStream(stream.streamUrl);
+  return { artist: "", title: "", listeners: null, online: live.ok };
+}
+
+// Opens the listener stream just long enough to read headers, then drops it.
+export async function probeStream(streamUrl: string): Promise<{ ok: boolean; status?: number; contentType?: string; error?: string }> {
+  if (!streamUrl) return { ok: false, error: "No stream URL" };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
+  try {
+    const res = await fetch(streamUrl, { signal: controller.signal, cache: "no-store", headers: { "Icy-MetaData": "0" } });
+    const contentType = res.headers.get("content-type") || "";
+    controller.abort();
+    return { ok: res.ok && /audio|ogg|mpeg|aac|octet-stream/i.test(contentType), status: res.status, contentType };
+  } catch (err: any) {
+    return { ok: false, error: String(err?.message || err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Reports what each source of radio state returns, for the admin diagnose endpoint.
+export async function diagnoseRadio(
+  secure: RadioSecureSettings,
+  stream: { streamUrl: string; statusJson: string }
+) {
+  const check = async (url: string, headers: Record<string, string> = {}) => {
+    try {
+      const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000), cache: "no-store" });
+      const text = await res.text();
+      let sources: unknown = undefined;
+      try {
+        const src = JSON.parse(text)?.icestats?.source;
+        sources = (Array.isArray(src) ? src : src ? [src] : []).map((x: any) => ({
+          listenurl: x?.listenurl,
+          title: x?.title,
+          listeners: x?.listeners,
+        }));
+      } catch {}
+      return { url, status: res.status, sources, bodyStart: sources ? undefined : text.slice(0, 160) };
+    } catch (err: any) {
+      return { url, error: String(err?.message || err) };
+    }
+  };
+  return {
+    streamUrl: stream.streamUrl,
+    configuredMount: secure.icecastMount || null,
+    stream: await probeStream(stream.streamUrl),
+    publicStatus: stream.statusJson ? await check(stream.statusJson) : null,
+    adminStats:
+      secure.icecastAdminUrl && secure.icecastPassword
+        ? await check(`${secure.icecastAdminUrl.replace(/\/$/, "")}/admin/stats.json`, {
+            Authorization: `Basic ${btoa(`${secure.icecastUsername}:${secure.icecastPassword}`)}`,
+          })
+        : null,
+  };
 }
 
 // Per-isolate cache; only an optimisation, results are always re-derivable.
