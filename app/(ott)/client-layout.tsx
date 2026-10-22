@@ -1,4 +1,5 @@
 "use client";
+import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { OTTLoader } from "@/components/ott/ott-loader";
@@ -35,10 +36,9 @@ function OTTShell({ children }: { children: React.ReactNode }) {
   const { loadingLibrary } = useFTNPlus();
   const [open, setOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
-  const [ftnPlusAccess, setFtnPlusAccess] = useState<"public" | "members_only">("public");
   const [loadingSession, setLoadingSession] = useState(true);
   const pathname = usePathname();
-  const { webradioEnabled } = useSiteConfig();
+  const { webradioEnabled, ftnPlusAccess } = useSiteConfig();
 
   // Dynamic favicon and title synchronization
   useEffect(() => {
@@ -60,8 +60,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // 1. Fetch user session
-    fetch("/api/auth/session")
-      .then((res) => res.json())
+    fetchSession()
       .then((data: any) => {
         if (data && data.authenticated && data.user) {
           setCurrentUser(data.user);
@@ -72,15 +71,6 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       .catch(() => setCurrentUser(null))
       .finally(() => setLoadingSession(false));
 
-    // 2. Fetch site config
-    fetch("/api/radio/config")
-      .then((res) => res.json())
-      .then((data: any) => {
-        if (data && data.ftnPlusAccess) {
-          setFtnPlusAccess(data.ftnPlusAccess);
-        }
-      })
-      .catch(() => {});
   }, []);
 
   const links = [

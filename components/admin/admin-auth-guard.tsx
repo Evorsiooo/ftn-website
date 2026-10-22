@@ -1,4 +1,5 @@
 "use client";
+import { fetchSession } from "@/lib/session-client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -25,8 +26,7 @@ export function AdminAuthGuard({
   const [hasRoleAccess, setHasRoleAccess] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/session")
-      .then((res) => res.json())
+    fetchSession()
       .then((data: any) => {
         if (
           data &&

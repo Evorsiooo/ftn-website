@@ -1,5 +1,6 @@
 "use client";
 export const runtime = "edge";
+import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,8 +21,7 @@ export default function TiplinePage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/auth/session")
-        .then((res) => res.json())
+      fetchSession()
         .then((data: any) => {
           if (data && data.user) {
             setCurrentUser(data.user);
