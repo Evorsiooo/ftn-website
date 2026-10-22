@@ -4,11 +4,10 @@ import {
   getPublicRadioSettings,
   getSecureRadioSettings,
   getStreamConfig,
-  loadShowsAndSlots,
-  resolveCurrentAndNext,
   fetchTrackInfo,
   lookupAlbumArt,
 } from "@/lib/radio";
+import { loadShowsAndBroadcasts, resolveCurrentAndNext } from "@/lib/schedule";
 
 export const runtime = "edge";
 
@@ -33,24 +32,24 @@ export async function GET() {
       getPublicRadioSettings(db),
       getSecureRadioSettings(db),
       getStreamConfig(db),
-      loadShowsAndSlots(db),
+      loadShowsAndBroadcasts(db),
     ]);
 
-    const { current, next } = resolveCurrentAndNext(data.shows, data.slots);
+    const { current, next } = resolveCurrentAndNext(data.shows, data.broadcasts);
     const trackInfo = await fetchTrackInfo(secure, stream);
     const hasTrack = trackInfo.online && (trackInfo.artist || trackInfo.title);
 
     // Show art wins while a show is scheduled; otherwise fall back to the track's cover art.
-    let artUrl: string | null = current?.show.artUrl || null;
+    let artUrl: string | null = current?.show?.artUrl || null;
     if (!artUrl && hasTrack) artUrl = await lookupAlbumArt(trackInfo.artist, trackInfo.title, secure);
     if (!artUrl) artUrl = pub.defaultArtUrl || null;
 
     const mapOcc = (o: typeof current) =>
       o && {
-        name: o.show.name,
-        presenter: o.show.presenter,
-        description: o.show.description,
-        artUrl: o.show.artUrl,
+        name: o.show!.name,
+        presenter: o.show!.presenter,
+        description: o.show!.description,
+        artUrl: o.show!.artUrl,
         tag: o.tag,
         start: o.start.toISOString(),
         end: o.end.toISOString(),

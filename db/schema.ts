@@ -194,21 +194,30 @@ export const radioShows = sqliteTable("radio_shows", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
-// Weekly slots repeat (dayOfWeek 0=Sunday, startMinute/durationMinutes in UTC);
-// one-off slots use startsAt/endsAt instead.
-export const radioSlots = sqliteTable("radio_slots", {
+// A broadcast is one entry on the schedule: radio, a livestream, or both at once.
+// Weekly entries repeat (dayOfWeek 0=Sunday, startMinute/durationMinutes in UTC);
+// one-off entries use startsAt/endsAt instead. Radio entries need a show (presenter, art).
+// Livestreams live on YouTube; youtubeId optionally links the entry to its watch page.
+// sportsEventId is reserved for the FTN Sports events table.
+export const broadcasts = sqliteTable("broadcasts", {
   id: text("id").primaryKey(),
-  showId: text("show_id")
-    .notNull()
-    .references(() => radioShows.id, { onDelete: "cascade" }),
+  showId: text("show_id").references(() => radioShows.id, { onDelete: "set null" }),
+  title: text("title"),
+  description: text("description"),
+  onRadio: integer("on_radio", { mode: "boolean" }).notNull().default(true),
+  onStream: integer("on_stream", { mode: "boolean" }).notNull().default(false),
   kind: text("kind", { enum: ["weekly", "once"] }).notNull().default("weekly"),
   tag: text("tag", { enum: ["live", "simulcast", "rebroadcast"] }).notNull().default("live"),
+  status: text("status", { enum: ["scheduled", "cancelled"] }).notNull().default("scheduled"),
   dayOfWeek: integer("day_of_week"),
   startMinute: integer("start_minute"),
   durationMinutes: integer("duration_minutes"),
   startsAt: integer("starts_at", { mode: "timestamp" }),
   endsAt: integer("ends_at", { mode: "timestamp" }),
+  youtubeId: text("youtube_id"),
+  sportsEventId: text("sports_event_id"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
 // 11a. Organizers (advertisers that own one or more ads)
