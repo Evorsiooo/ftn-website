@@ -1,4 +1,5 @@
 "use client";
+import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -29,8 +30,7 @@ function SignInContent() {
 
   // Check if already signed in
   useEffect(() => {
-    fetch("/api/auth/session")
-      .then((res) => res.json())
+    fetchSession()
       .then((data: any) => {
         if (data && data.authenticated) {
           router.replace(returnUrl);

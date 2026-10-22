@@ -1,4 +1,5 @@
 "use client";
+import { fetchSession } from "@/lib/session-client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -20,8 +21,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
   useEffect(() => {
     setMounted(true);
     // Fetch session
-    fetch("/api/auth/session")
-      .then((res) => res.json())
+    fetchSession()
       .then((data: any) => {
         if (data && data.authenticated && data.user) {
           setUser(data.user);

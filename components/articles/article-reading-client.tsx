@@ -1,4 +1,5 @@
 "use client";
+import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { TracingBeam } from "@/components/ui/tracing-beam";
@@ -39,8 +40,7 @@ export function ArticleReadingClient({
 
   // 1. Fetch current user session
   useEffect(() => {
-    fetch("/api/auth/session")
-      .then((res) => res.json())
+    fetchSession()
       .then((data: any) => {
         if (data && data.authenticated && data.user) {
           setCurrentUser(data.user);
