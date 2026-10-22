@@ -88,7 +88,15 @@ export default function LibraryPage() {
 
   return (
     <PageShell>
-      <PageHeader eyebrow="FTN+" title="Library" subtitle="Livestreams, replays and originals from every FTN channel." />
+      {isAll && billboardItem && <OTTBillboard item={billboardItem} />}
+
+      <PageHeader
+        eyebrow="FTN+"
+        title="Library"
+        subtitle="Livestreams, replays and originals from every FTN channel."
+        glow={!(isAll && billboardItem)}
+        className={isAll && billboardItem ? "-mt-6 relative z-20" : undefined}
+      />
 
       <div className={cn("flex flex-wrap gap-2 pb-8", GUTTER)} role="group" aria-label="Filter videos">
         <Chip active={isAll} onClick={() => select({ kind: "all" })}>
@@ -118,9 +126,7 @@ export default function LibraryPage() {
           ))}
       </div>
 
-      {isAll && billboardItem && <OTTBillboard item={billboardItem} />}
-
-      <div className={cn("space-y-10", isAll && billboardItem && "relative z-20 -mt-10")}>
+      <div className="space-y-10">
         {isAll && <ContinueWatching />}
 
         {loadingLibrary && <LaneSkeleton />}
