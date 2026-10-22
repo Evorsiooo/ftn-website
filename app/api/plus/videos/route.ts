@@ -1,12 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { videos, videoViews, siteSettings } from "@/db/schema";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, gte, sql } from "drizzle-orm";
+import { getRequestContext } from "@cloudflare/next-on-pages";
 import { syncAllConfiguredChannels, verifyActiveLives, isChannelMatching } from "@/lib/youtube";
 
 export const runtime = "edge";
 
+const CACHE_TTL_SECONDS = 30;
+
+// Runs work after the response is sent so slow upstream calls (YouTube) never block page loads.
+function runInBackground(task: Promise<unknown>) {
+  const safe = task.catch((err) => console.warn("Background task error:", err));
+  try {
+    getRequestContext().ctx.waitUntil(safe);
+  } catch {
+    // No request context (local dev): the promise still runs, just unawaited.
+  }
+}
+
 export async function GET(request: NextRequest) {
+  // Cloudflare does not edge-cache dynamic function responses from Cache-Control alone,
+  // so serve repeat hits from the Cache API. `?fresh=1` (admin screens) bypasses it.
+  const bypassCache = new URL(request.url).searchParams.has("fresh");
+  const edgeCache = typeof caches !== "undefined" ? (caches as any).default as Cache | undefined : undefined;
+  const cacheKey = new Request(new URL(request.url).origin + "/api/plus/videos");
+  if (edgeCache && !bypassCache) {
+    try {
+      const hit = await edgeCache.match(cacheKey);
+      if (hit) return hit;
+    } catch {}
+  }
+
+  const response = await buildResponse();
+  if (edgeCache && response.ok && response.headers.get("Cache-Control")?.includes("s-maxage")) {
+    runInBackground(edgeCache.put(cacheKey, response.clone()));
+  }
+  return response;
+}
+
+async function buildResponse(): Promise<Response> {
   try {
     const d1 = (process.env as any).DB as D1Database;
     if (!d1) {
@@ -66,15 +99,14 @@ export async function GET(request: NextRequest) {
       console.warn("Failed to query main_config:", cfgErr);
     }
 
-    // 2. Automated sync: Auto-sync configured channels if cooldown has passed
-    try {
-      await syncAllConfiguredChannels(db, {
+    // 2. Automated sync: runs after the response so YouTube latency never blocks the library.
+    // New videos appear on the next cache refresh.
+    runInBackground(
+      syncAllConfiguredChannels(db, {
         cooldownMs: 60 * 1000,
         channelIds: configuredChannels.length > 0 ? configuredChannels : undefined,
-      });
-    } catch (syncErr) {
-      console.warn("Auto-sync error:", syncErr);
-    }
+      })
+    );
 
     // 3. Fetch all ingested videos
     let rawVideos: any[] = [];
@@ -87,14 +119,10 @@ export async function GET(request: NextRequest) {
       console.error("Failed to query videos table:", vidErr);
     }
 
-    // 4. Real-time Live Status Verification: If any video is marked isLive, verify with YouTube API
-    try {
-      const activeLivesInDb = rawVideos.filter((v) => v.isLive === true);
-      if (activeLivesInDb.length > 0 && process.env.YOUTUBE_API_KEY) {
-        await verifyActiveLives(db, activeLivesInDb);
-      }
-    } catch (liveErr) {
-      console.warn("Live check error:", liveErr);
+    // 4. Live status verification against the YouTube API, also after the response.
+    const activeLivesInDb = rawVideos.filter((v) => v.isLive === true);
+    if (activeLivesInDb.length > 0 && process.env.YOUTUBE_API_KEY) {
+      runInBackground(verifyActiveLives(db, activeLivesInDb.map((v) => ({ ...v }))));
     }
 
     // Deduplicate all videos by youtubeId, filter hidden videos, and enforce strictly parsed Date timestamp sorting
@@ -116,36 +144,19 @@ export async function GET(request: NextRequest) {
       return timeB - timeA;
     });
 
-    // 5. Fetch all recorded video views and compute past 7-day counts
-    let allViews: any[] = [];
+    // 5. Past 7-day view counts, aggregated in SQL instead of scanning the whole table.
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const viewCountMap: Record<string, number> = {};
     try {
-      allViews = await db
-        .select({
-          videoId: videoViews.videoId,
-          viewedAt: videoViews.viewedAt,
-        })
-        .from(videoViews);
+      const counts = await db
+        .select({ videoId: videoViews.videoId, n: sql<number>`count(*)` })
+        .from(videoViews)
+        .where(gte(videoViews.viewedAt, sevenDaysAgo))
+        .groupBy(videoViews.videoId);
+      for (const c of counts) viewCountMap[c.videoId] = Number(c.n);
     } catch (viewsErr) {
       console.warn("Could not query videoViews:", viewsErr);
     }
-
-    const sevenDaysAgoTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const viewCountMap: Record<string, number> = {};
-
-    allViews.forEach((v) => {
-      let vTime = 0;
-      if (v.viewedAt instanceof Date) {
-        vTime = v.viewedAt.getTime();
-      } else if (typeof v.viewedAt === "number") {
-        vTime = v.viewedAt;
-      } else if (v.viewedAt) {
-        vTime = new Date(v.viewedAt).getTime();
-      }
-
-      if (!vTime || isNaN(vTime) || vTime >= sevenDaysAgoTime) {
-        viewCountMap[v.videoId] = (viewCountMap[v.videoId] || 0) + 1;
-      }
-    });
 
     const getVideoViews = (v: any) => {
       return (viewCountMap[v.id] || 0) + (viewCountMap[v.youtubeId] || 0);
