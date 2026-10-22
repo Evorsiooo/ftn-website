@@ -101,15 +101,23 @@ export function Avatar({ name, src, color, size = 32 }: { name: string; src?: st
   );
 }
 
-/** Uploaded logos are shown whole on a transparent background; initials on a tile are only the fallback. */
+/** Round mark. An uploaded logo is shown whole (contained, with padding) on a neutral disc; initials on a colour disc are only the fallback. */
 function Mark({ logoUrl, color, label, size, fontScale }: { logoUrl?: string | null; color?: string | null; label: string; size: number; fontScale: number }) {
   if (logoUrl) {
-    return <img src={logoUrl} alt="" width={size} height={size} style={{ width: size, height: size }} className="object-contain flex-shrink-0" />;
+    const pad = Math.max(2, Math.round(size * 0.14));
+    return (
+      <span
+        style={{ width: size, height: size, padding: pad }}
+        className="inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full border border-ftn-line bg-ftn-surface-2"
+      >
+        <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+      </span>
+    );
   }
   return (
     <div
-      style={{ width: size, height: size, backgroundColor: color || "var(--color-ftn-surface-2)", fontSize: Math.max(9, Math.round(size * fontScale)) }}
-      className="rounded-lg flex items-center justify-center font-black text-white flex-shrink-0"
+      style={{ width: size, height: size, backgroundColor: color || "var(--color-ftn-surface-2)", fontSize: Math.max(8, Math.round(size * fontScale)) }}
+      className="rounded-full flex items-center justify-center font-black text-white flex-shrink-0"
     >
       {label}
     </div>
@@ -117,53 +125,17 @@ function Mark({ logoUrl, color, label, size, fontScale }: { logoUrl?: string | n
 }
 
 export function TeamMark({ team, size = 28 }: { team?: SportsTeam; size?: number }) {
-  return <Mark logoUrl={team?.logoUrl} color={team?.color} label={(team?.shortName || team?.name || "?").slice(0, 3).toUpperCase()} size={size} fontScale={0.36} />;
+  return <Mark logoUrl={team?.logoUrl} color={team?.color} label={(team?.shortName || team?.name || "?").slice(0, 3).toUpperCase()} size={size} fontScale={0.34} />;
 }
 
 export function LeagueMark({ league, size = 40 }: { league: SportsLeague; size?: number }) {
-  return <Mark logoUrl={league.logoUrl} color={league.color} label={leagueAbbrev(league.name)} size={size} fontScale={0.3} />;
+  return <Mark logoUrl={league.logoUrl} color={league.color} label={leagueAbbrev(league.name)} size={size} fontScale={0.28} />;
 }
 
 // ------------------------------------------------------------- shared cards
-// NextUpCard and ResultCard follow Home's Sports row; Home reuses them as they are.
+// ResultCard and SlotCard are the hub's cards; Home's Sports lane uses the shared MediaCard instead.
 
 const eyebrow = "ftn-eyebrow text-ftn-text-3";
-
-/** The next event: blue-tinted card with a mono countdown. */
-export function NextUpCard({
-  event,
-  league,
-  teams,
-  badge,
-  className,
-}: {
-  event: SportsEvent;
-  league?: SportsLeague;
-  teams: Map<string, SportsTeam>;
-  badge?: string | null;
-  className?: string;
-}) {
-  return (
-    <Link
-      href={league ? `/plus/sports/${league.slug}?tab=calendar` : "/plus/sports"}
-      className={cn(
-        "block rounded-2xl border border-ftn-line bg-gradient-to-br from-sports/20 to-ftn-surface to-70% p-4.5 transition hover:border-ftn-line-strong",
-        className
-      )}
-    >
-      <div className="flex items-center gap-2 mb-2">
-        {league && <LeagueMark league={league} size={22} />}
-        <div className="ftn-eyebrow text-sports truncate">Next up{league ? ` · ${league.name}` : ""}</div>
-      </div>
-      <div className="ftn-display text-xl mb-2">{roundTitle(event, teams)}</div>
-      <div className="ftn-mono text-3xl font-extrabold tracking-tight my-2.5">{countdown(event.startsAt)}</div>
-      <div className="text-xs text-ftn-text-3">
-        {fmtDay(event.startsAt)} · {fmtTime(event.startsAt)}
-        {badge ? ` · ${badge}` : ""}
-      </div>
-    </Link>
-  );
-}
 
 /** A finished event: scoreboard for matches, top three for races. */
 export function ResultCard({

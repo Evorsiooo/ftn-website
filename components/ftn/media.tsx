@@ -11,11 +11,14 @@ export function ArtTile({
   alt = "",
   className,
   onError,
+  fallback,
 }: {
   src?: string | null;
   alt?: string;
   className?: string;
   onError?: () => void;
+  /** Replaces the default brand-mark fallback when there is no image. */
+  fallback?: React.ReactNode;
 }) {
   return (
     <div className={cn("relative overflow-hidden bg-ftn-surface-2", className)}>
@@ -28,6 +31,8 @@ export function ArtTile({
           onError={onError}
           className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
         />
+      ) : fallback ? (
+        fallback
       ) : (
         <div className="h-full w-full bg-gradient-to-br from-ftn-surface-2 to-ftn-bg flex items-center justify-center">
           <img src="/logos/ftnplus_favicon.png" alt="" className="h-1/3 max-h-12 w-1/3 max-w-12 object-contain opacity-60" />
@@ -120,10 +125,12 @@ export function MediaCard({
   title,
   children,
   lead,
+  fallback,
   className,
 }: {
   href?: string;
   art?: string | null;
+  fallback?: React.ReactNode;
   alt?: string;
   shape?: "video" | "square";
   badge?: string;
@@ -142,7 +149,7 @@ export function MediaCard({
 }) {
   return (
     <CardSurface href={href} className={className}>
-      <ArtTile src={art} alt={alt ?? title} className={shape === "video" ? "aspect-video w-full" : "aspect-square w-full"} />
+      <ArtTile src={art} alt={alt ?? title} fallback={fallback} className={shape === "video" ? "aspect-video w-full" : "aspect-square w-full"} />
       {showPlay && (
         <div className="absolute inset-x-0 top-0 aspect-video flex items-center justify-center opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand text-brand-ink shadow-lg">
