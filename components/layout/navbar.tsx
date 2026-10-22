@@ -14,10 +14,18 @@ import {
 import { AuthButton } from "./auth-button";
 import { ThemeToggle } from "./theme-toggle";
 import { useSiteConfig } from "@/lib/site-config-context";
+import { usePlusNow } from "@/components/plus-promo/plus-now-context";
+import { plusHref } from "@/lib/plus-links";
+
+function LiveDot() {
+  return <span aria-hidden className="h-2 w-2 flex-none rounded-full bg-red-600 shadow-[0_0_0_3px_rgba(220,38,38,0.25)] animate-pulse" />;
+}
 
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { discordUrl } = useSiteConfig();
+  const { data: plusNow } = usePlusNow();
+  const plusLive = plusNow.live.length > 0;
 
   const radioLink = "/plus/radio";
 
@@ -68,15 +76,18 @@ export function Navbar() {
 
           {/* FTN+ Gold Button */}
           <NavbarButton
-            href="/plus"
+            href={plusHref("/plus", "nav")}
             variant="ftn-plus"
-            className="px-3.5 py-1.5 h-8 flex items-center justify-center cursor-pointer"
+            className="px-3.5 py-1.5 h-8 flex items-center justify-center gap-1.5 cursor-pointer"
+            title={plusLive ? "Live now on FTN+" : "FTN+"}
           >
+            {plusLive && <LiveDot />}
             <img
               src="/logos/ftnplus_textwhitepluswhite_transparent.png"
               alt="FTN+"
               className="h-3.5 sm:h-4 w-auto object-contain"
             />
+            {plusLive && <span className="text-[9px] font-black uppercase tracking-wider text-red-700">Live</span>}
           </NavbarButton>
 
           <AuthButton />
@@ -128,16 +139,18 @@ export function Navbar() {
             </NavbarButton>
 
             <NavbarButton
-              href="/plus"
+              href={plusHref("/plus", "nav")}
               variant="ftn-plus"
               onClick={() => setIsMobileMenuOpen(false)}
-              className="flex-1 h-9 flex items-center justify-center cursor-pointer"
+              className="flex-1 h-9 flex items-center justify-center gap-1.5 cursor-pointer"
             >
+              {plusLive && <LiveDot />}
               <img
                 src="/logos/ftnplus_textwhitepluswhite_transparent.png"
                 alt="FTN+"
                 className="h-4 w-auto object-contain"
               />
+              {plusLive && <span className="text-[9px] font-black uppercase tracking-wider text-red-700">Live</span>}
             </NavbarButton>
             <AuthButton />
           </div>

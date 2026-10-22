@@ -137,7 +137,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
           </h1>
 
           <div className="pt-2">
-            <Button href="/api/auth/roblox?returnUrl=/plus" size="lg" hard className="w-full">
+            <Button href={`/api/auth/roblox?returnUrl=${encodeURIComponent(pathname || "/plus")}`} size="lg" hard className="w-full">
               Sign In
             </Button>
           </div>
