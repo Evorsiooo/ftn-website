@@ -270,8 +270,8 @@ export default function FTNPlusRadioPage() {
                       : "Listen live"}
                 </span>
               </Button>
-              <div className="flex items-center gap-3 rounded-full bg-ftn-surface border border-ftn-line h-14 px-5">
-                <IconVolume className="h-4 w-4 text-ftn-text-2" />
+              <div className="flex items-center gap-3 rounded-full bg-ftn-surface-2 border border-ftn-line-strong h-14 px-6">
+                <IconVolume className="h-5 w-5 text-ftn-text-2" />
                 <input
                   type="range"
                   min={0}
@@ -284,8 +284,8 @@ export default function FTNPlusRadioPage() {
                   className="ftn-range w-28"
                 />
               </div>
-              <Button variant="ghost" size="lg" onClick={openPopout} aria-label="Open pop-out player">
-                <IconExternalLink className="h-4 w-4" /> Pop out
+              <Button variant="secondary" size="lg" onClick={openPopout} aria-label="Open pop-out player" className="px-6">
+                <IconExternalLink className="h-5 w-5" /> Pop out
               </Button>
             </div>
             {status === "error" && (
