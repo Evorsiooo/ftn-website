@@ -19,7 +19,7 @@ import { PageShell } from "@/components/ftn/page";
 import { Button, EmptyState, GUTTER, ProgressBar, Tag } from "@/components/ftn/ui";
 import { ArtTile, Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
-import { useRadioPlayer } from "@/components/radio/use-radio-player";
+import { COUNTDOWN_MS, useRadioPlayer } from "@/components/radio/use-radio-player";
 import { Waveform } from "@/components/radio/waveform";
 
 interface ShowInfo {
@@ -79,7 +79,16 @@ export default function FTNPlusRadioPage() {
       .catch(() => {});
   }, []);
 
-  const { status, volume, setVolume, play, stop } = useRadioPlayer(streamUrl, () => refresh());
+  const { status, pendingSince, volume, setVolume, play, stop } = useRadioPlayer(streamUrl, () => refresh());
+  const [pendingNow, setPendingNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (pendingSince === null) return;
+    setPendingNow(Date.now());
+    const timer = setInterval(() => setPendingNow(Date.now()), 100);
+    return () => clearInterval(timer);
+  }, [pendingSince]);
+  const countdownLeft = pendingSince === null ? 0 : Math.max(0, COUNTDOWN_MS - (pendingNow - pendingSince));
+  const bufferLabel = status === "reconnecting" && pendingSince === null ? "Reconnecting…" : "Buffering…";
   const isPlaying = status !== "idle" && status !== "error";
   const isBusy = status === "connecting" || status === "buffering" || status === "reconnecting";
 
@@ -291,17 +300,15 @@ export default function FTNPlusRadioPage() {
                 ) : (
                   <IconPlayerPlay className="h-5 w-5 fill-current" />
                 )}
-                {status === "connecting"
-                  ? "Connecting…"
-                  : status === "buffering"
-                    ? "Buffering…"
-                    : status === "reconnecting"
-                      ? "Reconnecting…"
-                      : isPlaying
-                        ? "Pause"
-                        : status === "error"
-                          ? "Try again"
-                          : "Listen live"}
+                {isBusy
+                  ? status !== "buffering" && countdownLeft > 0
+                    ? `Buffering… ${(countdownLeft / 1000).toFixed(1)}s`
+                    : bufferLabel
+                  : isPlaying
+                    ? "Pause"
+                    : status === "error"
+                      ? "Try again"
+                      : "Listen live"}
               </Button>
               <div className="flex items-center gap-3 rounded-full bg-ftn-surface border border-ftn-line h-14 px-5">
                 <IconVolume className="h-4 w-4 text-ftn-text-2" />

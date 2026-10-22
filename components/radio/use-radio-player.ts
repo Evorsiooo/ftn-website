@@ -3,32 +3,44 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type PlayerStatus = "idle" | "connecting" | "playing" | "buffering" | "reconnecting" | "error";
 
-const STALL_MS = 4000;
+// A connection attempt shows a countdown for COUNTDOWN_MS, then plain "Buffering…" for
+// GRACE_MS more, and is retried if audio still hasn't started.
+export const COUNTDOWN_MS = 5000;
+const GRACE_MS = 2000;
 const WATCHDOG_MS = 2000;
 const RETRY_MS = [1000, 2000, 4000, 8000];
 const MAX_RETRIES = 6;
+const HAVE_FUTURE_DATA = 3;
 
 // Owns the <audio> element for a live stream. Icecast drops listeners for a moment when the
 // source switches (AutoDJ <-> broadcaster), so a dropped, ended or frozen stream is
 // reconnected with a cache-busting URL instead of being left silent.
 export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
   const [status, setStatus] = useState<PlayerStatus>("idle");
+  const [pendingSince, setPendingSince] = useState<number | null>(null);
   const [volume, setVolumeState] = useState(0.8);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wantPlaying = useRef(false);
   const retries = useRef(0);
-  const timers = useRef<{ stall?: ReturnType<typeof setTimeout>; retry?: ReturnType<typeof setTimeout>; watchdog?: ReturnType<typeof setInterval> }>({});
+  const timers = useRef<{ pending?: ReturnType<typeof setTimeout>; retry?: ReturnType<typeof setTimeout>; watchdog?: ReturnType<typeof setInterval> }>({});
   const volumeRef = useRef(volume);
   const urlRef = useRef(streamUrl);
   const onChangeRef = useRef(onTrackChange);
   urlRef.current = streamUrl;
   onChangeRef.current = onTrackChange;
 
+  const clearPending = () => {
+    clearTimeout(timers.current.pending);
+    timers.current.pending = undefined;
+    setPendingSince(null);
+  };
+
   const clearTimers = () => {
-    clearTimeout(timers.current.stall);
     clearTimeout(timers.current.retry);
     clearInterval(timers.current.watchdog);
-    timers.current = {};
+    timers.current.retry = undefined;
+    timers.current.watchdog = undefined;
+    clearPending();
   };
 
   const teardown = () => {
@@ -36,7 +48,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
     const audio = audioRef.current;
     audioRef.current = null;
     if (audio) {
-      audio.onplaying = audio.onwaiting = audio.onstalled = audio.onerror = audio.onended = audio.onpause = null;
+      audio.onplaying = audio.onwaiting = audio.onstalled = audio.onerror = audio.onended = audio.ontimeupdate = null;
       audio.pause();
       audio.removeAttribute("src");
       audio.load();
@@ -56,6 +68,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
 
     const scheduleRetry = () => {
       if (!wantPlaying.current || timers.current.retry) return;
+      clearPending();
       if (retries.current >= MAX_RETRIES) {
         wantPlaying.current = false;
         teardown();
@@ -71,25 +84,37 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
       }, delay);
     };
 
+    // Waiting for audio: counts down, then retries if nothing arrives.
+    const beginPending = () => {
+      if (timers.current.pending) return;
+      setPendingSince(Date.now());
+      timers.current.pending = setTimeout(() => {
+        timers.current.pending = undefined;
+        scheduleRetry();
+      }, COUNTDOWN_MS + GRACE_MS);
+    };
+
+    const onPlaying = () => {
+      clearPending();
+      retries.current = 0;
+      setStatus("playing");
+      onChangeRef.current?.();
+    };
+
+    // "waiting"/"stalled" also fire on a healthy live stream that merely has a slow moment;
+    // only treat it as buffering when playback really has run out of data.
     const onStall = () => {
-      if (!wantPlaying.current) return;
+      if (!wantPlaying.current || audio.readyState >= HAVE_FUTURE_DATA) return;
       setStatus((s) => (s === "playing" ? "buffering" : s));
-      if (!timers.current.stall) {
-        timers.current.stall = setTimeout(() => {
-          timers.current.stall = undefined;
-          scheduleRetry();
-        }, STALL_MS);
-      }
+      beginPending();
     };
 
     audio.onwaiting = onStall;
     audio.onstalled = onStall;
-    audio.onplaying = () => {
-      clearTimeout(timers.current.stall);
-      timers.current.stall = undefined;
-      retries.current = 0;
-      setStatus("playing");
-      onChangeRef.current?.();
+    audio.onplaying = onPlaying;
+    // Recover from a stall that clears without a new "playing" event.
+    audio.ontimeupdate = () => {
+      if (timers.current.pending && !audio.paused && audio.readyState >= HAVE_FUTURE_DATA) onPlaying();
     };
     audio.onerror = scheduleRetry;
     audio.onended = scheduleRetry;
@@ -112,6 +137,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
       }
     }, WATCHDOG_MS);
 
+    beginPending();
     audio.play().catch((err: any) => {
       if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
         // Autoplay blocked or interrupted by our own teardown: not a stream failure.
@@ -149,5 +175,5 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
     teardown();
   }, []);
 
-  return { status, volume, setVolume, play, stop };
+  return { status, pendingSince, volume, setVolume, play, stop };
 }
