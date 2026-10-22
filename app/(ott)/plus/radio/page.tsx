@@ -1,6 +1,6 @@
 "use client";
 export const runtime = "edge";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   IconPlayerPlay,
@@ -11,9 +11,12 @@ import {
   IconCheck,
   IconHeadphones,
   IconVolume,
+  IconLoader2,
+  IconAlertTriangle,
 } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { RadioLane, RadioCard } from "@/components/radio/radio-lane";
+import { useRadioPlayer } from "@/components/radio/use-radio-player";
 
 interface ShowInfo {
   name: string;
@@ -74,12 +77,9 @@ export default function FTNPlusRadioPage() {
   const { streamUrl, webradioEnabled } = useSiteConfig();
   const [info, setInfo] = useState<NowPlaying | null>(null);
   const [schedule, setSchedule] = useState<ScheduleEntry[] | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8);
   const [copied, setCopied] = useState(false);
   const [artFailed, setArtFailed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const refresh = useCallback(() => {
     fetch("/api/radio/now-playing")
@@ -88,9 +88,13 @@ export default function FTNPlusRadioPage() {
       .catch(() => {});
   }, []);
 
+  const { status, volume, setVolume, play, stop } = useRadioPlayer(streamUrl, () => refresh());
+  const isPlaying = status !== "idle" && status !== "error";
+  const isBusy = status === "connecting" || status === "buffering" || status === "reconnecting";
+
   useEffect(() => {
     refresh();
-    const timer = setInterval(refresh, 15000);
+    const timer = setInterval(refresh, 10000);
     const tick = setInterval(() => setNow(Date.now()), 30000);
     return () => {
       clearInterval(timer);
@@ -105,40 +109,12 @@ export default function FTNPlusRadioPage() {
       .catch(() => setSchedule([]));
   }, []);
 
-  // Playback belongs to this page: stop the stream when leaving it.
-  useEffect(() => {
-    return () => {
-      audioRef.current?.pause();
-      audioRef.current = null;
-    };
-  }, []);
-
   useEffect(() => {
     setArtFailed(false);
   }, [info?.artUrl]);
 
-  const togglePlay = () => {
-    if (isPlaying) {
-      audioRef.current?.pause();
-      // Drop the buffered stream so resuming jumps back to live.
-      if (audioRef.current) audioRef.current.src = "";
-      audioRef.current = null;
-      setIsPlaying(false);
-      return;
-    }
-    const audio = new Audio(streamUrl);
-    audio.volume = volume;
-    audioRef.current = audio;
-    audio
-      .play()
-      .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false));
-  };
-
-  const changeVolume = (value: number) => {
-    setVolume(value);
-    if (audioRef.current) audioRef.current.volume = value;
-  };
+  const togglePlay = () => (isPlaying ? stop() : play());
+  const changeVolume = (value: number) => setVolume(value);
 
   const copyCommand = () => {
     if (!info?.discordBot.command) return;
@@ -244,7 +220,7 @@ export default function FTNPlusRadioPage() {
 
             {isAuto && track && (
               <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
-                <EqualizerBars active={isPlaying} /> Now playing
+                <EqualizerBars active={status === "playing"} /> Now playing
               </div>
             )}
             <AnimatePresence mode="wait">
@@ -268,7 +244,7 @@ export default function FTNPlusRadioPage() {
 
             {show && info?.track && (
               <div className="flex items-center gap-3 text-xs text-neutral-300">
-                <EqualizerBars active={isPlaying} />
+                <EqualizerBars active={status === "playing"} />
                 <span>
                   Now playing: <span className="font-semibold text-white">{info.track.title}</span>
                   {info.track.artist ? ` · ${info.track.artist}` : ""}
@@ -313,18 +289,35 @@ export default function FTNPlusRadioPage() {
               </div>
             )}
 
+            {status === "error" && (
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
+                <IconAlertTriangle className="h-4 w-4" /> The stream stopped responding. Press Try again to reconnect.
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-3 pt-2">
               <button
                 onClick={togglePlay}
                 disabled={!streamUrl}
                 className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] disabled:opacity-40 disabled:cursor-not-allowed text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer"
               >
-                {isPlaying ? (
+                {isBusy ? (
+                  <IconLoader2 className="h-5 w-5 animate-spin" />
+                ) : isPlaying ? (
                   <IconPlayerPause className="h-5 w-5 fill-current" />
                 ) : (
                   <IconPlayerPlay className="h-5 w-5 fill-current" />
                 )}
-                {isPlaying ? "Pause" : "Listen Live"}
+                {status === "connecting"
+                  ? "Connecting…"
+                  : status === "buffering"
+                    ? "Buffering…"
+                    : status === "reconnecting"
+                      ? "Reconnecting…"
+                      : isPlaying
+                        ? "Pause"
+                        : status === "error"
+                          ? "Try again"
+                          : "Listen Live"}
               </button>
               <div className="flex items-center gap-2 rounded-lg bg-neutral-900/80 border border-neutral-800 h-12 px-4 backdrop-blur-sm">
                 <IconVolume className="h-4 w-4 text-neutral-400" />
