@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { decodeEntities } from "@/lib/html-entities";
 import { DbClient } from "@/db";
 import { siteSettings } from "@/db/schema";
 
@@ -225,8 +226,8 @@ async function readIcecastStats(
     const source = pickSource(data?.icestats?.source, mount, streamUrl);
     if (!source) return null;
 
-    let artist = typeof source.artist === "string" ? source.artist : "";
-    let title = typeof source.title === "string" ? source.title : "";
+    let artist = typeof source.artist === "string" ? decodeEntities(source.artist) : "";
+    let title = typeof source.title === "string" ? decodeEntities(source.title) : "";
     if (!artist && title.includes(" - ")) {
       const [a, ...rest] = title.split(" - ");
       artist = a.trim();
@@ -299,7 +300,7 @@ export async function diagnoseRadio(
         const src = JSON.parse(text)?.icestats?.source;
         sources = (Array.isArray(src) ? src : src ? [src] : []).map((x: any) => ({
           listenurl: x?.listenurl,
-          title: x?.title,
+          title: typeof x?.title === "string" ? decodeEntities(x.title) : x?.title,
           listeners: x?.listeners,
         }));
       } catch {}
