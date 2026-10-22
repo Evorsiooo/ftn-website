@@ -2,21 +2,28 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function OTTLoader({
-  onLoaded,
-}: {
-  onLoaded?: () => void;
-}) {
-  const [visible, setVisible] = useState(true);
+const MIN_VISIBLE_MS = 1200;
+const MAX_VISIBLE_MS = 8000;
+
+/**
+ * Splash shown from first paint until the caller reports `ready`
+ * (session + library loaded), held for a minimum time so the logo
+ * animation is never cut short and capped so a hung request can't trap it.
+ */
+export function OTTLoader({ ready }: { ready: boolean }) {
+  const [minElapsed, setMinElapsed] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setVisible(false);
-      onLoaded?.();
-    }, 1200);
+    const min = setTimeout(() => setMinElapsed(true), MIN_VISIBLE_MS);
+    const max = setTimeout(() => setTimedOut(true), MAX_VISIBLE_MS);
+    return () => {
+      clearTimeout(min);
+      clearTimeout(max);
+    };
+  }, []);
 
-    return () => clearTimeout(timer);
-  }, [onLoaded]);
+  const visible = !(minElapsed && ready) && !timedOut;
 
   return (
     <AnimatePresence mode="wait">
@@ -52,7 +59,7 @@ export function OTTLoader({
             <motion.div
               initial={{ width: "0%" }}
               animate={{ width: "100%" }}
-              transition={{ duration: 1.0, ease: "easeInOut" }}
+              transition={{ duration: MIN_VISIBLE_MS / 1000, ease: "easeInOut" }}
               className="h-full bg-[#FFBB14] shadow-[0_0_10px_#FFBB14]"
             />
           </div>
