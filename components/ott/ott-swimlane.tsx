@@ -14,10 +14,20 @@ export interface SwimlaneVideo {
   isLive?: boolean;
 }
 
-export function OTTSwimlane({ title, videos }: { title: string; videos: SwimlaneVideo[] }) {
+export function OTTSwimlane({
+  title,
+  videos,
+  href,
+  hrefLabel,
+}: {
+  title: string;
+  videos: SwimlaneVideo[];
+  href?: string;
+  hrefLabel?: string;
+}) {
   return (
     <div style={{ contentVisibility: "auto", containIntrinsicSize: "0 300px" }}>
-      <Lane title={title}>
+      <Lane title={title} href={href} hrefLabel={hrefLabel}>
         {videos.map((video) => (
           <MediaCard
             key={video.id}
