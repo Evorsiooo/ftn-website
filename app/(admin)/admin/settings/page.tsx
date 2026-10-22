@@ -1075,7 +1075,7 @@ export default function SiteSettingsPage() {
         <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
           <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Broadcast Password Rotation</h3>
           <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-            Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown on the Webradio admin page.
+            Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown in the Station tab of the Schedule admin page.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
