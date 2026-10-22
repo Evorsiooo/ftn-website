@@ -122,9 +122,9 @@ function OTTShell({ children }: { children: React.ReactNode }) {
         },
     {
       label: "Sports",
-      href: "#",
+      href: "/plus/sports",
       icon: (
-        <IconTrophy className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
+        <IconTrophy className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
