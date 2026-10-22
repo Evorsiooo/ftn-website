@@ -11,6 +11,7 @@ const WATCHDOG_MS = 2000;
 const RETRY_MS = [1000, 2000, 4000, 8000];
 const MAX_RETRIES = 6;
 const HAVE_FUTURE_DATA = 3;
+const CHANNEL = "ftn-radio-player";
 
 // Owns the <audio> element for a live stream. Icecast drops listeners for a moment when the
 // source switches (AutoDJ <-> broadcaster), so a dropped, ended or frozen stream is
@@ -152,7 +153,12 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
     });
   }, []);
 
+  // Only one window plays at a time: starting here silences the main page or pop-out.
+  const channelRef = useRef<BroadcastChannel | null>(null);
+  const instanceId = useRef(Math.random().toString(36).slice(2));
+
   const play = useCallback(() => {
+    channelRef.current?.postMessage({ type: "playing", from: instanceId.current });
     wantPlaying.current = true;
     retries.current = 0;
     start(false);
@@ -168,6 +174,23 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
     volumeRef.current = value;
     setVolumeState(value);
     if (audioRef.current) audioRef.current.volume = value;
+  }, []);
+
+  useEffect(() => {
+    if (typeof BroadcastChannel === "undefined") return;
+    const channel = new BroadcastChannel(CHANNEL);
+    channelRef.current = channel;
+    channel.onmessage = (e) => {
+      if (e.data?.type === "playing" && e.data.from !== instanceId.current && wantPlaying.current) {
+        wantPlaying.current = false;
+        teardown();
+        setStatus("idle");
+      }
+    };
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
   }, []);
 
   useEffect(() => () => {

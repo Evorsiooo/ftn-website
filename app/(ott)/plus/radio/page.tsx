@@ -1,6 +1,6 @@
 "use client";
 export const runtime = "edge";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   IconPlayerPlay,
@@ -13,35 +13,17 @@ import {
   IconVolume,
   IconLoader2,
   IconAlertTriangle,
+  IconExternalLink,
 } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { PageShell } from "@/components/ftn/page";
 import { Button, EmptyState, GUTTER, ProgressBar, Tag } from "@/components/ftn/ui";
 import { ArtTile, Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
+import { useNowPlaying } from "@/components/radio/use-now-playing";
+import { useMediaSession } from "@/components/radio/use-media-session";
 import { COUNTDOWN_MS, useRadioPlayer } from "@/components/radio/use-radio-player";
 import { Waveform } from "@/components/radio/waveform";
-
-interface ShowInfo {
-  name: string;
-  presenter: string;
-  description: string | null;
-  artUrl: string | null;
-  tag: "live" | "simulcast" | "rebroadcast";
-  start: string;
-  end: string;
-}
-
-interface NowPlaying {
-  online: boolean;
-  stationName: string;
-  discordBot: { link: string; command: string };
-  track: { artist: string; title: string } | null;
-  listeners: number | null;
-  artUrl: string | null;
-  currentShow: ShowInfo | null;
-  nextShow: ShowInfo | null;
-}
 
 interface ScheduleEntry {
   slotId: string;
@@ -64,21 +46,12 @@ function untilLabel(ms: number): string {
 
 export default function FTNPlusRadioPage() {
   const { streamUrl, webradioEnabled } = useSiteConfig();
-  const [latest, setLatest] = useState<NowPlaying | null>(null);
-  // What the hero shows: text and art switch together once the new art has loaded.
-  const [info, setInfo] = useState<NowPlaying | null>(null);
   const [schedule, setSchedule] = useState<ScheduleEntry[] | null>(null);
   const [copied, setCopied] = useState(false);
   const [artFailed, setArtFailed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
-  const refresh = useCallback(() => {
-    fetch("/api/radio/now-playing")
-      .then((res) => res.json())
-      .then((data) => setLatest(data as NowPlaying))
-      .catch(() => {});
-  }, []);
-
+  const { info, refresh } = useNowPlaying();
   const { status, pendingSince, volume, setVolume, play, stop } = useRadioPlayer(streamUrl, () => refresh());
   const [pendingNow, setPendingNow] = useState(() => Date.now());
   useEffect(() => {
@@ -93,14 +66,9 @@ export default function FTNPlusRadioPage() {
   const isBusy = status === "connecting" || status === "buffering" || status === "reconnecting";
 
   useEffect(() => {
-    refresh();
-    const timer = setInterval(refresh, 10000);
     const tick = setInterval(() => setNow(Date.now()), 30000);
-    return () => {
-      clearInterval(timer);
-      clearInterval(tick);
-    };
-  }, [refresh]);
+    return () => clearInterval(tick);
+  }, []);
 
   useEffect(() => {
     fetch("/api/radio/schedule")
@@ -110,32 +78,22 @@ export default function FTNPlusRadioPage() {
   }, []);
 
   useEffect(() => {
-    if (!latest) return;
-    const commit = () => setInfo(latest);
-    const artChanged = info && latest.artUrl && latest.artUrl !== info.artUrl;
-    if (!artChanged) return commit();
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      commit();
-    };
-    const img = new Image();
-    img.onload = finish;
-    img.onerror = finish;
-    img.src = latest.artUrl!;
-    const timer = setTimeout(finish, 3000);
-    return () => {
-      done = true;
-      clearTimeout(timer);
-    };
-  }, [latest]);
-
-  useEffect(() => {
     setArtFailed(false);
   }, [info?.artUrl]);
 
   const togglePlay = () => (isPlaying ? stop() : play());
+  useMediaSession(info, { onToggle: togglePlay });
+
+  // Hand playback to the pop-out window: stop here, and the pop-out starts itself.
+  const openPopout = () => {
+    const wasPlaying = isPlaying;
+    const win = window.open(
+      `/plus/radio/popout${wasPlaying ? "?autoplay=1" : ""}`,
+      "ftn-radio-popout",
+      "popup=yes,width=380,height=640"
+    );
+    if (win && wasPlaying) stop();
+  };
   const changeVolume = (value: number) => setVolume(value);
 
   const copyCommand = () => {
@@ -211,7 +169,7 @@ export default function FTNPlusRadioPage() {
 
         <div
           className={cn(
-            "relative z-10 flex flex-col-reverse md:flex-row items-start md:items-center justify-between gap-8 md:gap-12 pt-10 md:pt-20 pb-12",
+            "relative z-10 flex flex-col-reverse md:flex-row items-start md:items-center justify-between gap-8 md:gap-12 pt-10 md:pt-16 pb-12",
             GUTTER
           )}
         >
@@ -292,7 +250,7 @@ export default function FTNPlusRadioPage() {
             )}
 
             <div className="flex flex-wrap items-center gap-3 pt-1">
-              <Button onClick={togglePlay} disabled={!streamUrl} size="lg" aria-busy={isBusy}>
+              <Button onClick={togglePlay} disabled={!streamUrl} size="lg" aria-busy={isBusy} className="min-w-[13.5rem]">
                 {isBusy ? (
                   <IconLoader2 className="h-5 w-5 animate-spin" />
                 ) : isPlaying ? (
@@ -300,6 +258,7 @@ export default function FTNPlusRadioPage() {
                 ) : (
                   <IconPlayerPlay className="h-5 w-5 fill-current" />
                 )}
+                <span className="tabular-nums">
                 {isBusy
                   ? status !== "buffering" && countdownLeft > 0
                     ? `Buffering… ${(countdownLeft / 1000).toFixed(1)}s`
@@ -309,6 +268,7 @@ export default function FTNPlusRadioPage() {
                     : status === "error"
                       ? "Try again"
                       : "Listen live"}
+                </span>
               </Button>
               <div className="flex items-center gap-3 rounded-full bg-ftn-surface border border-ftn-line h-14 px-5">
                 <IconVolume className="h-4 w-4 text-ftn-text-2" />
@@ -324,6 +284,9 @@ export default function FTNPlusRadioPage() {
                   className="ftn-range w-28"
                 />
               </div>
+              <Button variant="ghost" size="lg" onClick={openPopout} aria-label="Open pop-out player">
+                <IconExternalLink className="h-4 w-4" /> Pop out
+              </Button>
             </div>
             {status === "error" && (
               <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
@@ -337,7 +300,7 @@ export default function FTNPlusRadioPage() {
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="relative flex-shrink-0 self-center md:self-auto"
+            className="relative flex-shrink-0 self-center md:self-auto md:mr-[6vw]"
           >
             <div
               className={cn(
@@ -348,7 +311,7 @@ export default function FTNPlusRadioPage() {
             <ArtTile
               src={artUrl}
               onError={() => setArtFailed(true)}
-              className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-96 md:w-96 rounded-3xl border border-ftn-line-strong shadow-2xl"
+              className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-[22rem] md:w-[22rem] lg:h-[26rem] lg:w-[26rem] rounded-3xl border border-ftn-line-strong shadow-2xl"
             />
           </motion.div>
         </div>
