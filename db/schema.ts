@@ -123,30 +123,62 @@ export const videoViews = sqliteTable("video_views", {
   viewedAt: integer("viewed_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
-// 8. Sports Leagues (FTN Sports)
-export const leagues = sqliteTable("leagues", {
+// 8. Sports (FTN+ Sports)
+// A league is a racing series or a team competition; one active season per league.
+// `rulesJson` holds the scoring rules (see lib/sports.ts).
+export const sportsLeagues = sqliteTable("sports_leagues", {
   id: text("id").primaryKey(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
-  sportType: text("sport_type", {
-    enum: ["racing", "match_based"],
-  }).notNull(),
+  kind: text("kind", { enum: ["racing", "team"] }).notNull(),
+  sport: text("sport").notNull(),
   season: text("season").notNull(),
-  pointSystemJson: text("point_system_json").notNull(),
+  color: text("color"),
+  logoUrl: text("logo_url"),
+  rulesJson: text("rules_json").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
-// 9. Sports Fixtures & Matches
-export const fixtures = sqliteTable("fixtures", {
+// Clubs for team sports, constructors for racing.
+export const sportsTeams = sqliteTable("sports_teams", {
   id: text("id").primaryKey(),
-  leagueId: text("league_id").notNull().references(() => leagues.id, { onDelete: "cascade" }),
-  homeTeamOrDriver: text("home_team_or_driver").notNull(),
-  awayTeamOrDriver: text("away_team_or_driver"),
-  scheduledAt: integer("scheduled_at", { mode: "timestamp" }).notNull(),
+  leagueId: text("league_id").notNull().references(() => sportsLeagues.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  shortName: text("short_name"),
+  color: text("color"),
+  logoUrl: text("logo_url"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+// Racing drivers (and co-drivers).
+export const sportsDrivers = sqliteTable("sports_drivers", {
+  id: text("id").primaryKey(),
+  leagueId: text("league_id").notNull().references(() => sportsLeagues.id, { onDelete: "cascade" }),
+  teamId: text("team_id").references(() => sportsTeams.id, { onDelete: "set null" }),
+  name: text("name").notNull(),
+  number: integer("number"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+// A match (team leagues) or a race/rally round (racing leagues).
+// Matches use home/away team + scores; races use `resultsJson` (RaceResultEntry[]).
+export const sportsEvents = sqliteTable("sports_events", {
+  id: text("id").primaryKey(),
+  leagueId: text("league_id").notNull().references(() => sportsLeagues.id, { onDelete: "cascade" }),
+  name: text("name"),
+  round: integer("round"),
+  venue: text("venue"),
+  startsAt: integer("starts_at", { mode: "timestamp" }).notNull(),
   status: text("status", {
-    enum: ["scheduled", "in_progress", "completed", "cancelled"],
+    enum: ["scheduled", "final", "postponed", "cancelled"],
   }).notNull().default("scheduled"),
+  homeTeamId: text("home_team_id").references(() => sportsTeams.id, { onDelete: "set null" }),
+  awayTeamId: text("away_team_id").references(() => sportsTeams.id, { onDelete: "set null" }),
+  homeScore: integer("home_score"),
+  awayScore: integer("away_score"),
+  overtime: integer("overtime", { mode: "boolean" }).notNull().default(false),
   resultsJson: text("results_json"),
+  videoUrl: text("video_url"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });

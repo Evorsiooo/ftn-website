@@ -52,7 +52,7 @@ export function Footer() {
               <Link href="/plus" className="hover:text-black dark:hover:text-white transition-colors">FTN+</Link>
             </li>
             <li><Link href="/plus/radio" className="hover:text-black dark:hover:text-white transition-colors">Webradio</Link></li>
-            <li><Link href="/sports" className="hover:text-black dark:hover:text-white transition-colors">Sports</Link></li>
+            <li><Link href="/plus/sports" className="hover:text-black dark:hover:text-white transition-colors">Sports</Link></li>
             <li><Link href="/games" className="hover:text-black dark:hover:text-white transition-colors">Games</Link></li>
           </ul>
         </div>
