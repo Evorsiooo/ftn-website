@@ -224,7 +224,7 @@ export default function FTNPlusRadioPage() {
               {show && show.tag !== "live" && (
                 <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{show.tag}</span>
               )}
-              {info?.listeners !== null && info?.listeners !== undefined && (
+              {info?.listeners !== null && info?.listeners !== undefined && info.listeners >= 2 && (
                 <span className="inline-flex items-center gap-1 text-xs text-neutral-300">
                   <IconHeadphones className="h-4 w-4" /> {info.listeners} listening
                 </span>
