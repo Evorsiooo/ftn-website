@@ -37,6 +37,7 @@ export interface SiteConfig {
   hiddenVideoIds: string[];
   hiddenFeaturedChannels?: string[];
   hiddenTrendingChannels?: string[];
+  donationBannerEnabled: boolean;
   autoModEnabled: boolean;
   autoModThreshold: number;
   autoModMuteDuration: "24h" | "1w" | "1m" | "indefinite";
@@ -75,6 +76,7 @@ const DEFAULT_CONFIG: SiteConfig = {
     },
   ],
   hiddenVideoIds: [],
+  donationBannerEnabled: true,
   autoModEnabled: true,
   autoModThreshold: 3,
   autoModMuteDuration: "24h",
@@ -170,6 +172,7 @@ export async function POST(req: Request) {
       hiddenTrendingChannels: Array.isArray(body.hiddenTrendingChannels)
         ? body.hiddenTrendingChannels.filter((c: any) => typeof c === "string" && c.trim()).map((c: string) => c.trim().slice(0, 100))
         : inMemoryConfig.hiddenTrendingChannels || [],
+      donationBannerEnabled: typeof body.donationBannerEnabled === "boolean" ? body.donationBannerEnabled : inMemoryConfig.donationBannerEnabled,
       autoModEnabled: typeof body.autoModEnabled === "boolean" ? body.autoModEnabled : inMemoryConfig.autoModEnabled,
       autoModThreshold: typeof body.autoModThreshold === "number" ? Math.min(20, Math.max(1, body.autoModThreshold)) : inMemoryConfig.autoModThreshold,
       autoModMuteDuration: ["24h", "1w", "1m", "indefinite"].includes(body.autoModMuteDuration) ? body.autoModMuteDuration : inMemoryConfig.autoModMuteDuration,

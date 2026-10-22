@@ -171,6 +171,7 @@ export default function SiteSettingsPage() {
   const [muteDuration, setMuteDuration] = useState<"24h" | "1w" | "1m" | "indefinite">("24h");
   const [muteReason, setMuteReason] = useState("");
   const [autoModEnabled, setAutoModEnabled] = useState(true);
+  const [donationBannerEnabled, setDonationBannerEnabled] = useState(true);
   const [autoModThreshold, setAutoModThreshold] = useState(3);
   const [autoModMuteDuration, setAutoModMuteDuration] = useState<"24h" | "1w" | "1m" | "indefinite">("24h");
 
@@ -203,6 +204,7 @@ export default function SiteSettingsPage() {
           if (Array.isArray(data.customSwimlanes)) setSwimlanes(data.customSwimlanes);
           if (Array.isArray(data.hiddenVideoIds)) setHiddenVideoIds(data.hiddenVideoIds);
           if (data.autoModEnabled !== undefined) setAutoModEnabled(data.autoModEnabled);
+          if (data.donationBannerEnabled !== undefined) setDonationBannerEnabled(data.donationBannerEnabled);
           if (data.autoModThreshold !== undefined) setAutoModThreshold(data.autoModThreshold);
           if (data.autoModMuteDuration) setAutoModMuteDuration(data.autoModMuteDuration);
         }
@@ -813,6 +815,7 @@ export default function SiteSettingsPage() {
           customSwimlanes: swimlanes,
           hiddenVideoIds,
           autoModEnabled,
+          donationBannerEnabled,
           autoModThreshold: Number(autoModThreshold),
           autoModMuteDuration,
         }),
@@ -962,6 +965,42 @@ export default function SiteSettingsPage() {
       {/* 1. GENERAL & MEDIA TAB */}
       {activeTab === "general" && (
         <div className="space-y-8">
+          {/* Homepage donation banner */}
+          <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-bold text-neutral-900 dark:text-white">Homepage Donation Banner</h2>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                  Shows the &quot;FTN needs your help!&quot; donation appeal at the top of the homepage.
+                </p>
+              </div>
+              <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setDonationBannerEnabled(true)}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                    donationBannerEnabled
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
+                  }`}
+                >
+                  ON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDonationBannerEnabled(false)}
+                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
+                    !donationBannerEnabled
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
+                  }`}
+                >
+                  OFF
+                </button>
+              </div>
+            </div>
+          </Card>
+
           {/* 1. Webradio Stream Settings */}
           <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
