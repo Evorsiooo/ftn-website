@@ -1,13 +1,13 @@
 "use client";
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { IconTrophy, IconMapPin, IconPlayerPlay } from "@tabler/icons-react";
-import type { SportsData, SportsEvent, SportsLeague, SportsTeam } from "@/lib/use-sports-data";
+import type { SportsBroadcast, SportsData, SportsDriver, SportsEvent, SportsLeague, SportsTeam, SportsVenue } from "@/lib/use-sports-data";
 import { parseRaceResults } from "@/lib/sports";
-import { CardSurface } from "@/components/ftn/media";
-import { Button, Tag } from "@/components/ftn/ui";
+import { ArtTile } from "@/components/ftn/media";
+import { Tag } from "@/components/ftn/ui";
+import { cn } from "@/lib/utils";
 
-const ACCENT = "var(--color-brand)";
+// ---------------------------------------------------------------- formatting
 
 const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -15,6 +15,7 @@ const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2
 export const fmtDay = (iso: string) => dateFmt.format(new Date(iso));
 export const fmtTime = (iso: string) => timeFmt.format(new Date(iso));
 
+/** "in 2d 5h", "in 3h 10m", "in 12 min", "Starting now". */
 export function countdown(iso: string, now = Date.now()): string {
   const ms = new Date(iso).getTime() - now;
   if (ms <= 0) return "Starting now";
@@ -27,15 +28,77 @@ export function countdown(iso: string, now = Date.now()): string {
 
 export function eventTitle(e: SportsEvent, teams: Map<string, SportsTeam>): string {
   if (e.homeTeamId && e.awayTeamId) {
-    const h = teams.get(e.homeTeamId);
-    const a = teams.get(e.awayTeamId);
-    return `${h?.name ?? "TBD"} vs ${a?.name ?? "TBD"}`;
+    return `${teams.get(e.homeTeamId)?.name ?? "TBD"} vs ${teams.get(e.awayTeamId)?.name ?? "TBD"}`;
   }
-  return e.name || "Event";
+  return e.name || "Race";
 }
+
+/** "Round 5 · Coastal Pass" for racing rounds, "Home vs Away" for matches. */
+export function roundTitle(e: SportsEvent, teams: Map<string, SportsTeam>): string {
+  const t = eventTitle(e, teams);
+  return e.round && !(e.homeTeamId && e.awayTeamId) ? `Round ${e.round} · ${t}` : t;
+}
+
+export const isMatch = (e: SportsEvent) => !!(e.homeTeamId && e.awayTeamId);
+
+export function leagueAbbrev(name: string): string {
+  const words = name.split(/\s+/).filter((w) => /^[A-Z0-9]/.test(w));
+  const letters = (words.length > 1 ? words.map((w) => w[0]).join("") : name.slice(0, 3)).toUpperCase();
+  return letters.slice(0, 3);
+}
+
+// -------------------------------------------------------------------- lookups
 
 export function indexTeams(data: SportsData) {
   return new Map(data.teams.map((t) => [t.id, t]));
+}
+export const indexVenues = (data: SportsData) => new Map(data.venues.map((v) => [v.id, v]));
+export const indexDrivers = (data: SportsData) => new Map(data.drivers.map((d) => [d.id, d]));
+
+/** Photo for an event: its venue's upload, if there is one. */
+export const eventPhoto = (e: SportsEvent, venues: Map<string, SportsVenue>) => (e.venueId ? venues.get(e.venueId)?.photoUrl ?? null : null);
+export const venueName = (e: SportsEvent, venues: Map<string, SportsVenue>) => (e.venueId ? venues.get(e.venueId)?.name : undefined) ?? e.venue ?? undefined;
+
+/** "Livestream + FTN Radio", "Livestream", "FTN Radio", or null when nothing is scheduled. */
+export function broadcastLabel(eventId: string, broadcasts: SportsBroadcast[]): string | null {
+  const b = broadcasts.filter((x) => x.sportsEventId === eventId);
+  if (b.length === 0) return null;
+  const stream = b.some((x) => x.onStream);
+  const radio = b.some((x) => x.onRadio);
+  return stream && radio ? "Livestream + FTN Radio" : stream ? "Livestream" : "FTN Radio";
+}
+
+/** Roblox headshots for the given drivers, keyed by lowercase username. Empty until loaded. */
+export function useHeadshots(drivers: SportsDriver[]): Map<string, string> {
+  const names = useMemo(
+    () => Array.from(new Set(drivers.map((d) => d.robloxUsername).filter((n): n is string => !!n))).sort().join(","),
+    [drivers]
+  );
+  const [shots, setShots] = useState<Map<string, string>>(new Map());
+  useEffect(() => {
+    if (!names) return;
+    let live = true;
+    fetch(`/api/sports/headshots?names=${encodeURIComponent(names)}`)
+      .then((r) => r.json() as Promise<{ headshots?: Record<string, string> }>)
+      .then((j) => live && setShots(new Map(Object.entries(j.headshots ?? {}))))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [names]);
+  return shots;
+}
+
+// ---------------------------------------------------------------------- marks
+
+export function Avatar({ name, src, color, size = 32 }: { name: string; src?: string | null; color?: string | null; size?: number }) {
+  const style = { width: size, height: size, backgroundColor: color || "var(--color-ftn-surface-2)" };
+  if (src) return <img src={src} alt="" style={style} className="rounded-full object-cover flex-shrink-0" />;
+  return (
+    <div style={{ ...style, fontSize: Math.round(size * 0.36) }} className="rounded-full flex items-center justify-center font-bold text-white flex-shrink-0">
+      {name.split(/\s+/).map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+    </div>
+  );
 }
 
 export function TeamMark({ team, size = 28 }: { team?: SportsTeam; size?: number }) {
@@ -44,10 +107,7 @@ export function TeamMark({ team, size = 28 }: { team?: SportsTeam; size?: number
     return <img src={team.logoUrl} alt="" style={style} className="rounded-lg object-cover flex-shrink-0" />;
   }
   return (
-    <div
-      style={style}
-      className="rounded-lg flex items-center justify-center text-xs font-black text-white flex-shrink-0"
-    >
+    <div style={{ ...style, fontSize: Math.max(9, Math.round(size * 0.36)) }} className="rounded-lg flex items-center justify-center font-black text-white flex-shrink-0">
       {(team?.shortName || team?.name || "?").slice(0, 3).toUpperCase()}
     </div>
   );
@@ -58,190 +118,188 @@ export function LeagueMark({ league, size = 40 }: { league: SportsLeague; size?:
   return league.logoUrl ? (
     <img src={league.logoUrl} alt="" style={style} className="rounded-lg object-cover flex-shrink-0" />
   ) : (
-    <div style={style} className="rounded-lg flex items-center justify-center flex-shrink-0">
-      <IconTrophy className="h-1/2 w-1/2 text-white" />
+    <div style={{ ...style, fontSize: Math.round(size * 0.3) }} className="rounded-lg flex items-center justify-center font-black text-white flex-shrink-0">
+      {leagueAbbrev(league.name)}
     </div>
   );
 }
 
-export function LeagueCard({ league, count }: { league: SportsLeague; count: number }) {
-  return (
-    <CardSurface href={`/plus/sports/${league.slug}`} className="w-56 sm:w-64">
-      <div className="h-1.5 w-full" style={{ backgroundColor: league.color || ACCENT }} />
-      <div className="p-4 space-y-3">
-        <LeagueMark league={league} />
-        <div className="space-y-0.5">
-          <h3 className="text-sm font-bold text-ftn-text  line-clamp-2 leading-snug">
-            {league.name}
-          </h3>
-          <div className="text-xs text-ftn-text-3">
-            {league.sport} · Season {league.season}
-          </div>
-        </div>
-        <div className="text-xs font-semibold text-brand">{count > 0 ? `${count} upcoming` : "View standings"}</div>
-      </div>
-    </CardSurface>
-  );
-}
+// ------------------------------------------------------------- shared cards
+// NextUpCard and ResultCard follow Home's Sports row; Home reuses them as they are.
 
-export function EventCard({
+const eyebrow = "ftn-eyebrow text-ftn-text-3";
+
+/** The next event: blue-tinted card with a mono countdown. */
+export function NextUpCard({
   event,
   league,
   teams,
-  showLeague = true,
+  badge,
+  className,
 }: {
   event: SportsEvent;
   league?: SportsLeague;
   teams: Map<string, SportsTeam>;
-  showLeague?: boolean;
+  badge?: string | null;
+  className?: string;
 }) {
-  const home = event.homeTeamId ? teams.get(event.homeTeamId) : undefined;
-  const away = event.awayTeamId ? teams.get(event.awayTeamId) : undefined;
-  const isMatch = !!(event.homeTeamId && event.awayTeamId);
-  const final = event.status === "final";
   return (
-    <CardSurface href={league ? `/plus/sports/${league.slug}` : undefined} className="w-64 sm:w-72">
-      <div className="h-1 w-full" style={{ backgroundColor: league?.color || ACCENT }} />
-      <div className="p-4 space-y-3 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="ftn-eyebrow text-ftn-text-3 truncate">{showLeague ? league?.name : fmtDay(event.startsAt)}</span>
-          {event.status !== "scheduled" && <Tag>{final ? (event.overtime ? "Final · OT" : "Final") : event.status}</Tag>}
-        </div>
-        {isMatch ? (
-          <div className="space-y-2">
-            {[
-              { team: home, score: event.homeScore, win: (event.homeScore ?? 0) > (event.awayScore ?? 0) },
-              { team: away, score: event.awayScore, win: (event.awayScore ?? 0) > (event.homeScore ?? 0) },
-            ].map((side, i) => (
-              <div key={i} className="flex items-center gap-2.5">
-                <TeamMark team={side.team} />
-                <span className={`flex-1 truncate text-sm ${final && side.win ? "font-bold text-ftn-text" : "text-ftn-text-2"}`}>
-                  {side.team?.name ?? "TBD"}
-                </span>
-                {final && <span className={`ftn-mono text-base ${side.win ? "text-ftn-text font-bold" : "text-ftn-text-3"}`}>{side.score}</span>}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <h3 className="text-sm font-bold text-ftn-text  line-clamp-2 leading-snug">
-            {event.name || "Race"}
-          </h3>
-        )}
-        <div className="space-y-0.5 text-xs text-ftn-text-3">
-          {event.venue && (
-            <div className="flex items-center gap-1 truncate">
-              <IconMapPin className="h-3 w-3 flex-shrink-0" /> {event.venue}
-            </div>
-          )}
-          {!final && (
-            <div className="font-semibold text-brand">
-              {fmtDay(event.startsAt)} · {fmtTime(event.startsAt)}
-            </div>
-          )}
-        </div>
+    <Link
+      href={league ? `/plus/sports/${league.slug}?tab=calendar` : "/plus/sports"}
+      className={cn(
+        "block rounded-2xl border border-ftn-line bg-gradient-to-br from-sports/20 to-ftn-surface to-70% p-4.5 transition hover:border-ftn-line-strong",
+        className
+      )}
+    >
+      <div className="ftn-eyebrow text-sports mb-2">Next up{league ? ` · ${league.name}` : ""}</div>
+      <div className="ftn-display text-xl mb-2">{roundTitle(event, teams)}</div>
+      <div className="ftn-mono text-3xl font-extrabold tracking-tight my-2.5">{countdown(event.startsAt)}</div>
+      <div className="text-xs text-ftn-text-3">
+        {fmtDay(event.startsAt)} · {fmtTime(event.startsAt)}
+        {badge ? ` · ${badge}` : ""}
       </div>
-    </CardSurface>
+    </Link>
   );
 }
 
-// Compact list row used on league pages (schedule + results).
-export function EventRow({
+/** A finished event: scoreboard for matches, top three for races. */
+export function ResultCard({
   event,
   league,
   teams,
   drivers,
+  className,
 }: {
   event: SportsEvent;
-  league: SportsLeague;
+  league?: SportsLeague;
   teams: Map<string, SportsTeam>;
-  drivers: Map<string, { name: string; teamId: string | null }>;
+  drivers: Map<string, SportsDriver>;
+  className?: string;
 }) {
-  const isMatch = !!(event.homeTeamId && event.awayTeamId);
-  const final = event.status === "final";
-  const results = !isMatch && final ? parseRaceResults(event.resultsJson).sort((a, b) => a.position - b.position) : [];
+  const match = isMatch(event);
+  const top = match
+    ? []
+    : parseRaceResults(event.resultsJson)
+        .filter((r) => r.status === "finished")
+        .sort((a, b) => a.position - b.position)
+        .slice(0, 3);
+  const label = match ? (event.overtime ? "Final · OT" : "Final") : event.round ? `R${event.round}` : "Final";
   return (
-    <div className="rounded-2xl border border-ftn-line bg-ftn-surface p-4 space-y-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-        <div className="w-28 flex-shrink-0">
-          <div className="text-xs font-semibold text-brand">{fmtDay(event.startsAt)}</div>
-          <div className="text-xs text-ftn-text-3 ftn-mono">{fmtTime(event.startsAt)}</div>
-        </div>
-        <div className="flex-1 min-w-[12rem] space-y-1">
-          {isMatch ? (
-            <div className="flex items-center gap-2 text-sm">
-              <TeamMark team={teams.get(event.homeTeamId!)} size={22} />
-              <span className="text-ftn-text font-semibold truncate">{teams.get(event.homeTeamId!)?.name ?? "TBD"}</span>
-              <span className="ftn-mono text-ftn-text-2 px-1">
-                {final ? `${event.homeScore} – ${event.awayScore}` : "vs"}
-              </span>
-              <TeamMark team={teams.get(event.awayTeamId!)} size={22} />
-              <span className="text-ftn-text font-semibold truncate">{teams.get(event.awayTeamId!)?.name ?? "TBD"}</span>
-              {final && event.overtime && <span className="text-xs font-bold uppercase text-ftn-text-3">OT</span>}
-            </div>
-          ) : (
-            <div className="text-sm font-semibold text-ftn-text">
-              {event.round ? `Round ${event.round} · ` : ""}
-              {event.name || "Race"}
-            </div>
-          )}
-          <div className="flex flex-wrap gap-x-3 text-xs text-ftn-text-3">
-            {event.venue && <span>{event.venue}</span>}
-            {event.status !== "scheduled" && event.status !== "final" && (
-              <span className="uppercase font-bold">{event.status}</span>
-            )}
-          </div>
-        </div>
-        {event.videoUrl && (
-          <Button href={event.videoUrl} size="sm" hard>
-            <IconPlayerPlay className="h-3.5 w-3.5 fill-current" /> Watch
-          </Button>
-        )}
+    <Link
+      href={league ? `/plus/sports/${league.slug}?tab=results` : "/plus/sports"}
+      className={cn("block rounded-2xl border border-ftn-line bg-ftn-surface px-4 py-3.5 transition hover:border-ftn-line-strong", className)}
+    >
+      <div className={cn(eyebrow, "mb-2.5 truncate")}>
+        {league?.name} · {label}
       </div>
-      {results.length > 0 && (
-        <ol className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 border-t border-ftn-line pt-3 text-xs">
-          {results.slice(0, 10).map((r) => {
-            const d = drivers.get(r.driverId);
-            return (
-              <li key={r.driverId} className="flex items-center gap-2">
-                <span className="w-5 text-right ftn-mono text-ftn-text-3">{r.status === "dnf" ? "–" : r.position}</span>
-                <span className="text-ftn-text truncate">{d?.name ?? "Unknown"}</span>
-                <span className="text-ftn-text-3 truncate">{d?.teamId ? teams.get(d.teamId)?.name : ""}</span>
-                {r.status === "dnf" && <span className="text-live-ink font-bold">DNF</span>}
-                {r.fastestLap && <span className="text-purple-400 font-bold">FL</span>}
+      {match ? (
+        [
+          { id: event.homeTeamId!, score: event.homeScore ?? 0, other: event.awayScore ?? 0 },
+          { id: event.awayTeamId!, score: event.awayScore ?? 0, other: event.homeScore ?? 0 },
+        ].map((side) => (
+          <div key={side.id} className="flex items-center justify-between ftn-title text-base">
+            <span className={side.score > side.other ? "text-ftn-text" : "text-ftn-text-3"}>{teams.get(side.id)?.name ?? "TBD"}</span>
+            <b className={cn("ftn-mono text-xl", side.score > side.other ? "text-ftn-text" : "text-ftn-text-3")}>{side.score}</b>
+          </div>
+        ))
+      ) : (
+        <>
+          <div className="ftn-title text-base leading-snug">{event.name || "Race"}</div>
+          <ol className="text-xs text-ftn-text-3 mt-1.5 space-y-0.5">
+            {top.map((r) => (
+              <li key={r.driverId} className="truncate">
+                {r.position} {drivers.get(r.driverId)?.name ?? "Unknown"}
               </li>
-            );
-          })}
-        </ol>
+            ))}
+          </ol>
+        </>
       )}
+    </Link>
+  );
+}
+
+/** One upcoming event: time, optional tag, title, league. */
+export function SlotCard({
+  event,
+  league,
+  teams,
+  tag,
+}: {
+  event: SportsEvent;
+  league?: SportsLeague;
+  teams: Map<string, SportsTeam>;
+  tag?: string | null;
+}) {
+  return (
+    <Link
+      href={league ? `/plus/sports/${league.slug}?tab=calendar` : "/plus/sports"}
+      className="grid gap-1.5 rounded-2xl border border-ftn-line bg-ftn-surface px-4 py-3.5 transition hover:border-ftn-line-strong"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="ftn-mono text-sm">
+          {fmtDay(event.startsAt)} {fmtTime(event.startsAt)}
+        </span>
+        {tag && <Tag>{tag}</Tag>}
+      </div>
+      <h3 className="text-sm font-semibold leading-snug">{roundTitle(event, teams)}</h3>
+      <div className="flex items-center gap-1.5 text-xs text-ftn-text-3">
+        <span className="ftn-eyebrow text-sports">Sports</span>
+        <span className="truncate">{league?.name}</span>
+      </div>
+    </Link>
+  );
+}
+
+export function LeagueCard({ league, meta }: { league: SportsLeague; meta: string }) {
+  return (
+    <Link href={`/plus/sports/${league.slug}`} className="block rounded-2xl border border-ftn-line bg-ftn-surface p-4 transition hover:border-ftn-line-strong">
+      <LeagueMark league={league} size={38} />
+      <div className="ftn-title text-base mt-3 mb-1 leading-snug">{league.name}</div>
+      <div className="text-xs text-ftn-text-3">{meta}</div>
+    </Link>
+  );
+}
+
+/** Full-bleed hero, same anatomy as Home's billboard. The photo is the venue upload; a league-colour gradient is the fallback. */
+export function Billboard({
+  photo,
+  color,
+  children,
+}: {
+  photo?: string | null;
+  color?: string | null;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative w-full h-[60vh] min-h-[420px] max-h-[560px] overflow-hidden select-none">
+      {photo ? (
+        <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{ backgroundImage: `linear-gradient(135deg, ${color || "var(--color-ftn-surface-2)"}, var(--color-ftn-bg) 80%)` }}
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/30 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-ftn-bg/90 via-ftn-bg/50 to-transparent w-full md:w-3/4" />
+      <div className="relative z-10 h-full flex flex-col justify-end pb-16 max-w-4xl space-y-4 px-5 md:px-12">{children}</div>
     </div>
   );
 }
 
-export function StandingsTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
+/** Section heading with an optional "see all" link, as on Home. */
+export function SectionHead({ title, sub, href, hrefLabel }: { title: string; sub?: string; href?: string; hrefLabel?: string }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-ftn-line bg-ftn-surface">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b border-ftn-line ftn-eyebrow text-ftn-text-3">
-            <th className="px-3 py-2.5 text-left w-10">#</th>
-            {headers.map((h, i) => (
-              <th key={h} className={`px-3 py-2.5 ${i === 0 ? "text-left" : "text-right"}`}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((cells, i) => (
-            <tr key={i} className="border-b border-ftn-line last:border-0 hover:bg-white/[0.03]">
-              <td className="px-3 py-2.5 ftn-mono text-ftn-text-3">{i + 1}</td>
-              {cells.map((c, j) => (
-                <td key={j} className={`px-3 py-2.5 ${j === 0 ? "text-left text-ftn-text" : "text-right text-ftn-text-2 ftn-mono"} ${j === cells.length - 1 ? "font-bold text-ftn-text" : ""}`}>
-                  {c}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="flex items-end justify-between gap-4 mb-3.5">
+      <h2 className="ftn-title text-xl sm:text-2xl">
+        {title}
+        {sub && <small className="ml-2 text-sm font-medium text-ftn-text-3">{sub}</small>}
+      </h2>
+      {href && (
+        <Link href={href} className="text-xs text-ftn-text-2 hover:text-ftn-text transition">
+          {hrefLabel ?? "See all"}
+        </Link>
+      )}
     </div>
   );
 }

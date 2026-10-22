@@ -122,6 +122,13 @@
       "breakpoints": true
     },
     {
+      "idx": 17,
+      "version": "6",
+      "when": 1793000000000,
+      "tag": "0017_sports_scoring_venues",
+      "breakpoints": true
+    },
+    {
       "idx": 18,
       "version": "6",
       "when": 1793036400000,

@@ -148,6 +148,11 @@ export const sportsLeagues = sqliteTable("sports_leagues", {
   season: text("season").notNull(),
   color: text("color"),
   logoUrl: text("logo_url"),
+  bannerUrl: text("banner_url"),
+  // "points": standings use the points table in rulesJson; "order": finishing order only (wins, then podiums).
+  scoring: text("scoring", { enum: ["points", "order"] }).notNull().default("points"),
+  // Racing only: whether to publish a constructors' championship.
+  constructors: integer("constructors", { mode: "boolean" }).notNull().default(true),
   rulesJson: text("rules_json").notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
@@ -170,6 +175,16 @@ export const sportsDrivers = sqliteTable("sports_drivers", {
   teamId: text("team_id").references(() => sportsTeams.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   number: integer("number"),
+  // Used to fetch the driver's Roblox headshot.
+  robloxUsername: text("roblox_username"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+// Tracks and stages. The photo is uploaded by staff and shown on the hub, calendar and round pages.
+export const sportsVenues = sqliteTable("sports_venues", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  photoUrl: text("photo_url"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 
@@ -181,6 +196,9 @@ export const sportsEvents = sqliteTable("sports_events", {
   name: text("name"),
   round: integer("round"),
   venue: text("venue"),
+  venueId: text("venue_id").references(() => sportsVenues.id, { onDelete: "set null" }),
+  // Optional round report: an existing published article.
+  articleId: text("article_id").references(() => articles.id, { onDelete: "set null" }),
   startsAt: integer("starts_at", { mode: "timestamp" }).notNull(),
   status: text("status", {
     enum: ["scheduled", "final", "postponed", "cancelled"],
@@ -212,7 +230,7 @@ export const radioShows = sqliteTable("radio_shows", {
 // (an IANA zone), so they keep their local time across daylight-saving changes;
 // one-off entries use startsAt/endsAt instead. Radio entries need a show (presenter, art).
 // Livestreams live on YouTube; youtubeId optionally links the entry to its watch page.
-// sportsEventId is reserved for the FTN Sports events table.
+// sportsEventId links a broadcast to a sports_events row (shows the Livestream / Radio badge on the event).
 export const broadcasts = sqliteTable("broadcasts", {
   id: text("id").primaryKey(),
   showId: text("show_id").references(() => radioShows.id, { onDelete: "set null" }),

@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,8 +50,30 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
   const [duration, setDuration] = useState(broadcast?.durationMinutes ?? 120);
   const [from, setFrom] = useState(toWallInput(broadcast?.startsAt ?? defaultStart, timezone));
   const [to, setTo] = useState(toWallInput(broadcast?.endsAt ?? defaultEnd, timezone));
+  const [sportsEventId, setSportsEventId] = useState(broadcast?.sportsEventId ?? "");
+  const [sportsEvents, setSportsEvents] = useState<{ id: string; label: string }[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Upcoming sports events this broadcast can cover; the sports pages show its badge on the event.
+  useEffect(() => {
+    fetch("/api/sports/data")
+      .then((r) => r.json() as Promise<any>)
+      .then((j) => {
+        const leagues = new Map<string, string>((j.leagues ?? []).map((l: any) => [l.id, l.name]));
+        const teams = new Map<string, string>((j.teams ?? []).map((t: any) => [t.id, t.name]));
+        const list = (j.events ?? [])
+          .filter((e: any) => e.status === "scheduled" || e.id === broadcast?.sportsEventId)
+          .map((e: any) => ({
+            id: e.id,
+            label: `${leagues.get(e.leagueId) ?? "League"} · ${
+              e.homeTeamId && e.awayTeamId ? `${teams.get(e.homeTeamId) ?? "?"} vs ${teams.get(e.awayTeamId) ?? "?"}` : `${e.round ? `Round ${e.round}: ` : ""}${e.name || "Race"}`
+            } · ${new Date(e.startsAt).toLocaleDateString()}`,
+          }));
+        setSportsEvents(list);
+      })
+      .catch(() => {});
+  }, [broadcast?.sportsEventId]);
 
   // Switching zone keeps a one-off at the same instant (its wall-clock fields are re-expressed);
   // weekly times keep their typed wall-clock values, which is what "set it in zone X" means.
@@ -81,6 +103,7 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       timezone,
       status: cancelled ? "cancelled" : "scheduled",
       youtubeId: onStream ? youtube : null,
+      sportsEventId: sportsEventId || null,
     };
     if (kind === "weekly") {
       Object.assign(body, { dayOfWeek: day, startTime: time, durationMinutes: duration });
@@ -149,6 +172,21 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
         <label className={labelClass}>Description (optional)</label>
         <Input value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
+
+      {sportsEvents.length > 0 && (
+        <div>
+          <label className={labelClass}>Sports event (optional)</label>
+          <select value={sportsEventId} onChange={(e) => setSportsEventId(e.target.value)} className={selectClass}>
+            <option value="">None</option>
+            {sportsEvents.map((e) => (
+              <option key={e.id} value={e.id}>
+                {e.label}
+              </option>
+            ))}
+          </select>
+          <p className="text-[11px] text-neutral-500 mt-1">Links this broadcast to the event so FTN+ Sports shows a Livestream or Radio badge on it.</p>
+        </div>
+      )}
 
       {onStream && (
         <div>
