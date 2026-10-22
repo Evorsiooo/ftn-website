@@ -212,23 +212,18 @@ function pickSource(sources: any, mount: string, streamUrl: string): any | null 
   );
 }
 
-export async function fetchTrackInfo(
-  secure: RadioSecureSettings,
-  stream: { streamUrl: string; statusJson: string }
-): Promise<TrackInfo> {
-  const offline: TrackInfo = { artist: "", title: "", listeners: null, online: false };
+async function readIcecastStats(
+  url: string,
+  headers: Record<string, string>,
+  mount: string,
+  streamUrl: string
+): Promise<TrackInfo | null> {
   try {
-    const headers: Record<string, string> = {};
-    let url = stream.statusJson;
-    if (secure.icecastAdminUrl && secure.icecastPassword) {
-      url = `${secure.icecastAdminUrl.replace(/\/$/, "")}/admin/stats.json`;
-      headers.Authorization = `Basic ${btoa(`${secure.icecastUsername}:${secure.icecastPassword}`)}`;
-    }
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(5000), cache: "no-store" });
-    if (!res.ok) return offline;
+    if (!res.ok) return null;
     const data = (await res.json()) as any;
-    const source = pickSource(data?.icestats?.source, secure.icecastMount, stream.streamUrl);
-    if (!source) return offline;
+    const source = pickSource(data?.icestats?.source, mount, streamUrl);
+    if (!source) return null;
 
     let artist = typeof source.artist === "string" ? source.artist : "";
     let title = typeof source.title === "string" ? source.title : "";
@@ -244,8 +239,29 @@ export async function fetchTrackInfo(
       online: true,
     };
   } catch {
-    return offline;
+    return null;
   }
+}
+
+// Tries the Icecast admin stats first (when credentials are set), then the public
+// status JSON, so an unreachable or misconfigured admin URL doesn't read as "offline".
+export async function fetchTrackInfo(
+  secure: RadioSecureSettings,
+  stream: { streamUrl: string; statusJson: string }
+): Promise<TrackInfo> {
+  if (secure.icecastAdminUrl && secure.icecastPassword) {
+    const adminInfo = await readIcecastStats(
+      `${secure.icecastAdminUrl.replace(/\/$/, "")}/admin/stats.json`,
+      { Authorization: `Basic ${btoa(`${secure.icecastUsername}:${secure.icecastPassword}`)}` },
+      secure.icecastMount,
+      stream.streamUrl
+    );
+    if (adminInfo) return adminInfo;
+  }
+  const publicInfo = stream.statusJson
+    ? await readIcecastStats(stream.statusJson, {}, secure.icecastMount, stream.streamUrl)
+    : null;
+  return publicInfo || { artist: "", title: "", listeners: null, online: false };
 }
 
 // Per-isolate cache; only an optimisation, results are always re-derivable.

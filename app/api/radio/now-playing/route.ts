@@ -28,11 +28,16 @@ export async function GET() {
     if (!d1) return NextResponse.json(empty);
     const db = getDb(d1);
 
+    // The schedule is optional here: if it can't be loaded the stream still reports
+    // its own online state and track, just without show info.
     const [pub, secure, stream, data] = await Promise.all([
       getPublicRadioSettings(db),
       getSecureRadioSettings(db),
       getStreamConfig(db),
-      loadShowsAndBroadcasts(db),
+      loadShowsAndBroadcasts(db).catch((err) => {
+        console.error("now-playing: schedule unavailable:", err);
+        return { shows: [], broadcasts: [] };
+      }),
     ]);
 
     const { current, next } = resolveCurrentAndNext(data.shows, data.broadcasts);
