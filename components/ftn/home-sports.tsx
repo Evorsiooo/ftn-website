@@ -23,7 +23,8 @@ export function HomeSports() {
     return { next: upcoming[0], results: results.slice(0, 4) };
   }, [data.events]);
 
-  if (loading || (!next && results.length === 0)) return null;
+  // A lone "next up" card reads as out of place; show the row once there are results beside it.
+  if (loading || results.length === 0) return null;
 
   return (
     <section className={cn("space-y-3.5", GUTTER)}>

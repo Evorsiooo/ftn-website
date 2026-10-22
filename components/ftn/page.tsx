@@ -16,6 +16,7 @@ export function PageHeader({
   subtitle,
   actions,
   back,
+  glow = true,
   className,
 }: {
   eyebrow?: React.ReactNode;
@@ -23,11 +24,13 @@ export function PageHeader({
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   back?: React.ReactNode;
+  /** Soft brand glow behind the header; off when the header sits under a hero. */
+  glow?: boolean;
   className?: string;
 }) {
   return (
     <header className={cn("relative overflow-hidden", className)}>
-      <div className="pointer-events-none absolute -top-32 right-0 h-80 w-[40rem] max-w-full rounded-full bg-brand/10 blur-3xl" />
+      {glow && <div className="pointer-events-none absolute -top-32 right-0 h-80 w-[40rem] max-w-full rounded-full bg-brand/10 blur-3xl" />}
       <div className={cn("relative pt-14 md:pt-16 pb-8 space-y-3", GUTTER)}>
         {back}
         {eyebrow && <div className="ftn-eyebrow text-brand flex items-center gap-2">{eyebrow}</div>}
