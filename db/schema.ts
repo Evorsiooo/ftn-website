@@ -195,7 +195,8 @@ export const radioShows = sqliteTable("radio_shows", {
 });
 
 // A broadcast is one entry on the schedule: radio, a livestream, or both at once.
-// Weekly entries repeat (dayOfWeek 0=Sunday, startMinute/durationMinutes in UTC);
+// Weekly entries repeat: dayOfWeek (0=Sunday) and startMinute are wall-clock values in `timezone`
+// (an IANA zone), so they keep their local time across daylight-saving changes;
 // one-off entries use startsAt/endsAt instead. Radio entries need a show (presenter, art).
 // Livestreams live on YouTube; youtubeId optionally links the entry to its watch page.
 // sportsEventId is reserved for the FTN Sports events table.
@@ -209,6 +210,7 @@ export const broadcasts = sqliteTable("broadcasts", {
   kind: text("kind", { enum: ["weekly", "once"] }).notNull().default("weekly"),
   tag: text("tag", { enum: ["live", "simulcast", "rebroadcast"] }).notNull().default("live"),
   status: text("status", { enum: ["scheduled", "cancelled"] }).notNull().default("scheduled"),
+  timezone: text("timezone").notNull().default("UTC"),
   dayOfWeek: integer("day_of_week"),
   startMinute: integer("start_minute"),
   durationMinutes: integer("duration_minutes"),

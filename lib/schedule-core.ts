@@ -1,6 +1,10 @@
 // ---------------------------------------------------------------------------
-// Unified broadcast schedule: radio shows and livestreams (everything is UTC).
+// Unified broadcast schedule: radio shows and livestreams.
 // Pure logic only, so it is safe to import from client components.
+//
+// Weekly entries are stored as a wall-clock time in an IANA timezone (dayOfWeek and
+// startMinute are local to `timezone`), so a show set to 04:00 Europe/Paris stays at
+// 04:00 across daylight-saving changes. One-off entries are absolute instants.
 // ---------------------------------------------------------------------------
 
 export type BroadcastTag = "live" | "simulcast" | "rebroadcast";
@@ -24,8 +28,9 @@ export interface BroadcastRecord {
   kind: "weekly" | "once";
   tag: BroadcastTag;
   status: BroadcastStatus;
-  dayOfWeek: number | null;
-  startMinute: number | null;
+  timezone: string; // IANA zone the weekly wall-clock time is in
+  dayOfWeek: number | null; // 0=Sunday, local to timezone
+  startMinute: number | null; // minutes after local midnight
   durationMinutes: number | null;
   startsAt: Date | null;
   endsAt: Date | null;
@@ -52,6 +57,72 @@ export interface Occurrence {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// ---------------------------------------------------------------------------
+// Timezone helpers (IANA zones via Intl, no dependencies)
+// ---------------------------------------------------------------------------
+
+export function isValidTimezone(tz: unknown): tz is string {
+  if (typeof tz !== "string" || !tz) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatterFor(tz: string): Intl.DateTimeFormat {
+  let f = formatters.get(tz);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    });
+    formatters.set(tz, f);
+  }
+  return f;
+}
+
+export interface WallTime {
+  year: number;
+  month: number; // 1-12
+  day: number;
+  hour: number;
+  minute: number;
+}
+
+// The wall-clock time in `tz` at the given instant.
+export function utcToWall(instant: Date, tz: string): WallTime {
+  const v: Record<string, number> = {};
+  for (const part of formatterFor(tz).formatToParts(instant)) {
+    if (part.type !== "literal") v[part.type] = Number(part.value);
+  }
+  return { year: v.year, month: v.month, day: v.day, hour: v.hour % 24, minute: v.minute };
+}
+
+// Offset of `tz` from UTC at an instant, in ms (positive east of UTC).
+function offsetAt(instant: number, tz: string): number {
+  const w = utcToWall(new Date(Math.floor(instant / 60000) * 60000), tz);
+  return Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute) - Math.floor(instant / 60000) * 60000;
+}
+
+// The instant at which the wall clock in `tz` reads the given date and time.
+// Times skipped by a spring-forward gap land just after the gap; times repeated in
+// autumn resolve to one of the two valid instants.
+export function wallToUtc(year: number, month: number, day: number, minutesOfDay: number, tz: string): Date {
+  const naive = Date.UTC(year, month - 1, day, 0, minutesOfDay);
+  const guess = naive - offsetAt(naive, tz);
+  return new Date(naive - offsetAt(guess, tz));
+}
 
 export function broadcastTitle(b: BroadcastRecord, show: ShowRecord | null): string {
   return b.title?.trim() || show?.name || "Untitled broadcast";
@@ -99,13 +170,16 @@ export function expandOccurrences(
     }
 
     if (b.dayOfWeek === null || b.startMinute === null || !b.durationMinutes) continue;
-    // Start one day early so overnight entries that began yesterday are still found.
-    const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()) - DAY_MS);
-    for (let t = cursor.getTime(); t <= to.getTime(); t += DAY_MS) {
-      if (new Date(t).getUTCDay() !== b.dayOfWeek) continue;
-      const start = new Date(t + b.startMinute * 60 * 1000);
+    const tz = isValidTimezone(b.timezone) ? b.timezone : "UTC";
+    // Walk local calendar dates, starting a day before `from` so overnight entries that began yesterday are found.
+    const first = utcToWall(new Date(from.getTime() - DAY_MS), tz);
+    for (let n = 0; n < 400; n++) {
+      const date = new Date(Date.UTC(first.year, first.month - 1, first.day + n));
+      if (date.getUTCDay() !== b.dayOfWeek) continue;
+      const start = wallToUtc(date.getUTCFullYear(), date.getUTCMonth() + 1, date.getUTCDate(), b.startMinute, tz);
+      if (start.getTime() > to.getTime()) break;
       const end = new Date(start.getTime() + b.durationMinutes * 60 * 1000);
-      if (end >= from && start <= to) out.push(make(start, end));
+      if (end >= from) out.push(make(start, end));
     }
   }
 

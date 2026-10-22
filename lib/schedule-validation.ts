@@ -1,4 +1,4 @@
-import type { BroadcastTag, BroadcastStatus } from "@/lib/schedule-core";
+import { isValidTimezone, type BroadcastTag, type BroadcastStatus } from "@/lib/schedule-core";
 
 export interface BroadcastInput {
   showId?: string | null;
@@ -9,8 +9,9 @@ export interface BroadcastInput {
   kind?: string;
   tag?: string;
   status?: string;
-  dayOfWeek?: number;
-  startTime?: string; // "HH:MM" UTC
+  timezone?: string; // IANA zone for weekly wall-clock times
+  dayOfWeek?: number; // 0=Sunday, in `timezone`
+  startTime?: string; // "HH:MM" in `timezone`
   durationMinutes?: number;
   startsAt?: string; // ISO
   endsAt?: string; // ISO
@@ -27,6 +28,7 @@ export interface BroadcastValues {
   kind: "weekly" | "once";
   tag: BroadcastTag;
   status: BroadcastStatus;
+  timezone: string;
   dayOfWeek: number | null;
   startMinute: number | null;
   durationMinutes: number | null;
@@ -71,7 +73,10 @@ export function validateBroadcastInput(body: BroadcastInput): { values: Broadcas
   if (youtubeId === undefined) return { error: "That does not look like a YouTube link or video id." };
   const sportsEventId = typeof body.sportsEventId === "string" && body.sportsEventId ? body.sportsEventId : null;
 
-  const common = { showId, title, description, onRadio, onStream, tag, status, youtubeId, sportsEventId };
+  const timezone = body.timezone === undefined || body.timezone === "" ? "UTC" : body.timezone;
+  if (!isValidTimezone(timezone)) return { error: "Unknown timezone." };
+
+  const common = { timezone, showId, title, description, onRadio, onStream, tag, status, youtubeId, sportsEventId };
 
   if (body.kind === "once") {
     const startsAt = new Date(body.startsAt || "");
@@ -85,7 +90,7 @@ export function validateBroadcastInput(body: BroadcastInput): { values: Broadcas
   }
 
   const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(body.startTime || "");
-  if (!match) return { error: "Start time must be HH:MM (UTC)." };
+  if (!match) return { error: "Start time must be HH:MM." };
   const day = Number(body.dayOfWeek);
   if (!Number.isInteger(day) || day < 0 || day > 6) return { error: "Day of week must be 0 (Sunday) to 6 (Saturday)." };
   const duration = Number(body.durationMinutes);

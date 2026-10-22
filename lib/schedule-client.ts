@@ -1,7 +1,8 @@
+import { utcToWall, wallToUtc } from "@/lib/schedule-core";
 import type { BroadcastRecord, BroadcastTag, ShowRecord } from "@/lib/schedule-core";
 
 // Client-side helpers for the admin schedule and the public schedule page.
-// Storage and the API are UTC; everything the person sees or types is their local time.
+// Instants are shown in the viewer's local time; weekly entries also carry their own timezone.
 
 export interface ApiBroadcast extends Omit<BroadcastRecord, "startsAt" | "endsAt"> {
   startsAt: string | null;
@@ -36,21 +37,44 @@ export function toLocalInput(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${hhmm(d)}`;
 }
 
-// Weekly entries are stored as UTC day + minute. These convert using the next upcoming
-// occurrence, so the local time shown is correct for the current daylight-saving period.
-export function weeklyLocalToUtc(localDay: number, time: string): { dayOfWeek: number; startTime: string } {
-  const [h, m] = time.split(":").map(Number);
-  const d = new Date();
-  d.setHours(h, m, 0, 0);
-  d.setDate(d.getDate() + ((localDay - d.getDay() + 7) % 7));
-  return { dayOfWeek: d.getUTCDay(), startTime: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` };
+// Weekly entries are stored as a wall-clock day and time in an IANA timezone. The admin
+// form defaults to the browser's zone and offers a dropdown to pick another one.
+export function defaultTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
-export function weeklyUtcToLocal(dayOfWeek: number, startMinute: number): { day: number; time: string } {
-  const d = new Date();
-  d.setUTCHours(Math.floor(startMinute / 60), startMinute % 60, 0, 0);
-  d.setUTCDate(d.getUTCDate() + ((dayOfWeek - d.getUTCDay() + 7) % 7));
-  return { day: d.getDay(), time: hhmm(d) };
+const FALLBACK_ZONES = [
+  "UTC", "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Madrid", "Europe/Moscow",
+  "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Sao_Paulo",
+  "Africa/Johannesburg", "Asia/Dubai", "Asia/Kolkata", "Asia/Singapore", "Asia/Tokyo",
+  "Australia/Sydney", "Pacific/Auckland",
+];
+
+export function timezoneList(include: string[] = []): string[] {
+  let zones: string[] = FALLBACK_ZONES;
+  try {
+    const supported = (Intl as any).supportedValuesOf?.("timeZone") as string[] | undefined;
+    if (supported?.length) zones = supported.includes("UTC") ? supported : ["UTC", ...supported];
+  } catch {
+    /* use fallback */
+  }
+  return Array.from(new Set([...include, ...zones]));
+}
+
+// "YYYY-MM-DDTHH:MM" (datetime-local) <-> instant, interpreted in the given zone.
+export function toWallInput(instant: Date, tz: string): string {
+  const w = utcToWall(instant, tz);
+  return `${w.year}-${pad(w.month)}-${pad(w.day)}T${pad(w.hour)}:${pad(w.minute)}`;
+}
+
+export function wallInputToUtc(value: string, tz: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value);
+  if (!m) return new Date(NaN);
+  return wallToUtc(Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]) * 60 + Number(m[5]), tz);
 }
 
 export function startOfWeek(d: Date): Date {
@@ -76,10 +100,9 @@ export function describeWhen(b: BroadcastRecord): string {
     return `${fmtDay(b.startsAt)}, ${fmtRange(b.startsAt, b.endsAt)}`;
   }
   if (b.dayOfWeek === null || b.startMinute === null || !b.durationMinutes) return "—";
-  const { day, time } = weeklyUtcToLocal(b.dayOfWeek, b.startMinute);
-  const [h, m] = time.split(":").map(Number);
-  const end = new Date(2000, 0, 1, h, m + b.durationMinutes);
-  return `${DAYS[day]}s ${time} – ${hhmm(end)}`;
+  const end = (b.startMinute + b.durationMinutes) % (24 * 60);
+  const t = (m: number) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+  return `${DAYS[b.dayOfWeek]}s ${t(b.startMinute)} – ${t(end)} (${b.timezone})`;
 }
 
 export function mediumLabel(b: { onRadio: boolean; onStream: boolean }): string {
