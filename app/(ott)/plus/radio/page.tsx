@@ -14,6 +14,7 @@ import {
   IconLoader2,
   IconAlertTriangle,
   IconExternalLink,
+  IconMusic,
 } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { PageShell } from "@/components/ftn/page";
@@ -23,7 +24,7 @@ import { cn } from "@/lib/utils";
 import { useNowPlaying } from "@/components/radio/use-now-playing";
 import { useMediaSession } from "@/components/radio/use-media-session";
 import { COUNTDOWN_MS, useRadioPlayer } from "@/components/radio/use-radio-player";
-import { Waveform } from "@/components/radio/waveform";
+import { Crossfade } from "@/components/radio/crossfade";
 
 interface ScheduleEntry {
   slotId: string;
@@ -149,22 +150,13 @@ export default function FTNPlusRadioPage() {
     <PageShell>
       {/* HERO: ambient glow from the current art */}
       <div className="relative w-full overflow-hidden select-none">
-        <AnimatePresence initial={false}>
-          <motion.div
-            key={artUrl || "no-art"}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1 }}
-            className="absolute inset-0"
-          >
-            {artUrl ? (
-              <img src={artUrl} alt="" className="h-full w-full object-cover scale-125 blur-3xl opacity-40" />
-            ) : (
-              <div className="h-full w-full bg-gradient-to-br from-ftn-surface via-ftn-bg to-ftn-bg" />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        <Crossfade id={artUrl || "no-art"} duration={1.4} className="absolute inset-0">
+          {artUrl ? (
+            <img src={artUrl} alt="" className="h-full w-full object-cover scale-125 blur-3xl opacity-40" />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-ftn-surface via-ftn-bg to-ftn-bg" />
+          )}
+        </Crossfade>
         <div className="absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/40 to-ftn-bg/20" />
 
         <div
@@ -189,11 +181,6 @@ export default function FTNPlusRadioPage() {
               )}
             </div>
 
-            {isAuto && track && (
-              <div className="flex items-center gap-3 ftn-eyebrow text-ftn-text-3">
-                <Waveform playing={status === "playing"} /> Now playing
-              </div>
-            )}
             {!info ? (
               <div className="space-y-3" aria-hidden>
                 <div className="ftn-skeleton h-12 sm:h-16 w-3/4 rounded-xl" />
@@ -217,10 +204,10 @@ export default function FTNPlusRadioPage() {
             {show?.description && <p className="text-sm text-ftn-text-3 line-clamp-2 max-w-2xl">{show.description}</p>}
 
             {show && info?.track && (
-              <div className="flex items-center gap-3 text-sm text-ftn-text-2">
-                <Waveform playing={status === "playing"} className="h-5" />
+              <div className="flex items-center gap-2 text-sm text-ftn-text-2">
+                <IconMusic className="h-4 w-4 text-brand" />
                 <span>
-                  Now playing <span className="font-semibold text-ftn-text">{info.track.title}</span>
+                  <span className="font-semibold text-ftn-text">{info.track.title}</span>
                   {info.track.artist ? ` · ${info.track.artist}` : ""}
                 </span>
               </div>
@@ -308,11 +295,13 @@ export default function FTNPlusRadioPage() {
                 isPlaying ? "opacity-100" : "opacity-30"
               )}
             />
-            <ArtTile
-              src={artUrl}
-              onError={() => setArtFailed(true)}
+            <Crossfade
+              id={artUrl || "no-art"}
+              zoom
               className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-[22rem] md:w-[22rem] lg:h-[26rem] lg:w-[26rem] rounded-3xl border border-ftn-line-strong shadow-2xl"
-            />
+            >
+              <ArtTile src={artUrl} onError={() => setArtFailed(true)} className="h-full w-full" />
+            </Crossfade>
           </motion.div>
         </div>
       </div>
