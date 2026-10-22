@@ -4,6 +4,9 @@ import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { IconArrowLeft } from "@tabler/icons-react";
+import { PageShell } from "@/components/ftn/page";
+import { Button, Chip, EmptyState, GUTTER } from "@/components/ftn/ui";
+import { cn } from "@/lib/utils";
 import { EventRow, LeagueMark, StandingsTable, TeamMark, indexTeams } from "@/components/sports/sports-ui";
 import { useSportsData } from "@/lib/use-sports-data";
 import {
@@ -15,11 +18,6 @@ import {
 } from "@/lib/sports";
 
 type Tab = "schedule" | "results" | "standings";
-
-const tabClass = (active: boolean) =>
-  `rounded-full px-4 py-1.5 text-xs font-bold transition cursor-pointer ${
-    active ? "bg-brand text-black" : "bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white"
-  }`;
 
 export default function LeaguePage() {
   const { slug } = useParams<{ slug: string }>();
@@ -52,16 +50,17 @@ export default function LeaguePage() {
     };
   }, [league, data.teams, data.drivers, events]);
 
-  if (loading) return <div className="min-h-screen bg-neutral-950" />;
+  if (loading) return <PageShell />;
 
   if (!league) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-8 text-center text-white">
-        <div className="space-y-3">
-          <h1 className="text-2xl font-black">League not found</h1>
-          <Link href="/plus/sports" className="text-xs text-brand hover:underline">Back to Sports</Link>
-        </div>
-      </div>
+      <PageShell className="flex items-center justify-center p-8">
+        <EmptyState
+          title="League not found"
+          description="This league doesn't exist or is no longer available."
+          action={<Button href="/plus/sports">Back to Sports</Button>}
+        />
+      </PageShell>
     );
   }
 
@@ -76,43 +75,43 @@ export default function LeaguePage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 pb-20 text-white">
-      <div className="px-6 md:px-12 pt-20 pb-6 space-y-5">
-        <Link href="/plus/sports" className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-400 hover:text-white transition">
+    <PageShell>
+      <div className={cn("pt-14 md:pt-16 pb-6 space-y-5", GUTTER)}>
+        <Link href="/plus/sports" className="inline-flex items-center gap-1 text-xs font-semibold text-ftn-text-3 hover:text-ftn-text transition">
           <IconArrowLeft className="h-3.5 w-3.5" /> Sports
         </Link>
         <div className="flex items-center gap-4">
           <LeagueMark league={league} size={56} />
           <div>
-            <h1 className="text-2xl sm:text-4xl font-black tracking-tight">{league.name}</h1>
-            <p className="text-xs text-neutral-400 mt-0.5">{league.sport} · Season {league.season}</p>
+            <h1 className="ftn-display text-3xl sm:text-5xl">{league.name}</h1>
+            <p className="text-xs text-ftn-text-3 mt-1.5">{league.sport} · Season {league.season}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className={tabClass(tab === "schedule")} onClick={() => setTab("schedule")}>Schedule</button>
-          <button className={tabClass(tab === "results")} onClick={() => setTab("results")}>Results</button>
-          <button className={tabClass(tab === "standings")} onClick={() => setTab("standings")}>Standings</button>
+          <Chip active={tab === "schedule"} onClick={() => setTab("schedule")}>Schedule</Chip>
+          <Chip active={tab === "results"} onClick={() => setTab("results")}>Results</Chip>
+          <Chip active={tab === "standings"} onClick={() => setTab("standings")}>Standings</Chip>
         </div>
       </div>
 
-      <div className="px-6 md:px-12 space-y-3 max-w-5xl">
+      <div className={cn("space-y-3 max-w-5xl", GUTTER)}>
         {tab === "schedule" &&
           (schedule.length === 0 ? (
-            <p className="text-sm text-neutral-400">No upcoming events.</p>
+            <p className="text-sm text-ftn-text-2">No upcoming events.</p>
           ) : (
             schedule.map((e) => <EventRow key={e.id} event={e} league={league} teams={teams} drivers={drivers} />)
           ))}
 
         {tab === "results" &&
           (results.length === 0 ? (
-            <p className="text-sm text-neutral-400">No results yet.</p>
+            <p className="text-sm text-ftn-text-2">No results yet.</p>
           ) : (
             results.map((e) => <EventRow key={e.id} event={e} league={league} teams={teams} drivers={drivers} />)
           ))}
 
         {tab === "standings" && standings?.kind === "team" && (
           standings.rows.length === 0 ? (
-            <p className="text-sm text-neutral-400">No teams yet.</p>
+            <p className="text-sm text-ftn-text-2">No teams yet.</p>
           ) : (
             <StandingsTable
               headers={["Team", "P", "W", "D", "L", "OTL", "GF", "GA", "GD", "Pts"]}
@@ -127,8 +126,8 @@ export default function LeaguePage() {
         {tab === "standings" && standings?.kind === "racing" && (
           <>
             <div className="flex gap-2">
-              <button className={tabClass(racingView === "drivers")} onClick={() => setRacingView("drivers")}>Drivers</button>
-              <button className={tabClass(racingView === "constructors")} onClick={() => setRacingView("constructors")}>Constructors</button>
+              <Chip active={racingView === "drivers"} onClick={() => setRacingView("drivers")}>Drivers</Chip>
+              <Chip active={racingView === "constructors"} onClick={() => setRacingView("constructors")}>Constructors</Chip>
             </div>
             {racingView === "drivers" ? (
               <StandingsTable
@@ -146,6 +145,6 @@ export default function LeaguePage() {
           </>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

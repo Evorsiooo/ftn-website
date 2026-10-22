@@ -1,7 +1,8 @@
 "use client";
 import React from "react";
-import Link from "next/link";
-import { IconPlayerPlay, IconInfoCircle } from "@tabler/icons-react";
+import { IconPlayerPlay } from "@tabler/icons-react";
+import { Button, LivePill, Tag, GUTTER } from "@/components/ftn/ui";
+import { cn } from "@/lib/utils";
 
 export interface BillboardItem {
   id: string;
@@ -12,52 +13,33 @@ export interface BillboardItem {
   isLive?: boolean;
 }
 
-export function OTTBillboard({
-  item,
-}: {
-  item: BillboardItem;
-}) {
+export function OTTBillboard({ item }: { item: BillboardItem }) {
   return (
-    <div className="relative w-full h-[65vh] min-h-[440px] max-h-[620px] overflow-hidden select-none">
-      {/* Background Image / Backdrop */}
+    <div className="relative w-full h-[60vh] min-h-[420px] max-h-[560px] overflow-hidden select-none">
       <img
         src={item.backdropUrl}
-        alt={item.title}
+        alt=""
         className="absolute inset-0 w-full h-full object-cover object-center"
         fetchPriority="high"
         decoding="async"
       />
+      <div className="absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/30 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-ftn-bg/90 via-ftn-bg/50 to-transparent w-full md:w-3/4" />
 
-      {/* Cinematic Vignette & Gradients */}
-      <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/40 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/60 to-transparent w-full md:w-3/4" />
-
-      {/* Content Container */}
-      <div className="relative z-10 h-full flex flex-col justify-end px-6 md:px-12 pb-14 max-w-4xl space-y-4">
-        {item.isLive && (
-          <div>
-            <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white">
-              LIVE
-            </span>
-          </div>
+      <div className={cn("relative z-10 h-full flex flex-col justify-end pb-16 max-w-4xl space-y-4", GUTTER)}>
+        <div className="flex items-center gap-2.5">
+          {item.isLive && <LivePill>Live now</LivePill>}
+          <Tag>{item.category}</Tag>
+        </div>
+        <h1 className="ftn-display text-4xl sm:text-5xl md:text-6xl text-ftn-text line-clamp-3 pb-1">{item.title}</h1>
+        {item.description && (
+          <p className="text-sm sm:text-base text-ftn-text-2 line-clamp-3 leading-relaxed max-w-2xl">{item.description}</p>
         )}
-
-        <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight drop-shadow-md">
-          {item.title}
-        </h1>
-
-        <p className="text-sm sm:text-base text-neutral-300 line-clamp-3 leading-relaxed max-w-2xl drop-shadow">
-          {item.description}
-        </p>
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 pt-2">
-          <Link href={`/plus/watch/${item.id}`}>
-            <button className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-brand hover:bg-brand-hover text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer">
-              <IconPlayerPlay className="h-5 w-5 fill-current" />
-              Watch Now
-            </button>
-          </Link>
+        <div className="pt-2">
+          <Button href={`/plus/watch/${item.id}`} size="lg">
+            <IconPlayerPlay className="h-5 w-5 fill-current" />
+            {item.isLive ? "Watch live" : "Watch now"}
+          </Button>
         </div>
       </div>
     </div>

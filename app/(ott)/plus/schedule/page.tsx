@@ -1,9 +1,12 @@
 "use client";
 export const runtime = "edge";
 import React, { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { IconRadio, IconBroadcast, IconPlayerPlay, IconHeadphones } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
+import { PageShell, PageHeader } from "@/components/ftn/page";
+import { Button, EmptyState, GUTTER, LivePill, Segmented, Skeleton, Tag } from "@/components/ftn/ui";
+import { ArtTile } from "@/components/ftn/media";
+import { cn } from "@/lib/utils";
 import { addDays, fmtRange, fmtTime, localZone, youtubeThumb } from "@/lib/schedule-client";
 
 interface Entry {
@@ -38,19 +41,17 @@ function thumb(e: Entry): string | null {
 }
 
 function Actions({ entry, radioEnabled }: { entry: Entry; radioEnabled: boolean }) {
-  const btn =
-    "inline-flex items-center gap-1.5 rounded-lg px-3 h-8 text-xs font-bold transition cursor-pointer";
   return (
     <div className="flex flex-wrap gap-2">
       {entry.onStream && entry.youtubeId && (
-        <Link href={`/plus/watch/${entry.youtubeId}`} className={`${btn} bg-brand text-black hover:bg-brand-hover`}>
-          <IconPlayerPlay className="h-3.5 w-3.5" /> Watch
-        </Link>
+        <Button href={`/plus/watch/${entry.youtubeId}`} size="sm">
+          <IconPlayerPlay className="h-3.5 w-3.5 fill-current" /> Watch
+        </Button>
       )}
       {entry.onRadio && radioEnabled && (
-        <Link href="/plus/radio" className={`${btn} border border-neutral-700 text-neutral-200 hover:bg-neutral-800`}>
+        <Button href="/plus/radio" size="sm" variant="ghost">
           <IconHeadphones className="h-3.5 w-3.5" /> Listen
-        </Link>
+        </Button>
       )}
     </div>
   );
@@ -58,7 +59,7 @@ function Actions({ entry, radioEnabled }: { entry: Entry; radioEnabled: boolean 
 
 function MediumIcons({ entry }: { entry: Entry }) {
   return (
-    <span className="inline-flex items-center gap-1 text-neutral-400">
+    <span className="inline-flex items-center gap-1 text-ftn-text-3">
       {entry.onRadio && <IconRadio className="h-3.5 w-3.5" aria-label="Radio" />}
       {entry.onStream && <IconBroadcast className="h-3.5 w-3.5" aria-label="Livestream" />}
     </span>
@@ -118,34 +119,57 @@ export default function FTNPlusSchedulePage() {
     });
   }, [days, visible]);
 
-  const chip = (active: boolean) =>
-    `rounded-full px-4 h-9 text-xs font-bold border transition cursor-pointer ${
-      active ? "bg-white text-black border-white" : "bg-neutral-900 text-neutral-300 border-neutral-800 hover:border-neutral-600"
-    }`;
+  const dayChips = (
+    <div className={cn("flex gap-2 overflow-x-auto pb-2 no-scrollbar", GUTTER)}>
+      {days.map((d, i) => (
+        <button
+          key={d.getTime()}
+          type="button"
+          onClick={() => setDayIndex(i)}
+          aria-pressed={i === dayIndex}
+          className={cn(
+            "flex-shrink-0 w-[4.25rem] rounded-2xl border py-2.5 text-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+            i === dayIndex
+              ? "bg-brand text-brand-ink border-brand"
+              : "bg-ftn-surface border-ftn-line text-ftn-text-2 hover:border-ftn-line-strong"
+          )}
+        >
+          <div className="ftn-eyebrow opacity-80">{i === 0 ? "Today" : dayName.format(d)}</div>
+          <div className="ftn-display text-2xl pt-1">{d.getDate()}</div>
+          <div
+            className={cn(
+              "mx-auto mt-1.5 h-1 w-1 rounded-full",
+              counts[i] ? (i === dayIndex ? "bg-brand-ink" : "bg-brand") : "bg-transparent"
+            )}
+          />
+        </button>
+      ))}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white pb-16">
-      <div className="px-6 md:px-12 pt-24 pb-6 space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-widest text-brand">FTN+</div>
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tight">Schedule</h1>
-        <p className="text-sm text-neutral-400">Everything coming up on FTN Radio and the livestreams. Times are in your local time ({localZone()}).</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="FTN+"
+        title="Schedule"
+        subtitle={`Everything coming up on FTN Radio and the livestreams. Times are in your local time (${localZone()}).`}
+      />
 
       {onNow.length > 0 && (
-        <div className="px-6 md:px-12 pb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-red-400 mb-3">On now</h2>
+        <div className={cn("pb-8 space-y-3", GUTTER)}>
+          <LivePill>On now</LivePill>
           <div className="grid gap-3 md:grid-cols-2">
             {onNow.map((e) => (
-              <div key={e.id} className="flex items-center gap-4 rounded-xl border border-red-900/60 bg-neutral-900 p-4">
-                <div className="h-16 w-16 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-800">
-                  {thumb(e) && <img src={thumb(e)!} alt="" className="h-full w-full object-cover" />}
-                </div>
+              <div
+                key={e.id}
+                className="flex items-center gap-4 rounded-2xl border border-live/35 bg-gradient-to-r from-live/10 to-ftn-surface p-4"
+              >
+                <ArtTile src={thumb(e)} className="h-16 w-16 flex-shrink-0 rounded-xl" />
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex items-center gap-2">
-                    <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">Live</span>
+                    <div className="ftn-title text-base truncate">{e.title}</div>
                     <MediumIcons entry={e} />
                   </div>
-                  <div className="font-bold truncate">{e.title}</div>
                   <Actions entry={e} radioEnabled={webradioEnabled} />
                 </div>
               </div>
@@ -154,95 +178,76 @@ export default function FTNPlusSchedulePage() {
         </div>
       )}
       {onNow.length === 0 && upNext && (
-        <div className="px-6 md:px-12 pb-6 text-sm text-neutral-400">
-          Up next: <span className="font-semibold text-white">{upNext.title}</span> at {fmtTime(new Date(upNext.start))} on{" "}
+        <div className={cn("pb-8 text-sm text-ftn-text-2", GUTTER)}>
+          Up next: <span className="font-semibold text-ftn-text">{upNext.title}</span> at {fmtTime(new Date(upNext.start))} on{" "}
           {dayName.format(new Date(upNext.start))}.
         </div>
       )}
 
-      <div className="px-6 md:px-12 flex flex-wrap gap-2 pb-4">
-        {(
-          [
-            ["all", "All"],
-            ["radio", "Radio"],
-            ["stream", "Streams"],
-          ] as const
-        ).map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setMedium(id)} className={chip(medium === id)}>
-            {label}
-          </button>
-        ))}
+      <div className={cn("flex flex-wrap items-center justify-between gap-3 pb-4", GUTTER)}>
+        <Segmented
+          value={medium}
+          onChange={setMedium}
+          options={[
+            { id: "all", label: "All" },
+            { id: "radio", label: "Radio" },
+            { id: "stream", label: "Streams" },
+          ]}
+        />
       </div>
 
-      <div className="px-6 md:px-12 flex gap-2 overflow-x-auto pb-3 [scrollbar-width:none]">
-        {days.map((d, i) => (
-          <button
-            key={d.getTime()}
-            type="button"
-            onClick={() => setDayIndex(i)}
-            className={`flex-shrink-0 w-16 rounded-xl border py-2 text-center transition cursor-pointer ${
-              i === dayIndex ? "bg-brand text-black border-brand" : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:border-neutral-600"
-            }`}
-          >
-            <div className="text-[11px] font-semibold uppercase">{i === 0 ? "Today" : dayName.format(d)}</div>
-            <div className="text-lg font-black leading-tight">{d.getDate()}</div>
-            <div className={`mx-auto mt-1 h-1 w-1 rounded-full ${counts[i] ? (i === dayIndex ? "bg-black" : "bg-brand") : "bg-transparent"}`} />
-          </button>
-        ))}
-      </div>
+      {dayChips}
 
-      <div className="px-6 md:px-12 pt-2 space-y-3">
-        <h2 className="text-lg font-bold">{dayLong.format(day)}</h2>
+      <div className={cn("pt-4 space-y-3", GUTTER)}>
+        <h2 className="ftn-title text-xl">{dayLong.format(day)}</h2>
         {entries === null ? (
-          <div className="text-xs text-neutral-500">Loading schedule...</div>
-        ) : dayEntries.length === 0 ? (
-          <div className="rounded-xl border border-neutral-800 bg-neutral-900 p-6 text-sm text-neutral-400">
-            Nothing scheduled for this day.
+          <div className="space-y-3" aria-hidden>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-24" />
+            ))}
           </div>
+        ) : dayEntries.length === 0 ? (
+          <EmptyState icon={<IconBroadcast />} title="Nothing scheduled" description="Nothing is on the schedule for this day." />
         ) : (
-          dayEntries.map((e) => {
-            const start = new Date(e.start);
-            const end = new Date(e.end);
-            const live = e.status !== "cancelled" && start.getTime() <= now && end.getTime() > now;
-            const past = end.getTime() <= now;
-            const cancelled = e.status === "cancelled";
-            return (
-              <div
-                key={e.id}
-                className={`flex gap-4 rounded-xl border bg-neutral-900 p-4 ${live ? "border-red-900/70" : "border-neutral-800"} ${past || cancelled ? "opacity-60" : ""}`}
-              >
-                <div className="w-20 flex-shrink-0 text-sm font-bold text-brand leading-tight">
-                  {fmtTime(start)}
-                  <div className="text-[11px] font-medium text-neutral-500">until {fmtTime(end)}</div>
-                </div>
-                <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-lg bg-neutral-800">
-                  {thumb(e) ? (
-                    <img src={thumb(e)!} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center">
-                      <img src="/logos/ftnplus_favicon.png" alt="" className="h-7 w-7 object-contain opacity-60" />
-                    </div>
+          <div className="overflow-hidden rounded-2xl border border-ftn-line bg-ftn-surface">
+            {dayEntries.map((e) => {
+              const start = new Date(e.start);
+              const end = new Date(e.end);
+              const live = e.status !== "cancelled" && start.getTime() <= now && end.getTime() > now;
+              const past = end.getTime() <= now;
+              const cancelled = e.status === "cancelled";
+              return (
+                <div
+                  key={e.id}
+                  className={cn(
+                    "flex gap-4 p-4 border-t border-ftn-line first:border-t-0",
+                    live && "bg-gradient-to-r from-live/10 to-transparent",
+                    (past || cancelled) && "opacity-60"
                   )}
-                </div>
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className={`font-bold ${cancelled ? "line-through" : ""}`}>{e.title}</div>
-                    {live && <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">Live</span>}
-                    {cancelled && <span className="rounded bg-neutral-700 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider">Cancelled</span>}
-                    {e.tag !== "live" && !cancelled && (
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400">{e.tag}</span>
-                    )}
-                    <MediumIcons entry={e} />
+                >
+                  <div className="w-16 sm:w-20 flex-shrink-0 ftn-mono text-sm font-medium leading-tight">
+                    {fmtTime(start)}
+                    <div className="text-xs text-ftn-text-3">until {fmtTime(end)}</div>
                   </div>
-                  {e.presenter && <div className="text-xs text-neutral-400">with {e.presenter}</div>}
-                  {e.description && <div className="text-xs text-neutral-500 line-clamp-2">{e.description}</div>}
-                  {!past && !cancelled && <Actions entry={e} radioEnabled={webradioEnabled} />}
+                  <ArtTile src={thumb(e)} className="hidden sm:block h-14 w-14 flex-shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className={cn("ftn-title text-base", cancelled && "line-through")}>{e.title}</div>
+                      {live && <LivePill>Live</LivePill>}
+                      {cancelled && <Tag>Cancelled</Tag>}
+                      {e.tag !== "live" && !cancelled && <Tag>{e.tag}</Tag>}
+                      <MediumIcons entry={e} />
+                    </div>
+                    {e.presenter && <div className="text-xs text-ftn-text-2">with {e.presenter}</div>}
+                    {e.description && <div className="text-xs text-ftn-text-3 line-clamp-2">{e.description}</div>}
+                    {!past && !cancelled && <Actions entry={e} radioEnabled={webradioEnabled} />}
+                  </div>
                 </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
-    </div>
+    </PageShell>
   );
 }

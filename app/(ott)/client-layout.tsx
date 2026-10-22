@@ -3,7 +3,7 @@ import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { OTTLoader } from "@/components/ott/ott-loader";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ftn/ui";
 import {
   IconHome,
   IconBookmark,
@@ -124,29 +124,27 @@ function OTTShell({ children }: { children: React.ReactNode }) {
 
   // While validating session on initial load, only the splash is visible
   if (loadingSession) {
-    return <div className="h-screen w-screen bg-black">{splash}</div>;
+    return <div className="h-screen w-screen bg-ftn-bg">{splash}</div>;
   }
 
   // If members only and logged out: Mask and render only the clean black authentication screen
   if (gated) {
     return (
-      <div className="min-h-screen w-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-6 select-none">
+      <div className="min-h-screen w-screen bg-ftn-bg text-ftn-text flex flex-col items-center justify-center p-6 space-y-6 select-none">
         {splash}
         <div className="text-center space-y-4 max-w-sm">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+          <h1 className="ftn-title text-2xl sm:text-3xl text-ftn-text">
             Authenticate with Roblox to view FTN+
           </h1>
 
           <div className="pt-2">
-            <a href="/api/auth/roblox?returnUrl=/plus">
-              <Button className="w-full bg-brand hover:bg-brand-hover text-black font-bold text-xs h-11 cursor-pointer">
-                Sign In
-              </Button>
-            </a>
+            <Button href="/api/auth/roblox?returnUrl=/plus" size="lg" hard className="w-full">
+              Sign In
+            </Button>
           </div>
 
           <div>
-            <Link href="/" className="text-xs text-neutral-400 hover:text-white transition">
+            <Link href="/" className="text-xs text-ftn-text-3 hover:text-ftn-text transition">
               ← Return to Home
             </Link>
           </div>
@@ -195,7 +193,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
           </SidebarBody>
         </Sidebar>
         <div className="flex flex-1 min-w-0 min-h-0 bg-neutral-900">
-          <div className="rounded-tl-2xl border-l border-t border-neutral-800 bg-neutral-950 flex flex-col flex-1 w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar">
+          <div className="rounded-tl-2xl border-l border-t border-ftn-line bg-ftn-bg flex flex-col flex-1 w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar">
             {children}
           </div>
         </div>

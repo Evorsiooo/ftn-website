@@ -2,7 +2,11 @@
 export const runtime = "edge";
 import { OTTBillboard, BillboardItem } from "@/components/ott/ott-billboard";
 import { OTTSwimlane } from "@/components/ott/ott-swimlane";
-import { Video } from "lucide-react";
+import { IconVideo } from "@tabler/icons-react";
+import { PageShell } from "@/components/ftn/page";
+import { Button, EmptyState, GUTTER } from "@/components/ftn/ui";
+import { LaneSkeleton } from "@/components/ftn/media";
+import { OnAirStrip } from "@/components/ftn/on-air-strip";
 import { useFTNPlus } from "@/lib/ftnplus-context";
 
 export default function FTNPlusHomePage() {
@@ -22,46 +26,33 @@ export default function FTNPlusHomePage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-neutral-950 pb-20">
-      {/* Hero Billboard Banner */}
+    <PageShell>
       {billboardItem ? (
         <OTTBillboard item={billboardItem} />
       ) : !loadingLibrary ? (
-        <div className="relative w-full h-[40vh] min-h-[300px] bg-gradient-to-br from-neutral-900 to-black flex items-center justify-center p-8 text-center">
-          <div className="space-y-3 max-w-md">
-            <Video className="h-10 w-10 text-brand mx-auto" />
-            <h1 className="text-2xl font-black text-white">FTN+ Streaming Library</h1>
-            <p className="text-xs text-neutral-400">
-              {error
-                ? "Unable to connect to streaming library. Please check your connection."
-                : "No video channels synced yet. Check back soon for upcoming broadcasts and video features."}
-            </p>
-            {error && (
-              <div className="pt-2">
-                <button
-                  onClick={() => refreshLibrary()}
-                  className="px-4 py-2 text-xs font-bold bg-brand text-black rounded-lg hover:bg-brand-hover transition cursor-pointer"
-                >
-                  Retry Connection
-                </button>
-              </div>
-            )}
-          </div>
+        <div className={`pt-24 pb-10 ${GUTTER}`}>
+          <EmptyState
+            icon={<IconVideo />}
+            title="FTN+ Streaming Library"
+            description={
+              error
+                ? "Unable to connect to the streaming library. Please check your connection."
+                : "No video channels synced yet. Check back soon for upcoming broadcasts and video."
+            }
+            action={error ? <Button onClick={() => refreshLibrary()}>Retry connection</Button> : undefined}
+          />
         </div>
       ) : (
-        <div className="h-[40vh] flex items-center justify-center text-xs text-neutral-500">
-          Loading FTN+ library...
-        </div>
+        <div className="relative h-[60vh] min-h-[420px] max-h-[560px] ftn-skeleton !rounded-none" aria-label="Loading FTN+ library" />
       )}
 
-      {/* Swimlanes Container */}
-      <div className="relative z-20 -mt-16 space-y-8">
-        {/* 1. Trending Swimlane (Most viewed on FTN within the last 7 days) */}
-        {trendingVideos.length > 0 && (
-          <OTTSwimlane title="Trending on FTN+" videos={trendingVideos} />
-        )}
+      <div className="relative z-20 -mt-10 space-y-10">
+        <OnAirStrip />
 
-        {/* 2. Custom Swimlanes from Site Settings */}
+        {loadingLibrary && !billboardItem ? <LaneSkeleton /> : null}
+
+        {trendingVideos.length > 0 && <OTTSwimlane title="Trending on FTN+" videos={trendingVideos} />}
+
         {customSwimlanes.map((lane) => (
           <OTTSwimlane
             key={lane.id}
@@ -80,6 +71,6 @@ export default function FTNPlusHomePage() {
           />
         ))}
       </div>
-    </div>
+    </PageShell>
   );
 }

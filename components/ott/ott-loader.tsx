@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 
-const MIN_VISIBLE_MS = 1200;
+const MIN_VISIBLE_MS = 700;
 const MAX_VISIBLE_MS = 8000;
 
 /**
@@ -32,7 +32,7 @@ export function OTTLoader({ ready }: { ready: boolean }) {
           key="ftn-plus-splash-loader"
           initial={{ opacity: 1 }}
           exit={{ opacity: 0, transition: { duration: 0.5, ease: "easeInOut" } }}
-          className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-black select-none pointer-events-none"
+          className="fixed inset-0 z-[999] flex flex-col items-center justify-center bg-ftn-bg select-none pointer-events-none"
         >
           {/* Ambient pulsing gold glow */}
           <div className="absolute h-72 w-72 rounded-full bg-brand/25 blur-3xl animate-pulse" />
@@ -55,7 +55,7 @@ export function OTTLoader({ ready }: { ready: boolean }) {
           </motion.div>
 
           {/* Gold Accent Progress Bar */}
-          <div className="absolute bottom-20 w-44 h-[2px] bg-neutral-900 rounded-full overflow-hidden">
+          <div className="absolute bottom-20 w-44 h-[2px] bg-ftn-surface-2 rounded-full overflow-hidden">
             <motion.div
               initial={{ width: "0%" }}
               animate={{ width: "100%" }}

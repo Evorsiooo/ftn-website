@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { GUTTER } from "./ui";
 
 /** Root of every FTN+ page: surface, enter animation, bottom space. */
-export function PageShell({ className, children }: { className?: string; children: React.ReactNode }) {
+export function PageShell({ className, children }: { className?: string; children?: React.ReactNode }) {
   return <div className={cn("ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text pb-20", className)}>{children}</div>;
 }
 

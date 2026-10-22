@@ -33,13 +33,22 @@ type ButtonProps = {
   icon?: boolean;
   href?: string;
   external?: boolean;
+  /** Plain same-tab anchor (API routes, full page loads). */
+  hard?: boolean;
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "className"> & { className?: string };
 
-export function Button({ variant, size = "md", icon, href, external, className, children, ...rest }: ButtonProps) {
+export function Button({ variant, size = "md", icon, href, external, hard, className, children, ...rest }: ButtonProps) {
   const cls = cn(buttonClass(variant, size, className), icon && "!px-0 aspect-square");
   if (href && external) {
     return (
       <a href={href} target="_blank" rel="noreferrer" className={cls}>
+        {children}
+      </a>
+    );
+  }
+  if (href && hard) {
+    return (
+      <a href={href} className={cls}>
         {children}
       </a>
     );
