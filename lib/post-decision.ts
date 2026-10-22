@@ -58,6 +58,6 @@ export async function decidePost(
     }
   }
 
-  const refreshed = await refreshPostMessages(db, postId);
+  const refreshed = await refreshPostMessages(db, postId, { leadership: true });
   return refreshed.ok ? { ok: true } : { ok: true, warning: refreshed.error };
 }

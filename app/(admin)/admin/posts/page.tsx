@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Download, Loader2, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, Check, Download, Loader2, MessageSquarePlus, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,15 @@ async function uploadToPosts(file: Blob, name: string): Promise<string> {
   const data = (await res.json()) as any;
   if (!res.ok) throw new Error(data.error || "Upload failed");
   return data.url as string;
+}
+
+function parseNotes(raw: string | null): string[] {
+  try {
+    const list = JSON.parse(raw || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
 }
 
 export default function AdminPostsPage() {
@@ -249,6 +258,20 @@ export default function AdminPostsPage() {
     }
   };
 
+  const handleAmend = async (post: any) => {
+    const note = window.prompt("Edit note to show under the post in Discord (shown as \"edit: ...\"):");
+    if (!note || !note.trim()) return;
+    const res = await fetch(`/api/admin/posts/${post.id}/amend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note }),
+    });
+    const data = (await res.json().catch(() => ({}))) as any;
+    if (!res.ok) alert(data.error || "Failed to add the edit note");
+    else if (data.discordWarning) alert(`The note was saved, but updating Discord failed:\n${data.discordWarning}`);
+    await loadAll();
+  };
+
   const handleResend = async (post: any) => {
     const res = await fetch(`/api/admin/posts/${post.id}/resend`, { method: "POST" });
     if (!res.ok) alert(((await res.json()) as any).error || "Failed to resend post");
@@ -412,6 +435,9 @@ export default function AdminPostsPage() {
                         {p.status === "denied" && p.denyReason ? ` — ${p.denyReason}` : ""}
                       </p>
                     </div>
+                    {parseNotes(p.amendments).map((n, i) => (
+                      <p key={i} className="text-[11px] italic text-neutral-500">edit: {n}</p>
+                    ))}
                     {p.status === "pending" && (!p.ftnPlusMessageId || !p.leadershipMessageId) && (
                       <p className="text-[11px] text-red-600">Not fully sent to Discord yet.</p>
                     )}
@@ -427,6 +453,9 @@ export default function AdminPostsPage() {
                       )}
                       {p.status === "pending" && canChange && (
                         <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                      )}
+                      {p.status !== "denied" && canChange && (
+                        <Button size="sm" variant="outline" onClick={() => handleAmend(p)} className="cursor-pointer"><MessageSquarePlus className="h-3.5 w-3.5" /> Add edit note</Button>
                       )}
                       {canChange && (
                         <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} className="cursor-pointer text-red-600"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>

@@ -263,6 +263,8 @@ export const posts = sqliteTable("posts", {
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   // Filled in by the Discord integration.
   leadershipMessageId: text("leadership_message_id"),
+  // JSON array of edit notes added after the post was made.
+  amendments: text("amendments"),
   ftnPlusMessageId: text("ftn_plus_message_id"),
   feedChannelId: text("feed_channel_id"),
   feedMessageId: text("feed_message_id"),

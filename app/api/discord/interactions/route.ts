@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { posts, users } from "@/db/schema";
-import { IS_COMPONENTS_V2, LEADERSHIP_CHANNEL_ID, verifyDiscordSignature } from "@/lib/discord";
+import { LEADERSHIP_CHANNEL_ID, verifyDiscordSignature } from "@/lib/discord";
 import { buildLeadershipMessage } from "@/lib/discord-posts";
 import { decidePost } from "@/lib/post-decision";
 
@@ -115,6 +115,6 @@ async function updatedLeadershipMessage(db: ReturnType<typeof getDb>, postId: st
   const message = buildLeadershipMessage(rows[0].post, rows[0].creatorName);
   return NextResponse.json({
     type: RESPONSE_UPDATE_MESSAGE,
-    data: { flags: IS_COMPONENTS_V2, components: message.components },
+    data: { content: message.content, components: message.components, allowed_mentions: message.allowed_mentions },
   });
 }
