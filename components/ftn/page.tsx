@@ -30,7 +30,8 @@ export function PageHeader({
       <div className="pointer-events-none absolute -top-32 right-0 h-80 w-[40rem] max-w-full rounded-full bg-brand/10 blur-3xl" />
       <div className={cn("relative pt-14 md:pt-16 pb-8 space-y-3", GUTTER)}>
         {back}
-        {eyebrow && <div className="ftn-eyebrow text-brand flex items-center gap-2">{eyebrow}</div>}
+        {/* A bare "FTN+" label says nothing the user doesn't know, so it is never shown. */}
+        {eyebrow && eyebrow !== "FTN+" && <div className="ftn-eyebrow text-brand flex items-center gap-2">{eyebrow}</div>}
         <h1 className="ftn-display text-4xl sm:text-5xl md:text-6xl text-ftn-text">{title}</h1>
         {subtitle && <p className="text-sm sm:text-base text-ftn-text-2 max-w-2xl">{subtitle}</p>}
         {actions && <div className="flex flex-wrap items-center gap-3 pt-2">{actions}</div>}

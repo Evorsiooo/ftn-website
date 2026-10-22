@@ -73,7 +73,7 @@ export default function WatchlistPage() {
 
   return (
     <PageShell>
-      <PageHeader eyebrow="FTN+" title="Saved" subtitle="Videos you've bookmarked to watch later." />
+      <PageHeader title="Saved" subtitle="Videos you've bookmarked to watch later." />
 
       <div className={GUTTER}>
         {loading ? (
