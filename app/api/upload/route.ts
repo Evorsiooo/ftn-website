@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth";
-import { canManageAds, canManagePosts, canPublishArticles } from "@/lib/rbac";
+import { canManageAds, canManagePosts, canManageRadio, canPublishArticles } from "@/lib/rbac";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "edge";
@@ -22,6 +22,7 @@ const UPLOAD_FOLDERS: Record<string, (roles: string[]) => boolean> = {
   articles: canPublishArticles,
   ads: canManageAds,
   posts: canManagePosts,
+  radio: canManageRadio,
 };
 
 function validateMagicBytes(buffer: Uint8Array, mime: string): boolean {

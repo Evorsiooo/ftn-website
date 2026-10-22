@@ -15,7 +15,7 @@ Build settings in the Cloudflare dashboard:
 
 D1 (`DB`), KV (`CACHE`) and R2 (`ftn_media`) bindings and the `nodejs_compat` flag come from `wrangler.toml`.
 Secrets live in the Cloudflare dashboard (Settings, Variables and Secrets), never in git:
-`JWT_SECRET`, `ROBLOX_CLIENT_ID`, `ROBLOX_CLIENT_SECRET`, `ROBLOX_REDIRECT_URI`, `YOUTUBE_API_KEY`, `CRON_SECRET`
+`JWT_SECRET`, `ROBLOX_CLIENT_ID`, `ROBLOX_CLIENT_SECRET`, `ROBLOX_REDIRECT_URI`, `YOUTUBE_API_KEY`, `CRON_SECRET`, `RADIO_CRON_SECRET`, optionally `RADIO_SETTINGS_SECRET` (encrypts stored radio credentials; falls back to `JWT_SECRET`). `RADIO_CRON_SECRET` must also be added as a GitHub Actions secret for the hourly webradio password rotation workflow
 and, for the Posts feature, `DISCORD_BOT_TOKEN`.
 
 Pushes to other branches produce preview deployments on a `pages.dev` address.

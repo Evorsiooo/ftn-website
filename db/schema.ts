@@ -152,14 +152,30 @@ export const fixtures = sqliteTable("fixtures", {
 });
 
 // 10. Radio Shows & Timetable (FTN Radio)
+// A show carries the branding (name, presenter, album art); slots say when it airs.
 export const radioShows = sqliteTable("radio_shows", {
   id: text("id").primaryKey(),
-  title: text("title").notNull(),
-  hostName: text("host_name").notNull(),
-  dayOfWeek: integer("day_of_week").notNull(),
-  startTimeUtc: text("start_time_utc").notNull(),
-  endTimeUtc: text("end_time_utc").notNull(),
+  name: text("name").notNull(),
+  presenter: text("presenter").notNull(),
   description: text("description"),
+  artUrl: text("art_url"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+// Weekly slots repeat (dayOfWeek 0=Sunday, startMinute/durationMinutes in UTC);
+// one-off slots use startsAt/endsAt instead.
+export const radioSlots = sqliteTable("radio_slots", {
+  id: text("id").primaryKey(),
+  showId: text("show_id")
+    .notNull()
+    .references(() => radioShows.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["weekly", "once"] }).notNull().default("weekly"),
+  tag: text("tag", { enum: ["live", "simulcast", "rebroadcast"] }).notNull().default("live"),
+  dayOfWeek: integer("day_of_week"),
+  startMinute: integer("start_minute"),
+  durationMinutes: integer("duration_minutes"),
+  startsAt: integer("starts_at", { mode: "timestamp" }),
+  endsAt: integer("ends_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
 

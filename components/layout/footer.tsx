@@ -8,10 +8,10 @@ interface SocialLink {
   url: string;
 }
 
-import { useAudio } from "@/lib/audio-context";
+import { useSiteConfig } from "@/lib/site-config-context";
 
 export function Footer() {
-  const { socialLinks } = useAudio();
+  const { socialLinks } = useSiteConfig();
 
   return (
     <footer className="border-t border-neutral-200 bg-neutral-100 py-10 text-sm text-neutral-600 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
@@ -51,7 +51,7 @@ export function Footer() {
             <li>
               <Link href="/plus" className="hover:text-black dark:hover:text-white transition-colors">FTN+</Link>
             </li>
-            <li><Link href="/radio" className="hover:text-black dark:hover:text-white transition-colors">Webradio</Link></li>
+            <li><Link href="/plus/radio" className="hover:text-black dark:hover:text-white transition-colors">Webradio</Link></li>
             <li><Link href="/sports" className="hover:text-black dark:hover:text-white transition-colors">Sports</Link></li>
             <li><Link href="/games" className="hover:text-black dark:hover:text-white transition-colors">Games</Link></li>
           </ul>
