@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 import { IconX } from "@tabler/icons-react";
 import { plusHref, watchPath } from "@/lib/plus-links";
 import { usePlusNow } from "./plus-now-context";
-import { LiveBadge, PromoArt, goldButtonClass } from "./promo-parts";
+
+const goldButtonClass =
+  "inline-flex h-9 flex-none items-center justify-center rounded-lg bg-[#FFBB14] px-4 text-xs font-black text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] transition hover:bg-[#e5a710] active:scale-[0.98]";
 
 const STORAGE_KEY = "ftn_minibar_dismissed";
 const SHOW_AFTER_MS = 5000;
@@ -49,9 +51,12 @@ export function PlusMiniBar() {
 
   return (
     <div className="fixed inset-x-2.5 bottom-3 z-50 flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 pl-3 text-neutral-900 shadow-xl md:hidden dark:border-neutral-800 dark:bg-neutral-950 dark:text-white">
-      <PromoArt src={live.thumbnailUrl} className="h-11 w-11 rounded-lg" />
+      <img src={live.thumbnailUrl} alt="" className="h-11 w-11 flex-none rounded-lg object-cover" />
       <div className="min-w-0 flex-1">
-        <LiveBadge className="text-[9px]" />
+        <span className="inline-flex items-center gap-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">
+          <span className="h-1.5 w-1.5 rounded-full bg-white" />
+          Live
+        </span>
         <div className="truncate text-[13px] font-bold">{live.title}</div>
       </div>
       <Link href={plusHref(watchPath(live.id), "minibar")} prefetch={false} className={goldButtonClass}>

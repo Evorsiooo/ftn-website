@@ -10,14 +10,11 @@ import { videos, siteSettings } from "@/db/schema";
 import { getPublishedArticles } from "@/lib/articles";
 import { syncAllConfiguredChannels, isChannelMatching } from "@/lib/youtube";
 import { desc, eq } from "drizzle-orm";
-import { PlusNowBand, PlusNowStrip } from "@/components/plus-promo/plus-now-band";
-import { PlusPicks, type PlusPick } from "@/components/plus-promo/plus-picks";
 import { plusHref, watchPath } from "@/lib/plus-links";
 
 export default async function HomePage() {
   let articleList: any[] = [];
   let featuredVideo: any = null;
-  let picks: PlusPick[] = [];
 
   try {
     const d1 = (process.env as any).DB as D1Database;
@@ -77,21 +74,11 @@ export default async function HomePage() {
         (v) => !isChannelMatching(v, hiddenFeaturedChannels)
       );
 
-      // The hero is only for a live stream; otherwise the news leads and FTN+ gets a slim strip.
       if (eligibleLives.length > 0) {
         featuredVideo = eligibleLives[0];
+      } else if (eligibleVideos.length > 0) {
+        featuredVideo = eligibleVideos[0];
       }
-
-      picks = eligibleVideos
-        .filter((v) => !v.isLive)
-        .slice(0, 4)
-        .map((v) => ({
-          youtubeId: v.youtubeId || v.id,
-          title: v.title,
-          thumbnailUrl: v.thumbnailUrl,
-          channelTitle: v.channelTitle,
-          durationSeconds: v.durationSeconds ?? null,
-        }));
     }
   } catch (err) {
     console.error("Error fetching homepage data:", err);
@@ -101,58 +88,73 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 dark:bg-black dark:text-white relative">
-      {/* 1. Live hero: only while a stream is live. Otherwise the news leads. */}
-      {featuredVideo && (
-        <section className="relative w-full overflow-hidden bg-neutral-900 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
-          <div className="relative w-full min-h-[400px] sm:min-h-[440px] flex items-end">
+      {/* 1. Featured Broadcast Showcase Banner */}
+      <section className="relative w-full overflow-hidden bg-neutral-900 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
+        {featuredVideo ? (
+          <div className="relative w-full min-h-[500px] sm:min-h-[560px] flex items-end">
+            {/* High-res backdrop thumbnail */}
             <img
-              src={featuredVideo.thumbnailUrl}
+              src={
+                featuredVideo.thumbnailUrl ||
+                "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1800&auto=format&fit=crop&q=80"
+              }
               alt={featuredVideo.title}
               className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.75]"
             />
+            {/* Refined, smooth cinematic gradient without muddy seams or weird splotches */}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
             <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
 
-            <div className="relative z-10 container mx-auto max-w-7xl px-4 sm:px-8 pt-28 sm:pt-32 pb-16 sm:pb-20 space-y-4">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-red-600 text-white text-[11px] font-black uppercase tracking-wider shadow-sm animate-pulse">
-                  <span className="h-2 w-2 rounded-full bg-white" />
-                  LIVE ON
-                  <img src="/logos/ftnplus_textwhite_transparent.png" alt="FTN+" className="h-3.5 w-auto object-contain" />
-                </span>
-              </div>
+            <div className="relative z-10 container mx-auto max-w-7xl px-4 sm:px-8 pt-28 sm:pt-36 pb-12 sm:pb-16 space-y-4">
+              {/* Only show LIVE badge if streaming */}
+              {featuredVideo.isLive && (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-red-600 text-white text-[11px] font-black uppercase tracking-wider shadow-sm animate-pulse">
+                    <span className="h-2 w-2 rounded-full bg-white" />
+                    LIVE NOW
+                  </span>
+                </div>
+              )}
 
-              <h1 className="text-2xl sm:text-4xl md:text-5xl font-black tracking-tight text-white max-w-3xl leading-[1.15] drop-shadow-md">
+              {/* Title */}
+              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-white max-w-3xl leading-[1.15] drop-shadow-md">
                 {featuredVideo.title}
               </h1>
 
+              {/* Description */}
               {featuredVideo.description && (
-                <p className="text-xs sm:text-sm md:text-base text-neutral-200 line-clamp-2 max-w-2xl leading-relaxed drop-shadow">
+                <p className="text-xs sm:text-sm md:text-base text-neutral-200 line-clamp-2 sm:line-clamp-3 max-w-2xl leading-relaxed drop-shadow">
                   {featuredVideo.description}
                 </p>
               )}
 
+              {/* Action Button */}
               <div className="pt-2">
                 <Link href={plusHref(watchPath(featuredVideo.youtubeId || featuredVideo.id), "hero")}>
                   <button className="gap-2.5 font-black px-7 h-12 text-xs sm:text-sm rounded-xl bg-[#FFBB14] hover:bg-[#e5a710] text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer">
-                    <IconPlayerPlay className="h-4 w-4 fill-current" /> Watch live
-                    <img src="/logos/ftnplus_cropped_transparent.png" alt="" className="h-4 w-auto" />
+                    <IconPlayerPlay className="h-4 w-4 fill-current" /> Watch on FTN+
                   </button>
                 </Link>
               </div>
             </div>
           </div>
-        </section>
-      )}
+        ) : (
+          /* Clean Minimal Hero when loading or library has no videos yet */
+          <div className="relative w-full min-h-[500px] sm:min-h-[560px] pt-28 sm:pt-36 pb-12 sm:pb-16 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black flex items-end">
+            <div className="container mx-auto max-w-7xl px-4 sm:px-8 space-y-4">
+              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-white max-w-3xl leading-[1.15]">
+                Independent Journalism & Live District Coverage
+              </h1>
+              <p className="text-xs sm:text-sm md:text-base text-neutral-300 max-w-xl leading-relaxed">
+                Investigative reporting, municipal affairs, 24/7 web radio, and digital broadcasting.
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* Main Container */}
-      <div className={`container mx-auto max-w-7xl px-4 sm:px-8 pb-8 space-y-12 relative z-10 ${featuredVideo ? "" : "pt-24"}`}>
-        {featuredVideo ? (
-          <PlusNowBand excludeLiveId={featuredVideo.youtubeId || featuredVideo.id} className="-mt-9 relative z-20" />
-        ) : (
-          <PlusNowStrip className="-mb-6" />
-        )}
-
+      <div className="container mx-auto max-w-7xl px-4 sm:px-8 py-8 space-y-12 relative z-10">
         {/* Top Header Leaderboard Ad */}
         <BannerZone zone="header_leaderboard" format="1024x180" className="w-full" />
 
@@ -303,8 +305,6 @@ export default async function HomePage() {
             </p>
           </div>
         )}
-
-        <PlusPicks picks={picks} />
       </div>
     </div>
   );

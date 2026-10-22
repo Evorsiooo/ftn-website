@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatTimeAgo, calculateReadingTime } from "@/lib/utils";
 import { sanitizeHtml } from "@/lib/sanitize";
-import { PlusEndCard } from "@/components/plus-promo/plus-now-band";
 import { canPublishArticles } from "@/lib/rbac";
 import {
   Share2,
@@ -298,9 +297,6 @@ export function ArticleReadingClient({
             className="article-prose pt-4 pb-8"
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(article.content) }}
           />
-
-          {/* FTN+ end card: radio, sports or the next broadcast; renders nothing without live data */}
-          <PlusEndCard className="mb-10" />
 
           {/* Article Discussion & Comments Section */}
           <section className="border-t border-neutral-200 dark:border-neutral-800 pt-10 space-y-6">
