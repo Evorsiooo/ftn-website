@@ -51,11 +51,11 @@ export interface RadioCardProps {
   tag?: string;
 }
 
-// Mirrors the 16:9 video card: art on top, gradient wash, title underneath.
+// Same card styling as the video cards, but square because show art is square.
 export function RadioCard({ title, presenter, artUrl, badge, badgeTone = "neutral", timeLabel, tag }: RadioCardProps) {
   return (
-    <div className="group relative flex-shrink-0 w-64 sm:w-72 md:w-80 overflow-hidden rounded-xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition duration-300 flex flex-col">
-      <div className="relative aspect-video w-full overflow-hidden bg-neutral-950">
+    <div className="group relative flex-shrink-0 w-44 sm:w-48 md:w-56 overflow-hidden rounded-xl bg-neutral-900 border border-neutral-800 hover:border-neutral-700 transition duration-300 flex flex-col">
+      <div className="relative aspect-square w-full overflow-hidden bg-neutral-950">
         {artUrl ? (
           <img
             src={artUrl}
@@ -88,7 +88,7 @@ export function RadioCard({ title, presenter, artUrl, badge, badgeTone = "neutra
         </h3>
         <div className="text-[11px] text-neutral-400 truncate">with {presenter}</div>
         {timeLabel && (
-          <div className="text-[11px] font-semibold text-[#FFBB14]">
+          <div className="text-[11px] font-semibold text-[#FFBB14] leading-snug">
             {timeLabel}
             {tag && tag !== "live" ? ` · ${tag}` : ""}
           </div>
