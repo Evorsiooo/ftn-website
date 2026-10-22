@@ -1,7 +1,7 @@
 export const runtime = "edge";
 import React from "react";
 import Link from "next/link";
-import { BannerZone } from "@/components/ads/banner-zone";
+import { DonationBanner } from "@/components/donation-banner";
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { formatTimeAgo, calculateReadingTime } from "@/lib/utils";
 import { Clock, Newspaper } from "lucide-react";
@@ -15,6 +15,7 @@ import { plusHref, watchPath } from "@/lib/plus-links";
 export default async function HomePage() {
   let articleList: any[] = [];
   let featuredVideo: any = null;
+  let donationBannerEnabled = true;
 
   try {
     const d1 = (process.env as any).DB as D1Database;
@@ -48,6 +49,7 @@ export default async function HomePage() {
         try {
           const config = JSON.parse(settingsRows[0].valueJson);
           if (Array.isArray(config.hiddenVideoIds)) hiddenVideoIds = config.hiddenVideoIds;
+          if (config.donationBannerEnabled === false) donationBannerEnabled = false;
           if (Array.isArray(config.hiddenFeaturedChannels)) hiddenFeaturedChannels = config.hiddenFeaturedChannels;
         } catch {}
       }
@@ -155,8 +157,8 @@ export default async function HomePage() {
 
       {/* Main Container */}
       <div className="container mx-auto max-w-7xl px-4 sm:px-8 py-8 space-y-12 relative z-10">
-        {/* Top Header Leaderboard Ad */}
-        <BannerZone zone="header_leaderboard" format="1024x180" className="w-full" />
+        {/* Donation appeal (replaces the old header leaderboard ad) */}
+        {donationBannerEnabled && <DonationBanner />}
 
         {/* 2. Editorial News Grid - Shows all articles under Latest Reports */}
         {leadStory ? (
