@@ -90,9 +90,9 @@ function OTTShell({ children }: { children: React.ReactNode }) {
     },
     {
       label: "Schedule",
-      href: "#",
+      href: "/plus/schedule",
       icon: (
-        <IconCalendar className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
+        <IconCalendar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
       ),
     },
     webradioEnabled

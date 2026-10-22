@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { radioShows } from "@/db/schema";
 import { canManageRadio } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
-import { loadShowsAndSlots } from "@/lib/radio";
+import { loadShowsAndBroadcasts } from "@/lib/schedule";
 import { validateShowInput, ShowInput } from "@/lib/radio-validation";
 
 export const runtime = "edge";
@@ -13,15 +13,8 @@ export async function GET(request: NextRequest) {
   if ("error" in auth) return auth.error;
   const d1 = (process.env as any).DB as D1Database;
   if (!d1) return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
-  const { shows, slots } = await loadShowsAndSlots(getDb(d1));
-  return NextResponse.json({
-    shows,
-    slots: slots.map((s) => ({
-      ...s,
-      startsAt: s.startsAt ? s.startsAt.toISOString() : null,
-      endsAt: s.endsAt ? s.endsAt.toISOString() : null,
-    })),
-  });
+  const { shows } = await loadShowsAndBroadcasts(getDb(d1));
+  return NextResponse.json({ shows });
 }
 
 export async function POST(request: NextRequest) {

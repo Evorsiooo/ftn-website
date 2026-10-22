@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { DbClient } from "@/db";
-import { siteSettings, radioShows, radioSlots } from "@/db/schema";
+import { siteSettings } from "@/db/schema";
 
 // ---------------------------------------------------------------------------
 // Settings
@@ -59,6 +59,8 @@ export const DEFAULT_SECURE_SETTINGS: RadioSecureSettings = {
   currentPassword: "",
   lastRotatedAt: null,
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const PUBLIC_KEY = "radio_public";
 const SECURE_KEY = "radio_secure";
@@ -182,117 +184,6 @@ export async function getStreamConfig(
     }
   } catch {}
   return fallback;
-}
-
-// ---------------------------------------------------------------------------
-// Shows & schedule (everything is UTC)
-// ---------------------------------------------------------------------------
-
-export type SlotTag = "live" | "simulcast" | "rebroadcast";
-
-export interface ShowRecord {
-  id: string;
-  name: string;
-  presenter: string;
-  description: string | null;
-  artUrl: string | null;
-}
-
-export interface SlotRecord {
-  id: string;
-  showId: string;
-  kind: "weekly" | "once";
-  tag: SlotTag;
-  dayOfWeek: number | null;
-  startMinute: number | null;
-  durationMinutes: number | null;
-  startsAt: Date | null;
-  endsAt: Date | null;
-}
-
-export interface Occurrence {
-  slotId: string;
-  tag: SlotTag;
-  start: Date;
-  end: Date;
-  show: ShowRecord;
-}
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export async function loadShowsAndSlots(db: DbClient): Promise<{ shows: ShowRecord[]; slots: SlotRecord[] }> {
-  const shows = await db.select().from(radioShows);
-  const slots = await db.select().from(radioSlots);
-  return {
-    shows: shows.map((s) => ({
-      id: s.id,
-      name: s.name,
-      presenter: s.presenter,
-      description: s.description ?? null,
-      artUrl: s.artUrl ?? null,
-    })),
-    slots: slots.map((s) => ({
-      id: s.id,
-      showId: s.showId,
-      kind: s.kind,
-      tag: s.tag,
-      dayOfWeek: s.dayOfWeek ?? null,
-      startMinute: s.startMinute ?? null,
-      durationMinutes: s.durationMinutes ?? null,
-      startsAt: s.startsAt ?? null,
-      endsAt: s.endsAt ?? null,
-    })),
-  };
-}
-
-// Expand slots into concrete airings between [from, to].
-export function expandOccurrences(
-  shows: ShowRecord[],
-  slots: SlotRecord[],
-  from: Date,
-  to: Date
-): Occurrence[] {
-  const showById = new Map(shows.map((s) => [s.id, s]));
-  const out: Occurrence[] = [];
-
-  for (const slot of slots) {
-    const show = showById.get(slot.showId);
-    if (!show) continue;
-
-    if (slot.kind === "once") {
-      if (!slot.startsAt || !slot.endsAt) continue;
-      if (slot.endsAt >= from && slot.startsAt <= to) {
-        out.push({ slotId: slot.id, tag: slot.tag, start: slot.startsAt, end: slot.endsAt, show });
-      }
-      continue;
-    }
-
-    if (slot.dayOfWeek === null || slot.startMinute === null || !slot.durationMinutes) continue;
-    // Start one day early so overnight slots that began yesterday are still found.
-    const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()) - DAY_MS);
-    for (let t = cursor.getTime(); t <= to.getTime(); t += DAY_MS) {
-      const day = new Date(t);
-      if (day.getUTCDay() !== slot.dayOfWeek) continue;
-      const start = new Date(t + slot.startMinute * 60 * 1000);
-      const end = new Date(start.getTime() + slot.durationMinutes * 60 * 1000);
-      if (end >= from && start <= to) {
-        out.push({ slotId: slot.id, tag: slot.tag, start, end, show });
-      }
-    }
-  }
-
-  return out.sort((a, b) => a.start.getTime() - b.start.getTime());
-}
-
-export function resolveCurrentAndNext(
-  shows: ShowRecord[],
-  slots: SlotRecord[],
-  now: Date = new Date()
-): { current: Occurrence | null; next: Occurrence | null } {
-  const upcoming = expandOccurrences(shows, slots, now, new Date(now.getTime() + 8 * DAY_MS));
-  const current = upcoming.find((o) => o.start <= now && o.end > now) || null;
-  const next = upcoming.find((o) => o.start > now) || null;
-  return { current, next };
 }
 
 // ---------------------------------------------------------------------------
