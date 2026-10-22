@@ -11,6 +11,8 @@ interface Links {
   icon: React.JSX.Element | React.ReactNode;
   /** Leave the current app shell with a full page load instead of a client-side transition. */
   hardNavigate?: boolean;
+  /** Marks the link for the page currently shown. */
+  active?: boolean;
 }
 
 interface SidebarContextProps {
@@ -172,7 +174,9 @@ export const SidebarLink = ({
     <Anchor
       href={link.href}
       className={cn(
-        "flex items-center justify-start gap-2 group/sidebar py-2",
+        "relative flex items-center justify-start gap-2 group/sidebar py-2",
+        link.active &&
+          "-mx-2 px-2 rounded-xl bg-white/[0.06] text-brand before:absolute before:-left-4 before:top-2.5 before:bottom-2.5 before:w-[3px] before:rounded-full before:bg-brand",
         className
       )}
       {...props}
@@ -184,7 +188,10 @@ export const SidebarLink = ({
           display: animate ? (open ? "inline-block" : "none") : "inline-block",
           opacity: animate ? (open ? 1 : 0) : 1,
         }}
-        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0"
+        className={cn(
+          "text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre inline-block !p-0 !m-0",
+          link.active && "text-brand dark:text-brand"
+        )}
       >
         {link.label}
       </motion.span>

@@ -3,7 +3,7 @@ import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
 import { OTTLoader } from "@/components/ott/ott-loader";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ftn/ui";
 import {
   IconHome,
   IconBookmark,
@@ -78,21 +78,21 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       label: "Home",
       href: "/plus",
       icon: (
-        <IconHome className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconHome className="h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Saved",
       href: "/plus/watchlist",
       icon: (
-        <IconBookmark className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconBookmark className="h-5 w-5 flex-shrink-0" />
       ),
     },
     {
       label: "Schedule",
       href: "/plus/schedule",
       icon: (
-        <IconCalendar className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconCalendar className="h-5 w-5 flex-shrink-0" />
       ),
     },
     webradioEnabled
@@ -100,21 +100,21 @@ function OTTShell({ children }: { children: React.ReactNode }) {
           label: "Webradio",
           href: "/plus/radio",
           icon: (
-            <IconRadio className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+            <IconRadio className="h-5 w-5 flex-shrink-0" />
           ),
         }
       : {
           label: "Webradio",
           href: "#",
           icon: (
-            <IconRadio className="text-neutral-700 dark:text-neutral-400 h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
+            <IconRadio className="h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
           ),
         },
     {
       label: "Sports",
       href: "/plus/sports",
       icon: (
-        <IconTrophy className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+        <IconTrophy className="h-5 w-5 flex-shrink-0" />
       ),
     },
   ];
@@ -124,29 +124,27 @@ function OTTShell({ children }: { children: React.ReactNode }) {
 
   // While validating session on initial load, only the splash is visible
   if (loadingSession) {
-    return <div className="h-screen w-screen bg-black">{splash}</div>;
+    return <div className="h-screen w-screen bg-ftn-bg">{splash}</div>;
   }
 
   // If members only and logged out: Mask and render only the clean black authentication screen
   if (gated) {
     return (
-      <div className="min-h-screen w-screen bg-black text-white flex flex-col items-center justify-center p-6 space-y-6 select-none">
+      <div className="min-h-screen w-screen bg-ftn-bg text-ftn-text flex flex-col items-center justify-center p-6 space-y-6 select-none">
         {splash}
         <div className="text-center space-y-4 max-w-sm">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+          <h1 className="ftn-title text-2xl sm:text-3xl text-ftn-text">
             Authenticate with Roblox to view FTN+
           </h1>
 
           <div className="pt-2">
-            <a href="/api/auth/roblox?returnUrl=/plus">
-              <Button className="w-full bg-[#FFBB14] hover:bg-[#e5a710] text-black font-bold text-xs h-11 cursor-pointer">
-                Sign In
-              </Button>
-            </a>
+            <Button href="/api/auth/roblox?returnUrl=/plus" size="lg" hard className="w-full">
+              Sign In
+            </Button>
           </div>
 
           <div>
-            <Link href="/" className="text-xs text-neutral-400 hover:text-white transition">
+            <Link href="/" className="text-xs text-ftn-text-3 hover:text-ftn-text transition">
               ← Return to Home
             </Link>
           </div>
@@ -167,11 +165,14 @@ function OTTShell({ children }: { children: React.ReactNode }) {
 
         <Sidebar open={open} setOpen={setOpen}>
           <SidebarBody className="justify-between gap-10">
-            <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden no-scrollbar">
+            <div className="flex flex-col flex-1 -mx-4 px-4 overflow-y-auto overflow-x-hidden no-scrollbar">
               {open ? <Logo /> : <LogoIcon />}
               <div className="mt-8 flex flex-col gap-2">
                 {links.map((link, idx) => (
-                  <SidebarLink key={idx} link={link} />
+                  <SidebarLink
+                    key={idx}
+                    link={{ ...link, active: link.href === "/plus" ? pathname === "/plus" : link.href !== "#" && pathname.startsWith(link.href) }}
+                  />
                 ))}
               </div>
             </div>
@@ -184,7 +185,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
                   // can stall behind its server render and look like a dead button.
                   hardNavigate: true,
                   icon: (
-                    <IconArrowLeft className="text-neutral-700 dark:text-neutral-200 h-5 w-5 flex-shrink-0" />
+                    <IconArrowLeft className="h-5 w-5 flex-shrink-0" />
                   ),
                 }}
               />
@@ -192,7 +193,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
           </SidebarBody>
         </Sidebar>
         <div className="flex flex-1 min-w-0 min-h-0 bg-neutral-900">
-          <div className="rounded-tl-2xl border-l border-t border-neutral-800 bg-neutral-950 flex flex-col flex-1 w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar">
+          <div className="rounded-tl-2xl border-l border-t border-ftn-line bg-ftn-bg flex flex-col flex-1 w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar">
             {children}
           </div>
         </div>

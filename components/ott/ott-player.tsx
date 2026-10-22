@@ -11,6 +11,7 @@ import {
   IconChevronDown,
   IconCalendar,
 } from "@tabler/icons-react";
+import { Button, LivePill } from "@/components/ftn/ui";
 
 export function OTTPlayer({
   youtubeId: rawYoutubeId,
@@ -168,9 +169,9 @@ export function OTTPlayer({
     : null;
 
   return (
-    <div className="min-h-screen bg-black text-white select-none">
+    <div className="ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text select-none">
       {/* 1. INITIAL FULL SCREEN VIEWPORT */}
-      <div className="relative w-full h-screen bg-black overflow-hidden">
+      <div className="relative w-full h-screen bg-ftn-bg overflow-hidden">
         {/* Full-bleed YouTube Embed */}
         <iframe
           src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1`}
@@ -184,7 +185,7 @@ export function OTTPlayer({
         <div className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 pointer-events-auto">
           <Link
             href="/plus"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/70 backdrop-blur-md border border-neutral-800 text-white hover:bg-neutral-800 transition shadow-lg cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/70 backdrop-blur-md border border-ftn-line-strong text-white hover:bg-black/90 transition shadow-lg cursor-pointer"
             title="Back to FTN+ Browse"
           >
             <IconArrowLeft className="h-5 w-5" />
@@ -193,7 +194,7 @@ export function OTTPlayer({
 
         {/* Bottom Static Indicator Arrow */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          <div className="flex flex-col items-center gap-1 text-neutral-400 bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-1 text-ftn-text-3 bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
             <IconChevronDown className="h-4 w-4 text-white" />
           </div>
         </div>
@@ -205,20 +206,18 @@ export function OTTPlayer({
           {/* Live chip / Category indicator */}
           <div className="flex flex-wrap items-center gap-2">
             {isLive ? (
-              <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white">
-                LIVE
-              </span>
+              <LivePill>Live</LivePill>
             ) : null}
 
             {formattedDate && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-neutral-400 font-medium">
-                <IconCalendar className="h-3.5 w-3.5 text-neutral-500" />
+              <span className="inline-flex items-center gap-1.5 text-xs text-ftn-text-3 font-medium">
+                <IconCalendar className="h-3.5 w-3.5" />
                 {isLive ? "Started" : "Posted"} {formattedDate}
               </span>
             )}
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+          <h1 className="ftn-display text-3xl sm:text-5xl text-ftn-text leading-[1.05]">
             {title}
           </h1>
 
@@ -235,14 +234,14 @@ export function OTTPlayer({
                   <img
                     src={channelLogoUrl}
                     alt={channelTitle}
-                    className="h-8 w-8 rounded-full object-cover border border-neutral-700 group-hover:ring-2 group-hover:ring-[#FFBB14] transition"
+                    className="h-8 w-8 rounded-full object-cover border border-ftn-line-strong group-hover:ring-2 group-hover:ring-brand transition"
                   />
                 ) : (
-                  <div className="h-8 w-8 rounded-full bg-neutral-800 border border-neutral-700 text-xs font-bold text-neutral-300 flex items-center justify-center">
+                  <div className="h-8 w-8 rounded-full bg-ftn-surface-2 border border-ftn-line-strong text-xs font-bold text-ftn-text-2 flex items-center justify-center">
                     {channelTitle.slice(0, 1).toUpperCase()}
                   </div>
                 )}
-                <span className="text-sm font-bold text-neutral-200 group-hover:text-white transition underline-offset-4 group-hover:underline">
+                <span className="text-sm font-semibold text-ftn-text-2 group-hover:text-ftn-text transition underline-offset-4 group-hover:underline">
                   {channelTitle}
                 </span>
               </a>
@@ -252,56 +251,20 @@ export function OTTPlayer({
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3 pt-1">
-          {/* Save to Watchlist Button */}
-          <button
-            onClick={toggleSave}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold border transition cursor-pointer ${
-              saved
-                ? "bg-[#FFBB14] border-[#FFBB14] text-black font-bold shadow-[0px_2px_0px_0px_#FFFFFF40_inset]"
-                : "bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800"
-            }`}
-          >
-            {saved ? (
-              <>
-                <IconBookmarkFilled className="h-4 w-4 text-black" />
-                Saved
-              </>
-            ) : (
-              <>
-                <IconBookmark className="h-4 w-4" />
-                Save to Watchlist
-              </>
-            )}
-          </button>
+          <Button onClick={toggleSave} variant={saved ? "primary" : "secondary"}>
+            {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
+            {saved ? "Saved" : "Save to watchlist"}
+          </Button>
 
-          {/* Go to YouTube Button */}
-          <a
-            href={`https://www.youtube.com/watch?v=${youtubeId}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition"
-          >
+          <Button href={`https://www.youtube.com/watch?v=${youtubeId}`} external variant="secondary">
             <IconBrandYoutube className="h-4 w-4 text-red-500" />
             Watch on YouTube
-          </a>
+          </Button>
 
-          {/* Share Button */}
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition cursor-pointer"
-          >
-            {copied ? (
-              <>
-                <IconCheck className="h-4 w-4 text-emerald-400" />
-                Link Copied!
-              </>
-            ) : (
-              <>
-                <IconShare className="h-4 w-4" />
-                Share
-              </>
-            )}
-          </button>
+          <Button onClick={handleShare} variant="secondary">
+            {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconShare className="h-4 w-4" />}
+            {copied ? "Link copied" : "Share"}
+          </Button>
         </div>
 
         {/* Description Structured Text */}
@@ -313,14 +276,14 @@ export function OTTPlayer({
               : "";
           if (!formattedDate && !cleanDesc) return null;
           return (
-            <div className="pt-4 border-t border-neutral-850 space-y-2">
+            <div className="pt-4 border-t border-ftn-line space-y-2">
               {formattedDate && (
-                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                <p className="ftn-eyebrow text-ftn-text-3">
                   {isLive ? "Broadcast Started" : "Published"}: {formattedDate}
                 </p>
               )}
               {cleanDesc ? (
-                <p className="text-sm sm:text-base text-neutral-300 leading-relaxed whitespace-pre-line">
+                <p className="text-sm sm:text-base text-ftn-text-2 leading-relaxed whitespace-pre-line">
                   {cleanDesc}
                 </p>
               ) : null}

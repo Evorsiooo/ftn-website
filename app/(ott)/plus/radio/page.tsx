@@ -15,7 +15,10 @@ import {
   IconAlertTriangle,
 } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
-import { RadioLane, RadioCard } from "@/components/radio/radio-lane";
+import { PageShell, Equalizer } from "@/components/ftn/page";
+import { Button, EmptyState, GUTTER, LivePill, ProgressBar, Tag } from "@/components/ftn/ui";
+import { ArtTile, Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
+import { cn } from "@/lib/utils";
 import { useRadioPlayer } from "@/components/radio/use-radio-player";
 
 interface ShowInfo {
@@ -56,21 +59,6 @@ function untilLabel(ms: number): string {
   const h = Math.floor(mins / 60);
   if (h < 24) return `${h}h ${mins % 60}m`;
   return `${Math.floor(h / 24)}d ${h % 24}h`;
-}
-
-function EqualizerBars({ active }: { active: boolean }) {
-  return (
-    <div className="flex items-end gap-[3px] h-5" aria-hidden>
-      {[0.5, 1, 0.7, 0.9, 0.4].map((peak, i) => (
-        <motion.span
-          key={i}
-          className="w-[3px] rounded-full bg-[#FFBB14]"
-          animate={active ? { height: ["20%", `${peak * 100}%`, "30%", `${peak * 85}%`, "20%"] } : { height: "20%" }}
-          transition={active ? { duration: 1 + i * 0.15, repeat: Infinity, ease: "easeInOut" } : { duration: 0.3 }}
-        />
-      ))}
-    </div>
-  );
 }
 
 export default function FTNPlusRadioPage() {
@@ -129,13 +117,14 @@ export default function FTNPlusRadioPage() {
 
   if (!webradioEnabled) {
     return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-8 text-center">
-        <div className="space-y-3 max-w-md">
-          <IconRadio className="h-10 w-10 text-[#FFBB14] mx-auto" />
-          <h1 className="text-2xl font-black text-white">Webradio is offline</h1>
-          <p className="text-xs text-neutral-400">The FTN webradio is currently switched off. Check back soon.</p>
-        </div>
-      </div>
+      <PageShell className="flex items-center justify-center p-8">
+        <EmptyState
+          icon={<IconRadio />}
+          title="Webradio is offline"
+          description="The FTN webradio is currently switched off. Check back soon."
+          className="max-w-md"
+        />
+      </PageShell>
     );
   }
 
@@ -153,7 +142,6 @@ export default function FTNPlusRadioPage() {
         : "Non-stop music on FTN Radio";
   const nextShow = info?.nextShow || null;
 
-  // Progress through the current show
   let progress = 0;
   if (show) {
     const start = new Date(show.start).getTime();
@@ -163,11 +151,12 @@ export default function FTNPlusRadioPage() {
 
   const shows = new Map<string, ScheduleEntry["show"]>();
   schedule?.forEach((e) => shows.set(e.show.id, e.show));
+  const nextIndex = schedule ? schedule.findIndex((e) => new Date(e.start).getTime() > now) : -1;
 
   return (
-    <div className="min-h-screen bg-neutral-950 pb-20 text-white">
-      {/* HERO: cinematic backdrop built from the current art, same treatment as the FTN+ billboard */}
-      <div className="relative w-full min-h-[60vh] overflow-hidden select-none">
+    <PageShell>
+      {/* HERO: ambient glow from the current art */}
+      <div className="relative w-full overflow-hidden select-none">
         <AnimatePresence>
           <motion.div
             key={artUrl || "no-art"}
@@ -178,49 +167,42 @@ export default function FTNPlusRadioPage() {
             className="absolute inset-0"
           >
             {artUrl ? (
-              <img src={artUrl} alt="" className="h-full w-full object-cover scale-125 blur-3xl opacity-60" />
+              <img src={artUrl} alt="" className="h-full w-full object-cover scale-125 blur-3xl opacity-40" />
             ) : (
-              <div className="h-full w-full bg-gradient-to-br from-neutral-900 via-neutral-950 to-black" />
+              <div className="h-full w-full bg-gradient-to-br from-ftn-surface via-ftn-bg to-ftn-bg" />
             )}
           </motion.div>
         </AnimatePresence>
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-[#FFBB14]/15 blur-3xl animate-pulse" />
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/60 to-transparent w-full md:w-3/4" />
+        <div className="absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/40 to-ftn-bg/20" />
 
-        <div className="relative z-10 min-h-[60vh] flex flex-col md:flex-row items-start md:items-end justify-between gap-10 px-6 md:px-12 pt-20 pb-14">
+        <div
+          className={cn(
+            "relative z-10 flex flex-col-reverse md:flex-row items-start md:items-center justify-between gap-8 md:gap-12 pt-10 md:pt-20 pb-12",
+            GUTTER
+          )}
+        >
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="max-w-3xl space-y-4"
+            className="max-w-2xl space-y-5 w-full"
           >
-            <div className="flex flex-wrap items-center gap-3">
-              {info?.online ? (
-                <span className="rounded bg-red-600 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-white">
-                  LIVE
-                </span>
-              ) : (
-                <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-neutral-400">
-                  Offline
-                </span>
-              )}
-              <span className="text-xs font-semibold uppercase tracking-widest text-[#FFBB14]">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              {info?.online ? <LivePill>Live</LivePill> : <Tag>Offline</Tag>}
+              <span className="ftn-eyebrow text-brand">
                 {isAuto && info?.online ? "AutoDJ" : info?.stationName || "FTN Radio"}
               </span>
-              {show && show.tag !== "live" && (
-                <span className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{show.tag}</span>
-              )}
+              {show && show.tag !== "live" && <Tag>{show.tag}</Tag>}
               {info?.listeners !== null && info?.listeners !== undefined && info.listeners >= 2 && (
-                <span className="inline-flex items-center gap-1 text-xs text-neutral-300">
+                <span className="inline-flex items-center gap-1 text-xs text-ftn-text-2">
                   <IconHeadphones className="h-4 w-4" /> {info.listeners} listening
                 </span>
               )}
             </div>
 
             {isAuto && track && (
-              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-widest text-neutral-400">
-                <EqualizerBars active={status === "playing"} /> Now playing
+              <div className="flex items-center gap-3 ftn-eyebrow text-ftn-text-3">
+                <Equalizer active={isPlaying} /> Now playing
               </div>
             )}
             <AnimatePresence mode="wait">
@@ -232,35 +214,26 @@ export default function FTNPlusRadioPage() {
                 transition={{ duration: 0.35 }}
                 className="space-y-3"
               >
-                <h1 className="text-3xl sm:text-5xl md:text-6xl font-black tracking-tight text-white leading-tight drop-shadow-md">
-                  {headline}
-                </h1>
-                <p className="text-sm sm:text-lg text-neutral-300 leading-relaxed max-w-2xl drop-shadow">{subline}</p>
+                <h1 className="ftn-display text-4xl sm:text-6xl md:text-7xl text-ftn-text pb-1">{headline}</h1>
+                <p className="text-base sm:text-lg text-ftn-text-2 max-w-2xl">{subline}</p>
               </motion.div>
             </AnimatePresence>
-            {show?.description && (
-              <p className="text-sm text-neutral-400 line-clamp-2 max-w-2xl">{show.description}</p>
-            )}
+            {show?.description && <p className="text-sm text-ftn-text-3 line-clamp-2 max-w-2xl">{show.description}</p>}
 
             {show && info?.track && (
-              <div className="flex items-center gap-3 text-xs text-neutral-300">
-                <EqualizerBars active={status === "playing"} />
+              <div className="flex items-center gap-3 text-sm text-ftn-text-2">
+                <Equalizer active={isPlaying} />
                 <span>
-                  Now playing: <span className="font-semibold text-white">{info.track.title}</span>
+                  Now playing <span className="font-semibold text-ftn-text">{info.track.title}</span>
                   {info.track.artist ? ` · ${info.track.artist}` : ""}
                 </span>
               </div>
             )}
 
             {show && (
-              <div className="max-w-md space-y-1.5">
-                <div className="h-[3px] w-full rounded-full bg-neutral-800 overflow-hidden">
-                  <div
-                    className="h-full bg-[#FFBB14] shadow-[0_0_10px_#FFBB14] transition-all duration-1000"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-[11px] font-mono text-neutral-400">
+              <div className="max-w-md space-y-2">
+                <ProgressBar value={progress} />
+                <div className="flex justify-between text-xs ftn-mono text-ftn-text-3">
                   <span>{timeFmt.format(new Date(show.start))}</span>
                   <span>On air until {timeFmt.format(new Date(show.end))}</span>
                 </div>
@@ -268,59 +241,25 @@ export default function FTNPlusRadioPage() {
             )}
 
             {isAuto && nextShow && (
-              <div className="flex items-center gap-3 rounded-xl border border-neutral-800 bg-neutral-900/70 backdrop-blur-sm p-2.5 pr-4 max-w-md">
-                {nextShow.artUrl ? (
-                  <img src={nextShow.artUrl} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
-                ) : (
-                  <div className="h-12 w-12 rounded-lg bg-neutral-800 flex-shrink-0 flex items-center justify-center">
-                    <IconRadio className="h-5 w-5 text-[#FFBB14]" />
-                  </div>
-                )}
+              <div className="flex items-center gap-3 rounded-2xl border border-ftn-line bg-ftn-surface/80 backdrop-blur-sm p-2.5 pr-4 max-w-md">
+                <ArtTile src={nextShow.artUrl} className="h-12 w-12 rounded-xl flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#FFBB14]">
-                    Up next · in {untilLabel(new Date(nextShow.start).getTime() - now)}
-                  </div>
-                  <div className="text-sm font-bold text-white truncate">{nextShow.name}</div>
-                  <div className="text-[11px] text-neutral-400 truncate">
-                    with {nextShow.presenter} · {dayFmt.format(new Date(nextShow.start))}{" "}
-                    {timeFmt.format(new Date(nextShow.start))}
+                  <div className="ftn-eyebrow text-brand">Up next · in {untilLabel(new Date(nextShow.start).getTime() - now)}</div>
+                  <div className="text-sm font-semibold truncate">{nextShow.name}</div>
+                  <div className="text-xs text-ftn-text-3 truncate">
+                    with {nextShow.presenter} · {dayFmt.format(new Date(nextShow.start))} {timeFmt.format(new Date(nextShow.start))}
                   </div>
                 </div>
               </div>
             )}
 
-            {status === "error" && (
-              <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
-                <IconAlertTriangle className="h-4 w-4" /> The stream stopped responding. Press Try again to reconnect.
-              </div>
-            )}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={togglePlay}
-                disabled={!streamUrl}
-                className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] disabled:opacity-40 disabled:cursor-not-allowed text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200 cursor-pointer"
-              >
-                {isBusy ? (
-                  <IconLoader2 className="h-5 w-5 animate-spin" />
-                ) : isPlaying ? (
-                  <IconPlayerPause className="h-5 w-5 fill-current" />
-                ) : (
-                  <IconPlayerPlay className="h-5 w-5 fill-current" />
-                )}
-                {status === "connecting"
-                  ? "Connecting…"
-                  : status === "buffering"
-                    ? "Buffering…"
-                    : status === "reconnecting"
-                      ? "Reconnecting…"
-                      : isPlaying
-                        ? "Pause"
-                        : status === "error"
-                          ? "Try again"
-                          : "Listen Live"}
-              </button>
-              <div className="flex items-center gap-2 rounded-lg bg-neutral-900/80 border border-neutral-800 h-12 px-4 backdrop-blur-sm">
-                <IconVolume className="h-4 w-4 text-neutral-400" />
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <Button onClick={togglePlay} disabled={!streamUrl} size="lg">
+                {isPlaying ? <IconPlayerPause className="h-5 w-5 fill-current" /> : <IconPlayerPlay className="h-5 w-5 fill-current" />}
+                {isPlaying ? "Pause" : "Listen live"}
+              </Button>
+              <div className="flex items-center gap-2 rounded-full bg-ftn-surface border border-ftn-line h-14 px-5">
+                <IconVolume className="h-4 w-4 text-ftn-text-2" />
                 <input
                   type="range"
                   min={0}
@@ -329,109 +268,91 @@ export default function FTNPlusRadioPage() {
                   value={volume}
                   onChange={(e) => changeVolume(Number(e.target.value))}
                   aria-label="Volume"
-                  className="w-24 accent-[#FFBB14]"
+                  className="w-24 accent-brand"
                 />
               </div>
               {info?.discordBot.link && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="lg"
                   onClick={() => document.getElementById("radio-discord")?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                  className="gap-2 h-12 px-4 rounded-lg bg-neutral-900/80 border border-neutral-800 hover:bg-neutral-800 text-neutral-200 text-xs font-semibold flex items-center transition cursor-pointer backdrop-blur-sm"
                 >
-                  <IconBrandDiscord className="h-4 w-4 text-[#FFBB14]" /> Listen in Discord
-                </button>
+                  <IconBrandDiscord className="h-4 w-4 text-brand" /> Listen in Discord
+                </Button>
               )}
             </div>
           </motion.div>
 
           {/* Cover art */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
+            initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="relative flex-shrink-0 self-center md:self-end"
+            className="relative flex-shrink-0 self-center md:self-auto"
           >
             <div
-              className={`absolute -inset-3 rounded-3xl bg-[#FFBB14]/30 blur-2xl transition-opacity duration-700 ${
-                isPlaying ? "opacity-100 animate-pulse" : "opacity-30"
-              }`}
+              className={cn(
+                "absolute -inset-3 rounded-[2rem] bg-brand/25 blur-2xl transition-opacity duration-700",
+                isPlaying ? "opacity-100" : "opacity-30"
+              )}
             />
-            <div className="relative h-56 w-56 sm:h-72 sm:w-72 overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl flex items-center justify-center">
-              <AnimatePresence mode="wait">
-                {artUrl ? (
-                  <motion.img
-                    key={artUrl}
-                    src={artUrl}
-                    alt=""
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="h-full w-full object-cover"
-                    onError={() => setArtFailed(true)}
-                  />
-                ) : (
-                  <motion.img
-                    key="logo"
-                    src="/logos/ftnplus_favicon.png"
-                    alt=""
-                    className="h-20 w-20 object-contain opacity-70"
-                  />
-                )}
-              </AnimatePresence>
-            </div>
+            <ArtTile
+              src={artUrl}
+              onError={() => setArtFailed(true)}
+              className="relative h-36 w-36 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-3xl border border-ftn-line-strong shadow-2xl"
+            />
           </motion.div>
         </div>
       </div>
 
       {/* LANES */}
-      <div className="relative z-20 -mt-8 space-y-6">
+      <div className="relative z-20 space-y-10">
         {schedule === null ? (
-          <div className="px-6 md:px-12 text-xs text-neutral-500">Loading schedule...</div>
+          <LaneSkeleton shape="square" />
         ) : schedule.length === 0 ? (
-          <div className="px-6 md:px-12 text-sm text-neutral-400">
-            No shows are scheduled yet. Check back soon.
+          <div className={GUTTER}>
+            <EmptyState icon={<IconRadio />} title="No shows scheduled yet" description="Check back soon for the programme." />
           </div>
         ) : (
           <>
-            <RadioLane title="Coming Up">
+            <Lane title="Coming up" href="/plus/schedule" hrefLabel="Full schedule">
               {schedule.map((entry, i) => {
                 const start = new Date(entry.start);
                 const isNow = start.getTime() <= now && new Date(entry.end).getTime() > now;
                 return (
-                  <RadioCard
+                  <ShowCard
                     key={`${entry.slotId}-${entry.start}`}
                     title={entry.show.name}
                     presenter={entry.show.presenter}
                     artUrl={entry.show.artUrl}
-                    badge={isNow ? "On air" : i === (schedule.findIndex((e) => new Date(e.start).getTime() > now)) ? "Up next" : undefined}
-                    badgeTone={isNow ? "live" : "neutral"}
+                    badge={isNow ? "On air" : i === nextIndex ? "Up next" : undefined}
+                    live={isNow}
                     timeLabel={`${dayFmt.format(start)} ${timeFmt.format(start)} – ${timeFmt.format(new Date(entry.end))}`}
                     tag={entry.tag}
                   />
                 );
               })}
-            </RadioLane>
+            </Lane>
 
             {shows.size > 0 && (
-              <RadioLane title="The Shows">
+              <Lane title="The shows">
                 {Array.from(shows.values()).map((s) => (
-                  <RadioCard key={s.id} title={s.name} presenter={s.presenter} artUrl={s.artUrl} />
+                  <ShowCard key={s.id} title={s.name} presenter={s.presenter} artUrl={s.artUrl} />
                 ))}
-              </RadioLane>
+              </Lane>
             )}
           </>
         )}
 
         {info?.discordBot.link && (
-          <div id="radio-discord" className="px-6 md:px-12 pt-4">
-            <div className="relative overflow-hidden rounded-xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div className="absolute -left-10 -top-10 h-48 w-48 rounded-full bg-[#FFBB14]/10 blur-3xl" />
+          <div id="radio-discord" className={GUTTER}>
+            <div className="relative overflow-hidden rounded-3xl border border-ftn-line bg-ftn-surface p-6 sm:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-brand/10 blur-3xl" />
               <div className="relative space-y-2 max-w-xl">
-                <div className="flex items-center gap-2 text-xl font-bold tracking-tight">
-                  <IconBrandDiscord className="h-6 w-6 text-[#FFBB14]" /> Take FTN Radio to your Discord
+                <div className="ftn-title text-xl flex items-center gap-2">
+                  <IconBrandDiscord className="h-6 w-6 text-brand" /> Take FTN Radio to your Discord
                 </div>
-                <p className="text-sm text-neutral-400 leading-relaxed">
+                <p className="text-sm text-ftn-text-2 leading-relaxed">
                   Invite the radio bot to your server, then run the setup command from the voice channel you are in.
                 </p>
               </div>
@@ -439,28 +360,49 @@ export default function FTNPlusRadioPage() {
                 <button
                   type="button"
                   onClick={copyCommand}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-neutral-800 bg-black px-4 h-12 text-left cursor-pointer hover:border-neutral-700 transition"
+                  className="flex items-center justify-between gap-3 rounded-full border border-ftn-line-strong bg-ftn-bg px-5 h-11 text-left cursor-pointer hover:border-brand/50 transition"
                 >
-                  <code className="text-sm font-mono text-white">{info.discordBot.command}</code>
-                  {copied ? (
-                    <IconCheck className="h-4 w-4 text-emerald-400" />
-                  ) : (
-                    <IconCopy className="h-4 w-4 text-neutral-400" />
-                  )}
+                  <code className="text-sm ftn-mono text-ftn-text">{info.discordBot.command}</code>
+                  {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconCopy className="h-4 w-4 text-ftn-text-2" />}
                 </button>
-                <a
-                  href={info.discordBot.link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="gap-2 font-black px-7 h-12 text-sm rounded-lg bg-[#FFBB14] hover:bg-[#e5a710] text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition duration-200"
-                >
-                  Invite the Bot
-                </a>
+                <Button href={info.discordBot.link} external>
+                  Invite the bot
+                </Button>
               </div>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </PageShell>
+  );
+}
+
+function ShowCard({
+  title,
+  presenter,
+  artUrl,
+  badge,
+  live,
+  timeLabel,
+  tag,
+}: {
+  title: string;
+  presenter: string;
+  artUrl: string | null;
+  badge?: string;
+  live?: boolean;
+  timeLabel?: string;
+  tag?: string;
+}) {
+  return (
+    <MediaCard shape="square" art={artUrl} title={title} badge={badge} badgeLive={live} className="w-44 sm:w-48 md:w-52">
+      <p className="text-xs text-ftn-text-3 truncate">with {presenter}</p>
+      {timeLabel && (
+        <p className="text-xs ftn-mono text-brand leading-snug pt-1">
+          {timeLabel}
+          {tag && tag !== "live" ? ` · ${tag}` : ""}
+        </p>
+      )}
+    </MediaCard>
   );
 }

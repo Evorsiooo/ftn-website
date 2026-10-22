@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Bricolage_Grotesque } from "next/font/google";
 import OTTClientLayout from "./client-layout";
+
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin"],
+  weight: ["500", "700", "800"],
+});
 
 export const runtime = "edge";
 
@@ -38,5 +45,9 @@ export default function OTTLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <OTTClientLayout>{children}</OTTClientLayout>;
+  return (
+    <div className={`${bricolage.variable} contents`}>
+      <OTTClientLayout>{children}</OTTClientLayout>
+    </div>
+  );
 }
