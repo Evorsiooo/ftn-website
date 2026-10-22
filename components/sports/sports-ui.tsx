@@ -101,27 +101,27 @@ export function Avatar({ name, src, color, size = 32 }: { name: string; src?: st
   );
 }
 
-export function TeamMark({ team, size = 28 }: { team?: SportsTeam; size?: number }) {
-  const style = { width: size, height: size, backgroundColor: team?.color || "var(--color-ftn-surface-2)" };
-  if (team?.logoUrl) {
-    return <img src={team.logoUrl} alt="" style={style} className="rounded-lg object-cover flex-shrink-0" />;
+/** Uploaded logos are shown whole on a transparent background; initials on a tile are only the fallback. */
+function Mark({ logoUrl, color, label, size, fontScale }: { logoUrl?: string | null; color?: string | null; label: string; size: number; fontScale: number }) {
+  if (logoUrl) {
+    return <img src={logoUrl} alt="" width={size} height={size} style={{ width: size, height: size }} className="object-contain flex-shrink-0" />;
   }
   return (
-    <div style={{ ...style, fontSize: Math.max(9, Math.round(size * 0.36)) }} className="rounded-lg flex items-center justify-center font-black text-white flex-shrink-0">
-      {(team?.shortName || team?.name || "?").slice(0, 3).toUpperCase()}
+    <div
+      style={{ width: size, height: size, backgroundColor: color || "var(--color-ftn-surface-2)", fontSize: Math.max(9, Math.round(size * fontScale)) }}
+      className="rounded-lg flex items-center justify-center font-black text-white flex-shrink-0"
+    >
+      {label}
     </div>
   );
 }
 
+export function TeamMark({ team, size = 28 }: { team?: SportsTeam; size?: number }) {
+  return <Mark logoUrl={team?.logoUrl} color={team?.color} label={(team?.shortName || team?.name || "?").slice(0, 3).toUpperCase()} size={size} fontScale={0.36} />;
+}
+
 export function LeagueMark({ league, size = 40 }: { league: SportsLeague; size?: number }) {
-  const style = { width: size, height: size, backgroundColor: league.color || "var(--color-ftn-surface-2)" };
-  return league.logoUrl ? (
-    <img src={league.logoUrl} alt="" style={style} className="rounded-lg object-cover flex-shrink-0" />
-  ) : (
-    <div style={{ ...style, fontSize: Math.round(size * 0.3) }} className="rounded-lg flex items-center justify-center font-black text-white flex-shrink-0">
-      {leagueAbbrev(league.name)}
-    </div>
-  );
+  return <Mark logoUrl={league.logoUrl} color={league.color} label={leagueAbbrev(league.name)} size={size} fontScale={0.3} />;
 }
 
 // ------------------------------------------------------------- shared cards
@@ -151,7 +151,10 @@ export function NextUpCard({
         className
       )}
     >
-      <div className="ftn-eyebrow text-sports mb-2">Next up{league ? ` · ${league.name}` : ""}</div>
+      <div className="flex items-center gap-2 mb-2">
+        {league && <LeagueMark league={league} size={22} />}
+        <div className="ftn-eyebrow text-sports truncate">Next up{league ? ` · ${league.name}` : ""}</div>
+      </div>
       <div className="ftn-display text-xl mb-2">{roundTitle(event, teams)}</div>
       <div className="ftn-mono text-3xl font-extrabold tracking-tight my-2.5">{countdown(event.startsAt)}</div>
       <div className="text-xs text-ftn-text-3">
@@ -189,8 +192,11 @@ export function ResultCard({
       href={league ? `/plus/sports/${league.slug}?tab=results` : "/plus/sports"}
       className={cn("block rounded-2xl border border-ftn-line bg-ftn-surface px-4 py-3.5 transition hover:border-ftn-line-strong", className)}
     >
-      <div className={cn(eyebrow, "mb-2.5 truncate")}>
-        {league?.name} · {label}
+      <div className="flex items-center gap-2 mb-2.5">
+        {league && <LeagueMark league={league} size={20} />}
+        <div className={cn(eyebrow, "truncate")}>
+          {league?.name} · {label}
+        </div>
       </div>
       {match ? (
         [
@@ -198,7 +204,10 @@ export function ResultCard({
           { id: event.awayTeamId!, score: event.awayScore ?? 0, other: event.homeScore ?? 0 },
         ].map((side) => (
           <div key={side.id} className="flex items-center justify-between ftn-title text-base">
-            <span className={side.score > side.other ? "text-ftn-text" : "text-ftn-text-3"}>{teams.get(side.id)?.name ?? "TBD"}</span>
+            <span className={cn("flex items-center gap-2 min-w-0", side.score > side.other ? "text-ftn-text" : "text-ftn-text-3")}>
+              <TeamMark team={teams.get(side.id)} size={22} />
+              <span className="truncate">{teams.get(side.id)?.name ?? "TBD"}</span>
+            </span>
             <b className={cn("ftn-mono text-xl", side.score > side.other ? "text-ftn-text" : "text-ftn-text-3")}>{side.score}</b>
           </div>
         ))
@@ -243,6 +252,7 @@ export function SlotCard({
       </div>
       <h3 className="text-sm font-semibold leading-snug">{roundTitle(event, teams)}</h3>
       <div className="flex items-center gap-1.5 text-xs text-ftn-text-3">
+        {league && <LeagueMark league={league} size={16} />}
         <span className="ftn-eyebrow text-sports">Sports</span>
         <span className="truncate">{league?.name}</span>
       </div>
