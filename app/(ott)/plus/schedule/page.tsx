@@ -150,7 +150,6 @@ export default function FTNPlusSchedulePage() {
   return (
     <PageShell>
       <PageHeader
-        eyebrow="FTN+"
         title="Schedule"
         subtitle={`Everything coming up on FTN Radio and the livestreams. Times are in your local time (${localZone()}).`}
       />
