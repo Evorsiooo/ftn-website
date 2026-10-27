@@ -31,7 +31,7 @@ const ZONE_FORM_VALUES: Record<string, string> = {
 
 const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
 const selectClass =
-  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 function readImageSize(file: File): Promise<[number, number]> {
   return new Promise((resolve, reject) => {
@@ -279,7 +279,7 @@ export default function AdminAdsConsole() {
             <h4 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{c.title || c.name}</h4>
             <div className="flex shrink-0 items-center gap-1">
               <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 mr-1">{c.adFormat}</span>
-              <button type="button" onClick={() => startEditing(c)} className="p-1 text-neutral-400 hover:text-blue-500 cursor-pointer" title="Edit">
+              <button type="button" onClick={() => startEditing(c)} className="p-1 text-neutral-400 hover:text-brand-text cursor-pointer" title="Edit">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <button type="button" onClick={() => toggleStatus(c)} className="p-1 text-neutral-400 hover:text-amber-500 cursor-pointer" title={c.status === "active" ? "Pause" : "Resume"}>

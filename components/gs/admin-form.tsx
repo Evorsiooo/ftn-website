@@ -63,7 +63,7 @@ export function AdminField({ label, hint, children, className }: { label: React.
 /** A single setting on one line: label and hint on the left, the control on the right. */
 export function AdminRow({ label, hint, children }: { label: React.ReactNode; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-6">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
         <div className="text-sm font-semibold">{label}</div>
         {hint && <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{hint}</p>}
@@ -84,7 +84,7 @@ export function AdminSegmented<T extends string>({
   options: { value: T; label: React.ReactNode }[];
 }) {
   return (
-    <div role="radiogroup" className="inline-flex shrink-0 rounded-full border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
+    <div role="radiogroup" className="inline-flex max-w-full shrink-0 flex-wrap rounded-full border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
       {options.map((o) => (
         <button
           key={o.value}

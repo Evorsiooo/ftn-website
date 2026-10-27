@@ -499,7 +499,7 @@ export function RichTextEditor({
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as any)}
-            className="w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white text-sm px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            className="w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white text-sm px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             <option value="news">News</option>
             <option value="politics">Politics</option>

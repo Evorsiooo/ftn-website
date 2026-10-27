@@ -14,7 +14,7 @@ const pillLink =
 
 function Stat({ label, value, note, href, action, hot }: { label: string; value: number; note: string; href: string; action: string; hot?: boolean }) {
   return (
-    <div className={cn(card, hot && "border-[#16110a] bg-[#16110a] text-[#fff8e6] dark:border-black dark:bg-black")}>
+    <div className={cn(card, hot && "border-[#16110a] bg-[#16110a] text-[#fff8e6] dark:border-brand/60 dark:bg-black")}>
       <div className={cn("text-xs font-bold uppercase tracking-widest", hot ? "text-[#fff8e6]/70" : "text-neutral-500")}>{label}</div>
       <div className={cn("gs-display mt-3 text-6xl font-extrabold leading-none", hot && "text-brand")}>{value}</div>
       <p className={cn("mt-2 text-sm", hot ? "text-[#fff8e6]/70" : "text-neutral-600 dark:text-neutral-400")}>{note}</p>

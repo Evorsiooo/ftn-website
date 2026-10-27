@@ -130,7 +130,7 @@ function WeekGrid({
         {days.map((d) => {
           const today = d.toDateString() === now.toDateString();
           return (
-            <div key={d.getTime()} className={`px-2 py-2 text-center ${today ? "text-blue-600 dark:text-blue-400" : "text-neutral-600 dark:text-neutral-400"}`}>
+            <div key={d.getTime()} className={`px-2 py-2 text-center ${today ? "font-extrabold text-brand-text" : "text-neutral-600 dark:text-neutral-400"}`}>
               {fmtDay(d)}
             </div>
           );
@@ -466,7 +466,7 @@ export function ScheduleTab({
 
       {broadcasts.length === 0 ? (
         <Card className="p-6 text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-          Nothing scheduled yet. Create a show in the Shows tab for radio, then add a broadcast.
+          Nothing scheduled yet. Add a show under Shows & presenters for radio, then add a broadcast.
         </Card>
       ) : view === "week" ? (
         <>

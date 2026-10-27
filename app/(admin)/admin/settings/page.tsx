@@ -2168,7 +2168,7 @@ export default function SiteSettingsPage() {
         ) : (
           /* Add New Swimlane Form */
           <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-sm font-bold text-neutral-900 dark:text-white">Add New Swimlane</span>
               <AdminSegmented
                 value={newSwimlaneType}
@@ -2390,7 +2390,7 @@ export default function SiteSettingsPage() {
                             <ListVideo className="h-2.5 w-2.5" /> PLAYLIST ({lane.playlistVideos?.length || 0})
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-100 border border-blue-300 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-300 text-[9px] font-bold flex items-center gap-1">
+                          <span className="px-1.5 py-0.5 rounded bg-brand/20 border border-brand text-brand-text text-[9px] font-bold flex items-center gap-1">
                             <Sliders className="h-2.5 w-2.5" /> FILTER
                           </span>
                         )}

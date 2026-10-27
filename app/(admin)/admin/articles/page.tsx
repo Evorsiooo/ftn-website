@@ -331,7 +331,7 @@ function AdminArticlesContent() {
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-900 pb-3">
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <div className="px-2.5 py-1 rounded-full bg-blue-100 dark:bg-blue-950 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300 font-mono font-black text-xs">
+                      <div className="px-2.5 py-1 rounded-full bg-brand/20 border border-brand text-brand-text font-mono font-black text-xs">
                         v{rev.versionNumber}
                       </div>
 
@@ -455,7 +455,7 @@ function AdminArticlesContent() {
                       {items.map((art) => (
                         <article key={art.id} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
                           <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="font-bold uppercase tracking-widest text-brand-text">{art.category}</span>
+                            <span className="font-bold uppercase tracking-widest text-brand-text">{art.category === "news" ? "" : art.category}</span>
                             <span className="text-neutral-500">{formatTimeAgo(art.updatedAt || art.createdAt)}</span>
                           </div>
                           <button type="button" onClick={() => handleStartEdit(art)} className="mt-1.5 block w-full cursor-pointer text-left text-base font-bold leading-snug hover:underline">

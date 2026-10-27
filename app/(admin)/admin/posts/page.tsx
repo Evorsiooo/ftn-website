@@ -16,7 +16,7 @@ import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/vi
 
 const labelClass = "mb-1 block text-sm font-bold";
 const fieldClass =
-  "w-full rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "w-full rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 // Editor-only backdrop: the saved image is transparent outside the post, and the white
 // disclaimer needs something dark behind it to be readable here.

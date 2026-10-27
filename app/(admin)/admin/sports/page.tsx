@@ -19,7 +19,7 @@ type Tab = "overview" | "events" | "roster" | "leagues" | "venues";
 
 const labelClass = "block text-sm font-semibold mb-1";
 const selectClass =
-  "w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 const cardClass = "p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 lg:sticky lg:top-24 self-start";
 const primaryBtn = "font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50";
 
@@ -129,7 +129,7 @@ export default function AdminSportsConsole() {
     <AdminAuthGuard requiredPermission={canManageSports} featureTitle="Sports Division Console">
       <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
         <AdminPageHeader
-          title="Sports Settings"
+          title="Sports"
           description="Manage league rosters and record match or race scores."
           tabs={(["overview", "events", "roster", "leagues", "venues"] as Tab[]).map((t) => (
             <AdminTab key={t} active={tab === t} onClick={() => { setOpenEvent(null); setTab(t); }}>
@@ -247,7 +247,7 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
               <div>
                 <h3 className="font-bold text-sm">{l.name}</h3>
                 <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                  <span className="uppercase font-mono text-[10px] text-blue-600 dark:text-blue-400">{l.kind}</span> · {l.sport} · Season {l.season}
+                  <span className="uppercase font-mono text-[10px] text-neutral-500">{l.kind}</span> · {l.sport} · Season {l.season}
                 </div>
               </div>
               <div className="flex items-center gap-2">
