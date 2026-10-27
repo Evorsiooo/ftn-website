@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
-import { PostLayout, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
+import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
+import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/video-editor";
 
 const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
 const fieldClass =
@@ -67,6 +68,10 @@ export default function AdminPostsPage() {
   const [focusX, setFocusX] = useState(0.5);
   const [focusY, setFocusY] = useState(0.5);
   const [uploadingBg, setUploadingBg] = useState(false);
+  const [mode, setMode] = useState<"image" | "video">("image");
+  const [videoLayers, setVideoLayers] = useState<PostLayers | null>(null);
+  const [openingVideo, setOpeningVideo] = useState(false);
+  const videoEditor = useRef<VideoEditorHandle>(null);
   const [saving, setSaving] = useState(false);
   const [layout, setLayout] = useState<PostLayout | null>(null);
   const [previewError, setPreviewError] = useState("");
@@ -115,6 +120,16 @@ export default function AdminPostsPage() {
       try {
         const adImg = selectedAd ? await loadImage(selectedAd.imageUrl) : null;
         if (!canvasRef.current || token !== renderToken.current) return;
+        if (mode === "video") {
+          // The video editor draws the frames; it only needs the template layers.
+          const layers = await buildPostLayers({ headline, body, logo, ad: adImg }, TEMPLATE.videoBackdrop);
+          if (token === renderToken.current) {
+            setVideoLayers(layers);
+            setLayout(layers.layout);
+            setPreviewError("");
+          }
+          return;
+        }
         const result = await renderPost(canvasRef.current, {
           headline,
           body,
@@ -139,10 +154,19 @@ export default function AdminPostsPage() {
         }
       }
     })();
-  }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd]);
+  }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd, mode]);
 
   // Downloads the image as it is now, without saving the post or using an ad impression.
   const handleExport = async () => {
+    if (mode === "video") {
+      try {
+        const slug = headline.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+        await videoEditor.current?.downloadVideo(slug);
+      } catch (err: any) {
+        alert(err.message || "Could not create the video");
+      }
+      return;
+    }
     if (previewError || !canvasRef.current) return alert(previewError || "Preview is not ready.");
     const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
     if (!blob) return alert("Could not create the image");
@@ -157,6 +181,8 @@ export default function AdminPostsPage() {
 
   const resetForm = () => {
     setEditingId(null);
+    setMode("image");
+    videoEditor.current?.reset();
     setHeadline("");
     setBody("");
     setRoState("");
@@ -193,6 +219,7 @@ export default function AdminPostsPage() {
 
   const startEditing = async (post: any) => {
     setEditingId(post.id);
+    setMode(post.mediaType === "video" ? "video" : "image");
     setHeadline(post.headline);
     setBody(post.body || "");
     setRoState(post.roState);
@@ -202,7 +229,19 @@ export default function AdminPostsPage() {
     setFocusX(0.5);
     setFocusY(0.5);
     setPhoto(null);
-    if (post.backgroundUrl) {
+    if (post.mediaType === "video") {
+      setBackgroundUrl(null);
+      setOpeningVideo(true);
+      try {
+        // The editor mounts on the next render.
+        for (let i = 0; i < 50 && !videoEditor.current; i++) await new Promise((resolve) => setTimeout(resolve, 20));
+        await videoEditor.current?.loadFromPost(post);
+      } catch (err: any) {
+        alert(err.message || "Could not open the video edit");
+      } finally {
+        setOpeningVideo(false);
+      }
+    } else if (post.backgroundUrl) {
       try {
         setPhoto(await loadImage(post.backgroundUrl));
       } catch {
@@ -215,19 +254,29 @@ export default function AdminPostsPage() {
   const handleSave = async () => {
     if (!headline.trim()) return alert("Please write a headline.");
     if (!roState) return alert("Please choose a Ro-State.");
-    if (!photo) return alert("Please upload a background photo.");
-    if (!backgroundUrl) return alert("The background is still uploading, try again in a moment.");
+    if (mode === "image" && !photo) return alert("Please upload a background photo.");
+    if (mode === "image" && !backgroundUrl) return alert("The background is still uploading, try again in a moment.");
+    if (mode === "video" && !videoEditor.current?.hasVideo()) return alert("Please add a video.");
     if (layout?.headlineOverflow) return alert("The headline is longer than 3 lines. Please shorten it.");
     if (layout?.bodyTooLong) return alert("The body text is too long for the post. Please shorten it.");
     if (previewError || !canvasRef.current) return alert(previewError || "Preview is not ready.");
 
     setSaving(true);
     try {
-      const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("Could not create the image");
-      const imageUrl = await uploadToPosts(blob, "post.png");
-
-      const payload = { headline, body, logo, roState, adId: adId || null, backgroundUrl, imageUrl };
+      let payload: Record<string, unknown>;
+      if (mode === "video") {
+        // Renders the video in this browser, then uploads it with a still image of it.
+        const saved = await videoEditor.current!.prepareSave();
+        payload = {
+          headline, body, logo, roState, adId: adId || null, backgroundUrl: null,
+          mediaType: "video", imageUrl: saved.imageUrl, videoUrl: saved.videoUrl, videoEdit: saved.videoEdit,
+        };
+      } else {
+        const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
+        if (!blob) throw new Error("Could not create the image");
+        const imageUrl = await uploadToPosts(blob, "post.png");
+        payload = { headline, body, logo, roState, adId: adId || null, backgroundUrl, imageUrl, mediaType: "image" };
+      }
       const res = await fetch(editingId ? `/api/admin/posts/${editingId}` : "/api/admin/posts", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -369,6 +418,30 @@ export default function AdminPostsPage() {
             </div>
 
             <div>
+              <label className={labelClass}>Post type</label>
+              <div className="inline-flex rounded-md border border-neutral-300 dark:border-neutral-800 overflow-hidden text-xs font-semibold">
+                {(["image", "video"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    disabled={!!editingId}
+                    onClick={() => setMode(m)}
+                    className={`px-3 py-1.5 cursor-pointer disabled:cursor-default ${mode === m ? "bg-[#00a9d2] text-white" : "bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300"}`}
+                  >
+                    {m === "image" ? "Image" : "Video"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {mode === "video" ? (
+              <div>
+                <label className={labelClass}>Video</label>
+                {openingVideo && <p className="mb-2 text-[11px] text-neutral-500">Opening the saved edit...</p>}
+                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
+              </div>
+            ) : (
+            <div>
               <label className={labelClass}>Background photo</label>
               <div className="flex items-center gap-2">
                 <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleBackground} className="hidden" />
@@ -386,13 +459,14 @@ export default function AdminPostsPage() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="flex gap-2">
-              <Button type="button" onClick={handleSave} disabled={saving || uploadingBg} className="flex-1 font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
+              <Button type="button" onClick={handleSave} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
                 {saving ? "Saving..." : editingId ? "Save Changes" : "Generate Post"}
               </Button>
               <Button type="button" variant="outline" onClick={handleExport} className="cursor-pointer">
-                <Download className="h-4 w-4 mr-1.5" /> Export post
+                <Download className="h-4 w-4 mr-1.5" /> {mode === "video" ? "Export video" : "Export post"}
               </Button>
               {editingId && (
                 <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">Cancel</Button>
@@ -421,9 +495,13 @@ export default function AdminPostsPage() {
                 const canChange = mine || isLeadership;
                 return (
                   <Card key={p.id} className="p-3 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-2">
-                    <a href={p.imageUrl} target="_blank" rel="noopener noreferrer">
-                      <img src={p.imageUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
-                    </a>
+                    {p.mediaType === "video" && p.videoUrl ? (
+                      <video src={p.videoUrl} poster={p.imageUrl} controls preload="none" playsInline className="w-full rounded-lg bg-neutral-900" />
+                    ) : (
+                      <a href={p.imageUrl} target="_blank" rel="noopener noreferrer">
+                        <img src={p.imageUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                      </a>
+                    )}
                     <div className="space-y-0.5">
                       <h3 className="text-sm font-bold leading-snug">{p.headline}</h3>
                       <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
