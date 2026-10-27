@@ -134,6 +134,13 @@
       "when": 1793036400000,
       "tag": "0018_watch_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1793122800000,
+      "tag": "0019_posts_no_ad",
+      "breakpoints": true
     }
   ]
 }

@@ -125,6 +125,8 @@ export interface PostRenderInput {
   logo: string;
   /** Loaded 1024x180 ad image, or null to show the boilerplate "your advertisement here". */
   ad: HTMLImageElement | null;
+  /** "No ad": no strip and no notice, and the canvas is cropped to the box. */
+  noAd?: boolean;
 }
 
 export interface PostLayout {
@@ -247,9 +249,9 @@ export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInp
   const logoImg = logo ? await loadImage(logo.src) : null;
 
   canvas.width = POST_SIZE;
-  canvas.height = POST_SIZE;
+  canvas.height = input.noAd ? TEMPLATE.boxBottom : POST_SIZE;
   const ctx = canvas.getContext("2d")!;
-  ctx.clearRect(0, 0, POST_SIZE, POST_SIZE);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // 1. Gap above the ad (holds the white disclaimer text). Outer corners stay transparent
   // because BOX.png carries its own rounding.
@@ -297,7 +299,8 @@ export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInp
     if (line) ctx.fillText(line, b.x, b.firstBaseline + i * b.lineHeight);
   });
 
-  // 5. Advert strip and its notice.
+  // 5. Advert strip and its notice (left out for "No ad").
+  if (input.noAd) return layout;
   drawAd(ctx, input.ad, boilerplate, rounding);
   ctx.drawImage(notice, 0, 0);
 

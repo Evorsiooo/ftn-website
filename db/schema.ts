@@ -336,6 +336,8 @@ export const posts = sqliteTable("posts", {
   // The ad used (null = boilerplate "your advertisement here"). Organizer name and links
   // are copied at creation so later ad edits do not change an existing post.
   adId: text("ad_id").references(() => adCampaigns.id, { onDelete: "set null" }),
+  // True when the post was made with "No ad": no strip, no notice, image cropped to the box.
+  noAd: integer("no_ad", { mode: "boolean" }).notNull().default(false),
   organizationName: text("organization_name"),
   messageLink: text("message_link"),
   backgroundUrl: text("background_url"),

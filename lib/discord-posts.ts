@@ -85,7 +85,7 @@ export function buildLeadershipMessage(post: Post, creatorName: string | null, p
     ping ? `<@&${LEADERSHIP_ROLE_ID}>` : "",
     `**New post for review** · ${stateLabel(post)} · by ${creatorName || "unknown"}`,
     `**${post.headline}**`,
-    post.organizationName ? `Ad: ${post.organizationName}` : "No ad (boilerplate)",
+    post.organizationName ? `Ad: ${post.organizationName}` : post.noAd ? "No ad" : "No ad (boilerplate)",
   ];
   if (post.status === "approved") lines.push("", `✅ Approved by ${post.decidedByLabel || "leadership"}`);
   if (post.status === "denied") lines.push("", `❌ Denied by ${post.decidedByLabel || "leadership"}: ${post.denyReason || "no reason given"}`);
