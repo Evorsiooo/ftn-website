@@ -47,20 +47,23 @@ export function amendmentsOf(post: Post): string[] {
   }
 }
 
-const IMAGE_NAME = "post.png";
-
-// The post image as bytes, read straight from R2 when possible. It is uploaded with each
-// message, so the message is a plain text-and-image message.
-async function loadPostImage(post: Post): Promise<DiscordFile> {
-  const key = post.imageUrl.replace(/^\/api\/media\//, "");
+// The post image (or, for a video post, the MP4) as bytes, read straight from R2 when
+// possible. It is uploaded with each message, so the message is a plain text-and-file message.
+// A video is at most 20 MB, which a Worker can hold in memory.
+async function loadPostMedia(post: Post): Promise<DiscordFile> {
+  const isVideo = post.mediaType === "video" && !!post.videoUrl;
+  const url = isVideo ? post.videoUrl! : post.imageUrl;
+  const name = isVideo ? (url.endsWith(".webm") ? "post.webm" : "post.mp4") : "post.png";
+  const type = isVideo ? (url.endsWith(".webm") ? "video/webm" : "video/mp4") : "image/png";
+  const key = url.replace(/^\/api\/media\//, "");
   const bucket = ((process.env as any).ftn_media as R2Bucket) || ((process.env as any).MEDIA_BUCKET as R2Bucket);
-  if (bucket && key !== post.imageUrl) {
+  if (bucket && key !== url) {
     const object = await bucket.get(key);
-    if (object) return { name: IMAGE_NAME, data: await object.arrayBuffer(), type: "image/png" };
+    if (object) return { name, data: await object.arrayBuffer(), type };
   }
-  const res = await fetch(`${siteUrl()}${post.imageUrl}`);
-  if (!res.ok) throw new DiscordError(502, `Could not read the post image (${res.status})`);
-  return { name: IMAGE_NAME, data: await res.arrayBuffer(), type: "image/png" };
+  const res = await fetch(`${siteUrl()}${url}`);
+  if (!res.ok) throw new DiscordError(502, `Could not read the post ${isVideo ? "video" : "image"} (${res.status})`);
+  return { name, data: await res.arrayBuffer(), type };
 }
 
 // The message people see (FTN+ channel and feeds): the optional timed-exclusive line, the
@@ -124,24 +127,24 @@ export async function sendPostToDiscord(db: DbClient, postId: string): Promise<{
   let post = await reload(db, postId);
   try {
     if (!post.ftnPlusMessageId) {
-      const image = await loadPostImage(post);
+      const image = await loadPostMedia(post);
       const msg = await discordApi(
         "POST",
         `/channels/${FTN_PLUS_CHANNEL_ID}/messages`,
-        { ...buildPostMessage(post, null, amendmentsOf(post)), attachments: [{ id: 0, filename: IMAGE_NAME }] },
+        { ...buildPostMessage(post, null, amendmentsOf(post)), attachments: [{ id: 0, filename: image.name }] },
         [image]
       );
       await db.update(posts).set({ ftnPlusMessageId: msg.id }).where(eq(posts.id, postId));
     }
     post = await reload(db, postId);
     if (!post.leadershipMessageId) {
-      const image = await loadPostImage(post);
+      const image = await loadPostMedia(post);
       const msg = await discordApi(
         "POST",
         `/channels/${LEADERSHIP_CHANNEL_ID}/messages`,
         {
           ...buildLeadershipMessage(post, await creatorName(db, post.createdBy), true),
-          attachments: [{ id: 0, filename: IMAGE_NAME }],
+          attachments: [{ id: 0, filename: image.name }],
         },
         [image]
       );
@@ -161,11 +164,11 @@ export async function publishToFeed(db: DbClient, post: Post): Promise<void> {
   if (!channelId) throw new DiscordError(400, `No feed channel for ${post.roState}`);
 
   const timedLine = timedExclusiveLine(post.createdAt, new Date());
-  const image = await loadPostImage(post);
+  const image = await loadPostMedia(post);
   const msg = await discordApi(
     "POST",
     `/channels/${channelId}/messages`,
-    { ...buildPostMessage(post, timedLine, amendmentsOf(post)), attachments: [{ id: 0, filename: IMAGE_NAME }] },
+    { ...buildPostMessage(post, timedLine, amendmentsOf(post)), attachments: [{ id: 0, filename: image.name }] },
     [image]
   );
   await db.update(posts).set({ feedChannelId: channelId, feedMessageId: msg.id }).where(eq(posts.id, post.id));
@@ -191,9 +194,9 @@ export async function refreshPostMessages(
   const post = await reload(db, postId);
   try {
     const amendments = amendmentsOf(post);
-    const image = which.image ? await loadPostImage(post) : null;
+    const image = which.image ? await loadPostMedia(post) : null;
     const withImage = (body: object) =>
-      image ? { ...body, attachments: [{ id: 0, filename: IMAGE_NAME }] } : body;
+      image ? { ...body, attachments: [{ id: 0, filename: image.name }] } : body;
     const files = image ? [image] : undefined;
 
     if (which.ftnPlus && post.ftnPlusMessageId) {

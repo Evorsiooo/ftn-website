@@ -39,6 +39,8 @@ export const TEMPLATE = {
   // Corner radius of the ROUNDING.png shape (top-left 14x14, mirrored for the other corners).
   roundingSize: 16,
   maxBodyBottom: 620,
+  // Video has no transparency, so the gap above the ad and the outer corners get this colour.
+  videoBackdrop: "#041E41",
 };
 
 export const LOGOS: { key: string; label: string; src: string }[] = [
@@ -180,17 +182,20 @@ export function layoutText(ctx: CanvasRenderingContext2D, headline: string, body
   };
 }
 
-function drawCover(
+// Draws a photo or video frame to cover `rect`, zoomed and shifted by the focal point.
+export function drawCover(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: CanvasImageSource,
+  sourceWidth: number,
+  sourceHeight: number,
   rect: { x: number; y: number; w: number; h: number },
   zoom: number,
   fx: number,
   fy: number
 ) {
-  const scale = Math.max(rect.w / img.naturalWidth, rect.h / img.naturalHeight) * Math.max(1, zoom);
-  const dw = img.naturalWidth * scale;
-  const dh = img.naturalHeight * scale;
+  const scale = Math.max(rect.w / sourceWidth, rect.h / sourceHeight) * Math.max(1, zoom);
+  const dw = sourceWidth * scale;
+  const dh = sourceHeight * scale;
   const dx = rect.x - (dw - rect.w) * Math.min(1, Math.max(0, fx));
   const dy = rect.y - (dh - rect.h) * Math.min(1, Math.max(0, fy));
   ctx.save();
@@ -235,7 +240,30 @@ function drawAd(ctx: CanvasRenderingContext2D, ad: HTMLImageElement | null, boil
   ctx.drawImage(strip, x, y);
 }
 
-export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInput): Promise<PostLayout> {
+export interface PostLayers {
+  /** Everything behind the photo area: the white page (and the backdrop for video). */
+  under: HTMLCanvasElement;
+  /** Everything over it: the white fade, frame, logo, text, ad and notice. */
+  over: HTMLCanvasElement;
+  layout: PostLayout;
+}
+
+function newLayer(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = POST_SIZE;
+  canvas.height = POST_SIZE;
+  return canvas;
+}
+
+/**
+ * Draws the template as two layers with a hole between them for the photo or video, so a
+ * video can redraw only the hole on every frame. `backdrop` fills the whole post first; it
+ * is used for video, which has no transparency.
+ */
+export async function buildPostLayers(
+  input: Omit<PostRenderInput, "photo">,
+  backdrop: string | null = null
+): Promise<PostLayers> {
   await loadTemplateFonts();
   const [box, boilerplate, notice, rounding] = await Promise.all([
     loadImage(ASSET_PATHS.box),
@@ -246,29 +274,26 @@ export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInp
   const logo = LOGOS.find((l) => l.key === input.logo);
   const logoImg = logo ? await loadImage(logo.src) : null;
 
-  canvas.width = POST_SIZE;
-  canvas.height = POST_SIZE;
-  const ctx = canvas.getContext("2d")!;
-  ctx.clearRect(0, 0, POST_SIZE, POST_SIZE);
+  const under = newLayer();
+  const over = newLayer();
+  const uctx = under.getContext("2d")!;
+  const ctx = over.getContext("2d")!;
 
   // 1. Gap above the ad (holds the white disclaimer text). Outer corners stay transparent
   // because BOX.png carries its own rounding.
-  if (TEMPLATE.gapFill) {
-    ctx.fillStyle = TEMPLATE.gapFill;
-    ctx.fillRect(0, TEMPLATE.boxBottom, POST_SIZE, TEMPLATE.ad.y - TEMPLATE.boxBottom);
+  if (backdrop) {
+    uctx.fillStyle = backdrop;
+    uctx.fillRect(0, 0, POST_SIZE, POST_SIZE);
+  } else if (TEMPLATE.gapFill) {
+    uctx.fillStyle = TEMPLATE.gapFill;
+    uctx.fillRect(0, TEMPLATE.boxBottom, POST_SIZE, TEMPLATE.ad.y - TEMPLATE.boxBottom);
   }
 
-  // 2. White page and photo. The page is clipped to the frame so BOX's rounded corners
+  // 2. White page under the photo. It is clipped to the frame so BOX's rounded corners
   // are not filled in.
   const p = TEMPLATE.photo;
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(p.x - SEAM, p.y - SEAM, p.w + SEAM * 2, p.h + SEAM * 2);
-  if (input.photo) {
-    drawCover(ctx, input.photo, p, input.photoZoom ?? 1, input.photoFocusX ?? 0.5, input.photoFocusY ?? 0.5);
-  } else {
-    ctx.fillStyle = "#e5e5e5";
-    ctx.fillRect(p.x, p.y, p.w, p.h);
-  }
+  uctx.fillStyle = "#fff";
+  uctx.fillRect(p.x - SEAM, p.y - SEAM, p.w + SEAM * 2, p.h + SEAM * 2);
 
   // 3. White area behind the text, fading into the photo. It follows the body height.
   ctx.font = `500 ${TEMPLATE.body.fontSize}px ${FONT_MEDIUM}`;
@@ -301,5 +326,44 @@ export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInp
   drawAd(ctx, input.ad, boilerplate, rounding);
   ctx.drawImage(notice, 0, 0);
 
-  return layout;
+  return { under, over, layout };
+}
+
+/** A frame of photo or video to show in the photo area. */
+export interface PhotoSource {
+  image: CanvasImageSource;
+  width: number;
+  height: number;
+}
+
+/** Puts the layers and the photo together on a canvas context of POST_SIZE. */
+export function paintPost(
+  ctx: CanvasRenderingContext2D,
+  layers: PostLayers,
+  photo: PhotoSource | null,
+  zoom = 1,
+  focusX = 0.5,
+  focusY = 0.5
+) {
+  ctx.clearRect(0, 0, POST_SIZE, POST_SIZE);
+  ctx.drawImage(layers.under, 0, 0);
+  const p = TEMPLATE.photo;
+  if (photo) {
+    drawCover(ctx, photo.image, photo.width, photo.height, p, zoom, focusX, focusY);
+  } else {
+    ctx.fillStyle = "#e5e5e5";
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+  }
+  ctx.drawImage(layers.over, 0, 0);
+}
+
+export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInput): Promise<PostLayout> {
+  const layers = await buildPostLayers(input);
+  canvas.width = POST_SIZE;
+  canvas.height = POST_SIZE;
+  const photo = input.photo
+    ? { image: input.photo, width: input.photo.naturalWidth, height: input.photo.naturalHeight }
+    : null;
+  paintPost(canvas.getContext("2d")!, layers, photo, input.photoZoom ?? 1, input.photoFocusX ?? 0.5, input.photoFocusY ?? 0.5);
+  return layers.layout;
 }

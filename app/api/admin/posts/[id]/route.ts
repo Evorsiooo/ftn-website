@@ -88,7 +88,7 @@ export async function PATCH(
 
     await db.update(posts).set(values).where(eq(posts.id, id));
     // Keep the Discord messages in step with the edit.
-    const discord = await refreshPostMessages(db, id, { ftnPlus: true, leadership: true, image: body.imageUrl !== undefined });
+    const discord = await refreshPostMessages(db, id, { ftnPlus: true, leadership: true, image: body.imageUrl !== undefined || body.videoUrl !== undefined });
     return NextResponse.json({ success: true, discordWarning: discord.ok ? undefined : discord.error });
   } catch (error) {
     console.error("Update post error:", error);

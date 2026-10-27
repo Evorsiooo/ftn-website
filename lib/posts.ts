@@ -16,7 +16,12 @@ export interface PostInput {
   adId?: string | null;
   backgroundUrl?: string | null;
   imageUrl?: string;
+  mediaType?: "image" | "video";
+  videoUrl?: string | null;
+  videoEdit?: string | null;
 }
+
+const MAX_VIDEO_EDIT_LENGTH = 100_000;
 
 // Uploads for posts always live under posts/ in R2, served by /api/media.
 function isPostMediaUrl(url: string): boolean {
@@ -31,6 +36,9 @@ export function validatePostInput(
 
   if (requireAll && (!input.headline?.trim() || !input.roState || !input.imageUrl)) {
     return { error: "Headline, Ro-State and the generated image are required" };
+  }
+  if (requireAll && input.mediaType === "video" && !input.videoUrl) {
+    return { error: "A video post needs its video" };
   }
 
   if (input.headline !== undefined) {
@@ -53,6 +61,25 @@ export function validatePostInput(
   if (input.imageUrl !== undefined) {
     if (!isPostMediaUrl(input.imageUrl)) return { error: "Invalid generated image" };
     values.imageUrl = input.imageUrl;
+  }
+  if (input.mediaType !== undefined) {
+    if (input.mediaType !== "image" && input.mediaType !== "video") return { error: "Unknown post type" };
+    values.mediaType = input.mediaType;
+    // An image post has no video.
+    if (input.mediaType === "image") {
+      values.videoUrl = null;
+      values.videoEdit = null;
+    }
+  }
+  if (input.videoUrl !== undefined && input.mediaType !== "image") {
+    if (input.videoUrl !== null && !isPostMediaUrl(input.videoUrl)) return { error: "Invalid video" };
+    values.videoUrl = input.videoUrl;
+  }
+  if (input.videoEdit !== undefined && input.mediaType !== "image") {
+    if (input.videoEdit !== null && input.videoEdit.length > MAX_VIDEO_EDIT_LENGTH) {
+      return { error: "The video edit is too large to save" };
+    }
+    values.videoEdit = input.videoEdit;
   }
   if (input.backgroundUrl !== undefined) {
     if (input.backgroundUrl !== null && !isPostMediaUrl(input.backgroundUrl)) {
