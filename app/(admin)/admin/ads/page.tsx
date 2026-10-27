@@ -1,4 +1,5 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,12 +112,12 @@ export default function AdminAdsConsole() {
       const [w, h] = await readImageSize(file);
       const [expectedW, expectedH] = FORMAT_DIMENSIONS[format];
       if (w !== expectedW || h !== expectedH) {
-        alert(`This image is ${w}x${h}. The ${format} format needs exactly ${expectedW}x${expectedH}.`);
+        toast(`This image is ${w}x${h}. The ${format} format needs exactly ${expectedW}x${expectedH}.`);
         e.target.value = "";
         return;
       }
     } catch {
-      alert("Could not read this image.");
+      toast("Could not read this image.");
       e.target.value = "";
       return;
     }
@@ -129,13 +130,13 @@ export default function AdminAdsConsole() {
       const res = await fetch("/api/upload", { method: "POST", body });
       const data = (await res.json()) as any;
       if (!res.ok) {
-        alert(data.error || "Upload failed");
+        toast(data.error || "Upload failed");
         return;
       }
       setImageUrl(data.url);
     } catch (err) {
       console.error("Ad upload error:", err);
-      alert("Upload failed");
+      toast("Upload failed");
     } finally {
       setUploading(false);
     }
@@ -149,7 +150,7 @@ export default function AdminAdsConsole() {
     });
     const data = (await res.json()) as any;
     if (!res.ok) {
-      alert(data.error || "Failed to create organizer");
+      toast(data.error || "Failed to create organizer");
       return null;
     }
     return data.organizer.id as string;
@@ -158,12 +159,12 @@ export default function AdminAdsConsole() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !imageUrl.trim() || !targetUrl.trim() || (!organizerId && !newOrganizer.trim())) {
-      alert("Please fill in the title, organizer, image and destination URL.");
+      toast("Please fill in the title, organizer, image and destination URL.");
       return;
     }
     const purchased = impressions.trim() === "" ? null : Number(impressions);
     if (purchased !== null && (!Number.isInteger(purchased) || purchased < 0)) {
-      alert("Post impressions must be a whole number, or empty for unlimited.");
+      toast("Post impressions must be a whole number, or empty for unlimited.");
       return;
     }
 
@@ -193,14 +194,14 @@ export default function AdminAdsConsole() {
       });
       const data = (await res.json()) as any;
       if (!res.ok) {
-        alert(data.error || "Failed to save ad");
+        toast(data.error || "Failed to save ad");
         return;
       }
       resetForm();
       await loadData();
     } catch (err) {
       console.error("Save ad error:", err);
-      alert("An unexpected error occurred while saving the ad.");
+      toast("An unexpected error occurred while saving the ad.");
     } finally {
       setSubmitting(false);
     }
@@ -231,12 +232,12 @@ export default function AdminAdsConsole() {
       setCampaigns((prev) => prev.map((x) => (x.id === c.id ? { ...x, status: next } : x)));
     } else {
       const data = (await res.json()) as any;
-      alert(data.error || "Failed to update ad");
+      toast(data.error || "Failed to update ad");
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this ad?")) return;
+    if (!await confirmDialog("Are you sure you want to delete this ad?")) return;
     try {
       const res = await fetch(`/api/admin/ads?id=${encodeURIComponent(id)}`, { method: "DELETE" });
       if (res.ok) {
@@ -244,11 +245,11 @@ export default function AdminAdsConsole() {
         if (editingId === id) resetForm();
       } else {
         const data = (await res.json()) as any;
-        alert(data.error || "Failed to delete ad");
+        toast(data.error || "Failed to delete ad");
       }
     } catch (err) {
       console.error("Delete ad error:", err);
-      alert("Failed to delete ad");
+      toast("Failed to delete ad");
     }
   };
 
@@ -328,12 +329,13 @@ export default function AdminAdsConsole() {
           </div>
         </dl>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 self-start">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">{editingId ? "Edit Ad" : "Create Ad"}</h2>
-            <form onSubmit={handleSave} className="space-y-3">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[26rem_minmax(0,1fr)]">
+          <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start lg:sticky lg:top-24">
+            <h2 className="text-lg font-extrabold">{editingId ? "Edit Ad" : "Create Ad"}</h2>
+            <form onSubmit={handleSave} className="space-y-4">
+              <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Who and where</h3>
               <div>
-                <label className={labelClass}>Ad Title</label>
+                <label className={labelClass}>Ad title</label>
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
               </div>
 
@@ -373,8 +375,9 @@ export default function AdminAdsConsole() {
                 </div>
               </div>
 
+              <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Creative</h3>
               <div>
-                <label className={labelClass}>Ad Image</label>
+                <label className={labelClass}>Ad image</label>
                 <div className="flex items-center gap-2">
                   <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleFileChosen} className="hidden" />
                   <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()} className="cursor-pointer">
@@ -398,6 +401,7 @@ export default function AdminAdsConsole() {
                 <Input value={messageLink} onChange={(e) => setMessageLink(e.target.value)} placeholder="Leave empty to use the destination URL" />
               </div>
 
+              <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Delivery</h3>
               <div>
                 <label className={labelClass}>Post impressions (empty = unlimited)</label>
                 <Input value={impressions} onChange={(e) => setImpressions(e.target.value)} inputMode="numeric" placeholder="e.g. 20" />
@@ -418,7 +422,7 @@ export default function AdminAdsConsole() {
           </Card>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Organizers and Ads</h2>
+            <h2 className="text-lg font-extrabold">Ads by organizer</h2>
             {loading ? (
               <div className="flex items-center justify-center p-8 text-neutral-500">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading ads...
@@ -430,7 +434,7 @@ export default function AdminAdsConsole() {
             ) : (
               <>
                 {groups.map(({ organizer, ads }) => (
-                  <Card key={organizer.id} className="p-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3">
+                  <Card key={organizer.id} className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
                       {organizer.name} <span className="font-normal text-neutral-500">({ads.length} {ads.length === 1 ? "ad" : "ads"})</span>
                     </h3>
@@ -438,7 +442,7 @@ export default function AdminAdsConsole() {
                   </Card>
                 ))}
                 {unassigned.length > 0 && (
-                  <Card className="p-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3">
+                  <Card className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">No organizer</h3>
                     {unassigned.map(renderAd)}
                   </Card>

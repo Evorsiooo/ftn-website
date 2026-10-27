@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "@/components/gs/dialogs";
 export const runtime = "edge";
 import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
@@ -46,7 +47,7 @@ export default function TiplinePage() {
     e.preventDefault();
     if (isMuted) return;
     if (tiplineAccess === "members_only" && !currentUser) {
-      alert("You must be logged in to submit a tip.");
+      toast("You must be logged in to submit a tip.");
       return;
     }
     if (!subject.trim() || !message.trim()) return;
@@ -64,10 +65,10 @@ export default function TiplinePage() {
         setMessage("");
         setShareUsername(false);
       } else {
-        alert(data.error || "Submission failed");
+        toast(data.error || "Submission failed");
       }
     } catch {
-      alert("Submission error. Please try again.");
+      toast("Submission error. Please try again.");
     }
   };
 

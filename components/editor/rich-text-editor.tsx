@@ -1,4 +1,5 @@
 "use client";
+import { toast, promptDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -135,7 +136,7 @@ export function RichTextEditor({
 
     const data = (await res.json()) as any;
     if (!res.ok) {
-      alert(`Upload Error: ${data.error || "Failed to upload image"}`);
+      toast(`Upload Error: ${data.error || "Failed to upload image"}`);
       return null;
     }
 
@@ -177,10 +178,10 @@ export function RichTextEditor({
     uploadAndInsertImage(file);
   };
 
-  const handleAddLink = () => {
+  const handleAddLink = async () => {
     if (!editor) return;
     const previousUrl = editor.getAttributes("link").href;
-    const url = prompt("Enter website link URL:", previousUrl || "https://");
+    const url = await promptDialog("Enter website link URL:", previousUrl || "https://");
     if (url === null) return;
     if (url.trim() === "") {
       editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -189,9 +190,9 @@ export function RichTextEditor({
     editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
   };
 
-  const handleAddImageUrl = () => {
+  const handleAddImageUrl = async () => {
     if (!editor) return;
-    const choice = prompt("Enter Image URL, or leave blank and click 'Upload Image' on the toolbar:");
+    const choice = await promptDialog("Enter Image URL, or leave blank and click 'Upload Image' on the toolbar:");
     if (choice && choice.trim()) {
       editor.chain().focus().setImage({ src: choice.trim() }).run();
     }
@@ -199,19 +200,19 @@ export function RichTextEditor({
 
   const handleSubmit = async (status: "draft" | "published" | "archived") => {
     if (!title.trim()) {
-      alert("Please provide an article headline/title.");
+      toast("Please provide an article headline/title.");
       return;
     }
     const htmlContent = editor?.getHTML() || "";
     const plainText = editor?.getText() || "";
 
     if (!plainText.trim()) {
-      alert("Article body cannot be empty.");
+      toast("Article body cannot be empty.");
       return;
     }
 
     if (plainText.length > MAX_ARTICLE_CHARS) {
-      alert(`Article exceeds character limit (${plainText.length}/${MAX_ARTICLE_CHARS}).`);
+      toast(`Article exceeds character limit (${plainText.length}/${MAX_ARTICLE_CHARS}).`);
       return;
     }
 

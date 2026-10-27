@@ -1,4 +1,5 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -99,7 +100,7 @@ function AdminArticlesContent() {
 
       const data = (await res.json()) as any;
       if (res.ok) {
-        alert(
+        toast(
           articleData.id
             ? "Story successfully updated!"
             : "New story created and published!"
@@ -107,10 +108,10 @@ function AdminArticlesContent() {
         handleBackToList();
         fetchArticles();
       } else {
-        alert(`Error saving story: ${data.error || "Unknown error"}`);
+        toast(`Error saving story: ${data.error || "Unknown error"}`);
       }
     } catch (e: any) {
-      alert("Network error while saving article.");
+      toast("Network error while saving article.");
     }
   };
 
@@ -149,7 +150,7 @@ function AdminArticlesContent() {
       art.status === "archived"
         ? `Unarchive and publish "${art.title}" back to the public website?`
         : `Archive "${art.title}"? This will hide the story from public view.`;
-    if (!confirm(confirmMsg)) return;
+    if (!await confirmDialog(confirmMsg)) return;
 
     try {
       const res = await fetch(`/api/articles/${encodeURIComponent(art.slug)}`, {
@@ -161,16 +162,16 @@ function AdminArticlesContent() {
         fetchArticles();
       } else {
         const data = (await res.json().catch(() => ({}))) as any;
-        alert(`Failed to update status: ${data?.error || "Unknown error"}`);
+        toast(`Failed to update status: ${data?.error || "Unknown error"}`);
       }
     } catch {
-      alert("Network error updating status.");
+      toast("Network error updating status.");
     }
   };
 
   const handleRevertToRevision = async (rev: any) => {
     if (!editingArticle?.slug) return;
-    const confirmRevert = confirm(
+    const confirmRevert = await confirmDialog(
       `Are you sure you want to revert to Version ${rev.versionNumber}? This will restore the content and settings from ${formatDate(rev.createdAt)}.`
     );
     if (!confirmRevert) return;
@@ -185,7 +186,7 @@ function AdminArticlesContent() {
 
       const data = (await res.json()) as any;
       if (res.ok) {
-        alert(`Successfully reverted to Version ${rev.versionNumber}!`);
+        toast(`Successfully reverted to Version ${rev.versionNumber}!`);
         setEditingArticle({
           id: data.article.id,
           slug: editingArticle.slug,
@@ -199,10 +200,10 @@ function AdminArticlesContent() {
         setActiveTab("create");
         fetchArticles();
       } else {
-        alert(`Revert failed: ${data.error || "Unknown error"}`);
+        toast(`Revert failed: ${data.error || "Unknown error"}`);
       }
     } catch {
-      alert("Network error while reverting article.");
+      toast("Network error while reverting article.");
     } finally {
       setRevertingRevisionId(null);
     }
@@ -259,16 +260,6 @@ function AdminArticlesContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              {editingArticle?.slug && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenHistory(editingArticle)}
-                  className="text-xs gap-1.5 border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white cursor-pointer"
-                >
-                  <History className="h-3.5 w-3.5 text-brand-text" /> Version History
-                </Button>
-              )}
               <Button
                 variant="outline"
                 size="sm"

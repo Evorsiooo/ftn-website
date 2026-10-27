@@ -80,8 +80,8 @@ export function AdminAuthGuard({
   if (!authenticatedUser) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center space-y-5 p-8 rounded-3xl border border-red-200 bg-white shadow-xl dark:border-red-900/50 dark:bg-neutral-950 dark:shadow-2xl">
-          <div className="h-16 w-16 rounded-2xl bg-red-100 border border-red-300 dark:bg-red-950/40 dark:border-red-800 flex items-center justify-center text-red-600 dark:text-red-400 mx-auto">
+        <div className="max-w-md w-full text-center space-y-5 p-8 rounded-[2rem] border border-border bg-card text-card-foreground shadow-xl">
+          <div className="h-16 w-16 rounded-full bg-brand text-brand-ink flex items-center justify-center mx-auto">
             <ShieldAlert className="h-8 w-8" />
           </div>
 
@@ -113,8 +113,8 @@ export function AdminAuthGuard({
   if (!hasRoleAccess) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="max-w-md w-full text-center space-y-5 p-8 rounded-3xl border border-red-200 bg-white shadow-xl dark:border-red-900/50 dark:bg-neutral-950 dark:shadow-2xl">
-          <div className="h-16 w-16 rounded-2xl bg-red-100 border border-red-300 dark:bg-red-950/40 dark:border-red-800 flex items-center justify-center text-red-600 dark:text-red-400 mx-auto">
+        <div className="max-w-md w-full text-center space-y-5 p-8 rounded-[2rem] border border-border bg-card text-card-foreground shadow-xl">
+          <div className="h-16 w-16 rounded-full bg-brand text-brand-ink flex items-center justify-center mx-auto">
             <ShieldAlert className="h-8 w-8" />
           </div>
 

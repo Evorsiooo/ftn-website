@@ -1,7 +1,9 @@
 "use client";
+import { toast, confirmDialog, promptDialog } from "@/components/gs/dialogs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Download, Loader2, MessageSquarePlus, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
+import { AdminRow, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +62,7 @@ export default function AdminPostsPage() {
   const [ads, setAds] = useState<any[]>([]);
   const [suggestedAdId, setSuggestedAdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "denied">("all");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [headline, setHeadline] = useState("");
@@ -173,13 +176,13 @@ export default function AdminPostsPage() {
         const slug = headline.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
         await videoEditor.current?.downloadVideo(slug);
       } catch (err: any) {
-        alert(err.message || "Could not create the video");
+        toast(err.message || "Could not create the video");
       }
       return;
     }
-    if (previewError || !canvasRef.current) return alert(previewError || "Preview is not ready.");
+    if (previewError || !canvasRef.current) return toast(previewError || "Preview is not ready.");
     const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
-    if (!blob) return alert("Could not create the image");
+    if (!blob) return toast("Could not create the image");
     const slug = headline.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -214,7 +217,7 @@ export default function AdminPostsPage() {
     try {
       setPhoto(await loadImage(localUrl));
     } catch {
-      alert("Could not read this image.");
+      toast("Could not read this image.");
       return;
     }
     setBackgroundUrl(null);
@@ -222,7 +225,7 @@ export default function AdminPostsPage() {
     try {
       setBackgroundUrl(await uploadToPosts(file, file.name));
     } catch (err: any) {
-      alert(err.message || "Background upload failed");
+      toast(err.message || "Background upload failed");
     } finally {
       setUploadingBg(false);
     }
@@ -249,7 +252,7 @@ export default function AdminPostsPage() {
         for (let i = 0; i < 50 && !videoEditor.current; i++) await new Promise((resolve) => setTimeout(resolve, 20));
         await videoEditor.current?.loadFromPost(post);
       } catch (err: any) {
-        alert(err.message || "Could not open the video edit");
+        toast(err.message || "Could not open the video edit");
       } finally {
         setOpeningVideo(false);
       }
@@ -264,14 +267,14 @@ export default function AdminPostsPage() {
   };
 
   const handleSave = async () => {
-    if (!headline.trim()) return alert("Please write a headline.");
-    if (!roState) return alert("Please choose a Ro-State.");
-    if (mode === "image" && !photo) return alert("Please upload a background photo.");
-    if (mode === "image" && !backgroundUrl) return alert("The background is still uploading, try again in a moment.");
-    if (mode === "video" && !videoEditor.current?.hasVideo()) return alert("Please add a video.");
-    if (layout?.headlineOverflow) return alert("The headline is longer than 3 lines. Please shorten it.");
-    if (layout?.bodyTooLong) return alert("The body text is too long for the post. Please shorten it.");
-    if (previewError || !canvasRef.current) return alert(previewError || "Preview is not ready.");
+    if (!headline.trim()) return toast("Please write a headline.");
+    if (!roState) return toast("Please choose a Ro-State.");
+    if (mode === "image" && !photo) return toast("Please upload a background photo.");
+    if (mode === "image" && !backgroundUrl) return toast("The background is still uploading, try again in a moment.");
+    if (mode === "video" && !videoEditor.current?.hasVideo()) return toast("Please add a video.");
+    if (layout?.headlineOverflow) return toast("The headline is longer than 3 lines. Please shorten it.");
+    if (layout?.bodyTooLong) return toast("The body text is too long for the post. Please shorten it.");
+    if (previewError || !canvasRef.current) return toast(previewError || "Preview is not ready.");
 
     setSaving(true);
     try {
@@ -299,28 +302,28 @@ export default function AdminPostsPage() {
       resetForm();
       await loadAll();
       if (data.discordWarning) {
-        alert(`The post was saved, but sending it to Discord failed:\n${data.discordWarning}\nUse Resend on the post to try again.`);
+        toast(`The post was saved, but sending it to Discord failed:\n${data.discordWarning}\nUse Resend on the post to try again.`);
       }
     } catch (err: any) {
-      alert(err.message || "Failed to save post");
+      toast(err.message || "Failed to save post");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (post: any) => {
-    if (!confirm("Delete this post?")) return;
+    if (!await confirmDialog("Delete this post?")) return;
     const res = await fetch(`/api/admin/posts/${post.id}`, { method: "DELETE" });
     if (res.ok) {
       if (editingId === post.id) resetForm();
       await loadAll();
     } else {
-      alert(((await res.json()) as any).error || "Failed to delete post");
+      toast(((await res.json()) as any).error || "Failed to delete post");
     }
   };
 
   const handleAmend = async (post: any) => {
-    const note = window.prompt("Edit note to show under the post in Discord (shown as \"edit: ...\"):");
+    const note = await promptDialog("Edit note to show under the post in Discord (shown as \"edit: ...\"):");
     if (!note || !note.trim()) return;
     const res = await fetch(`/api/admin/posts/${post.id}/amend`, {
       method: "POST",
@@ -328,21 +331,21 @@ export default function AdminPostsPage() {
       body: JSON.stringify({ note }),
     });
     const data = (await res.json().catch(() => ({}))) as any;
-    if (!res.ok) alert(data.error || "Failed to add the edit note");
-    else if (data.discordWarning) alert(`The note was saved, but updating Discord failed:\n${data.discordWarning}`);
+    if (!res.ok) toast(data.error || "Failed to add the edit note");
+    else if (data.discordWarning) toast(`The note was saved, but updating Discord failed:\n${data.discordWarning}`);
     await loadAll();
   };
 
   const handleResend = async (post: any) => {
     const res = await fetch(`/api/admin/posts/${post.id}/resend`, { method: "POST" });
-    if (!res.ok) alert(((await res.json()) as any).error || "Failed to resend post");
+    if (!res.ok) toast(((await res.json()) as any).error || "Failed to resend post");
     await loadAll();
   };
 
   const handleDecision = async (post: any, decision: "approve" | "deny") => {
     let reason = "";
     if (decision === "deny") {
-      reason = (prompt("Reason for denying this post:") || "").trim();
+      reason = (await promptDialog("Reason for denying this post:") || "").trim();
       if (!reason) return;
     }
     const res = await fetch(`/api/admin/posts/${post.id}/decision`, {
@@ -351,8 +354,8 @@ export default function AdminPostsPage() {
       body: JSON.stringify({ decision, reason }),
     });
     const data = (await res.json()) as any;
-    if (!res.ok) alert(data.error || "Failed to save decision");
-    else if (data.warning) alert(`Saved, but updating the Discord message failed:\n${data.warning}`);
+    if (!res.ok) toast(data.error || "Failed to save decision");
+    else if (data.warning) toast(`Saved, but updating the Discord message failed:\n${data.warning}`);
     await loadAll();
   };
 
@@ -365,8 +368,10 @@ export default function AdminPostsPage() {
         <AdminPageHeader title="Posts" description="Design news posts with an ad, send them for approval and track them." />
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] gap-8 xl:gap-10">
-          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 self-start">
-            <h2 className="text-lg font-bold">{editingId ? "Edit Post" : "Create Post"}</h2>
+          <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start">
+            <h2 className="text-xl font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
+
+            <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">1</span>Write it</h3>
 
             <div>
               <label className={labelClass}>Headline (max 3 lines)</label>
@@ -379,6 +384,8 @@ export default function AdminPostsPage() {
               <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} className={fieldClass} placeholder="Leave a blank line between paragraphs" />
               {layout?.bodyTooLong && <p className="mt-1 text-[11px] text-red-600">Too long for the post.</p>}
             </div>
+
+            <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">2</span>Where it goes</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
@@ -420,36 +427,25 @@ export default function AdminPostsPage() {
               </p>
             </div>
 
+            <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">3</span>Media</h3>
+
             <div>
               <label className={labelClass}>Post type</label>
-              <div className="inline-flex rounded-md border border-neutral-300 dark:border-neutral-800 overflow-hidden text-xs font-semibold">
-                {(["image", "video"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    disabled={!!editingId}
-                    onClick={() => setMode(m)}
-                    className={`px-3 py-1.5 cursor-pointer disabled:cursor-default ${mode === m ? "bg-brand text-brand-ink" : "bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300"}`}
-                  >
-                    {m === "image" ? "Image" : "Video"}
-                  </button>
-                ))}
-              </div>
+              <AdminSegmented value={mode} onChange={(m) => !editingId && setMode(m)} options={[{ value: "image", label: "Image" }, { value: "video", label: "Video" }]} />
             </div>
 
             {mode === "video" ? (
               <div>
                 <label className={labelClass}>Video</label>
                 {openingVideo && <p className="mb-2 text-[11px] text-neutral-500">Opening the saved edit...</p>}
-                <label className="mb-2 flex items-start gap-2 text-xs text-neutral-700 dark:text-neutral-300">
-                  <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} className="mt-0.5" />
-                  <span>
-                    Transparent animated WebP
-                    <span className="block text-[11px] text-neutral-500">
-                      Keeps the gap above the ad and the rounded corners see-through. <b>No sound</b>: songs and clip volume are left out. Takes longer to render. When off, the post is an MP4 with sound on a dark background.
-                    </span>
-                  </span>
-                </label>
+                <div className="mb-3">
+                  <AdminRow
+                    label="Transparent animated WebP"
+                    hint="Keeps the gap above the ad and the rounded corners see-through. No sound, and it takes longer to render. When off, the post is an MP4 with sound on a dark background."
+                  >
+                    <AdminSwitch checked={transparent} onChange={setTransparent} label="Transparent animated WebP" />
+                  </AdminRow>
+                </div>
                 <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
               </div>
             ) : (
@@ -487,7 +483,7 @@ export default function AdminPostsPage() {
           </Card>
 
           <div className="space-y-2 xl:sticky xl:top-24 self-start">
-            <h2 className="text-lg font-bold">Live preview</h2>
+            <h2 className="text-lg font-extrabold">Live preview</h2>
             <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[820px]"
               style={CHECKERBOARD} />
             {previewError && <p className="text-xs text-red-600">{previewError}</p>}
@@ -497,18 +493,25 @@ export default function AdminPostsPage() {
         <div ref={setTimelineHost} className={mode === "video" ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
 
         <div className="space-y-4">
-          <h2 className="text-lg font-bold">All posts</h2>
+          <h2 className="text-xl font-extrabold">All posts</h2>
+          <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
+            {(["all", "pending", "approved", "denied"] as const).map((f) => (
+              <AdminTab key={f} active={statusFilter === f} onClick={() => setStatusFilter(f)}>
+                {f[0].toUpperCase() + f.slice(1)} ({f === "all" ? posts.length : posts.filter((p) => p.status === f).length})
+              </AdminTab>
+            ))}
+          </div>
           {loading ? (
             <div className="flex items-center p-8 text-neutral-500"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading...</div>
           ) : posts.length === 0 ? (
             <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">No posts yet.</div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-              {posts.map((p) => {
+              {posts.filter((p) => statusFilter === "all" || p.status === statusFilter).map((p) => {
                 const mine = me?.id === p.createdBy;
                 const canChange = mine || isLeadership;
                 return (
-                  <Card key={p.id} className="p-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2">
+                  <Card key={p.id} className="p-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-2">
                     {p.mediaType === "video" && p.videoUrl?.endsWith(".webp") ? (
                       <img src={p.videoUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
                     ) : p.mediaType === "video" && p.videoUrl ? (

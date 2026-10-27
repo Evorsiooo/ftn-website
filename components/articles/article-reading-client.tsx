@@ -1,4 +1,5 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
 import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -121,7 +122,7 @@ export function ArticleReadingClient({
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm("Are you sure you want to delete this comment?")) return;
+    if (!await confirmDialog("Are you sure you want to delete this comment?")) return;
 
     try {
       const res = await fetch(`/api/articles/${slug}/comments?commentId=${commentId}`, {
@@ -130,10 +131,10 @@ export function ArticleReadingClient({
       if (res.ok) {
         setComments(comments.filter((c) => c.id !== commentId));
       } else {
-        alert("Failed to delete comment");
+        toast("Failed to delete comment");
       }
     } catch {
-      alert("Error deleting comment");
+      toast("Error deleting comment");
     }
   };
 

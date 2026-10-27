@@ -1,4 +1,5 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
+import { AdminRow, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { canConfigureSite } from "@/lib/rbac";
 import {
   Radio,
@@ -328,17 +330,17 @@ export default function SiteSettingsPage() {
         setUserSearchQuery(createdName);
         handleSearchUsers(createdName);
       } else {
-        alert(`Error creating employee: ${data.error || "Failed"}`);
+        toast(`Error creating employee: ${data.error || "Failed"}`);
       }
     } catch {
-      alert("Network error while creating employee account.");
+      toast("Network error while creating employee account.");
     } finally {
       setCreatingEmployee(false);
     }
   };
 
   const handleResetPassword = async (userId: string, username: string) => {
-    if (!confirm(`Generate a new password for @${username}?`)) return;
+    if (!await confirmDialog(`Generate a new password for @${username}?`)) return;
 
     setResettingPasswordUserId(userId);
     try {
@@ -355,10 +357,10 @@ export default function SiteSettingsPage() {
           prev.map((u) => (u.id === userId ? { ...u, hasPassword: true } : u))
         );
       } else {
-        alert(`Failed to reset password: ${data.error || "Error"}`);
+        toast(`Failed to reset password: ${data.error || "Error"}`);
       }
     } catch {
-      alert("Error resetting password.");
+      toast("Error resetting password.");
     } finally {
       setResettingPasswordUserId(null);
     }
@@ -396,17 +398,17 @@ export default function SiteSettingsPage() {
           )
         );
       } else {
-        alert(`Failed to update username: ${data.error || "Error"}`);
+        toast(`Failed to update username: ${data.error || "Error"}`);
       }
     } catch {
-      alert("Error updating username.");
+      toast("Error updating username.");
     } finally {
       setUpdatingUsername(false);
     }
   };
 
   const handleDeleteUser = async (userId: string, username: string) => {
-    if (!confirm(`Are you sure you want to permanently delete the user account @${username}?`)) return;
+    if (!await confirmDialog(`Are you sure you want to permanently delete the user account @${username}?`)) return;
 
     setDeletingUserId(userId);
     try {
@@ -421,10 +423,10 @@ export default function SiteSettingsPage() {
         setSearchedUsers((prev) => prev.filter((u) => u.id !== userId));
         setRegisteredUsers((prev) => prev.filter((u) => u.id !== userId));
       } else {
-        alert(`Failed to delete user: ${data.error || "Error"}`);
+        toast(`Failed to delete user: ${data.error || "Error"}`);
       }
     } catch {
-      alert("Error deleting user.");
+      toast("Error deleting user.");
     } finally {
       setDeletingUserId(null);
     }
@@ -582,11 +584,11 @@ export default function SiteSettingsPage() {
   const handleAddVideoToNewPlaylist = async () => {
     const ytid = extractYouTubeId(newPlaylistVideoUrl);
     if (!ytid) {
-      alert("Please enter a valid YouTube video URL or 11-character video ID.");
+      toast("Please enter a valid YouTube video URL or 11-character video ID.");
       return;
     }
     if (newPlaylistVideos.some((v) => v.youtubeId === ytid)) {
-      alert("This video is already in the playlist.");
+      toast("This video is already in the playlist.");
       return;
     }
     setAddingPlaylistVideo(true);
@@ -604,12 +606,12 @@ export default function SiteSettingsPage() {
     if (!editingSwimlane) return;
     const ytid = extractYouTubeId(editingPlaylistVideoUrl);
     if (!ytid) {
-      alert("Please enter a valid YouTube video URL or 11-character video ID.");
+      toast("Please enter a valid YouTube video URL or 11-character video ID.");
       return;
     }
     const currentList = editingSwimlane.playlistVideos || [];
     if (currentList.some((v) => v.youtubeId === ytid)) {
-      alert("This video is already in the playlist.");
+      toast("This video is already in the playlist.");
       return;
     }
     setAddingEditPlaylistVideo(true);
@@ -644,7 +646,7 @@ export default function SiteSettingsPage() {
     if (!newSwimlaneTitle.trim()) return;
 
     if (newSwimlaneType === "playlist" && newPlaylistVideos.length === 0) {
-      alert("Please add at least one YouTube video to your curated playlist.");
+      toast("Please add at least one YouTube video to your curated playlist.");
       return;
     }
 
@@ -682,7 +684,7 @@ export default function SiteSettingsPage() {
   const handleMuteUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserToMute) {
-      alert("Please select a user to moderate.");
+      toast("Please select a user to moderate.");
       return;
     }
     try {
@@ -698,18 +700,18 @@ export default function SiteSettingsPage() {
       if (res.ok) {
         setMuteReason("");
         fetchModerations();
-        alert("User muted successfully.");
+        toast("User muted successfully.");
       } else {
         const d = (await res.json()) as any;
-        alert(d.error || "Failed to moderate user.");
+        toast(d.error || "Failed to moderate user.");
       }
     } catch {
-      alert("Error applying moderation.");
+      toast("Error applying moderation.");
     }
   };
 
   const handleUnmuteUser = async (id: string) => {
-    if (!confirm("Are you sure you want to unmute this user?")) return;
+    if (!await confirmDialog("Are you sure you want to unmute this user?")) return;
     try {
       const res = await fetch(`/api/admin/moderation?id=${id}`, {
         method: "DELETE",
@@ -718,12 +720,12 @@ export default function SiteSettingsPage() {
         fetchModerations();
       }
     } catch {
-      alert("Error unmuting user.");
+      toast("Error unmuting user.");
     }
   };
 
   const handlePurgeDummyVideos = async () => {
-    if (!confirm("This will remove all boilerplate demo videos from the database. Real synced YouTube videos will be kept. Proceed?")) return;
+    if (!await confirmDialog("This will remove all boilerplate demo videos from the database. Real synced YouTube videos will be kept. Proceed?")) return;
     setPurgingVideos(true);
     try {
       const res = await fetch("/api/radio/config", {
@@ -732,10 +734,10 @@ export default function SiteSettingsPage() {
         body: JSON.stringify({ action: "purge_dummy_videos" }),
       });
       if (res.ok) {
-        alert("Demo videos purged from library.");
+        toast("Demo videos purged from library.");
       }
     } catch {
-      alert("Failed to purge demo videos.");
+      toast("Failed to purge demo videos.");
     } finally {
       setPurgingVideos(false);
     }
@@ -761,7 +763,7 @@ export default function SiteSettingsPage() {
   };
 
   const handleDeleteVideo = async (videoId: string, title: string) => {
-    if (!confirm(`Are you sure you want to completely remove "${title}" from the FTN+ database?\n\nIt will also be hidden so it does not reappear on future channel syncs.`)) {
+    if (!await confirmDialog(`Are you sure you want to completely remove "${title}" from the FTN+ database?\n\nIt will also be hidden so it does not reappear on future channel syncs.`)) {
       return;
     }
 
@@ -781,12 +783,12 @@ export default function SiteSettingsPage() {
         }),
       });
       if (res.ok) {
-        alert(`Video "${title}" removed from FTN+ library.`);
+        toast(`Video "${title}" removed from FTN+ library.`);
       } else {
-        alert("Failed to delete video.");
+        toast("Failed to delete video.");
       }
     } catch {
-      alert("Error deleting video.");
+      toast("Error deleting video.");
     } finally {
       setDeletingVideoId(null);
     }
@@ -832,10 +834,10 @@ export default function SiteSettingsPage() {
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
       } else {
-        alert("Failed to save site configuration.");
+        toast("Failed to save site configuration.");
       }
     } catch (err) {
-      alert("Error saving configuration.");
+      toast("Error saving configuration.");
     } finally {
       setIsSavingConfig(false);
     }
@@ -895,136 +897,32 @@ export default function SiteSettingsPage() {
         }
       />
 
-      {/* Modern Tabs Navigation */}
-      <div className="flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          onClick={() => handleSelectTab("general")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "general"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Radio className="h-3.5 w-3.5 text-brand-text" />
-          <span>General & Media</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectTab("auth")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "auth"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Lock className="h-3.5 w-3.5 text-brand-text" />
-          <span>Authentication & Users</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectTab("moderation")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "moderation"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Shield className="h-3.5 w-3.5 text-red-500" />
-          <span>Moderation & Safety</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectTab("plus")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "plus"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Video className="h-3.5 w-3.5 text-brand-text" />
-          <span>FTN+ Video Network</span>
-        </button>
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
+        <AdminTab active={activeTab === "general"} onClick={() => handleSelectTab("general")}>General & Media</AdminTab>
+        <AdminTab active={activeTab === "auth"} onClick={() => handleSelectTab("auth")}>Authentication & Users</AdminTab>
+        <AdminTab active={activeTab === "moderation"} onClick={() => handleSelectTab("moderation")}>Moderation & Safety</AdminTab>
+        <AdminTab active={activeTab === "plus"} onClick={() => handleSelectTab("plus")}>FTN+ Video Network</AdminTab>
       </div>
 
       {/* 1. GENERAL & MEDIA TAB */}
       {activeTab === "general" && (
         <div className="space-y-8">
           {/* Homepage donation banner */}
-          <Card className="rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Homepage Donation Banner</h2>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                  Shows the &quot;FTN needs your help!&quot; donation appeal at the top of the homepage.
-                </p>
-              </div>
-              <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setDonationBannerEnabled(true)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                    donationBannerEnabled
-                      ? "bg-emerald-600 text-white shadow-sm"
-                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                  }`}
-                >
-                  ON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDonationBannerEnabled(false)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                    !donationBannerEnabled
-                      ? "bg-red-600 text-white shadow-sm"
-                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                  }`}
-                >
-                  OFF
-                </button>
-              </div>
-            </div>
-          </Card>
+          <AdminSection title="Donation banner" description="The &quot;FTN needs your help!&quot; appeal at the top of the homepage.">
+            <AdminRow label="Show on homepage" hint={donationBannerEnabled ? "Visitors see the appeal." : "Hidden from visitors."}>
+              <AdminSwitch checked={donationBannerEnabled} onChange={setDonationBannerEnabled} label="Show donation banner" />
+            </AdminRow>
+          </AdminSection>
 
           {/* 1. Webradio Stream Settings */}
-          <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN Live WebRadio Broadcasts</h2>
-          </div>
-
-          <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1">
-            <button
-              type="button"
-              onClick={() => setWebradioToggle(true)}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                webradioToggle
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-              }`}
-            >
-              ON
-            </button>
-            <button
-              type="button"
-              onClick={() => setWebradioToggle(false)}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                !webradioToggle
-                  ? "bg-red-600 text-white shadow-sm"
-                  : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-              }`}
-            >
-              OFF
-            </button>
-          </div>
-        </div>
+          <AdminSection title="Webradio stream" description="Where the live audio and its now-playing data come from.">
+        <AdminRow label="Webradio on FTN+" hint={webradioToggle ? "The radio player is live for visitors." : "The radio player is switched off."}>
+          <AdminSwitch checked={webradioToggle} onChange={setWebradioToggle} label="Enable webradio" />
+        </AdminRow>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Icecast Audio Stream URL (.mp3 / .aac)
             </label>
             <Input
@@ -1036,7 +934,7 @@ export default function SiteSettingsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Status JSON Metadata Endpoint
             </label>
             <Input
@@ -1049,75 +947,69 @@ export default function SiteSettingsPage() {
         </div>
 
         {/* Radio branding & Discord bot */}
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Station & Discord Bot</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </AdminSection>
+<AdminSection title="Station & Discord bot" description="Branding on the radio page and the details for the Discord bot.">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Station Name</label>
+              <label className="block text-sm font-semibold">Station Name</label>
               <Input value={radioPublic.stationName} onChange={(e) => setRadioPublic({ ...radioPublic, stationName: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Default Album Art URL</label>
+              <label className="block text-sm font-semibold">Default Album Art URL</label>
               <Input value={radioPublic.defaultArtUrl} onChange={(e) => setRadioPublic({ ...radioPublic, defaultArtUrl: e.target.value })} placeholder="Shown when no show or track art is found" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Bot Invite Link</label>
+              <label className="block text-sm font-semibold">Discord Bot Invite Link</label>
               <Input value={radioPublic.discordBotLink} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotLink: e.target.value })} placeholder="https://discord.com/oauth2/authorize?client_id=..." />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Bot Setup Command</label>
+              <label className="block text-sm font-semibold">Discord Bot Setup Command</label>
               <Input value={radioPublic.discordBotCommand} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotCommand: e.target.value })} placeholder="/setup" className="font-mono text-xs" />
             </div>
           </div>
-        </div>
+        
 
         {/* Icecast */}
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Icecast</h3>
-          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-            Optional admin credentials let the site read live listener counts and track metadata. They are stored encrypted and never sent to visitors.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </AdminSection>
+<AdminSection title="Icecast" description="Optional admin credentials let the site read live listener counts and track metadata. They are stored encrypted and never sent to visitors.">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin URL</label>
+              <label className="block text-sm font-semibold">Admin URL</label>
               <Input value={radioSecure.icecastAdminUrl} onChange={(e) => setRadioSecure({ ...radioSecure, icecastAdminUrl: e.target.value })} placeholder="http://127.0.0.1:8000" className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Mount Point</label>
+              <label className="block text-sm font-semibold">Mount Point</label>
               <Input value={radioSecure.icecastMount} onChange={(e) => setRadioSecure({ ...radioSecure, icecastMount: e.target.value })} placeholder="/autodj" className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin Username</label>
+              <label className="block text-sm font-semibold">Admin Username</label>
               <Input value={radioSecure.icecastUsername} onChange={(e) => setRadioSecure({ ...radioSecure, icecastUsername: e.target.value })} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin Password</label>
+              <label className="block text-sm font-semibold">Admin Password</label>
               <Input type="password" value={radioSecure.icecastPassword} onChange={(e) => setRadioSecure({ ...radioSecure, icecastPassword: e.target.value })} className="font-mono text-xs" />
             </div>
           </div>
-        </div>
+        
 
         {/* Password rotation */}
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Broadcast Password Rotation</h3>
-          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-            Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown in the Station tab of the Schedule admin page.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </AdminSection>
+<AdminSection title="Password rotation" description="Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown in the Station tab of the Schedule admin page.">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Endpoint URL</label>
+              <label className="block text-sm font-semibold">Rotation Endpoint URL</label>
               <Input value={radioSecure.rotationEndpointUrl} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointUrl: e.target.value })} placeholder="https://euno.cc/rotate" className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Endpoint Token</label>
+              <label className="block text-sm font-semibold">Rotation Endpoint Token</label>
               <Input type="password" value={radioSecure.rotationEndpointToken} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointToken: e.target.value })} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Auto-Rotate Frequency</label>
+              <label className="block text-sm font-semibold">Auto-Rotate Frequency</label>
               <select
                 value={radioSecure.rotationFrequencyHours}
                 onChange={(e) => setRadioSecure({ ...radioSecure, rotationFrequencyHours: Number(e.target.value) })}
-                className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs"
+                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
               >
                 <option value={0}>Off</option>
                 <option value={12}>Every 12 hours</option>
@@ -1127,36 +1019,36 @@ export default function SiteSettingsPage() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Time (UTC, 24h+ only)</label>
+              <label className="block text-sm font-semibold">Rotation Time (UTC, 24h+ only)</label>
               <input
                 type="time"
                 value={radioSecure.rotationTimeUtc}
                 onChange={(e) => setRadioSecure({ ...radioSecure, rotationTimeUtc: e.target.value })}
-                className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs"
+                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
               />
             </div>
             <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Webhook (rotation notices)</label>
+              <label className="block text-sm font-semibold">Discord Webhook (rotation notices)</label>
               <Input type="password" value={radioSecure.discordWebhookUrl} onChange={(e) => setRadioSecure({ ...radioSecure, discordWebhookUrl: e.target.value })} placeholder="https://discord.com/api/webhooks/..." className="font-mono text-xs" />
             </div>
           </div>
-        </div>
+        
 
         {/* API keys */}
-        <div className="border-t border-neutral-200 dark:border-neutral-800 pt-6 space-y-4">
-          <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Album Art API Keys</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        </AdminSection>
+<AdminSection title="Album art" description="Keys and lookup order for finding cover art of the track on air.">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Last.fm API Key</label>
+              <label className="block text-sm font-semibold">Last.fm API Key</label>
               <Input type="password" value={radioSecure.lastFmApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, lastFmApiKey: e.target.value })} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Fanart.tv API Key</label>
+              <label className="block text-sm font-semibold">Fanart.tv API Key</label>
               <Input type="password" value={radioSecure.fanartTvApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, fanartTvApiKey: e.target.value })} className="font-mono text-xs" />
             </div>
             {[0, 1, 2].map((i) => (
               <div key={i} className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Lookup Priority {i + 1}</label>
+                <label className="block text-sm font-semibold">Lookup Priority {i + 1}</label>
                 <select
                   value={radioSecure.artPriority[i] || ""}
                   onChange={(e) => {
@@ -1164,7 +1056,7 @@ export default function SiteSettingsPage() {
                     next[i] = e.target.value;
                     setRadioSecure({ ...radioSecure, artPriority: next.filter(Boolean) });
                   }}
-                  className="w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs"
+                  className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                 >
                   <option value="lastfm">Last.fm</option>
                   <option value="itunes">iTunes</option>
@@ -1173,19 +1065,17 @@ export default function SiteSettingsPage() {
               </div>
             ))}
           </div>
-        </div>
-      </Card>
+        
+      </AdminSection>
 
       {/* 3. Discord & Social Media Links */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Discord & Social Media Links</h2>
-        </div>
+      <AdminSection title="Links" description="The Discord button in the navbar and the social links in the footer.">
+        
 
         <div className="space-y-6">
           {/* Discord Button URL */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Navbar Discord Button URL
             </label>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -1201,7 +1091,7 @@ export default function SiteSettingsPage() {
 
           {/* Custom Footer Social Links */}
           <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Footer Social Links ({socialLinks.length})
             </label>
 
@@ -1218,7 +1108,7 @@ export default function SiteSettingsPage() {
                 placeholder="https://..."
                 className="font-mono text-xs"
               />
-              <Button type="submit" size="sm" className="bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm">
+              <Button type="submit" size="sm" className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm">
                 <Plus className="h-3.5 w-3.5" /> Add Link
               </Button>
             </form>
@@ -1245,7 +1135,7 @@ export default function SiteSettingsPage() {
             </div>
           </div>
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
 
@@ -1253,16 +1143,14 @@ export default function SiteSettingsPage() {
   {activeTab === "auth" && (
     <div className="space-y-8">
       {/* 2. Access Control, Authentication Mode & User Management */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Authentication & Access Control</h2>
-        </div>
+      <AdminSection title="Sign-in" description="How visitors and staff create accounts and log in.">
+        
 
         <div className="space-y-6">
           {/* Account Creation Toggle */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Account Creation
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1274,41 +1162,13 @@ export default function SiteSettingsPage() {
               </p>
             </div>
 
-            <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1">
-              <button
-                type="button"
-                disabled={authMode === "credentials"}
-                onClick={() => {
-                  if (authMode !== "credentials") setAllowSignIn(true);
-                }}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition ${
-                  authMode === "credentials"
-                    ? "opacity-30 cursor-not-allowed text-neutral-400"
-                    : allowSignIn
-                    ? "bg-emerald-600 text-white shadow-sm cursor-pointer"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white cursor-pointer"
-                }`}
-              >
-                ENABLED
-              </button>
-              <button
-                type="button"
-                onClick={() => setAllowSignIn(false)}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                  !allowSignIn || authMode === "credentials"
-                    ? "bg-red-600 text-white shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                DISABLED
-              </button>
-            </div>
+            <AdminSwitch checked={allowSignIn && authMode !== "credentials"} disabled={authMode === "credentials"} onChange={setAllowSignIn} label="Account creation" />
           </div>
 
           {/* Authentication Method Selector */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Active Authentication Method
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1318,39 +1178,27 @@ export default function SiteSettingsPage() {
               </p>
             </div>
 
-            <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setAuthMode("roblox")}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition cursor-pointer ${
-                  authMode === "roblox"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                Roblox OAuth 2.0
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode("credentials");
-                  setAllowSignIn(false);
-                }}
-                className={`px-3 py-1.5 text-xs font-bold rounded-md transition cursor-pointer ${
-                  authMode === "credentials"
-                    ? "bg-brand text-brand-ink shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                Password / Username Mode
-              </button>
-            </div>
+            <AdminSegmented
+              value={authMode}
+              onChange={(m) => {
+                setAuthMode(m);
+                if (m === "credentials") setAllowSignIn(false);
+              }}
+              options={[
+                { value: "roblox", label: "Roblox OAuth" },
+                { value: "credentials", label: "Username & password" },
+              ]}
+            />
           </div>
 
+        </div>
+      </AdminSection>
+      <AdminSection title="Access gates" description="Who may open FTN+ and the tipline.">
+        <div className="space-y-6">
           {/* FTN+ Access Gate */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 FTN+ Access Gate
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1360,36 +1208,20 @@ export default function SiteSettingsPage() {
               </p>
             </div>
 
-            <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setFtnPlusAccess("public")}
-                className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                  ftnPlusAccess === "public"
-                    ? "bg-brand text-black shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                <Globe className="h-3 w-3" /> Public
-              </button>
-              <button
-                type="button"
-                onClick={() => setFtnPlusAccess("members_only")}
-                className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                  ftnPlusAccess === "members_only"
-                    ? "bg-amber-600 text-white shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                <Lock className="h-3 w-3" /> Members Only
-              </button>
-            </div>
+            <AdminSegmented
+              value={ftnPlusAccess}
+              onChange={setFtnPlusAccess}
+              options={[
+                { value: "public", label: <><Globe className="h-3 w-3" /> Public</> },
+                { value: "members_only", label: <><Lock className="h-3 w-3" /> Members only</> },
+              ]}
+            />
           </div>
 
           {/* Tipline Access Gate */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Investigative Tipline Access Gate
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1399,32 +1231,20 @@ export default function SiteSettingsPage() {
               </p>
             </div>
 
-            <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setTiplineAccess("public")}
-                className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                  tiplineAccess === "public"
-                    ? "bg-brand text-brand-ink shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                <Globe className="h-3 w-3" /> Public
-              </button>
-              <button
-                type="button"
-                onClick={() => setTiplineAccess("members_only")}
-                className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                  tiplineAccess === "members_only"
-                    ? "bg-cyan-600 text-white shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                <Lock className="h-3 w-3" /> Members Only
-              </button>
-            </div>
+            <AdminSegmented
+              value={tiplineAccess}
+              onChange={setTiplineAccess}
+              options={[
+                { value: "public", label: <><Globe className="h-3 w-3" /> Public</> },
+                { value: "members_only", label: <><Lock className="h-3 w-3" /> Members only</> },
+              ]}
+            />
           </div>
 
+        </div>
+      </AdminSection>
+      <AdminSection title="Accounts" description="Staff accounts and password resets.">
+        <div className="space-y-6">
           {/* If Roblox Mode: Informative Notice */}
           {authMode === "roblox" && (
             <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/30 p-4 text-xs text-neutral-600 dark:text-neutral-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1436,7 +1256,7 @@ export default function SiteSettingsPage() {
               </div>
               <Link href="/admin/roles">
                 <Button size="sm" variant="outline" className="text-xs border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-700 dark:text-white dark:hover:bg-neutral-800 shrink-0 cursor-pointer">
-                  <Shield className="h-3.5 w-3.5 mr-1 text-blue-500" /> Open Roles Console
+                  <Shield className="h-3.5 w-3.5 mr-1 text-brand-text" /> Open Roles Console
                 </Button>
               </Link>
             </div>
@@ -1447,7 +1267,7 @@ export default function SiteSettingsPage() {
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 p-5 space-y-4">
               <div className="flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-brand-text" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">
+                <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
                   Add Employee / Provision Staff Password
                 </h3>
               </div>
@@ -1549,7 +1369,7 @@ export default function SiteSettingsPage() {
 
           {/* Reset Password Result Notification */}
           {resetPasswordResult && (
-            <div className="rounded-xl border border-brand/60 bg-cyan-50 dark:bg-cyan-950/30 p-4 space-y-2">
+            <div className="rounded-xl border border-brand/60 bg-brand/10 p-4 space-y-2">
               <div className="text-xs font-bold text-brand-text">New Password Generated</div>
               <div className="p-2 rounded bg-white dark:bg-black/60 font-mono text-xs font-bold text-neutral-900 dark:text-white select-all border border-neutral-200 dark:border-transparent">
                 {resetPasswordResult.password}
@@ -1560,7 +1380,7 @@ export default function SiteSettingsPage() {
           {/* User Search Bar */}
           <div className="space-y-4 pt-2">
             <div className="space-y-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Search User Accounts
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -1627,7 +1447,7 @@ export default function SiteSettingsPage() {
                                 PASSWORD SET
                               </span>
                             ) : (
-                              <span className="px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-[9px] font-bold">
+                              <span className="px-1.5 py-0.5 rounded bg-brand/20 border border-brand/40 text-amber-700 dark:text-amber-400 text-[9px] font-bold">
                                 NO PASSWORD
                               </span>
                             )
@@ -1721,7 +1541,7 @@ export default function SiteSettingsPage() {
                             size="sm"
                             className="h-8 text-xs border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white cursor-pointer"
                           >
-                            <Shield className="h-3 w-3 mr-1 text-blue-500" /> Manage Roles
+                            <Shield className="h-3 w-3 mr-1 text-brand-text" /> Manage Roles
                           </Button>
                         </Link>
                       )}
@@ -1732,7 +1552,7 @@ export default function SiteSettingsPage() {
             )}
           </div>
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
 
@@ -1740,21 +1560,15 @@ export default function SiteSettingsPage() {
   {activeTab === "moderation" && (
     <div className="space-y-8">
       {/* 4. User Moderation & Auto-Mod */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">User Moderation & Auto-Mod</h2>
-        </div>
-
+      <AdminSection title="Mute a user" description="Stop a registered user from commenting, for a set time.">
         <div className="space-y-6">
-          {/* Manual Mute Form */}
-          <form onSubmit={handleMuteUser} className="p-4 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">Moderate Registered User</span>
+          <form onSubmit={handleMuteUser} className="space-y-4">
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <select
                 value={selectedUserToMute}
                 onChange={(e) => setSelectedUserToMute(e.target.value)}
-                className="h-9 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                 required
               >
                 <option value="">Select User to Mute...</option>
@@ -1768,7 +1582,7 @@ export default function SiteSettingsPage() {
               <select
                 value={muteDuration}
                 onChange={(e) => setMuteDuration(e.target.value as any)}
-                className="h-9 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
               >
                 <option value="24h">Mute for 24 Hours</option>
                 <option value="1w">Mute for 1 Week</option>
@@ -1789,11 +1603,11 @@ export default function SiteSettingsPage() {
             </Button>
           </form>
 
-          {/* Active Mutes List */}
+        </div>
+      </AdminSection>
+      <AdminSection title={`Muted accounts (${moderations.length})`} description="Everyone currently muted, with the reason and expiry.">
+        <div className="space-y-6">
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-              Currently Muted Accounts ({moderations.length})
-            </label>
 
             {moderations.length === 0 ? (
               <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-4 text-center text-xs text-neutral-500">
@@ -1835,42 +1649,18 @@ export default function SiteSettingsPage() {
             )}
           </div>
 
-          {/* Auto-Moderation Rules */}
-          <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">Auto-Moderation (Profanity Violations)</span>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  Automatically mutes a user if they repeatedly submit comments tripping the profanity filter.
-                </p>
-              </div>
-
-              <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1">
-                <button
-                  type="button"
-                  onClick={() => setAutoModEnabled(true)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                    autoModEnabled ? "bg-red-600 text-white" : "text-neutral-500 dark:text-neutral-400"
-                  }`}
-                >
-                  ON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAutoModEnabled(false)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                    !autoModEnabled ? "bg-neutral-200 text-black dark:bg-neutral-800 dark:text-white" : "text-neutral-500 dark:text-neutral-400"
-                  }`}
-                >
-                  OFF
-                </button>
-              </div>
-            </div>
-
+        </div>
+      </AdminSection>
+      <AdminSection title="Auto-moderation" description="Mute people automatically when they keep tripping the profanity filter.">
+        <div className="space-y-4">
+          <div>
+            <AdminRow label="Mute repeat offenders" hint="After enough filtered comments in five minutes, the user is muted.">
+              <AdminSwitch checked={autoModEnabled} onChange={setAutoModEnabled} label="Auto-moderation" />
+            </AdminRow>
             {autoModEnabled && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">Violation Threshold (Within 5 mins)</label>
+                  <label className="text-xs font-semibold">Violation Threshold (Within 5 mins)</label>
                   <Input
                     type="number"
                     min={1}
@@ -1882,11 +1672,11 @@ export default function SiteSettingsPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">Auto-Mute Penalty Duration</label>
+                  <label className="text-xs font-semibold">Auto-Mute Penalty Duration</label>
                   <select
                     value={autoModMuteDuration}
                     onChange={(e) => setAutoModMuteDuration(e.target.value as any)}
-                    className="w-full h-8 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                   >
                     <option value="24h">24 Hours</option>
                     <option value="1w">1 Week</option>
@@ -1898,17 +1688,15 @@ export default function SiteSettingsPage() {
             )}
           </div>
         </div>
-      </Card>
+      </AdminSection>
 
       {/* 7. Comment Profanity Filter */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Comment Profanity Filter</h2>
-        </div>
+      <AdminSection title="Profanity filter" description="Comments containing these words are blocked.">
+        
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Banned Words (One per line)
             </label>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1924,7 +1712,7 @@ export default function SiteSettingsPage() {
             className="font-mono text-xs"
           />
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
 
@@ -1932,11 +1720,9 @@ export default function SiteSettingsPage() {
   {activeTab === "plus" && (
     <div className="space-y-8">
       {/* 5. FTN+ YouTube Channels & Library Purge */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN+ YouTube Channels & Video Sync</h2>
-          </div>
+      <AdminSection title="Video sync" description="Pull the latest videos from the channels below into FTN+.">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+          
 
           <div className="flex items-center gap-2">
             <Button
@@ -1967,9 +1753,11 @@ export default function SiteSettingsPage() {
           </div>
         )}
 
+      </AdminSection>
+      <AdminSection title="YouTube channels" description="Channels FTN+ ingests from, and where each one may appear.">
         <div className="space-y-3">
-          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-            Add Channel ID or Handle
+          <label className="block text-sm font-semibold">
+            Add channel ID or handle
           </label>
           <div className="flex gap-2">
             <Input
@@ -1995,7 +1783,7 @@ export default function SiteSettingsPage() {
         </div>
 
         <div className="space-y-2 pt-2">
-          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+          <label className="block text-sm font-semibold">
             Active Channel Ingestions ({youtubeChannels.length})
           </label>
 
@@ -2022,7 +1810,7 @@ export default function SiteSettingsPage() {
                         onClick={() => handleToggleHideFeatured(channel)}
                         className={`text-xs h-7 px-2.5 cursor-pointer transition ${
                           isFeaturedHidden
-                            ? "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 font-medium"
+                            ? "bg-brand/20 border-brand/50 text-neutral-900 dark:text-white font-semibold"
                             : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
                         }`}
                         title={
@@ -2041,7 +1829,7 @@ export default function SiteSettingsPage() {
                         onClick={() => handleToggleHideTrending(channel)}
                         className={`text-xs h-7 px-2.5 cursor-pointer transition ${
                           isTrendingHidden
-                            ? "bg-rose-500/15 border-rose-500/40 text-rose-700 dark:text-rose-400 font-medium"
+                            ? "bg-brand/20 border-brand/50 text-neutral-900 dark:text-white font-semibold"
                             : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
                         }`}
                         title={
@@ -2068,23 +1856,12 @@ export default function SiteSettingsPage() {
             </div>
           )}
         </div>
-      </Card>
+      </AdminSection>
 
         {/* 5b. Synced Video Library & Stream Visibility Controls */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <div>
-              <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                FTN+ Synced Video Catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}
-              </h2>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                Hide duplicate or superseded streams from appearing on FTN+ swimlanes and the homepage.
-              </p>
-            </div>
-          </div>
-
-          <div className="w-full sm:w-64">
+      <AdminSection title={<>Video catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}</>} description="Hide duplicate or superseded streams from FTN+ swimlanes and the homepage.">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1">
+          <div className="w-full">
             <Input
               value={videoSearchQuery}
               onChange={(e) => {
@@ -2092,7 +1869,7 @@ export default function SiteSettingsPage() {
                 setVisibleVideoCount(25);
               }}
               placeholder="Search synced videos..."
-              className="text-xs h-8"
+              className="h-10"
             />
           </div>
         </div>
@@ -2122,7 +1899,7 @@ export default function SiteSettingsPage() {
 
           return (
             <div className="space-y-3">
-              <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
+              <div className="max-h-[480px] divide-y divide-neutral-200 overflow-y-auto rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
                 {displayedVideos.map((video) => {
                   const ytid = video.youtubeId || video.id;
                   const isHidden = hiddenVideoIds.includes(ytid) || hiddenVideoIds.includes(video.id);
@@ -2130,11 +1907,7 @@ export default function SiteSettingsPage() {
                   return (
                     <div
                       key={ytid}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-3 transition ${
-                        isHidden
-                          ? "border-red-300 bg-red-50 dark:border-red-950/60 dark:bg-red-950/10 opacity-70"
-                          : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/80 hover:border-neutral-300 dark:hover:border-neutral-700"
-                      }`}
+                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 transition ${isHidden ? "opacity-60" : ""}`}
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <img
@@ -2152,11 +1925,6 @@ export default function SiteSettingsPage() {
                             {video.isLive && (
                               <span className="rounded bg-red-600 px-1.5 py-0.2 text-[9px] font-bold uppercase text-white">
                                 LIVE
-                              </span>
-                            )}
-                            {isHidden && (
-                              <span className="rounded bg-red-100 border border-red-300 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300 px-1.5 py-0.2 text-[9px] font-bold uppercase">
-                                HIDDEN
                               </span>
                             )}
                           </div>
@@ -2179,25 +1947,8 @@ export default function SiteSettingsPage() {
                           <ExternalLink className="h-4 w-4" />
                         </a>
 
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleToggleHideVideo(ytid)}
-                          className={`text-xs h-7 px-2.5 gap-1.5 border-neutral-300 dark:border-neutral-800 cursor-pointer ${
-                            isHidden ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/60" : "text-neutral-700 hover:text-black dark:text-neutral-300 dark:hover:text-white"
-                          }`}
-                        >
-                          {isHidden ? (
-                            <>
-                              <Eye className="h-3 w-3" /> Unhide
-                            </>
-                          ) : (
-                            <>
-                              <EyeOff className="h-3 w-3" /> Hide
-                            </>
-                          )}
-                        </Button>
+                        <span className="text-xs font-semibold text-neutral-500">{isHidden ? "Hidden" : "Shown"}</span>
+                        <AdminSwitch checked={!isHidden} onChange={() => handleToggleHideVideo(ytid)} label={isHidden ? "Show video" : "Hide video"} />
 
                         <Button
                           type="button"
@@ -2237,21 +1988,19 @@ export default function SiteSettingsPage() {
             </div>
           );
         })()}
-      </Card>
+      </AdminSection>
 
       {/* 6. Custom FTN+ Swimlanes (Dynamic Filter & Curated Playlist) */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN+ Custom Swimlanes</h2>
-          </div>
+      <AdminSection title="Swimlanes" description="Custom rows of videos on the FTN+ home page.">
+        <div className="flex items-center justify-between pb-1">
+          
         </div>
 
         {/* Edit Swimlane Form */}
         {editingSwimlane ? (
-          <div className="p-5 rounded-xl border border-blue-300 bg-blue-50 dark:border-blue-500/50 dark:bg-blue-950/20 space-y-4">
+          <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800/40 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 flex items-center gap-1.5">
+              <span className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                 <Edit2 className="h-3.5 w-3.5" /> Editing Swimlane: {editingSwimlane.title}
               </span>
               <Button
@@ -2265,36 +2014,20 @@ export default function SiteSettingsPage() {
               </Button>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setEditingSwimlane({ ...editingSwimlane, type: "filter" })}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer flex items-center gap-1.5 ${
-                  editingSwimlane.type !== "playlist"
-                    ? "bg-blue-600 text-white border-blue-500"
-                    : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white"
-                }`}
-              >
-                <Sliders className="h-3.5 w-3.5" /> Dynamic Filter
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setEditingSwimlane({
-                    ...editingSwimlane,
-                    type: "playlist",
-                    playlistVideos: editingSwimlane.playlistVideos || [],
-                  })
-                }
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer flex items-center gap-1.5 ${
-                  editingSwimlane.type === "playlist"
-                    ? "bg-brand text-black border-brand"
-                    : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white"
-                }`}
-              >
-                <ListVideo className="h-3.5 w-3.5" /> Curated Playlist
-              </button>
-            </div>
+            <AdminSegmented
+              value={editingSwimlane.type === "playlist" ? "playlist" : "filter"}
+              onChange={(t) =>
+                setEditingSwimlane(
+                  t === "playlist"
+                    ? { ...editingSwimlane, type: "playlist", playlistVideos: editingSwimlane.playlistVideos || [] }
+                    : { ...editingSwimlane, type: "filter" }
+                )
+              }
+              options={[
+                { value: "filter", label: <><Sliders className="h-3.5 w-3.5" /> Dynamic filter</> },
+                { value: "playlist", label: <><ListVideo className="h-3.5 w-3.5" /> Curated playlist</> },
+              ]}
+            />
 
             {editingSwimlane.type === "playlist" ? (
               <div className="space-y-4">
@@ -2311,7 +2044,7 @@ export default function SiteSettingsPage() {
                     onChange={(e) =>
                       setEditingSwimlane({ ...editingSwimlane, sortBy: e.target.value as any })
                     }
-                    className="w-full h-9 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                   >
                     <option value="curated">Sort: Curated Order (As Added)</option>
                     <option value="recent">Sort: Most Recent</option>
@@ -2320,7 +2053,7 @@ export default function SiteSettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">Add YouTube Video</label>
+                  <label className="text-xs font-semibold">Add YouTube Video</label>
                   <div className="flex gap-2">
                     <Input
                       value={editingPlaylistVideoUrl}
@@ -2338,7 +2071,7 @@ export default function SiteSettingsPage() {
                       type="button"
                       disabled={addingEditPlaylistVideo || !editingPlaylistVideoUrl.trim()}
                       onClick={handleAddVideoToEditingPlaylist}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+                      className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm"
                     >
                       {addingEditPlaylistVideo ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Add Video"}
                     </Button>
@@ -2382,7 +2115,7 @@ export default function SiteSettingsPage() {
                 <Button
                   type="button"
                   onClick={handleSaveEditedSwimlane}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs cursor-pointer shadow-sm"
+                  className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs cursor-pointer shadow-sm"
                 >
                   Save Playlist Changes
                 </Button>
@@ -2413,12 +2146,12 @@ export default function SiteSettingsPage() {
                     <select
                       value={editingSwimlane.sortBy}
                       onChange={(e) => setEditingSwimlane({ ...editingSwimlane, sortBy: e.target.value as any })}
-                      className="w-full h-9 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                     >
                       <option value="recent">Sort: Most Recent</option>
                       <option value="trending">Sort: 7-Day Trending</option>
                     </select>
-                    <Button type="submit" size="sm" className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm">
+                    <Button type="submit" size="sm" className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm">
                       Save
                     </Button>
                   </div>
@@ -2430,38 +2163,22 @@ export default function SiteSettingsPage() {
           /* Add New Swimlane Form */
           <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">Add New Swimlane</span>
-              <div className="flex items-center gap-1 bg-neutral-100 dark:bg-neutral-900 p-1 rounded-lg border border-neutral-300 dark:border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() => setNewSwimlaneType("filter")}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer flex items-center gap-1.5 ${
-                    newSwimlaneType === "filter"
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                  }`}
-                >
-                  <Sliders className="h-3 w-3" /> Dynamic Filter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewSwimlaneType("playlist")}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer flex items-center gap-1.5 ${
-                    newSwimlaneType === "playlist"
-                      ? "bg-brand text-black font-bold shadow-sm"
-                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                  }`}
-                >
-                  <ListVideo className="h-3 w-3" /> Curated Playlist
-                </button>
-              </div>
+              <span className="text-sm font-bold text-neutral-900 dark:text-white">Add New Swimlane</span>
+              <AdminSegmented
+                value={newSwimlaneType}
+                onChange={setNewSwimlaneType}
+                options={[
+                  { value: "filter", label: <><Sliders className="h-3 w-3" /> Dynamic filter</> },
+                  { value: "playlist", label: <><ListVideo className="h-3 w-3" /> Curated playlist</> },
+                ]}
+              />
             </div>
 
             {newSwimlaneType === "playlist" ? (
               <form onSubmit={handleAddSwimlane} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">Playlist Title</label>
+                    <label className="text-xs font-semibold">Playlist Title</label>
                     <Input
                       value={newSwimlaneTitle}
                       onChange={(e) => setNewSwimlaneTitle(e.target.value)}
@@ -2471,11 +2188,11 @@ export default function SiteSettingsPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">Sort Order</label>
+                    <label className="text-xs font-semibold">Sort Order</label>
                     <select
                       value={newSwimlaneSort}
                       onChange={(e) => setNewSwimlaneSort(e.target.value as any)}
-                      className="w-full h-9 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                     >
                       <option value="curated">Curated Order (As Added)</option>
                       <option value="recent">Most Recent</option>
@@ -2485,7 +2202,7 @@ export default function SiteSettingsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-neutral-700 dark:text-neutral-300">Add YouTube Video</label>
+                  <label className="text-xs font-semibold">Add YouTube Video</label>
                   <div className="flex gap-2">
                     <Input
                       value={newPlaylistVideoUrl}
@@ -2519,7 +2236,7 @@ export default function SiteSettingsPage() {
                 {/* Added Videos Preview */}
                 {newPlaylistVideos.length > 0 && (
                   <div className="space-y-2 p-3 rounded-lg bg-neutral-100 dark:bg-black/40 border border-neutral-200 dark:border-neutral-800">
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                    <span className="text-xs font-bold text-neutral-600 dark:text-neutral-400">
                       Playlist Videos ({newPlaylistVideos.length})
                     </span>
                     <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -2592,7 +2309,7 @@ export default function SiteSettingsPage() {
                     <select
                       value={newSwimlaneSort}
                       onChange={(e) => setNewSwimlaneSort(e.target.value as any)}
-                      className="w-full h-9 rounded-md border border-neutral-300 bg-white text-xs text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                     >
                       <option value="recent">Sort: Most Recent</option>
                       <option value="trending">Sort: 7-Day Trending</option>
@@ -2617,7 +2334,7 @@ export default function SiteSettingsPage() {
         {/* Configured Swimlanes List with Reordering */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Configured Swimlanes ({swimlanes.length})
             </label>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -2708,7 +2425,7 @@ export default function SiteSettingsPage() {
                     <button
                       type="button"
                       onClick={() => setEditingSwimlane(lane)}
-                      className="text-neutral-400 hover:text-blue-500 transition p-1.5 cursor-pointer"
+                      className="text-neutral-400 hover:text-brand-text transition p-1.5 cursor-pointer"
                       title="Edit Swimlane"
                     >
                       <Edit2 className="h-4 w-4" />
@@ -2727,7 +2444,7 @@ export default function SiteSettingsPage() {
             </div>
           )}
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
     </div>
