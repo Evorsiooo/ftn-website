@@ -18,7 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { PageShell } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, ProgressBar, Tag } from "@/components/ftn/ui";
+import { Button, EmptyState, GUTTER, ProgressBar } from "@/components/ftn/ui";
 import { ArtTile, Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
 import { useNowPlaying } from "@/components/radio/use-now-playing";
@@ -144,7 +144,6 @@ export default function FTNPlusRadioPage() {
 
   const shows = new Map<string, ScheduleEntry["show"]>();
   schedule?.forEach((e) => shows.set(e.show.id, e.show));
-  const nextIndex = schedule ? schedule.findIndex((e) => new Date(e.start).getTime() > now) : -1;
 
   return (
     <PageShell>
@@ -161,7 +160,7 @@ export default function FTNPlusRadioPage() {
 
         <div
           className={cn(
-            "relative z-10 flex flex-col-reverse md:flex-row items-start md:items-center justify-between gap-8 md:gap-12 pt-10 md:pt-16 pb-12",
+            "relative z-10 flex flex-col-reverse md:flex-row items-start md:items-center justify-between gap-8 md:gap-12 pt-20 md:pt-32 pb-12",
             GUTTER
           )}
         >
@@ -171,15 +170,23 @@ export default function FTNPlusRadioPage() {
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
             className="max-w-2xl space-y-5 w-full"
           >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              {info && !info.online && <Tag>Offline</Tag>}
-              {show && show.tag !== "live" && <Tag>{show.tag}</Tag>}
-              {info?.listeners !== null && info?.listeners !== undefined && info.listeners >= 2 && (
-                <span className="inline-flex items-center gap-1 text-xs text-ftn-text-2">
-                  <IconHeadphones className="h-4 w-4" /> {info.listeners} listening
-                </span>
-              )}
-            </div>
+            {/* One plain line of context; no chips. */}
+            {(() => {
+              const parts: string[] = [];
+              if (info && !info.online) parts.push("Offline");
+              if (show && show.tag !== "live") parts.push(show.tag === "rebroadcast" ? "Rebroadcast" : "Simulcast");
+              const listening = info?.listeners !== null && info?.listeners !== undefined && info.listeners >= 2 ? info.listeners : null;
+              return parts.length > 0 || listening !== null ? (
+                <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-ftn-text-2">
+                  {parts.length > 0 && <span>{parts.join(" · ")}</span>}
+                  {listening !== null && (
+                    <span className="inline-flex items-center gap-1.5">
+                      <IconHeadphones className="h-4 w-4" /> {listening} listening
+                    </span>
+                  )}
+                </p>
+              ) : null;
+            })()}
 
             {!info ? (
               <div className="space-y-3" aria-hidden>
@@ -205,7 +212,7 @@ export default function FTNPlusRadioPage() {
 
             {show && info?.track && (
               <div className="flex items-center gap-2 text-sm text-ftn-text-2">
-                <IconMusic className="h-4 w-4 text-brand" />
+                <IconMusic className="h-4 w-4 text-brand-text" />
                 <span>
                   <span className="font-semibold text-ftn-text">{info.track.title}</span>
                   {info.track.artist ? ` · ${info.track.artist}` : ""}
@@ -224,10 +231,10 @@ export default function FTNPlusRadioPage() {
             )}
 
             {isAuto && nextShow && (
-              <div className="flex items-center gap-3 rounded-2xl border border-ftn-line bg-ftn-surface/80 backdrop-blur-sm p-2.5 pr-4 max-w-md">
-                <ArtTile src={nextShow.artUrl} className="h-12 w-12 rounded-xl flex-shrink-0" />
+              <div className="flex items-center gap-3 rounded-3xl border border-ftn-line bg-ftn-glass backdrop-blur-xl p-2.5 pr-5 max-w-md">
+                <ArtTile src={nextShow.artUrl} className="h-12 w-12 rounded-2xl flex-shrink-0" />
                 <div className="min-w-0">
-                  <div className="ftn-eyebrow text-brand">Up next · in {untilLabel(new Date(nextShow.start).getTime() - now)}</div>
+                  <div className="text-xs font-semibold text-brand-text">Up next in {untilLabel(new Date(nextShow.start).getTime() - now)}</div>
                   <div className="text-sm font-semibold truncate">{nextShow.name}</div>
                   <div className="text-xs text-ftn-text-3 truncate">
                     with {nextShow.presenter} · {dayFmt.format(new Date(nextShow.start))} {timeFmt.format(new Date(nextShow.start))}
@@ -298,7 +305,7 @@ export default function FTNPlusRadioPage() {
             <Crossfade
               id={artUrl || "no-art"}
               zoom
-              className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-[22rem] md:w-[22rem] lg:h-[26rem] lg:w-[26rem] rounded-3xl border border-ftn-line-strong shadow-2xl"
+              className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-[22rem] md:w-[22rem] lg:h-[26rem] lg:w-[26rem] rounded-[2rem] ftn-shadow ring-1 ring-ftn-line-strong"
             >
               <ArtTile src={artUrl} onError={() => setArtFailed(true)} className="h-full w-full" />
             </Crossfade>
@@ -317,7 +324,7 @@ export default function FTNPlusRadioPage() {
         ) : (
           <>
             <Lane title="Coming up" href="/plus/schedule" hrefLabel="Full schedule">
-              {schedule.map((entry, i) => {
+              {schedule.map((entry) => {
                 const start = new Date(entry.start);
                 const isNow = start.getTime() <= now && new Date(entry.end).getTime() > now;
                 return (
@@ -326,7 +333,6 @@ export default function FTNPlusRadioPage() {
                     title={entry.show.name}
                     presenter={entry.show.presenter}
                     artUrl={entry.show.artUrl}
-                    badge={isNow ? "On air" : i === nextIndex ? "Up next" : undefined}
                     live={isNow}
                     timeLabel={`${dayFmt.format(start)} ${timeFmt.format(start)} – ${timeFmt.format(new Date(entry.end))}`}
                     tag={entry.tag}
@@ -351,7 +357,7 @@ export default function FTNPlusRadioPage() {
               <div className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-brand/10 blur-3xl" />
               <div className="relative space-y-2 max-w-2xl">
                 <div className="ftn-title text-xl flex items-center gap-2">
-                  <IconBrandDiscord className="h-6 w-6 text-brand" /> Take FTN Radio to your Discord
+                  <IconBrandDiscord className="h-6 w-6 text-brand-text" /> Take FTN Radio to your Discord
                 </div>
                 <p className="text-sm text-ftn-text-2 leading-relaxed text-pretty">
                   Invite the radio bot to your server, then run the setup command from the voice channel you are in.
@@ -382,7 +388,6 @@ function ShowCard({
   title,
   presenter,
   artUrl,
-  badge,
   live,
   timeLabel,
   tag,
@@ -390,16 +395,15 @@ function ShowCard({
   title: string;
   presenter: string;
   artUrl: string | null;
-  badge?: string;
   live?: boolean;
   timeLabel?: string;
   tag?: string;
 }) {
   return (
-    <MediaCard shape="square" art={artUrl} title={title} badge={badge} badgeLive={live} className="w-44 sm:w-48 md:w-52">
-      <p className="text-xs text-ftn-text-3 truncate">with {presenter}</p>
+    <MediaCard shape="square" art={artUrl} title={title} live={live} liveLabel="On air" className="w-44 sm:w-48 md:w-52">
+      <p>with {presenter}</p>
       {timeLabel && (
-        <p className="text-xs ftn-mono text-brand leading-snug pt-1">
+        <p className="ftn-mono">
           {timeLabel}
           {tag && tag !== "live" ? ` · ${tag}` : ""}
         </p>

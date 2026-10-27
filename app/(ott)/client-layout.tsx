@@ -1,7 +1,7 @@
 "use client";
 import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
-import { Sidebar, SidebarBody, SidebarLink } from "@/components/ui/sidebar";
+import { FtnNav, type NavLink } from "@/components/ftn/nav";
 import { OTTLoader } from "@/components/ott/ott-loader";
 import { Button } from "@/components/ftn/ui";
 import {
@@ -11,7 +11,6 @@ import {
   IconCalendar,
   IconRadio,
   IconTrophy,
-  IconArrowLeft,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -35,11 +34,26 @@ export default function OTTClientLayout({
 
 function OTTShell({ children }: { children: React.ReactNode }) {
   const { loadingLibrary } = useFTNPlus();
-  const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const pathname = usePathname();
   const { webradioEnabled, ftnPlusAccess } = useSiteConfig();
+
+  // Dark is the default; the viewer's choice is remembered on this device.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("ftnplus_theme") === "light") setTheme("light");
+    } catch {}
+  }, []);
+  const toggleTheme = () =>
+    setTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      try {
+        localStorage.setItem("ftnplus_theme", next);
+      } catch {}
+      return next;
+    });
 
   // Favicon synchronization (page titles come from each route's metadata)
   useEffect(() => {
@@ -73,58 +87,26 @@ function OTTShell({ children }: { children: React.ReactNode }) {
 
   }, []);
 
-  const links = [
+  const isActive = (href: string) => (href === "/plus" ? pathname === "/plus" : href !== "#" && pathname.startsWith(href));
+  const icon = "h-[18px] w-[18px] flex-shrink-0";
+  const links: NavLink[] = [
+    { label: "Home", href: "/plus", icon: <IconHome className={icon} />, active: isActive("/plus") },
+    { label: "Library", href: "/plus/library", icon: <IconVideo className={icon} />, active: isActive("/plus/library") },
+    { label: "Schedule", href: "/plus/schedule", icon: <IconCalendar className={icon} />, active: isActive("/plus/schedule") },
     {
-      label: "Home",
-      href: "/plus",
-      icon: (
-        <IconHome className="h-5 w-5 flex-shrink-0" />
-      ),
+      label: "Webradio",
+      href: webradioEnabled ? "/plus/radio" : "#",
+      icon: <IconRadio className={icon} />,
+      active: webradioEnabled && isActive("/plus/radio"),
+      disabled: !webradioEnabled,
     },
-    {
-      label: "Library",
-      href: "/plus/library",
-      icon: (
-        <IconVideo className="h-5 w-5 flex-shrink-0" />
-      ),
-    },
-    {
-      label: "Schedule",
-      href: "/plus/schedule",
-      icon: (
-        <IconCalendar className="h-5 w-5 flex-shrink-0" />
-      ),
-    },
-    webradioEnabled
-      ? {
-          label: "Webradio",
-          href: "/plus/radio",
-          icon: (
-            <IconRadio className="h-5 w-5 flex-shrink-0" />
-          ),
-        }
-      : {
-          label: "Webradio",
-          href: "#",
-          icon: (
-            <IconRadio className="h-5 w-5 flex-shrink-0 opacity-50 cursor-not-allowed" />
-          ),
-        },
-    {
-      label: "Sports",
-      href: "/plus/sports",
-      icon: (
-        <IconTrophy className="h-5 w-5 flex-shrink-0" />
-      ),
-    },
-    {
-      label: "Saved",
-      href: "/plus/watchlist",
-      icon: (
-        <IconBookmark className="h-5 w-5 flex-shrink-0" />
-      ),
-    },
+    { label: "Sports", href: "/plus/sports", icon: <IconTrophy className={icon} />, active: isActive("/plus/sports") },
+    { label: "Saved", href: "/plus/watchlist", icon: <IconBookmark className={icon} />, active: isActive("/plus/watchlist"), iconOnly: true },
   ];
+
+  // The player is always dark and has its own back button, so it gets no nav and ignores the theme.
+  const onPlayer = pathname.startsWith("/plus/watch");
+  const shownTheme = onPlayer ? "dark" : theme;
 
   const gated = ftnPlusAccess === "members_only" && !currentUser;
   const splash = <OTTLoader ready={!loadingSession && (gated || !loadingLibrary)} />;
@@ -161,80 +143,17 @@ function OTTShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <>
-      <div
-        className={cn(
-          "dark flex flex-col md:flex-row bg-neutral-900 text-white w-full flex-1 overflow-hidden h-screen ott-scroll no-scrollbar"
-        )}
-      >
-        {/* Session Entry Loader */}
-        {splash}
-
-        <Sidebar open={open} setOpen={setOpen}>
-          <SidebarBody className="justify-between gap-10">
-            <div className="flex flex-col flex-1 -mx-4 px-4 overflow-y-auto overflow-x-hidden no-scrollbar">
-              {open ? <Logo /> : <LogoIcon />}
-              <div className="mt-8 flex flex-col gap-2">
-                {links.map((link, idx) => (
-                  <SidebarLink
-                    key={idx}
-                    link={{ ...link, active: link.href === "/plus" ? pathname === "/plus" : link.href !== "#" && pathname.startsWith(link.href) }}
-                  />
-                ))}
-              </div>
-            </div>
-            <div className="pt-2 border-t border-neutral-800/60">
-              <SidebarLink
-                link={{
-                  label: "Exit to FTN Main",
-                  href: "/",
-                  // Full load: a soft transition into the heavy public home page
-                  // can stall behind its server render and look like a dead button.
-                  hardNavigate: true,
-                  icon: (
-                    <IconArrowLeft className="h-5 w-5 flex-shrink-0" />
-                  ),
-                }}
-              />
-            </div>
-          </SidebarBody>
-        </Sidebar>
-        <div className="flex flex-1 min-w-0 min-h-0 bg-neutral-900">
-          <div className="rounded-tl-2xl border-l border-t border-ftn-line bg-ftn-bg flex flex-col flex-1 w-full h-full overflow-y-auto overflow-x-hidden no-scrollbar">
-            {children}
-          </div>
-        </div>
-      </div>
-    </>
+    <div
+      data-ftn-theme={shownTheme}
+      className={cn(
+        shownTheme === "dark" && "dark",
+        "bg-ftn-bg text-ftn-text w-full h-screen overflow-y-auto overflow-x-hidden ott-scroll no-scrollbar"
+      )}
+    >
+      {/* Session Entry Loader */}
+      {splash}
+      {!onPlayer && <FtnNav links={links} theme={theme} onToggleTheme={toggleTheme} />}
+      {children}
+    </div>
   );
 }
-
-export const Logo = () => {
-  return (
-    <Link
-      href="/plus"
-      className="font-normal flex space-x-2 items-center text-sm text-white py-1 relative z-20 select-none"
-    >
-      <img
-        src="/logos/ftnplus_textwhite_transparent.png"
-        alt="FTN+"
-        className="h-6 w-auto object-contain flex-shrink-0"
-      />
-    </Link>
-  );
-};
-
-export const LogoIcon = () => {
-  return (
-    <Link
-      href="/plus"
-      className="font-normal flex space-x-2 items-center text-sm text-white py-1 relative z-20 select-none"
-    >
-      <img
-        src="/logos/ftnplus_favicon.png"
-        alt="FTN+"
-        className="h-6 w-6 object-contain flex-shrink-0"
-      />
-    </Link>
-  );
-};

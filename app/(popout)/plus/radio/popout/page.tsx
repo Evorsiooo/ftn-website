@@ -3,7 +3,7 @@ export const runtime = "edge";
 import React, { useEffect, useState } from "react";
 import { IconLoader2, IconPlayerPause, IconPlayerPlay, IconVolume } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
-import { Button, Tag } from "@/components/ftn/ui";
+import { Button } from "@/components/ftn/ui";
 import { ArtTile } from "@/components/ftn/media";
 import { Crossfade } from "@/components/radio/crossfade";
 import { COUNTDOWN_MS, useRadioPlayer } from "@/components/radio/use-radio-player";
@@ -81,7 +81,7 @@ export default function RadioPopoutPage() {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/60 to-ftn-bg/30" />
 
       <div className="relative z-10 flex min-h-full flex-1 flex-col items-center justify-center gap-3 p-4 sm:gap-4 sm:p-5">
-        {info && !info.online && <Tag>Offline</Tag>}
+        {info && !info.online && <span className="text-xs font-semibold text-ftn-text-3">Offline</span>}
 
         {/* Art scales with the window (width and height) and never disappears. */}
         <div

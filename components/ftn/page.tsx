@@ -6,17 +6,17 @@ import { GUTTER } from "./ui";
 
 /** Root of every FTN+ page: surface, enter animation, bottom space. */
 export function PageShell({ className, children }: { className?: string; children?: React.ReactNode }) {
-  return <div className={cn("ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text pb-20", className)}>{children}</div>;
+  return <div className={cn("ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text pb-32 md:pb-20", className)}>{children}</div>;
 }
 
-/** Standard page opening: eyebrow, display title, subtitle, actions, soft brand glow. */
+/** Standard page opening: display title, subtitle, actions. Clears the floating nav. */
 export function PageHeader({
   eyebrow,
   title,
   subtitle,
   actions,
   back,
-  glow = true,
+  flush,
   className,
 }: {
   eyebrow?: React.ReactNode;
@@ -24,17 +24,16 @@ export function PageHeader({
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;
   back?: React.ReactNode;
-  /** Soft brand glow behind the header; off when the header sits under a hero. */
-  glow?: boolean;
+  /** The header sits directly under a hero, so it needs no room for the floating nav. */
+  flush?: boolean;
   className?: string;
 }) {
   return (
-    <header className={cn("relative overflow-hidden", className)}>
-      {glow && <div className="pointer-events-none absolute -top-32 right-0 h-80 w-[40rem] max-w-full rounded-full bg-brand/10 blur-3xl" />}
-      <div className={cn("relative pt-14 md:pt-16 pb-8 space-y-3", GUTTER)}>
+    <header className={cn("relative", className)}>
+      <div className={cn("relative pb-8 space-y-3", flush ? "pt-2" : "pt-16 md:pt-32", GUTTER)}>
         {back}
         {/* A bare "FTN+" label says nothing the user doesn't know, so it is never shown. */}
-        {eyebrow && eyebrow !== "FTN+" && <div className="ftn-eyebrow text-brand flex items-center gap-2">{eyebrow}</div>}
+        {eyebrow && eyebrow !== "FTN+" && <div className="text-sm font-semibold text-ftn-text-3 flex items-center gap-2">{eyebrow}</div>}
         <h1 className="ftn-display text-4xl sm:text-5xl md:text-6xl text-ftn-text">{title}</h1>
         {subtitle && <p className="text-sm sm:text-base text-ftn-text-2 max-w-2xl">{subtitle}</p>}
         {actions && <div className="flex flex-wrap items-center gap-3 pt-2">{actions}</div>}

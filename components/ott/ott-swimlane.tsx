@@ -34,8 +34,7 @@ export function OTTSwimlane({
             href={`/plus/watch/${video.id}`}
             art={video.thumbnailUrl}
             title={video.title}
-            badge={video.isLive ? "LIVE" : undefined}
-            badgeLive
+            live={video.isLive}
             showPlay
             className="w-64 sm:w-72 md:w-80"
             lead={

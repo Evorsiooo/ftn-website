@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { IconRadio, IconBroadcast, IconPlayerPlay, IconHeadphones } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { PageShell, PageHeader } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, LivePill, Segmented, Skeleton, Tag } from "@/components/ftn/ui";
+import { Button, EmptyState, GUTTER, LiveLabel, Segmented, Skeleton } from "@/components/ftn/ui";
 import { ArtTile } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
 import { addDays, fmtRange, fmtTime, localZone, youtubeThumb } from "@/lib/schedule-client";
@@ -40,7 +40,7 @@ function thumb(e: Entry): string | null {
   return e.artUrl || (e.onStream && e.youtubeId ? youtubeThumb(e.youtubeId) : null);
 }
 
-function Actions({ entry, radioEnabled }: { entry: Entry; radioEnabled: boolean }) {
+function Actions({ entry, radioEnabled, onArt }: { entry: Entry; radioEnabled: boolean; onArt?: boolean }) {
   return (
     <div className="flex flex-wrap gap-2">
       {entry.onStream && entry.youtubeId && (
@@ -49,7 +49,7 @@ function Actions({ entry, radioEnabled }: { entry: Entry; radioEnabled: boolean 
         </Button>
       )}
       {entry.onRadio && radioEnabled && (
-        <Button href="/plus/radio" size="sm" variant="ghost">
+        <Button href="/plus/radio" size="sm" variant={onArt ? "glass" : "ghost"}>
           <IconHeadphones className="h-3.5 w-3.5" /> Listen
         </Button>
       )}
@@ -120,7 +120,7 @@ export default function FTNPlusSchedulePage() {
   }, [days, visible]);
 
   const dayChips = (
-    <div className={cn("flex gap-2 overflow-x-auto pb-2 no-scrollbar", GUTTER)}>
+    <div className={cn("flex gap-2.5 overflow-x-auto py-2 no-scrollbar", GUTTER)}>
       {days.map((d, i) => (
         <button
           key={d.getTime()}
@@ -128,13 +128,13 @@ export default function FTNPlusSchedulePage() {
           onClick={() => setDayIndex(i)}
           aria-pressed={i === dayIndex}
           className={cn(
-            "flex-shrink-0 w-[4.25rem] rounded-2xl border py-2.5 text-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+            "flex-shrink-0 w-[4.5rem] rounded-3xl border py-3 text-center transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
             i === dayIndex
-              ? "bg-brand text-brand-ink border-brand"
+              ? "bg-brand text-brand-ink border-brand ftn-shadow"
               : "bg-ftn-surface border-ftn-line text-ftn-text-2 hover:border-ftn-line-strong"
           )}
         >
-          <div className="ftn-eyebrow opacity-80">{i === 0 ? "Today" : dayName.format(d)}</div>
+          <div className="text-xs font-semibold">{i === 0 ? "Today" : dayName.format(d)}</div>
           <div className="ftn-display text-2xl pt-1">{d.getDate()}</div>
           <div
             className={cn(
@@ -155,21 +155,26 @@ export default function FTNPlusSchedulePage() {
       />
 
       {onNow.length > 0 && (
-        <div className={cn("pb-8 space-y-3", GUTTER)}>
-          <LivePill>On now</LivePill>
-          <div className="grid gap-3 md:grid-cols-2">
+        <div className={cn("pb-8 space-y-4", GUTTER)}>
+          <h2 className="ftn-title text-2xl">On now</h2>
+          <div className="grid gap-4 md:grid-cols-2">
             {onNow.map((e) => (
-              <div
-                key={e.id}
-                className="flex items-center gap-4 rounded-2xl border border-live/35 bg-gradient-to-r from-live/10 to-ftn-surface p-4"
-              >
-                <ArtTile src={thumb(e)} className="h-16 w-16 flex-shrink-0 rounded-xl" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <div className="ftn-title text-base truncate">{e.title}</div>
-                    <MediumIcons entry={e} />
+              <div key={e.id} className="relative overflow-hidden rounded-3xl ftn-shadow min-h-44 flex items-end text-white">
+                <ArtTile src={thumb(e)} className="absolute inset-0" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
+                <div className="relative z-10 w-full flex items-end justify-between gap-4 p-5">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <div className="ftn-title text-xl truncate">{e.title}</div>
+                      <span className="text-white/70">
+                        <MediumIcons entry={e} />
+                      </span>
+                    </div>
+                    <div className="text-sm text-white/75">
+                      {e.presenter ? `with ${e.presenter} · ` : ""}until {fmtTime(new Date(e.end))}
+                    </div>
                   </div>
-                  <Actions entry={e} radioEnabled={webradioEnabled} />
+                  <Actions entry={e} radioEnabled={webradioEnabled} onArt />
                 </div>
               </div>
             ))}
@@ -198,7 +203,7 @@ export default function FTNPlusSchedulePage() {
       {dayChips}
 
       <div className={cn("pt-4 space-y-3", GUTTER)}>
-        <h2 className="ftn-title text-xl">{dayLong.format(day)}</h2>
+        <h2 className="ftn-title text-2xl">{dayLong.format(day)}</h2>
         {entries === null ? (
           <div className="space-y-3" aria-hidden>
             {Array.from({ length: 3 }).map((_, i) => (
@@ -208,40 +213,52 @@ export default function FTNPlusSchedulePage() {
         ) : dayEntries.length === 0 ? (
           <EmptyState icon={<IconBroadcast />} title="Nothing scheduled" description="Nothing is on the schedule for this day." />
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-ftn-line bg-ftn-surface">
-            {dayEntries.map((e) => {
+          <div className="space-y-3">
+            {dayEntries.map((e, idx) => {
               const start = new Date(e.start);
               const end = new Date(e.end);
               const live = e.status !== "cancelled" && start.getTime() <= now && end.getTime() > now;
               const past = end.getTime() <= now;
               const cancelled = e.status === "cancelled";
+              const prev = dayEntries[idx - 1];
+              // A "now" marker between what has finished and what is still to come.
+              const showNow = dayIndex === 0 && !past && !live && idx > 0 && prev && new Date(prev.end).getTime() <= now;
+              const note = [e.presenter ? `with ${e.presenter}` : null, e.tag === "rebroadcast" ? "Rebroadcast" : e.tag === "simulcast" ? "Simulcast" : null]
+                .filter(Boolean)
+                .join(" · ");
               return (
-                <div
-                  key={e.id}
-                  className={cn(
-                    "flex gap-4 p-4 border-t border-ftn-line first:border-t-0",
-                    live && "bg-gradient-to-r from-live/10 to-transparent",
-                    (past || cancelled) && "opacity-60"
-                  )}
-                >
-                  <div className="w-20 sm:w-24 flex-shrink-0 ftn-mono text-sm font-medium leading-tight whitespace-nowrap">
-                    {fmtTime(start)}
-                    <div className="text-xs text-ftn-text-3">until {fmtTime(end)}</div>
-                  </div>
-                  <ArtTile src={thumb(e)} className="hidden sm:block h-14 w-14 flex-shrink-0 rounded-xl" />
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className={cn("ftn-title text-base", cancelled && "line-through")}>{e.title}</div>
-                      {live && <LivePill>Live</LivePill>}
-                      {cancelled && <Tag>Cancelled</Tag>}
-                      {e.tag !== "live" && !cancelled && <Tag>{e.tag}</Tag>}
-                      <MediumIcons entry={e} />
+                <React.Fragment key={e.id}>
+                  {showNow && (
+                    <div className="flex items-center gap-3 py-1 text-live-ink text-xs font-bold" aria-label="Current time">
+                      {fmtTime(new Date(now))} now
+                      <span className="h-0.5 flex-1 bg-live/50" />
                     </div>
-                    {e.presenter && <div className="text-xs text-ftn-text-2">with {e.presenter}</div>}
-                    {e.description && <div className="text-xs text-ftn-text-3 line-clamp-2">{e.description}</div>}
-                    {!past && !cancelled && <Actions entry={e} radioEnabled={webradioEnabled} />}
+                  )}
+                  <div
+                    className={cn(
+                      "flex items-center gap-4 sm:gap-5 p-3 pr-4 sm:pr-5 rounded-3xl border border-ftn-line bg-ftn-surface ftn-shadow",
+                      live && "ring-2 ring-live",
+                      (past || cancelled) && "opacity-55"
+                    )}
+                  >
+                    <div className="w-16 sm:w-20 flex-shrink-0 text-center ftn-display text-lg leading-tight">
+                      {fmtTime(start)}
+                      <div className="ftn-mono text-xs font-medium text-ftn-text-3 pt-0.5 tracking-normal">{fmtTime(end)}</div>
+                    </div>
+                    <ArtTile src={thumb(e)} className="hidden sm:block aspect-video w-44 flex-shrink-0 rounded-2xl" />
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <div className={cn("ftn-title text-lg", cancelled && "line-through")}>{e.title}</div>
+                        {live && <LiveLabel />}
+                        {cancelled && <span className="text-xs font-semibold text-ftn-text-3">Cancelled</span>}
+                        <MediumIcons entry={e} />
+                      </div>
+                      {note && <div className="text-sm text-ftn-text-2">{note}</div>}
+                      {e.description && <div className="text-xs text-ftn-text-3 line-clamp-2">{e.description}</div>}
+                      {!past && !cancelled && <Actions entry={e} radioEnabled={webradioEnabled} />}
+                    </div>
                   </div>
-                </div>
+                </React.Fragment>
               );
             })}
           </div>

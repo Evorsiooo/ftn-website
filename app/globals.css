@@ -8,21 +8,25 @@
     --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-    --font-display: var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    --font-display: var(--font-manrope), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
     --color-brand: #ffbb14;
     --color-brand-hover: #e5a710;
     --color-brand-ink: #1a1100;
-    --color-live: #ff4d3d;
-    --color-live-ink: #ff8a7d;
-    --color-sports: #6aa7ff;
-    --color-ftn-bg: #0b0a09;
-    --color-ftn-surface: #151311;
-    --color-ftn-surface-2: #1d1a17;
-    --color-ftn-line: rgb(255 240 220 / 0.08);
-    --color-ftn-line-strong: rgb(255 240 220 / 0.16);
-    --color-ftn-text: #f6f1ea;
-    --color-ftn-text-2: #b4aca2;
-    --color-ftn-text-3: #8a8379;
+    --color-brand-text: var(--ftn-brand-text);
+    --color-live: var(--ftn-live);
+    --color-live-ink: var(--ftn-live-ink);
+    --color-sports: var(--ftn-sports);
+    --color-ftn-bg: var(--ftn-bg);
+    --color-ftn-surface: var(--ftn-surface);
+    --color-ftn-surface-2: var(--ftn-surface-2);
+    --color-ftn-line: var(--ftn-line);
+    --color-ftn-line-strong: var(--ftn-line-strong);
+    --color-ftn-text: var(--ftn-text);
+    --color-ftn-text-2: var(--ftn-text-2);
+    --color-ftn-text-3: var(--ftn-text-3);
+    --color-ftn-glass: var(--ftn-glass);
+    --color-ftn-night: #0b0f1a;
+    --color-ftn-slate: #2a2f3c;
     --text-eyebrow: 0.6875rem;
     --text-caption: 0.75rem;
     --color-sidebar-ring: var(--sidebar-ring);
@@ -84,6 +88,41 @@
         background-position: -200% 0;
       }
     }
+}
+
+/* FTN+ (Studio) palette. Dark is the default; light applies under data-ftn-theme="light" on the OTT shell. */
+:root,
+[data-ftn-theme="dark"] {
+  --ftn-bg: #07080b;
+  --ftn-surface: #12141a;
+  --ftn-surface-2: #1b1e26;
+  --ftn-line: rgb(255 255 255 / 0.1);
+  --ftn-line-strong: rgb(255 255 255 / 0.2);
+  --ftn-text: #f5f6f8;
+  --ftn-text-2: #aab0bc;
+  --ftn-text-3: #8b92a0;
+  --ftn-glass: rgb(24 26 33 / 0.62);
+  --ftn-brand-text: #ffbb14;
+  --ftn-live: #ff5a4d;
+  --ftn-live-ink: #ff8f85;
+  --ftn-sports: #6aa7ff;
+  --ftn-shadow: 0 14px 40px -14px rgb(0 0 0 / 0.9);
+}
+[data-ftn-theme="light"] {
+  --ftn-bg: #eef0f3;
+  --ftn-surface: #ffffff;
+  --ftn-surface-2: #e4e7ec;
+  --ftn-line: rgb(11 16 23 / 0.1);
+  --ftn-line-strong: rgb(11 16 23 / 0.2);
+  --ftn-text: #0b1017;
+  --ftn-text-2: #435062;
+  --ftn-text-3: #5b6677;
+  --ftn-glass: rgb(255 255 255 / 0.72);
+  --ftn-brand-text: #8a5700;
+  --ftn-live: #d92d20;
+  --ftn-live-ink: #b42318;
+  --ftn-sports: #1d5fd1;
+  --ftn-shadow: 0 10px 30px -12px rgb(20 30 50 / 0.3);
 }
 
 :root {
@@ -381,8 +420,11 @@
 @utility ftn-display {
   font-family: var(--font-display);
   font-weight: 800;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.04em;
   line-height: 1;
+}
+@utility ftn-shadow {
+  box-shadow: var(--ftn-shadow);
 }
 @utility ftn-title {
   font-family: var(--font-display);

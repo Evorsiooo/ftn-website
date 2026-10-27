@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { IconArrowLeft, IconChevronDown, IconPlayerPlay } from "@tabler/icons-react";
 import { PageShell, PageHeader } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, Segmented, Skeleton, Tag } from "@/components/ftn/ui";
+import { Button, EmptyState, GUTTER, Segmented, Skeleton } from "@/components/ftn/ui";
 import { cn } from "@/lib/utils";
 import {
   Avatar,
@@ -170,7 +170,7 @@ interface Shared {
   now: number;
 }
 
-const card = "rounded-2xl border border-ftn-line bg-ftn-surface";
+const card = "rounded-3xl border border-ftn-line bg-ftn-surface ftn-shadow";
 const th = "px-3 py-3 ftn-eyebrow text-ftn-text-3 text-right first:text-left";
 const td = "px-3 py-3 text-sm text-right first:text-left";
 
@@ -206,8 +206,8 @@ function DriverName({ d, s, size = 30 }: { d?: SportsDriver; s: Shared; size?: n
 function ReportLink({ event, s }: { event: SportsEvent; s: Shared }) {
   const a = event.articleId ? s.articles.get(event.articleId) : undefined;
   return a ? (
-    <Link href={`/articles/${a.slug}`} className="inline-flex">
-      <Tag tone="brand">Report</Tag>
+    <Link href={`/articles/${a.slug}`} className="inline-flex text-sm font-semibold text-brand-text hover:underline">
+      Read the report
     </Link>
   ) : null;
 }
@@ -220,7 +220,7 @@ function Form({ finishes }: { finishes: (number | null)[] }) {
           key={i}
           className={cn(
             "h-6 w-6 rounded-md inline-flex items-center justify-center ftn-mono text-xs not-italic",
-            f === 1 ? "bg-brand text-brand-ink" : f !== null && f <= 3 ? "bg-brand/15 text-brand" : "bg-ftn-surface-2 text-ftn-text-2"
+            f === 1 ? "bg-brand text-brand-ink" : f !== null && f <= 3 ? "bg-brand/15 text-brand-text" : "bg-ftn-surface-2 text-ftn-text-2"
           )}
         >
           {f ?? "–"}
@@ -260,7 +260,7 @@ function Podium({ event, s, count = 3 }: { event: SportsEvent; s: Shared; count?
         const team = d?.teamId ? s.teams.get(d.teamId) : undefined;
         return (
           <li key={r.driverId} className="flex items-center gap-3">
-            <span className={cn("w-4 ftn-mono text-sm", r.position === 1 ? "text-brand" : "text-ftn-text-3")}>{r.position}</span>
+            <span className={cn("w-4 ftn-mono text-sm", r.position === 1 ? "text-brand-text" : "text-ftn-text-3")}>{r.position}</span>
             <Avatar name={d?.name ?? "?"} src={headshotFor(d, s.headshots)} color={team?.color} size={28} />
             <span className={cn("truncate", r.position === 1 ? "font-bold text-ftn-text" : "text-ftn-text")}>{d?.name ?? "Unknown"}</span>
             <span className="ml-auto text-xs text-ftn-text-3 truncate">{team?.name}</span>
@@ -310,7 +310,7 @@ function Overview(props: Shared & { upcoming: SportsEvent[]; finals: SportsEvent
                   {fmtDay(next.startsAt)} · {fmtTime(next.startsAt)}
                   {venueName(next, venues) ? ` · ${venueName(next, venues)}` : ""} · {countdown(next.startsAt, now)}
                 </p>
-                {broadcastLabel(next.id, props.broadcasts) && <Tag tone="brand">{broadcastLabel(next.id, props.broadcasts)}</Tag>}
+                {broadcastLabel(next.id, props.broadcasts) && <p className="text-sm text-ftn-text-2">{broadcastLabel(next.id, props.broadcasts)}</p>}
               </div>
             </>
           ) : (
@@ -377,9 +377,9 @@ function Calendar(s: Shared) {
               </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              {b && <Tag tone="brand">{b}</Tag>}
+              {b && <span className="hidden sm:inline text-xs text-ftn-text-3">{b}</span>}
               <ReportLink event={e} s={s} />
-              <Tag>{e.status === "final" ? "Final" : e.status === "scheduled" ? (next?.id === e.id ? "Next" : "Scheduled") : e.status}</Tag>
+              {e.status !== "final" && e.status !== "scheduled" && <span className="text-xs font-semibold text-ftn-text-3 capitalize">{e.status}</span>}
             </div>
           </div>
         );
@@ -673,8 +673,8 @@ function Roster(s: Shared & { finals: SportsEvent[]; leagueTeams: SportsTeam[]; 
                       {team?.name ?? "Independent"}
                     </div>
                     {w > 0 && (
-                      <div className="mt-1.5">
-                        <Tag>{w} {w === 1 ? "win" : "wins"}</Tag>
+                      <div className="mt-1 text-xs font-semibold text-brand-text">
+                        {w} {w === 1 ? "win" : "wins"}
                       </div>
                     )}
                   </div>

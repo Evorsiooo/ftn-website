@@ -6,15 +6,17 @@ import { cn } from "@/lib/utils";
 // Shared page gutter: every FTN+ page and lane aligns to this.
 export const GUTTER = "px-5 md:px-12";
 
-type ButtonVariant = "primary" | "secondary" | "ghost";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "glass";
 type ButtonSize = "sm" | "md" | "lg";
 
 const buttonBase =
   "inline-flex items-center justify-center gap-2 rounded-full font-bold whitespace-nowrap transition duration-200 cursor-pointer select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]";
 const buttonVariants: Record<ButtonVariant, string> = {
   primary: "bg-brand text-brand-ink hover:bg-brand-hover",
-  secondary: "bg-ftn-surface-2 text-ftn-text border border-ftn-line-strong hover:bg-white/10",
-  ghost: "bg-transparent text-ftn-text border border-ftn-line-strong hover:bg-white/5",
+  secondary: "bg-ftn-surface-2 text-ftn-text border border-ftn-line-strong hover:bg-ftn-text/10",
+  ghost: "bg-transparent text-ftn-text border border-ftn-line-strong hover:bg-ftn-text/5",
+  /** For use on top of artwork: stays white-on-dark in both themes. */
+  glass: "bg-white/15 text-white border border-white/25 backdrop-blur-md hover:bg-white/25",
 };
 const buttonSizes: Record<ButtonSize, string> = {
   sm: "h-9 px-4 text-xs",
@@ -67,7 +69,7 @@ export function Button({ variant, size = "md", icon, href, external, hard, class
   );
 }
 
-/** Toggle chip, one active style everywhere (filters, tabs, days). */
+/** Filter control (library filters, days). One active style everywhere. */
 export function Chip({
   active,
   className,
@@ -79,9 +81,9 @@ export function Chip({
       type="button"
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center h-9 px-4 rounded-full text-xs font-semibold border transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+        "inline-flex items-center h-10 px-5 rounded-full text-sm font-semibold border transition cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
         active
-          ? "bg-ftn-surface-2 text-ftn-text border-ftn-line-strong shadow-[inset_0_0_0_1px_var(--color-ftn-line-strong)]"
+          ? "bg-ftn-text text-ftn-bg border-transparent"
           : "bg-ftn-surface text-ftn-text-2 border-ftn-line hover:text-ftn-text hover:border-ftn-line-strong",
         className
       )}
@@ -92,7 +94,7 @@ export function Chip({
   );
 }
 
-/** Pill-shaped segmented control built from chips. */
+/** Pill-shaped segmented control. */
 export function Segmented<T extends string>({
   value,
   onChange,
@@ -113,10 +115,8 @@ export function Segmented<T extends string>({
           aria-pressed={value === o.id}
           onClick={() => onChange(o.id)}
           className={cn(
-            "h-8 px-4 rounded-full text-xs font-semibold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-brand",
-            value === o.id
-              ? "bg-ftn-surface-2 text-ftn-text shadow-[inset_0_0_0_1px_var(--color-ftn-line-strong)]"
-              : "text-ftn-text-2 hover:text-ftn-text"
+            "h-9 px-5 rounded-full text-sm font-semibold transition cursor-pointer focus-visible:outline-2 focus-visible:outline-brand",
+            value === o.id ? "bg-ftn-text text-ftn-bg" : "text-ftn-text-2 hover:text-ftn-text"
           )}
         >
           {o.label}
@@ -126,52 +126,39 @@ export function Segmented<T extends string>({
   );
 }
 
-const pill =
-  "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full text-[length:var(--text-eyebrow)] font-bold tracking-wide whitespace-nowrap border";
-
-/** Red pulsing LIVE / ON AIR pill. */
-export function LivePill({ children = "LIVE", className }: { children?: React.ReactNode; className?: string }) {
+/**
+ * Red LIVE badge for artwork. It is the one badge kept on cards, because a lane of
+ * thumbnails gives no other cue for which item is live. Do not add other badges.
+ */
+export function LivePill({ children = "Live", className }: { children?: React.ReactNode; className?: string }) {
   return (
-    <span className={cn(pill, "uppercase bg-live/15 text-live-ink border-live/40", className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 h-6 px-2.5 rounded-full bg-live text-white text-[length:var(--text-eyebrow)] font-bold uppercase tracking-wide whitespace-nowrap",
+        className
+      )}
+    >
+      <span className="ftn-live-dot h-1.5 w-1.5 rounded-full bg-white animate-[ftn-pulse-dot_2s_ease-in-out_infinite]" />
+      {children}
+    </span>
+  );
+}
+
+/** Inline "Live" marker for rows and headings: a dot and plain text, not a chip. */
+export function LiveLabel({ children = "Live", className }: { children?: React.ReactNode; className?: string }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-live-ink", className)}>
       <span className="ftn-live-dot h-1.5 w-1.5 rounded-full bg-live animate-[ftn-pulse-dot_2s_ease-in-out_infinite]" />
       {children}
     </span>
   );
 }
 
-/** Neutral tag (Up next, Rebroadcast, Cancelled, Final…). */
-export function Tag({
-  tone = "neutral",
-  className,
-  children,
-}: {
-  tone?: "neutral" | "brand";
-  className?: string;
-  children: React.ReactNode;
-}) {
+/** LIVE badge positioned over artwork. */
+export function ArtBadge({ children }: { children?: React.ReactNode }) {
   return (
-    <span
-      className={cn(
-        pill,
-        "uppercase",
-        tone === "brand" ? "bg-brand/15 text-brand border-brand/30" : "bg-ftn-surface-2 text-ftn-text-2 border-ftn-line",
-        className
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-/** Tag that sits on top of artwork and stays legible on any image. */
-export function ArtBadge({ children, live }: { children: React.ReactNode; live?: boolean }) {
-  return (
-    <div className="absolute top-2.5 left-2.5 z-10">
-      {live ? (
-        <LivePill className="bg-black/80 backdrop-blur-sm">{children}</LivePill>
-      ) : (
-        <Tag className="bg-black/80 text-white border-white/10 backdrop-blur-sm">{children}</Tag>
-      )}
+    <div className="absolute top-3 left-3 z-10">
+      <LivePill>{children ?? "Live"}</LivePill>
     </div>
   );
 }
