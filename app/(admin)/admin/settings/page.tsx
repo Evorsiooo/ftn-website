@@ -2,13 +2,15 @@
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { SETTINGS_PAGES } from "@/components/gs/admin-nav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
-import { AdminRow, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
+import { AdminPageHeader } from "@/components/gs/admin-header";
+import { AdminRow, AdminSaveBar, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { canConfigureSite } from "@/lib/rbac";
 import {
   Radio,
@@ -137,7 +139,8 @@ export default function SiteSettingsPage() {
   const [bannedWordsInput, setBannedWordsInput] = useState("fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy");
 
   // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"general" | "auth" | "moderation" | "plus">("general");
+  const pathname = usePathname();
+  const activeTab: "site" | "radio" | "access" | "moderation" | "plus" = pathname.endsWith("/radio") ? "radio" : pathname.endsWith("/access") ? "access" : pathname.endsWith("/moderation") ? "moderation" : pathname.endsWith("/plus") ? "plus" : "site";
 
   // YouTube Channels & Video Management
   const [youtubeChannels, setYoutubeChannels] = useState<string[]>([]);
@@ -185,9 +188,21 @@ export default function SiteSettingsPage() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [purgingVideos, setPurgingVideos] = useState(false);
 
+  const payloadJson = JSON.stringify({
+    streamUrlInput, statusJsonInput, webradioToggle, allowSignIn, authMode, ftnPlusAccess, tiplineAccess, discordUrl, socialLinks,
+    bannedWordsInput, youtubeChannels, hiddenFeaturedChannels, hiddenTrendingChannels, swimlanes, hiddenVideoIds, autoModEnabled,
+    donationBannerEnabled, autoModThreshold, autoModMuteDuration, radioPublic, radioSecure,
+  });
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  useEffect(() => {
+    if (configLoaded && baseline === null) setBaseline(payloadJson);
+  }, [configLoaded, baseline, payloadJson]);
+  const dirty = baseline !== null && payloadJson !== baseline;
+
   useEffect(() => {
     // 1. Fetch site config
-    fetch("/api/radio/config")
+    const configDone = fetch("/api/radio/config")
       .then((res) => res.json())
       .then((data: any) => {
         if (data) {
@@ -215,13 +230,15 @@ export default function SiteSettingsPage() {
       .catch(() => {});
 
     // 1b. Fetch radio settings (site administrators only)
-    fetch("/api/admin/radio/settings")
+    const radioDone = fetch("/api/admin/radio/settings")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: any) => {
         if (data?.public) setRadioPublic((prev) => ({ ...prev, ...data.public }));
         if (data?.secure) setRadioSecure((prev) => ({ ...prev, ...data.secure }));
       })
       .catch(() => {});
+
+    Promise.all([configDone, radioDone]).then(() => setTimeout(() => setConfigLoaded(true), 0));
 
     // 2. Fetch registered users for moderation dropdown
     fetch("/api/admin/users")
@@ -236,24 +253,7 @@ export default function SiteSettingsPage() {
     // 3. Fetch active moderations
     fetchModerations();
 
-    // 4. Sync initial tab from URL if present
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get("tab");
-      if (tabParam === "general" || tabParam === "auth" || tabParam === "moderation" || tabParam === "plus") {
-        setActiveTab(tabParam);
-      }
-    }
   }, []);
-
-  const handleSelectTab = (tab: "general" | "auth" | "moderation" | "plus") => {
-    setActiveTab(tab);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", tab);
-      window.history.replaceState({}, "", url.toString());
-    }
-  };
 
   const fetchVideosCatalog = async (force = false) => {
     if ((videosLoaded && !force) || loadingVideos) return;
@@ -831,6 +831,7 @@ export default function SiteSettingsPage() {
       });
 
       if (res.ok && radioRes.ok) {
+        setBaseline(payloadJson);
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
       } else {
@@ -876,44 +877,99 @@ export default function SiteSettingsPage() {
     <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
       <div className="mx-auto max-w-5xl space-y-8 text-neutral-900 dark:text-white">
       <AdminPageHeader
-        title="Site settings"
-        description="Configure live audio stream URL and system feeds."
-        actions={
-          <Button onClick={handleSaveAllSettings} disabled={isSavingConfig} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
-            {isSavingConfig ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" /> Saving...
-              </>
-            ) : savedSuccess ? (
-              <>
-                <Check className="h-4 w-4" /> Saved
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4" /> Save all settings
-              </>
-            )}
-          </Button>
-        }
+        title={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.title ?? "Settings"}
+        description={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.description}
       />
 
-      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
-        <AdminTab active={activeTab === "general"} onClick={() => handleSelectTab("general")}>General & Media</AdminTab>
-        <AdminTab active={activeTab === "auth"} onClick={() => handleSelectTab("auth")}>Authentication & Users</AdminTab>
-        <AdminTab active={activeTab === "moderation"} onClick={() => handleSelectTab("moderation")}>Moderation & Safety</AdminTab>
-        <AdminTab active={activeTab === "plus"} onClick={() => handleSelectTab("plus")}>FTN+ Video Network</AdminTab>
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800 lg:hidden">
+        {SETTINGS_PAGES.map((t) => (
+          <Link key={t.href} href={t.href} aria-current={pathname === t.href ? "page" : undefined} className={`shrink-0 border-b-4 px-4 py-3 text-sm font-bold ${pathname === t.href ? "border-brand" : "border-transparent text-neutral-500"}`}>
+            {t.title}
+          </Link>
+        ))}
       </div>
 
-      {/* 1. GENERAL & MEDIA TAB */}
-      {activeTab === "general" && (
+      {activeTab === "site" && (
         <div className="space-y-8">
-          {/* Homepage donation banner */}
           <AdminSection title="Donation banner" description="The &quot;FTN needs your help!&quot; appeal at the top of the homepage.">
             <AdminRow label="Show on homepage" hint={donationBannerEnabled ? "Visitors see the appeal." : "Hidden from visitors."}>
               <AdminSwitch checked={donationBannerEnabled} onChange={setDonationBannerEnabled} label="Show donation banner" />
             </AdminRow>
           </AdminSection>
 
+      {/* 3. Discord & Social Media Links */}
+      <AdminSection title="Links" description="The Discord button in the navbar and the social links in the footer.">
+        
+
+        <div className="space-y-6">
+          {/* Discord Button URL */}
+          <div className="space-y-2">
+            <label className="block text-sm font-semibold">
+              Navbar Discord Button URL
+            </label>
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              The purple Discord button next to FTN+ in the navigation bar links here.
+            </p>
+            <Input
+              value={discordUrl}
+              onChange={(e) => setDiscordUrl(e.target.value)}
+              placeholder="https://discord.gg/ftn"
+              className="font-mono text-xs"
+            />
+          </div>
+
+          {/* Custom Footer Social Links */}
+          <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+            <label className="block text-sm font-semibold">
+              Footer Social Links ({socialLinks.length})
+            </label>
+
+            <form onSubmit={handleAddSocialLink} className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={newSocialName}
+                onChange={(e) => setNewSocialName(e.target.value)}
+                placeholder="Platform Name (e.g. Bluesky / Twitter)"
+                className="text-xs"
+              />
+              <Input
+                value={newSocialUrl}
+                onChange={(e) => setNewSocialUrl(e.target.value)}
+                placeholder="https://..."
+                className="font-mono text-xs"
+              />
+              <Button type="submit" size="sm" className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm">
+                <Plus className="h-3.5 w-3.5" /> Add Link
+              </Button>
+            </form>
+
+            <div className="space-y-2">
+              {socialLinks.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
+                >
+                  <div>
+                    <span className="text-xs font-bold text-neutral-900 dark:text-white mr-2">{link.name}:</span>
+                    <span className="font-mono text-xs text-neutral-600 dark:text-neutral-400">{link.url}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSocialLink(link.id)}
+                    className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </AdminSection>
+    </div>
+  )}
+
+      {activeTab === "radio" && (
+        <div className="space-y-8">
           {/* 1. Webradio Stream Settings */}
           <AdminSection title="Webradio stream" description="Where the live audio and its now-playing data come from.">
         <AdminRow label="Webradio on FTN+" hint={webradioToggle ? "The radio player is live for visitors." : "The radio player is switched off."}>
@@ -1068,79 +1124,11 @@ export default function SiteSettingsPage() {
         
       </AdminSection>
 
-      {/* 3. Discord & Social Media Links */}
-      <AdminSection title="Links" description="The Discord button in the navbar and the social links in the footer.">
-        
-
-        <div className="space-y-6">
-          {/* Discord Button URL */}
-          <div className="space-y-2">
-            <label className="block text-sm font-semibold">
-              Navbar Discord Button URL
-            </label>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              The purple Discord button next to FTN+ in the navigation bar links here.
-            </p>
-            <Input
-              value={discordUrl}
-              onChange={(e) => setDiscordUrl(e.target.value)}
-              placeholder="https://discord.gg/ftn"
-              className="font-mono text-xs"
-            />
-          </div>
-
-          {/* Custom Footer Social Links */}
-          <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-            <label className="block text-sm font-semibold">
-              Footer Social Links ({socialLinks.length})
-            </label>
-
-            <form onSubmit={handleAddSocialLink} className="flex flex-col sm:flex-row gap-2">
-              <Input
-                value={newSocialName}
-                onChange={(e) => setNewSocialName(e.target.value)}
-                placeholder="Platform Name (e.g. Bluesky / Twitter)"
-                className="text-xs"
-              />
-              <Input
-                value={newSocialUrl}
-                onChange={(e) => setNewSocialUrl(e.target.value)}
-                placeholder="https://..."
-                className="font-mono text-xs"
-              />
-              <Button type="submit" size="sm" className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm">
-                <Plus className="h-3.5 w-3.5" /> Add Link
-              </Button>
-            </form>
-
-            <div className="space-y-2">
-              {socialLinks.map((link) => (
-                <div
-                  key={link.id}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
-                >
-                  <div>
-                    <span className="text-xs font-bold text-neutral-900 dark:text-white mr-2">{link.name}:</span>
-                    <span className="font-mono text-xs text-neutral-600 dark:text-neutral-400">{link.url}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveSocialLink(link.id)}
-                    className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </AdminSection>
     </div>
   )}
 
   {/* 2. AUTHENTICATION & ACCESS CONTROL TAB */}
-  {activeTab === "auth" && (
+  {activeTab === "access" && (
     <div className="space-y-8">
       {/* 2. Access Control, Authentication Mode & User Management */}
       <AdminSection title="Sign-in" description="How visitors and staff create accounts and log in.">
@@ -2447,6 +2435,7 @@ export default function SiteSettingsPage() {
       </AdminSection>
     </div>
   )}
+      <AdminSaveBar dirty={dirty} saving={isSavingConfig} saved={savedSuccess} onSave={handleSaveAllSettings} onDiscard={async () => { if (await confirmDialog("Throw away your unsaved changes?")) window.location.reload(); }} />
     </div>
     </AdminAuthGuard>
   );

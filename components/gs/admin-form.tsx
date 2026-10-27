@@ -103,3 +103,37 @@ export function AdminSegmented<T extends string>({
     </div>
   );
 }
+
+/** Sticks to the bottom of the screen while a settings page has unsaved changes. */
+export function AdminSaveBar({
+  dirty,
+  saving,
+  saved,
+  onSave,
+  onDiscard,
+}: {
+  dirty: boolean;
+  saving: boolean;
+  saved: boolean;
+  onSave: (e: React.FormEvent) => void;
+  onDiscard: () => void;
+}) {
+  if (!dirty && !saving && !saved) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[150] flex justify-center px-4">
+      <div className="pointer-events-auto flex items-center gap-4 rounded-full bg-[#16110a] py-2 pl-6 pr-2 text-sm font-semibold text-[#fff8e6] shadow-2xl">
+        <span>{saving ? "Saving…" : dirty ? "You have unsaved changes" : "Saved"}</span>
+        {dirty && !saving && (
+          <>
+            <button type="button" onClick={onDiscard} className="cursor-pointer text-[#fff8e6]/70 hover:text-[#fff8e6]">
+              Discard
+            </button>
+            <button type="button" onClick={onSave} className="h-10 cursor-pointer rounded-full bg-brand px-5 font-bold text-brand-ink hover:bg-brand-hover">
+              Save changes
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
