@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Bricolage_Grotesque, DM_Sans } from "next/font/google";
 import "./globals.css";
-import { Navbar } from "@/components/layout/navbar";
-import { Footer } from "@/components/layout/footer";
 import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
 
@@ -14,6 +12,18 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+const gsDisplay = Bricolage_Grotesque({
+  variable: "--font-gs-display",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const gsBody = DM_Sans({
+  variable: "--font-gs-body",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const viewport: Viewport = {
@@ -68,7 +78,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${gsDisplay.variable} ${gsBody.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
         <ThemeProvider>
           <SiteConfigProvider>
             {children}

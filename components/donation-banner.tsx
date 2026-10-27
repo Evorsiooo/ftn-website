@@ -27,39 +27,30 @@ export function DonationBanner() {
   return (
     <section
       aria-labelledby="donation-banner-title"
-      className="w-full rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none"
+      className="grid gap-8 rounded-[2rem] bg-brand p-7 text-brand-ink sm:p-10 lg:grid-cols-[1fr_1.5fr] lg:gap-10"
     >
-      <div className="flex items-start gap-3 sm:gap-4">
-        <span className="shrink-0 flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFBB14] text-black">
-          <IconHeartHandshake className="h-5 w-5" />
-        </span>
-        <div className="space-y-1">
-          <h2 id="donation-banner-title" className="text-xl sm:text-2xl font-black tracking-tight text-neutral-900 dark:text-white">
-            FTN needs your help!
-          </h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
-            FTN is independent and community-run. If you can, please chip in to keep the news and radio going.
-            Pick whichever option is easiest for you:
-          </p>
-        </div>
+      <div className="space-y-3">
+        <IconHeartHandshake className="h-9 w-9" />
+        <h2 id="donation-banner-title" className="text-4xl font-extrabold leading-[1.02] sm:text-5xl">
+          FTN needs your help!
+        </h2>
+        <p className="text-base leading-relaxed opacity-85">
+          FTN is independent and community-run. If you can, please chip in to keep the news and radio going.
+          Pick whichever option is easiest for you.
+        </p>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid gap-4 md:grid-cols-2">
         {OPTIONS.map((o, i) => (
-          <div
-            key={o.bank}
-            className="flex flex-col justify-between gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 sm:p-5 dark:border-neutral-800 dark:bg-neutral-900"
-          >
-            <div className="space-y-1.5">
-              <div className="text-[11px] font-black uppercase tracking-wider text-[#00a9d2]">Option {i + 1}</div>
-              <h3 className="font-bold text-base text-neutral-900 dark:text-white">{o.bank}</h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed">{o.steps}</p>
-            </div>
+          <div key={o.bank} className="flex flex-col gap-2 rounded-3xl bg-[#fff8e6] p-6 text-[#16110a] dark:bg-[#16110a] dark:text-[#fff3d6]">
+            <div className="text-xs font-bold uppercase tracking-widest opacity-60">Option {i + 1}</div>
+            <h3 className="text-xl font-bold leading-tight">{o.bank}</h3>
+            <p className="flex-1 text-sm leading-relaxed opacity-80">{o.steps}</p>
             <a
               href={o.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#FFBB14] px-5 text-sm font-black text-black transition hover:bg-[#e5a710] active:scale-[0.98]"
+              className="mt-3 inline-flex h-11 items-center gap-2 self-start rounded-full bg-[#16110a] px-5 text-sm font-bold text-brand transition hover:bg-black dark:bg-brand dark:text-brand-ink dark:hover:bg-brand-hover"
             >
               <IconBrandDiscord className="h-4 w-4" /> Join {o.bank}
             </a>

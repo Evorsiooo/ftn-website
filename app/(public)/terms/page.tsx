@@ -1,24 +1,13 @@
 import React from "react";
-import Link from "next/link";
-import { ArrowLeft, FileText } from "lucide-react";
+import { GsPageHeader } from "@/components/gs/page-header";
 
 export const runtime = "edge";
 
 export default function TermsOfServicePage() {
   return (
-    <div className="container mx-auto max-w-4xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-800 dark:text-neutral-300">
-      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-3"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" /> Return to Home
-        </Link>
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-3">
-          <FileText className="h-8 w-8 text-[#00a9d2]" /> Terms of Service
-        </h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2">Last updated: August 2026</p>
-      </div>
+    <div className="text-neutral-800 dark:text-neutral-300">
+      <GsPageHeader description="Last updated: August 2026" title="Terms of Service" />
+      <div className="mx-auto max-w-4xl space-y-8 px-4 py-10 sm:px-8">
 
       <div className="prose dark:prose-invert max-w-none space-y-6 text-sm sm:text-base leading-relaxed">
         <section className="space-y-3">
@@ -60,9 +49,10 @@ export default function TermsOfServicePage() {
         <section className="space-y-3">
           <h2 className="text-xl font-bold text-neutral-900 dark:text-white">5. Contact Us</h2>
           <p>
-            For questions, legal inquiries, or terms clarification, please reach out via our official Discord, or our email, <a href="mailto:federaltelevision.net@gmail.com" className="text-[#00a9d2] hover:underline font-semibold">federaltelevision.net@gmail.com</a>.
+            For questions, legal inquiries, or terms clarification, please reach out via our official Discord, or our email, <a href="mailto:federaltelevision.net@gmail.com" className="text-brand-text hover:underline font-semibold">federaltelevision.net@gmail.com</a>.
           </p>
         </section>
+      </div>
       </div>
     </div>
   );

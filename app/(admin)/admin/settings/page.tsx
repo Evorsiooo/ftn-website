@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canConfigureSite } from "@/lib/rbac";
 import {
   Radio,
@@ -871,77 +872,64 @@ export default function SiteSettingsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
-      <div className="container mx-auto max-w-5xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-      {/* Top Header with Back Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <div>
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-          </Link>
-          <h1 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
-            <Sliders className="h-7 w-7 text-[#00a9d2]" /> Site Settings & Configuration
-          </h1>
-        </div>
-
-        <Button
-          onClick={handleSaveAllSettings}
-          disabled={isSavingConfig}
-          className="bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold text-xs gap-1.5 cursor-pointer shadow-sm"
-        >
-          {isSavingConfig ? (
-            <>
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Saving Changes...
-            </>
-          ) : savedSuccess ? (
-            <>
-              <Check className="h-3.5 w-3.5 text-emerald-950" /> Configuration Saved!
-            </>
-          ) : (
-            <>
-              <Check className="h-3.5 w-3.5" /> Save All Settings
-            </>
-          )}
-        </Button>
-      </div>
+      <div className="mx-auto max-w-5xl space-y-8 text-neutral-900 dark:text-white">
+      <AdminPageHeader
+        title="Site settings"
+        description="Configure live audio stream URL and system feeds."
+        actions={
+          <Button onClick={handleSaveAllSettings} disabled={isSavingConfig} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
+            {isSavingConfig ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" /> Saving...
+              </>
+            ) : savedSuccess ? (
+              <>
+                <Check className="h-4 w-4" /> Saved
+              </>
+            ) : (
+              <>
+                <Check className="h-4 w-4" /> Save all settings
+              </>
+            )}
+          </Button>
+        }
+      />
 
       {/* Modern Tabs Navigation */}
-      <div className="flex items-center gap-1.5 p-1 rounded-xl bg-neutral-200/60 dark:bg-neutral-900 border border-neutral-300/60 dark:border-neutral-800 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800 overflow-x-auto no-scrollbar">
         <button
           type="button"
           onClick={() => handleSelectTab("general")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "general"
-              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
-              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+              ? "border-brand text-neutral-900 dark:text-white"
+              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
           }`}
         >
-          <Radio className="h-3.5 w-3.5 text-[#00a9d2]" />
+          <Radio className="h-3.5 w-3.5 text-brand-text" />
           <span>General & Media</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectTab("auth")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "auth"
-              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
-              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+              ? "border-brand text-neutral-900 dark:text-white"
+              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
           }`}
         >
-          <Lock className="h-3.5 w-3.5 text-[#00a9d2]" />
+          <Lock className="h-3.5 w-3.5 text-brand-text" />
           <span>Authentication & Users</span>
         </button>
 
         <button
           type="button"
           onClick={() => handleSelectTab("moderation")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "moderation"
-              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
-              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+              ? "border-brand text-neutral-900 dark:text-white"
+              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
           }`}
         >
           <Shield className="h-3.5 w-3.5 text-red-500" />
@@ -951,13 +939,13 @@ export default function SiteSettingsPage() {
         <button
           type="button"
           onClick={() => handleSelectTab("plus")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
             activeTab === "plus"
-              ? "bg-white text-neutral-900 shadow-sm dark:bg-neutral-800 dark:text-white"
-              : "text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-200/40 dark:hover:bg-neutral-800/50"
+              ? "border-brand text-neutral-900 dark:text-white"
+              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
           }`}
         >
-          <Video className="h-3.5 w-3.5 text-[#FFBB14]" />
+          <Video className="h-3.5 w-3.5 text-brand-text" />
           <span>FTN+ Video Network</span>
         </button>
       </div>
@@ -966,10 +954,10 @@ export default function SiteSettingsPage() {
       {activeTab === "general" && (
         <div className="space-y-8">
           {/* Homepage donation banner */}
-          <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+          <Card className="rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-base font-bold text-neutral-900 dark:text-white">Homepage Donation Banner</h2>
+                <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Homepage Donation Banner</h2>
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                   Shows the &quot;FTN needs your help!&quot; donation appeal at the top of the homepage.
                 </p>
@@ -1002,11 +990,10 @@ export default function SiteSettingsPage() {
           </Card>
 
           {/* 1. Webradio Stream Settings */}
-          <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+          <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
-            <Radio className="h-4 w-4 text-[#00a9d2]" />
-            <h2 className="text-base font-bold text-neutral-900 dark:text-white">FTN Live WebRadio Broadcasts</h2>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN Live WebRadio Broadcasts</h2>
           </div>
 
           <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1">
@@ -1190,10 +1177,9 @@ export default function SiteSettingsPage() {
       </Card>
 
       {/* 3. Discord & Social Media Links */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <Share2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Discord & Social Media Links</h2>
+          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Discord & Social Media Links</h2>
         </div>
 
         <div className="space-y-6">
@@ -1267,10 +1253,9 @@ export default function SiteSettingsPage() {
   {activeTab === "auth" && (
     <div className="space-y-8">
       {/* 2. Access Control, Authentication Mode & User Management */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <Lock className="h-4 w-4 text-[#00a9d2]" />
-          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Authentication & Access Control</h2>
+          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Authentication & Access Control</h2>
         </div>
 
         <div className="space-y-6">
@@ -1353,7 +1338,7 @@ export default function SiteSettingsPage() {
                 }}
                 className={`px-3 py-1.5 text-xs font-bold rounded-md transition cursor-pointer ${
                   authMode === "credentials"
-                    ? "bg-[#00a9d2] text-white shadow-sm"
+                    ? "bg-brand text-brand-ink shadow-sm"
                     : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                 }`}
               >
@@ -1381,7 +1366,7 @@ export default function SiteSettingsPage() {
                 onClick={() => setFtnPlusAccess("public")}
                 className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
                   ftnPlusAccess === "public"
-                    ? "bg-[#FFBB14] text-black shadow-sm"
+                    ? "bg-brand text-black shadow-sm"
                     : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                 }`}
               >
@@ -1420,7 +1405,7 @@ export default function SiteSettingsPage() {
                 onClick={() => setTiplineAccess("public")}
                 className={`flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
                   tiplineAccess === "public"
-                    ? "bg-[#00a9d2] text-white shadow-sm"
+                    ? "bg-brand text-brand-ink shadow-sm"
                     : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                 }`}
               >
@@ -1461,7 +1446,7 @@ export default function SiteSettingsPage() {
           {authMode === "credentials" && (
             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 p-5 space-y-4">
               <div className="flex items-center gap-2">
-                <UserPlus className="h-4 w-4 text-[#00a9d2]" />
+                <UserPlus className="h-4 w-4 text-brand-text" />
                 <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-900 dark:text-white">
                   Add Employee / Provision Staff Password
                 </h3>
@@ -1478,7 +1463,7 @@ export default function SiteSettingsPage() {
                 <Button
                   type="submit"
                   disabled={creatingEmployee || !newEmployeeUsername.trim()}
-                  className="bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+                  className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm"
                 >
                   {creatingEmployee ? (
                     <>
@@ -1530,7 +1515,7 @@ export default function SiteSettingsPage() {
                       <div className="text-[10px] uppercase font-mono text-neutral-500 dark:text-neutral-400">
                         Generated Password
                       </div>
-                      <div className="text-xs font-mono font-bold text-[#00a9d2]">
+                      <div className="text-xs font-mono font-bold text-brand-text">
                         {createdEmployeeResult.password}
                       </div>
                     </div>
@@ -1564,8 +1549,8 @@ export default function SiteSettingsPage() {
 
           {/* Reset Password Result Notification */}
           {resetPasswordResult && (
-            <div className="rounded-xl border border-[#00a9d2]/60 bg-cyan-50 dark:bg-cyan-950/30 p-4 space-y-2">
-              <div className="text-xs font-bold text-[#00a9d2]">New Password Generated</div>
+            <div className="rounded-xl border border-brand/60 bg-cyan-50 dark:bg-cyan-950/30 p-4 space-y-2">
+              <div className="text-xs font-bold text-brand-text">New Password Generated</div>
               <div className="p-2 rounded bg-white dark:bg-black/60 font-mono text-xs font-bold text-neutral-900 dark:text-white select-all border border-neutral-200 dark:border-transparent">
                 {resetPasswordResult.password}
               </div>
@@ -1603,7 +1588,7 @@ export default function SiteSettingsPage() {
                 type="submit"
                 size="sm"
                 disabled={searchingUsers}
-                className="text-xs bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold cursor-pointer shadow-sm"
+                className="text-xs bg-brand hover:bg-brand-hover text-brand-ink font-bold cursor-pointer shadow-sm"
               >
                 {searchingUsers ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Search"}
               </Button>
@@ -1654,7 +1639,7 @@ export default function SiteSettingsPage() {
                             emp.roles.map((r: string) => (
                               <span
                                 key={r}
-                                className="px-2 py-0.5 rounded-full bg-neutral-100 text-[#00a9d2] border border-neutral-200 dark:border-transparent dark:bg-neutral-800 text-[10px] font-semibold"
+                                className="px-2 py-0.5 rounded-full bg-neutral-100 text-brand-text border border-neutral-200 dark:border-transparent dark:bg-neutral-800 text-[10px] font-semibold"
                               >
                                 {r.replace("_", " ")}
                               </span>
@@ -1681,7 +1666,7 @@ export default function SiteSettingsPage() {
                                 size="sm"
                                 onClick={() => handleUpdateUsername(emp.id)}
                                 disabled={updatingUsername}
-                                className="h-8 text-xs bg-[#00a9d2] text-white font-bold"
+                                className="h-8 text-xs bg-brand text-brand-ink font-bold"
                               >
                                 Save
                               </Button>
@@ -1713,7 +1698,7 @@ export default function SiteSettingsPage() {
                             size="sm"
                             disabled={resettingPasswordUserId === emp.id}
                             onClick={() => handleResetPassword(emp.id, emp.robloxUsername)}
-                            className="h-8 text-xs border-neutral-300 bg-neutral-50 text-[#00a9d2] hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800 cursor-pointer"
+                            className="h-8 text-xs border-neutral-300 bg-neutral-50 text-brand-text hover:bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:bg-neutral-800 cursor-pointer"
                           >
                             <Key className="h-3 w-3 mr-1" /> Reset Password
                           </Button>
@@ -1755,10 +1740,9 @@ export default function SiteSettingsPage() {
   {activeTab === "moderation" && (
     <div className="space-y-8">
       {/* 4. User Moderation & Auto-Mod */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <UserX className="h-4 w-4 text-red-600 dark:text-red-400" />
-          <h2 className="text-base font-bold text-neutral-900 dark:text-white">User Moderation & Auto-Mod</h2>
+          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">User Moderation & Auto-Mod</h2>
         </div>
 
         <div className="space-y-6">
@@ -1917,10 +1901,9 @@ export default function SiteSettingsPage() {
       </Card>
 
       {/* 7. Comment Profanity Filter */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <Shield className="h-4 w-4 text-red-600 dark:text-red-400" />
-          <h2 className="text-base font-bold text-neutral-900 dark:text-white">Comment Profanity Filter</h2>
+          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Comment Profanity Filter</h2>
         </div>
 
         <div className="space-y-3">
@@ -1949,11 +1932,10 @@ export default function SiteSettingsPage() {
   {activeTab === "plus" && (
     <div className="space-y-8">
       {/* 5. FTN+ YouTube Channels & Library Purge */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
-            <Video className="h-4 w-4 text-[#FFBB14]" />
-            <h2 className="text-base font-bold text-neutral-900 dark:text-white">FTN+ YouTube Channels & Video Sync</h2>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN+ YouTube Channels & Video Sync</h2>
           </div>
 
           <div className="flex items-center gap-2">
@@ -1973,7 +1955,7 @@ export default function SiteSettingsPage() {
               size="sm"
               className="text-xs gap-1.5 border-neutral-300 bg-neutral-100 text-neutral-800 hover:bg-neutral-200 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 dark:hover:text-white cursor-pointer"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${isSyncingVideos ? "animate-spin text-[#FFBB14]" : ""}`} />
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncingVideos ? "animate-spin text-brand-text" : ""}`} />
               {isSyncingVideos ? "Syncing..." : "Sync Channels Now"}
             </Button>
           </div>
@@ -2005,7 +1987,7 @@ export default function SiteSettingsPage() {
             <Button
               type="button"
               onClick={handleAddChannel}
-              className="font-semibold text-xs px-4 gap-1.5 bg-[#FFBB14] hover:bg-[#e5a710] text-black font-bold cursor-pointer shadow-sm"
+              className="font-semibold text-xs px-4 gap-1.5 bg-brand hover:bg-brand-hover text-black font-bold cursor-pointer shadow-sm"
             >
               <Plus className="h-4 w-4" /> Add
             </Button>
@@ -2089,12 +2071,11 @@ export default function SiteSettingsPage() {
       </Card>
 
         {/* 5b. Synced Video Library & Stream Visibility Controls */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
-            <Film className="h-4 w-4 text-[#FFBB14]" />
             <div>
-              <h2 className="text-base font-bold text-neutral-900 dark:text-white">
+              <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
                 FTN+ Synced Video Catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}
               </h2>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -2118,7 +2099,7 @@ export default function SiteSettingsPage() {
 
         {loadingVideos && !videosLoaded ? (
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-12 text-center text-xs text-neutral-500 flex flex-col items-center justify-center space-y-3">
-            <RefreshCw className="h-6 w-6 animate-spin text-[#FFBB14]" />
+            <RefreshCw className="h-6 w-6 animate-spin text-brand-text" />
             <span>Loading synced video catalog...</span>
           </div>
         ) : (() => {
@@ -2259,11 +2240,10 @@ export default function SiteSettingsPage() {
       </Card>
 
       {/* 6. Custom FTN+ Swimlanes (Dynamic Filter & Curated Playlist) */}
-      <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-6">
+      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
         <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
           <div className="flex items-center gap-2">
-            <Sliders className="h-4 w-4 text-[#FFBB14]" />
-            <h2 className="text-base font-bold text-neutral-900 dark:text-white">FTN+ Custom Swimlanes</h2>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN+ Custom Swimlanes</h2>
           </div>
         </div>
 
@@ -2308,7 +2288,7 @@ export default function SiteSettingsPage() {
                 }
                 className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition cursor-pointer flex items-center gap-1.5 ${
                   editingSwimlane.type === "playlist"
-                    ? "bg-[#FFBB14] text-black border-[#FFBB14]"
+                    ? "bg-brand text-black border-brand"
                     : "bg-white dark:bg-neutral-900 border-neutral-300 dark:border-neutral-800 text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white"
                 }`}
               >
@@ -2468,7 +2448,7 @@ export default function SiteSettingsPage() {
                   onClick={() => setNewSwimlaneType("playlist")}
                   className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer flex items-center gap-1.5 ${
                     newSwimlaneType === "playlist"
-                      ? "bg-[#FFBB14] text-black font-bold shadow-sm"
+                      ? "bg-brand text-black font-bold shadow-sm"
                       : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                   }`}
                 >
@@ -2523,7 +2503,7 @@ export default function SiteSettingsPage() {
                       type="button"
                       disabled={addingPlaylistVideo || !newPlaylistVideoUrl.trim()}
                       onClick={handleAddVideoToNewPlaylist}
-                      className="bg-[#FFBB14] hover:bg-[#e5a710] text-black font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+                      className="bg-brand hover:bg-brand-hover text-black font-bold text-xs shrink-0 cursor-pointer shadow-sm"
                     >
                       {addingPlaylistVideo ? (
                         <>
@@ -2580,7 +2560,7 @@ export default function SiteSettingsPage() {
                 <Button
                   type="submit"
                   disabled={newPlaylistVideos.length === 0 || !newSwimlaneTitle.trim()}
-                  className="bg-[#FFBB14] hover:bg-[#e5a710] text-black font-bold text-xs cursor-pointer shadow-sm"
+                  className="bg-brand hover:bg-brand-hover text-black font-bold text-xs cursor-pointer shadow-sm"
                 >
                   Create Playlist Swimlane
                 </Button>
@@ -2620,7 +2600,7 @@ export default function SiteSettingsPage() {
                     <Button
                       type="submit"
                       size="sm"
-                      className="bg-[#FFBB14] hover:bg-[#e5a710] text-black font-bold text-xs shrink-0 cursor-pointer shadow-sm"
+                      className="bg-brand hover:bg-brand-hover text-black font-bold text-xs shrink-0 cursor-pointer shadow-sm"
                     >
                       Add Lane
                     </Button>

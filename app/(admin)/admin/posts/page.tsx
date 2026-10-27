@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
 import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
@@ -360,21 +361,11 @@ export default function AdminPostsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-8 xl:px-12 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-          </Link>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight flex items-center gap-2.5">
-            <Newspaper className="h-7 w-7 text-blue-600 dark:text-blue-400" /> Posts
-          </h1>
-        </div>
+      <div className="mx-auto w-full max-w-[1500px] space-y-8 text-neutral-900 dark:text-white">
+        <AdminPageHeader title="Posts" description="Design news posts with an ad, send them for approval and track them." />
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] gap-8 xl:gap-10">
-          <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none self-start">
+          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 self-start">
             <h2 className="text-lg font-bold">{editingId ? "Edit Post" : "Create Post"}</h2>
 
             <div>
@@ -438,7 +429,7 @@ export default function AdminPostsPage() {
                     type="button"
                     disabled={!!editingId}
                     onClick={() => setMode(m)}
-                    className={`px-3 py-1.5 cursor-pointer disabled:cursor-default ${mode === m ? "bg-[#00a9d2] text-white" : "bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300"}`}
+                    className={`px-3 py-1.5 cursor-pointer disabled:cursor-default ${mode === m ? "bg-brand text-brand-ink" : "bg-neutral-50 dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300"}`}
                   >
                     {m === "image" ? "Image" : "Video"}
                   </button>
@@ -483,7 +474,7 @@ export default function AdminPostsPage() {
             )}
 
             <div className="flex gap-2">
-              <Button type="button" onClick={handleSave} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
+              <Button type="button" onClick={handleSave} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
                 {saving ? "Saving..." : editingId ? "Save Changes" : "Generate Post"}
               </Button>
               <Button type="button" variant="outline" onClick={handleExport} className="cursor-pointer">
@@ -517,7 +508,7 @@ export default function AdminPostsPage() {
                 const mine = me?.id === p.createdBy;
                 const canChange = mine || isLeadership;
                 return (
-                  <Card key={p.id} className="p-3 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-2">
+                  <Card key={p.id} className="p-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2">
                     {p.mediaType === "video" && p.videoUrl?.endsWith(".webp") ? (
                       <img src={p.videoUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
                     ) : p.mediaType === "video" && p.videoUrl ? (

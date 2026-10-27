@@ -1,57 +1,20 @@
-"use client";
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { useMotionTemplate, useMotionValue, motion } from "motion/react";
 
 export interface TextareaProps
   extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, ...props }, ref) => {
-    const radius = 100;
-    const [visible, setVisible] = React.useState(false);
-
-    const mouseX = useMotionValue(0);
-    const mouseY = useMotionValue(0);
-
-    function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent<HTMLDivElement>) {
-      const { left, top } = currentTarget.getBoundingClientRect();
-      mouseX.set(clientX - left);
-      mouseY.set(clientY - top);
-    }
-
-    return (
-      <motion.div
-        style={{
-          background: useMotionTemplate`
-            radial-gradient(
-              ${visible ? radius + "px" : "0px"} circle at ${mouseX}px ${mouseY}px,
-              #3b82f6,
-              transparent 80%
-            )
-          `,
-        }}
-        onMouseMove={handleMouseMove}
-        onMouseEnter={() => setVisible(true)}
-        onMouseLeave={() => setVisible(false)}
-        className="p-[2px] rounded-lg transition duration-300 group/textarea"
-      >
-        <textarea
-          className={cn(
-            `flex min-h-24 w-full border border-neutral-300 bg-neutral-50 text-neutral-900 shadow-sm rounded-md px-3 py-2 text-sm placeholder:text-neutral-400 
-            focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-blue-500
-            disabled:cursor-not-allowed disabled:opacity-50
-            dark:border-none dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500
-            dark:focus-visible:ring-neutral-600 dark:shadow-[0px_0px_1px_1px_var(--neutral-800)]
-            group-hover/textarea:shadow-none transition duration-400`,
-            className
-          )}
-          ref={ref}
-          {...props}
-        />
-      </motion.div>
-    );
-  }
+  ({ className, ...props }, ref) => (
+    <textarea
+      ref={ref}
+      className={cn(
+        "flex min-h-24 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-900 transition placeholder:text-neutral-400 focus-visible:border-brand focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand/30 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-white dark:placeholder:text-neutral-500",
+        className
+      )}
+      {...props}
+    />
+  )
 );
 Textarea.displayName = "Textarea";
 

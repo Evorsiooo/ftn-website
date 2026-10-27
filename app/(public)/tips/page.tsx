@@ -3,6 +3,7 @@ export const runtime = "edge";
 import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
+import { GsPageHeader } from "@/components/gs/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,18 +72,15 @@ export default function TiplinePage() {
   };
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 sm:px-6 pt-24 sm:pt-28 pb-16 text-neutral-900 dark:text-white">
-      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-neutral-900 dark:text-white">
-          Anonymous Tipline
-        </h1>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-          Confidential investigative leads submitted directly to the FTN newsroom.
-        </p>
-      </div>
+    <div className="text-neutral-900 dark:text-white">
+      <GsPageHeader
+        title="Anonymous tipline"
+        description="Confidential investigative leads submitted directly to the FTN newsroom."
+      />
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
 
       {submitted ? (
-        <Card className="p-8 text-center space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+        <Card className="p-8 text-center space-y-4 rounded-[2rem] border-0 bg-white dark:bg-neutral-900">
           <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
           <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Tip Submitted</h2>
           <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
@@ -100,7 +98,7 @@ export default function TiplinePage() {
           </div>
         </Card>
       ) : (
-        <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+        <Card className="p-6 sm:p-8 rounded-[2rem] border-0 bg-white dark:bg-neutral-900">
           {isMuted ? (
             <div className="p-6 rounded-xl border border-red-200 bg-red-50 text-red-900 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-200 text-center space-y-3">
               <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto" />
@@ -117,7 +115,7 @@ export default function TiplinePage() {
             </div>
           ) : !loading && tiplineAccess === "members_only" && !currentUser ? (
             <div className="p-8 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 text-center space-y-4 shadow-sm dark:shadow-none">
-              <div className="h-12 w-12 rounded-full bg-cyan-100 border border-cyan-300 dark:bg-cyan-950/80 dark:border-cyan-800/60 flex items-center justify-center mx-auto text-[#00a9d2]">
+              <div className="h-12 w-12 rounded-full bg-cyan-100 border border-cyan-300 dark:bg-cyan-950/80 dark:border-cyan-800/60 flex items-center justify-center mx-auto text-brand-text">
                 <Lock className="h-6 w-6" />
               </div>
               <div className="space-y-1">
@@ -128,7 +126,7 @@ export default function TiplinePage() {
               </div>
               <div className="pt-2">
                 <a href="/api/auth/roblox">
-                  <Button className="font-bold text-xs bg-[#00a9d2] hover:bg-[#0090b3] text-white px-6 gap-2 cursor-pointer shadow-sm">
+                  <Button className="font-bold text-xs bg-brand hover:bg-brand-hover text-brand-ink px-6 gap-2 cursor-pointer shadow-sm">
                     <LogIn className="h-4 w-4" /> Sign In to Submit Tip
                   </Button>
                 </a>
@@ -137,7 +135,7 @@ export default function TiplinePage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-400 mb-1.5">
+                <label className="mb-2 block text-sm font-bold text-neutral-900 dark:text-white">
                   Subject
                 </label>
                 <Input
@@ -150,28 +148,28 @@ export default function TiplinePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-400 mb-1.5">
+                <label className="mb-2 block text-sm font-bold text-neutral-900 dark:text-white">
                   Details
                 </label>
                 <Textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Provide dates, locations, and details..."
-                  rows={6}
+                  rows={8}
                   required
                   maxLength={5000}
                 />
               </div>
 
               {/* Username Sharing Option */}
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/50 p-4 text-xs">
+              <div className="rounded-2xl bg-neutral-100 p-4 text-xs dark:bg-neutral-800/60">
                 {currentUser ? (
                   <label className="flex items-center gap-3 cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={shareUsername}
                       onChange={(e) => setShareUsername(e.target.checked)}
-                      className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-[#00a9d2] focus:ring-[#00a9d2] cursor-pointer"
+                      className="h-4 w-4 rounded border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-brand-text focus:ring-brand cursor-pointer"
                     />
                     <div className="space-y-0.5">
                       <div className="font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
@@ -185,7 +183,7 @@ export default function TiplinePage() {
                 ) : (
                   <div className="flex items-center justify-between gap-4 text-neutral-600 dark:text-neutral-400">
                     <div className="flex items-center gap-2">
-                      <ShieldAlert className="h-4 w-4 text-[#00a9d2] shrink-0" />
+                      <ShieldAlert className="h-4 w-4 text-brand-text shrink-0" />
                       <span>Submitting 100% anonymously. Sign in with Roblox if you want to share your username.</span>
                     </div>
                     <a href="/api/auth/roblox">
@@ -199,7 +197,7 @@ export default function TiplinePage() {
 
               <Button
                 type="submit"
-                className="w-full font-bold h-11 text-xs uppercase tracking-wider flex items-center justify-center bg-neutral-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-neutral-200 cursor-pointer shadow-sm"
+                className="w-full font-bold h-12 text-sm flex items-center justify-center cursor-pointer"
               >
                 Submit Tip
               </Button>
@@ -207,6 +205,7 @@ export default function TiplinePage() {
           )}
         </Card>
       )}
+      </div>
     </div>
   );
 }

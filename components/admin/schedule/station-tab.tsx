@@ -56,7 +56,7 @@ export function StationTab() {
   };
 
   return (
-        <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+        <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
           <div className="flex items-center gap-2">
             <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <h2 className="text-lg font-bold">Broadcast Password</h2>

@@ -93,7 +93,7 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
   return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Add show */}
-          <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none h-fit">
+          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 h-fit">
             <h2 className="text-lg font-bold">Create Show</h2>
             <form onSubmit={handleAddShow} className="space-y-3">
               <div>
@@ -148,7 +148,7 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
             ) : (
               shows.map((show) => {
                 return (
-                  <Card key={show.id} className="p-5 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+                  <Card key={show.id} className="p-5 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
                     <div className="flex items-start gap-4">
                       {show.artUrl ? (
                         <img src={show.artUrl} alt="" className="h-16 w-16 rounded-lg object-cover flex-shrink-0" />

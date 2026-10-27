@@ -1,8 +1,8 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManageRadio } from "@/lib/rbac";
 import { ApiBroadcast, BroadcastRecord, ShowRecord, parseBroadcast } from "@/lib/schedule-client";
 import { ScheduleTab } from "@/components/admin/schedule/schedule-tab";
@@ -43,41 +43,21 @@ export default function AdminSchedulePage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Broadcast Schedule">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-6 text-neutral-900 dark:text-white">
-        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-          </Link>
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight flex items-center gap-2.5">
-              <CalendarDays className="h-7 w-7 text-blue-600 dark:text-blue-400" /> Schedule
-            </h1>
-            <Link href="/plus/schedule" className="text-xs font-semibold underline">
-              View public schedule
+      <div className="mx-auto max-w-7xl space-y-8 text-neutral-900 dark:text-white">
+        <AdminPageHeader
+          title="Schedule"
+          description="Schedule radio shows and livestreams, manage shows and the broadcast password."
+          actions={
+            <Link href="/plus/schedule" className="gs-bar-link pb-0.5 text-sm font-bold">
+              View public schedule →
             </Link>
-          </div>
-          <div className="flex gap-1 mt-4" role="tablist">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                onClick={() => setTab(t.id)}
-                className={`px-4 py-2 text-xs font-bold rounded-md cursor-pointer transition ${
-                  tab === t.id
-                    ? "bg-neutral-900 text-white dark:bg-white dark:text-black"
-                    : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-900"
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+          }
+          tabs={TABS.map((t) => (
+            <AdminTab key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>
+              {t.label}
+            </AdminTab>
+          ))}
+        />
 
         {tab === "schedule" && <ScheduleTab shows={shows} broadcasts={broadcasts} reload={load} />}
         {tab === "shows" && <ShowsTab shows={shows} loading={loading} reload={load} />}

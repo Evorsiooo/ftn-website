@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign, Trash2, Loader2, Pencil, Pause, Play, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManageAds } from "@/lib/rbac";
 
 type AdFormat = "1024x180" | "512x180";
@@ -309,46 +310,27 @@ export default function AdminAdsConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Commercial & Advertisements Console">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-        <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-          </Link>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
-            <DollarSign className="h-7 w-7 text-emerald-600 dark:text-emerald-400" /> Commercial Advertisements
-          </h1>
-        </div>
+      <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+        <AdminPageHeader title="Advertisements" description="Manage banner placements and track click metrics." />
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
-            <div>
-              <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">Site views</span>
-              <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{totalImpressions.toLocaleString()}</p>
-            </div>
-            <Eye className="h-8 w-8 text-blue-500" />
-          </Card>
-          <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
-            <div>
-              <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">Clicks</span>
-              <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{totalClicks.toLocaleString()}</p>
-            </div>
-            <MousePointerClick className="h-8 w-8 text-neutral-700 dark:text-white" />
-          </Card>
-          <Card className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none flex items-center justify-between">
-            <div>
-              <span className="text-xs text-neutral-600 dark:text-neutral-400 uppercase font-semibold">CTR</span>
-              <p className="text-2xl font-black text-neutral-900 dark:text-white mt-1">{averageCtr}%</p>
-            </div>
-            <TrendingUp className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-          </Card>
-        </div>
+        <dl className="grid grid-cols-3 divide-x divide-neutral-200 rounded-[1.75rem] bg-[#16110a] text-[#fff8e6] dark:divide-neutral-800 dark:bg-black [&>div]:p-5 sm:[&>div]:p-8">
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest opacity-60">Site views</dt>
+            <dd className="gs-display mt-2 text-3xl font-extrabold text-brand sm:text-6xl">{totalImpressions.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest opacity-60">Clicks</dt>
+            <dd className="gs-display mt-2 text-3xl font-extrabold text-brand sm:text-6xl">{totalClicks.toLocaleString()}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-bold uppercase tracking-widest opacity-60">CTR</dt>
+            <dd className="gs-display mt-2 text-3xl font-extrabold text-brand sm:text-6xl">{averageCtr}%</dd>
+          </div>
+        </dl>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none self-start">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">{editingId ? "Edit Ad" : "Create Ad"}</h2>
+          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 self-start">
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">{editingId ? "Edit Ad" : "Create Ad"}</h2>
             <form onSubmit={handleSave} className="space-y-3">
               <div>
                 <label className={labelClass}>Ad Title</label>
@@ -423,7 +405,7 @@ export default function AdminAdsConsole() {
               </div>
 
               <div className="flex gap-2">
-                <Button type="submit" disabled={submitting || uploading} className="flex-1 font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50">
+                <Button type="submit" disabled={submitting || uploading} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
                   {submitting ? "Saving..." : editingId ? "Save Changes" : "Save Ad"}
                 </Button>
                 {editingId && (
@@ -436,7 +418,7 @@ export default function AdminAdsConsole() {
           </Card>
 
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Organizers and Ads</h2>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Organizers and Ads</h2>
             {loading ? (
               <div className="flex items-center justify-center p-8 text-neutral-500">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading ads...
@@ -448,7 +430,7 @@ export default function AdminAdsConsole() {
             ) : (
               <>
                 {groups.map(({ organizer, ads }) => (
-                  <Card key={organizer.id} className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-3">
+                  <Card key={organizer.id} className="p-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
                       {organizer.name} <span className="font-normal text-neutral-500">({ads.length} {ads.length === 1 ? "ad" : "ads"})</span>
                     </h3>
@@ -456,7 +438,7 @@ export default function AdminAdsConsole() {
                   </Card>
                 ))}
                 {unassigned.length > 0 && (
-                  <Card className="p-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-3">
+                  <Card className="p-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">No organizer</h3>
                     {unassigned.map(renderAd)}
                   </Card>

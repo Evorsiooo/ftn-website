@@ -74,11 +74,11 @@ function SignInContent() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center px-4 pt-24 pb-12">
-      <Card className="max-w-md w-full p-8 border-neutral-200 bg-white shadow-xl dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-2xl space-y-6">
+    <div className="min-h-[70vh] flex items-center justify-center px-4 py-14">
+      <Card className="max-w-md w-full p-8 rounded-[2rem] border-0 bg-white dark:bg-neutral-900 space-y-6">
         {/* Header */}
         <div className="text-center space-y-1">
-          <h1 className="text-2xl font-black tracking-tight text-neutral-900 dark:text-white">Sign In</h1>
+          <h1 className="text-4xl font-extrabold text-neutral-900 dark:text-white">Sign In</h1>
         </div>
 
         {/* Error Alert */}
@@ -142,7 +142,7 @@ function SignInContent() {
           <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold text-xs h-10 cursor-pointer shadow-sm"
+            className="w-full bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs h-10 cursor-pointer shadow-sm"
           >
             {loading ? (
               <>

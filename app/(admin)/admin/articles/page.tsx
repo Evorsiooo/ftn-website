@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { formatDate, formatTimeAgo } from "@/lib/utils";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canPublishArticles } from "@/lib/rbac";
 
 function AdminArticlesContent() {
@@ -213,61 +214,41 @@ function AdminArticlesContent() {
   };
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-      {/* Top Header with Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <div>
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-          </Link>
-          <h1 className="text-3xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
-            <Newspaper className="h-7 w-7 text-blue-600 dark:text-blue-400" /> Articles
-          </h1>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={activeTab === "list" ? "default" : "outline"}
-            size="sm"
-            onClick={handleBackToList}
-            className="text-xs cursor-pointer"
-          >
-            All Articles ({articlesList.length})
+    <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+      <AdminPageHeader
+        title="Articles"
+        description="Create, edit, and publish stories and news investigations."
+        actions={
+          <Button size="sm" onClick={handleNewStory} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
+            <Plus className="h-4 w-4" /> New story
           </Button>
-
-          {editingArticle && (
-            <Button
-              variant={activeTab === "history" ? "default" : "outline"}
-              size="sm"
-              onClick={() => {
-                setActiveTab("history");
-                if (editingArticle.slug) fetchRevisions(editingArticle.slug);
-              }}
-              className="text-xs gap-1.5 cursor-pointer"
-            >
-              <History className="h-3.5 w-3.5 text-[#00a9d2]" /> Version History
-            </Button>
-          )}
-
-          <Button
-            variant={activeTab === "create" && !editingArticle ? "default" : "outline"}
-            size="sm"
-            onClick={handleNewStory}
-            className="text-xs gap-1.5 bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold cursor-pointer shadow-sm"
-          >
-            <Plus className="h-3.5 w-3.5" /> New Story
-          </Button>
-        </div>
-      </div>
+        }
+        tabs={
+          <>
+            <AdminTab active={activeTab === "list"} onClick={handleBackToList}>
+              All stories ({articlesList.length})
+            </AdminTab>
+            {editingArticle && (
+              <AdminTab
+                active={activeTab === "history"}
+                onClick={() => {
+                  setActiveTab("history");
+                  if (editingArticle.slug) fetchRevisions(editingArticle.slug);
+                }}
+              >
+                Version history
+              </AdminTab>
+            )}
+            {activeTab === "create" && <AdminTab active>{editingArticle ? "Editing" : "New story"}</AdminTab>}
+          </>
+        }
+      />
 
       {activeTab === "create" ? (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <h2 className="text-lg font-bold text-neutral-900 dark:text-white">
+              <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
                 {editingArticle ? `Edit Story: ${editingArticle.title}` : "Compose New Story"}
               </h2>
               {editingArticle && (
@@ -285,7 +266,7 @@ function AdminArticlesContent() {
                   onClick={() => handleOpenHistory(editingArticle)}
                   className="text-xs gap-1.5 border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white cursor-pointer"
                 >
-                  <History className="h-3.5 w-3.5 text-[#00a9d2]" /> Version History
+                  <History className="h-3.5 w-3.5 text-brand-text" /> Version History
                 </Button>
               )}
               <Button
@@ -310,7 +291,7 @@ function AdminArticlesContent() {
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-4">
             <div>
-              <div className="text-xs font-mono uppercase text-[#00a9d2] font-bold">
+              <div className="text-xs font-mono uppercase text-brand-text font-bold">
                 Version History
               </div>
               <h2 className="text-2xl font-black text-neutral-900 dark:text-white">{editingArticle.title}</h2>
@@ -329,7 +310,7 @@ function AdminArticlesContent() {
           {loadingRevisions ? (
             <div className="p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading version snapshots...</div>
           ) : revisions.length === 0 ? (
-            <div className="p-12 text-center rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 space-y-3 shadow-sm dark:shadow-none">
+            <div className="p-12 text-center rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3 shadow-sm dark:shadow-none">
               <History className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mx-auto" />
               <div className="text-sm font-bold text-neutral-900 dark:text-white">No historical versions recorded yet</div>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
@@ -341,7 +322,7 @@ function AdminArticlesContent() {
               {revisions.map((rev, idx) => (
                 <Card
                   key={rev.id}
-                  className="p-5 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none hover:border-neutral-300 dark:hover:border-neutral-700 transition space-y-3"
+                  className="p-5 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition space-y-3"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-900 pb-3">
                     <div className="flex flex-wrap items-center gap-2.5">
@@ -433,7 +414,7 @@ function AdminArticlesContent() {
           {loading ? (
             <div className="p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading articles...</div>
           ) : articlesList.length === 0 ? (
-            <div className="p-12 text-center rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 space-y-3 shadow-sm dark:shadow-none">
+            <div className="p-12 text-center rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3 shadow-sm dark:shadow-none">
               <Newspaper className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mx-auto" />
               <div className="text-sm font-bold text-neutral-900 dark:text-white">No articles published yet</div>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
@@ -442,107 +423,62 @@ function AdminArticlesContent() {
               <Button
                 onClick={handleNewStory}
                 size="sm"
-                className="mt-2 text-xs bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold cursor-pointer shadow-sm"
+                className="mt-2 text-xs bg-brand hover:bg-brand-hover text-brand-ink font-bold cursor-pointer shadow-sm"
               >
                 Compose First Story
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-3">
+            <div className="divide-y divide-neutral-200 border-y border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
               {articlesList.map((art) => (
-                <Card
-                  key={art.id}
-                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none hover:border-neutral-300 dark:hover:border-neutral-700 transition"
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                      <span className="uppercase font-mono text-[10px] text-neutral-500 dark:text-neutral-400 font-bold">
-                        {art.category}
-                      </span>
-                      <span>•</span>
+                <div key={art.id} className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+                  <div className="min-w-0 space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span className="font-bold uppercase tracking-widest text-brand-text">{art.category}</span>
                       <span
-                        className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                          art.status === "published"
-                            ? "bg-emerald-100 text-emerald-700 border border-emerald-300 dark:bg-emerald-950/60 dark:text-emerald-400 dark:border-emerald-800/60"
-                            : art.status === "archived"
-                            ? "bg-neutral-100 text-neutral-600 border border-neutral-300 dark:bg-neutral-900 dark:text-neutral-400 dark:border-neutral-700"
-                            : "bg-amber-100 text-amber-700 border border-amber-300 dark:bg-amber-950/60 dark:text-amber-400 dark:border-amber-800/60"
+                        className={`inline-flex items-center gap-1.5 font-bold capitalize ${
+                          art.status === "published" ? "text-emerald-700 dark:text-emerald-400" : art.status === "archived" ? "text-neutral-500" : "text-amber-700 dark:text-amber-400"
                         }`}
                       >
+                        <span
+                          className={`h-2 w-2 rounded-full ${art.status === "published" ? "bg-emerald-500" : art.status === "archived" ? "bg-neutral-400" : "bg-amber-500"}`}
+                        />
                         {art.status}
                       </span>
-                      <span>•</span>
-                      <span className="text-[10px] text-neutral-500">
-                        {formatDate(art.createdAt)}
-                      </span>
+                      <span className="text-neutral-500">{formatDate(art.createdAt)}</span>
                       {(art.authorUsername || art.authorName) && (
-                        <>
-                          <span>•</span>
-                          <span className="text-[10px] text-neutral-600 dark:text-neutral-300">
-                            By @{art.authorUsername || art.authorName}
-                          </span>
-                        </>
+                        <span className="text-neutral-500">@{art.authorUsername || art.authorName}</span>
                       )}
                     </div>
-                    <h3 className="font-bold text-base text-neutral-900 dark:text-white">{art.title}</h3>
-                    {art.summary && (
-                      <p className="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-1">{art.summary}</p>
-                    )}
+                    <h3 className="text-xl font-bold leading-tight">{art.title}</h3>
+                    {art.summary && <p className="line-clamp-1 text-sm text-neutral-600 dark:text-neutral-400">{art.summary}</p>}
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleToggleArchive(art)}
-                      className={`text-xs gap-1 border-neutral-300 hover:bg-neutral-100 dark:border-neutral-800 dark:hover:bg-neutral-800 cursor-pointer ${
-                        art.status === "archived"
-                          ? "text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                          : "text-neutral-600 hover:text-amber-600 dark:text-neutral-400 dark:hover:text-amber-400"
-                      }`}
-                      title={art.status === "archived" ? "Unarchive & publish story" : "Archive & hide from public view"}
-                    >
+                  <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
+                    <Button variant="ghost" size="sm" onClick={() => handleStartEdit(art)} className="cursor-pointer gap-1.5 font-bold">
+                      <Edit3 className="h-3.5 w-3.5" /> Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleOpenHistory(art)} className="cursor-pointer gap-1.5">
+                      <History className="h-3.5 w-3.5" /> History
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleToggleArchive(art)} className="cursor-pointer gap-1.5" title={art.status === "archived" ? "Unarchive and publish story" : "Archive and hide from public view"}>
                       {art.status === "archived" ? (
                         <>
-                          <ArchiveRestore className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> Unarchive
+                          <ArchiveRestore className="h-3.5 w-3.5" /> Unarchive
                         </>
                       ) : (
                         <>
-                          <Archive className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" /> Archive
+                          <Archive className="h-3.5 w-3.5" /> Archive
                         </>
                       )}
                     </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleOpenHistory(art)}
-                      className="text-xs gap-1 border-neutral-300 hover:bg-neutral-100 text-neutral-700 dark:border-neutral-800 dark:hover:bg-neutral-800 dark:text-neutral-300 cursor-pointer"
-                      title="View Version History"
-                    >
-                      <History className="h-3.5 w-3.5 text-[#00a9d2]" /> History
-                    </Button>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStartEdit(art)}
-                      className="text-xs gap-1 border-neutral-300 hover:bg-neutral-100 text-neutral-700 dark:border-neutral-800 dark:hover:bg-neutral-800 dark:text-neutral-200 cursor-pointer"
-                    >
-                      <Edit3 className="h-3.5 w-3.5" /> Edit
-                    </Button>
-
                     <Link href={`/articles/${art.slug}`} target="_blank">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs gap-1 border-neutral-300 hover:bg-neutral-100 text-neutral-700 dark:border-neutral-800 dark:hover:bg-neutral-800 dark:text-neutral-200 cursor-pointer"
-                      >
+                      <Button variant="ghost" size="sm" className="cursor-pointer gap-1.5">
                         <ExternalLink className="h-3.5 w-3.5" /> View
                       </Button>
                     </Link>
                   </div>
-                </Card>
+                </div>
               ))}
             </div>
           )}

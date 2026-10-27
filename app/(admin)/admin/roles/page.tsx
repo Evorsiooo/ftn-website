@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Shield, Search, UserCheck } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canAssignRoles } from "@/lib/rbac";
 
 const ALL_ROLES = [
@@ -87,21 +88,8 @@ export default function AdminRolesConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canAssignRoles} featureTitle="Staff Roles Management">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-      {/* Top Header with Back to Admin */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <div>
-          <Link
-            href="/admin"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-          </Link>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
-            <Shield className="h-7 w-7 text-blue-600 dark:text-blue-400" /> Staff Roles & Permissions
-          </h1>
-        </div>
-      </div>
+      <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+      <AdminPageHeader title="Staff roles" description="Grant and revoke permissions to Roblox staff members." />
 
       {/* Search Bar */}
       <form onSubmit={handleSearch} className="flex gap-2 max-w-lg">
@@ -117,7 +105,7 @@ export default function AdminRolesConsole() {
         <Button
           type="submit"
           size="sm"
-          className="text-xs bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold cursor-pointer shadow-sm"
+          className="text-xs bg-brand hover:bg-brand-hover text-brand-ink font-bold cursor-pointer shadow-sm"
         >
           Search Users
         </Button>
@@ -148,7 +136,7 @@ export default function AdminRolesConsole() {
         {loading ? (
           <div className="p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading user accounts...</div>
         ) : usersList.length === 0 ? (
-          <div className="p-12 text-center rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 space-y-2 shadow-sm dark:shadow-none">
+          <div className="p-12 text-center rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2 shadow-sm dark:shadow-none">
             <UserCheck className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mx-auto" />
             <div className="text-sm font-bold text-neutral-900 dark:text-white">No accounts found</div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -160,7 +148,7 @@ export default function AdminRolesConsole() {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {usersList.map((staff) => (
-              <Card key={staff.id} className="p-6 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-4">
+              <Card key={staff.id} className="p-6 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-neutral-200 text-neutral-800 dark:bg-neutral-800 dark:text-white overflow-hidden flex items-center justify-center font-bold text-xs">

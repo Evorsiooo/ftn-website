@@ -53,7 +53,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
 
   if (!mounted || loading) {
     return (
-      <Button variant="outline" size="sm" disabled className="text-xs">
+      <Button variant="outline" size="sm" disabled className="h-9 border-brand-ink/40 px-4 text-xs font-bold !text-brand-ink">
         Sign In
       </Button>
     );
@@ -64,7 +64,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
 
     return (
       <a href={signInHref}>
-        <Button variant="outline" size="sm" className="text-xs font-semibold cursor-pointer">
+        <Button variant="outline" size="sm" className="h-9 cursor-pointer border-2 border-brand-ink/80 px-4 text-xs font-bold !text-brand-ink hover:!bg-brand-ink/10">
           Sign In
         </Button>
       </a>
@@ -77,7 +77,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
     <div className="relative">
       <button
         onClick={() => setShowMenu(!showMenu)}
-        className="flex items-center gap-2 rounded-full border border-neutral-250 bg-neutral-100 px-2.5 py-1 text-xs font-medium text-neutral-900 hover:bg-neutral-200 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white dark:hover:bg-neutral-800 transition cursor-pointer"
+        className="flex h-9 items-center gap-2 rounded-full bg-[#16110a] px-2.5 text-xs font-medium text-[#fff8e6] transition hover:bg-black cursor-pointer"
       >
         <div className="h-6 w-6 rounded-full bg-neutral-200 text-neutral-800 dark:bg-neutral-800 dark:text-white flex items-center justify-center font-bold text-[10px] overflow-hidden">
           {user.avatarUrl ? (
@@ -86,18 +86,18 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
             (user.robloxUsername || user.displayName).slice(0, 2).toUpperCase()
           )}
         </div>
-        <span className="font-semibold text-neutral-900 dark:text-white">@{user.robloxUsername || user.displayName}</span>
+        <span className="font-semibold">@{user.robloxUsername || user.displayName}</span>
       </button>
 
       {showMenu && (
-        <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-neutral-200 bg-white text-neutral-900 shadow-xl dark:border-neutral-800 dark:bg-neutral-950 dark:text-white dark:shadow-2xl z-50 space-y-3 p-3">
+        <div className="absolute right-0 mt-2 w-56 rounded-3xl border border-neutral-200 bg-white text-neutral-900 shadow-xl dark:border-neutral-800 dark:bg-neutral-950 dark:text-white dark:shadow-2xl z-50 space-y-3 p-3">
           <div className="border-b border-neutral-200 dark:border-neutral-850 pb-2">
             <div className="font-bold text-xs text-neutral-900 dark:text-white">@{user.robloxUsername}</div>
             {user.displayName && user.displayName !== user.robloxUsername && (
               <div className="text-[10px] text-neutral-500 dark:text-neutral-400">{user.displayName}</div>
             )}
             {hasStaffRole && (
-              <div className="text-[10px] text-[#00a9d2] font-semibold mt-1">
+              <div className="text-[10px] text-brand-text font-semibold mt-1">
                 {user.roles.map((r) => r.replace("_", " ")).join(", ")}
               </div>
             )}
@@ -120,7 +120,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
                   onClick={() => setShowMenu(false)}
                   className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-neutral-700 hover:text-black hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-900 transition"
                 >
-                  <Newspaper className="h-3.5 w-3.5 text-[#00a9d2]" />
+                  <Newspaper className="h-3.5 w-3.5 text-brand-text" />
                   Articles
                 </Link>
 
@@ -130,7 +130,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
                     onClick={() => setShowMenu(false)}
                     className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-neutral-700 hover:text-black hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-900 transition"
                   >
-                    <ImageIcon className="h-3.5 w-3.5 text-[#00a9d2]" />
+                    <ImageIcon className="h-3.5 w-3.5 text-brand-text" />
                     Posts
                   </Link>
                 )}

@@ -1,172 +1,55 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { BentoGrid, BentoGridItem } from "@/components/ui/bento-grid";
-import { Shield, Newspaper, Trophy, CalendarDays, DollarSign, MessageSquare, Settings, Images } from "lucide-react";
-import {
-  canPublishArticles,
-  canManageRadio,
-  canManageSports,
-  canManageAds,
-  canManagePosts,
-  canAssignRoles,
-  canConfigureSite,
-} from "@/lib/rbac";
+import { fetchSession } from "@/lib/session-client";
+import { ADMIN_MODULES } from "@/components/gs/admin-nav";
+import { AdminPageHeader } from "@/components/gs/admin-header";
+import { cn } from "@/lib/utils";
+
+const TONES = [
+  "bg-brand text-brand-ink",
+  "bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-white dark:border-neutral-800",
+  "bg-[#16110a] text-[#fff8e6] dark:bg-black",
+  "bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-white dark:border-neutral-800",
+];
 
 export default function AdminCentralDashboard() {
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [roles, setRoles] = useState<string[] | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/session")
-      .then((res) => res.json())
-      .then((data: any) => {
-        if (data && data.user) {
-          setCurrentUser(data.user);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    fetchSession()
+      .then((data: any) => setRoles(data?.user?.roles || []))
+      .catch(() => setRoles([]));
   }, []);
 
-  const roles = currentUser?.roles || [];
-
-  const showArticles = canPublishArticles(roles);
-  const showSports = canManageSports(roles);
-  const showRadio = canManageRadio(roles);
-  const showAds = canManageAds(roles);
-  const showPosts = canManagePosts(roles);
-  const showTips = canPublishArticles(roles) || canConfigureSite(roles);
-  const showRoles = canAssignRoles(roles);
-  const showSettings = canConfigureSite(roles);
+  const modules = roles ? ADMIN_MODULES.filter((m) => m.allowed(roles)) : [];
 
   return (
-    <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-      <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white">
-          Admin Portal
-        </h1>
-        <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
-          Authorized management consoles matching your staff permissions.
-        </p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <AdminPageHeader title="Admin portal" description="Authorized management consoles matching your staff permissions." />
 
-      {loading ? (
-        <div className="p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading authorized modules...</div>
+      {!roles ? (
+        <div className="p-8 text-center text-sm text-neutral-500">Loading authorized modules...</div>
       ) : (
-        <BentoGrid className="max-w-7xl mx-auto md:auto-rows-[14rem]">
-          {showArticles && (
-            <BentoGridItem
-              title="Articles"
-              description="Create, edit, and publish stories and news investigations."
-              header={
-                <Link href="/admin/articles" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <Newspaper className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Articles →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showSports && (
-            <BentoGridItem
-              title="Sports Settings"
-              description="Manage league rosters and record match or race scores."
-              header={
-                <Link href="/admin/sports" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <Trophy className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Sports Settings →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showRadio && (
-            <BentoGridItem
-              title="Schedule"
-              description="Schedule radio shows and livestreams, manage shows and the broadcast password."
-              header={
-                <Link href="/admin/radio" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <CalendarDays className="h-6 w-6 text-red-600 dark:text-red-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Schedule →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showAds && (
-            <BentoGridItem
-              title="Advertisements"
-              description="Manage banner placements and track click metrics."
-              header={
-                <Link href="/admin/ads" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <DollarSign className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Advertisements →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showPosts && (
-            <BentoGridItem
-              title="Posts"
-              description="Design news posts with an ad, send them for approval and track them."
-              header={
-                <Link href="/admin/posts" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <Images className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Posts →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showTips && (
-            <BentoGridItem
-              title="Tipline"
-              description="Review anonymous investigative leads and reports."
-              header={
-                <Link href="/admin/tips" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <MessageSquare className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Tipline →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showRoles && (
-            <BentoGridItem
-              title="Staff Roles"
-              description="Grant and revoke permissions to Roblox staff members."
-              header={
-                <Link href="/admin/roles" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <Shield className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Staff Roles →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-
-          {showSettings && (
-            <BentoGridItem
-              title="Site Settings"
-              description="Configure live audio stream URL and system feeds."
-              header={
-                <Link href="/admin/settings" className="flex flex-1 w-full h-full min-h-[5rem] rounded-xl bg-gradient-to-br from-neutral-100 to-neutral-200 border border-neutral-300 text-neutral-900 p-4 flex-col justify-between hover:border-neutral-400 dark:from-neutral-900 dark:to-neutral-800 dark:border-transparent dark:text-white dark:hover:border-neutral-700 transition-all shadow-sm dark:shadow-none">
-                  <Settings className="h-6 w-6 text-neutral-700 dark:text-neutral-300" />
-                  <span className="text-xs font-semibold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Open Site Settings →</span>
-                </Link>
-              }
-              className="md:col-span-1"
-            />
-          )}
-        </BentoGrid>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {modules.map((m, i) => (
+            <Link
+              key={m.href}
+              href={m.href}
+              className={cn(
+                "group flex min-h-[210px] flex-col justify-between gap-8 rounded-[1.75rem] p-6 transition hover:-translate-y-0.5",
+                TONES[i % TONES.length],
+                i === 0 && "sm:col-span-2"
+              )}
+            >
+              <span className="text-2xl transition group-hover:translate-x-1">→</span>
+              <div>
+                <h2 className="text-2xl font-extrabold leading-tight">{m.title}</h2>
+                <p className="mt-1.5 text-sm opacity-75">{m.description}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
     </div>
   );
