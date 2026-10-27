@@ -15,7 +15,7 @@ import { broadcastLabel } from "@/components/sports/sports-ui";
 import { parseRaceResults, parseRules, type RacingRules, type RaceResultEntry, type TeamRules } from "@/lib/sports";
 import { formatDateTime } from "@/lib/utils";
 
-type Tab = "leagues" | "roster" | "venues" | "events";
+type Tab = "overview" | "events" | "roster" | "leagues" | "venues";
 
 const labelClass = "block text-sm font-semibold mb-1";
 const selectClass =
@@ -90,7 +90,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export default function AdminSportsConsole() {
   const { data, loading, reload } = useSportsData();
-  const [tab, setTab] = useState<Tab>("leagues");
+  const [tab, setTab] = useState<Tab>("overview");
+  const [openEvent, setOpenEvent] = useState<string | null>(null);
   const [leagueId, setLeagueId] = useState("");
   const [busy, setBusy] = useState(false);
   const [articles, setArticles] = useState<SportsArticle[]>([]);
@@ -130,9 +131,9 @@ export default function AdminSportsConsole() {
         <AdminPageHeader
           title="Sports Settings"
           description="Manage league rosters and record match or race scores."
-          tabs={(["leagues", "roster", "venues", "events"] as Tab[]).map((t) => (
-            <AdminTab key={t} active={tab === t} onClick={() => setTab(t)}>
-              {t === "leagues" ? "Leagues" : t === "roster" ? "Teams & drivers" : t === "venues" ? "Venues" : "Schedule & results"}
+          tabs={(["overview", "events", "roster", "leagues", "venues"] as Tab[]).map((t) => (
+            <AdminTab key={t} active={tab === t} onClick={() => { setOpenEvent(null); setTab(t); }}>
+              {t === "overview" ? "Overview" : t === "events" ? "Schedule & results" : t === "roster" ? "Teams & drivers" : t === "leagues" ? "Leagues" : "Venues"}
             </AdminTab>
           ))}
         />
@@ -143,24 +144,40 @@ export default function AdminSportsConsole() {
           </div>
         ) : (
           <>
-            {(tab === "roster" || tab === "events") && (
-              <div className="max-w-xs">
-                <Field label="League">
-                  <select value={leagueId} onChange={(e) => setLeagueId(e.target.value)} className={selectClass}>
-                    {data.leagues.map((l) => (
-                      <option key={l.id} value={l.id}>{l.name} ({l.season})</option>
-                    ))}
-                  </select>
-                </Field>
+            {(tab === "overview" || tab === "roster" || tab === "events") && data.leagues.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="League">
+                {data.leagues.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={leagueId === l.id}
+                    onClick={() => setLeagueId(l.id)}
+                    className={`cursor-pointer rounded-full border px-4 py-2 text-sm font-bold transition ${
+                      leagueId === l.id ? "border-brand bg-brand text-brand-ink" : "border-neutral-300 hover:border-neutral-500 dark:border-neutral-700"
+                    }`}
+                  >
+                    {l.name} <span className="font-medium opacity-70">{l.season}</span>
+                  </button>
+                ))}
+                <button type="button" onClick={() => setTab("leagues")} className="cursor-pointer rounded-full border border-dashed border-neutral-400 px-4 py-2 text-sm font-bold text-neutral-600 hover:border-neutral-700 dark:text-neutral-400">
+                  + New league
+                </button>
               </div>
+            )}
+            {(tab === "overview" || tab === "roster" || tab === "events") && !league && (
+              <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center dark:border-neutral-700">
+                <p className="text-sm text-neutral-500">No league yet. Create one to start entering teams, rounds and results.</p>
+                <Button onClick={() => setTab("leagues")} className="mt-4 cursor-pointer">Create a league</Button>
+              </div>
+            )}
+            {tab === "overview" && league && (
+              <Overview league={league} data={data} onEnterResult={(id) => { setOpenEvent(id); setTab("events"); }} onTab={(t) => { setOpenEvent(null); setTab(t); }} />
             )}
             {tab === "leagues" && <LeaguesTab leagues={data.leagues} busy={busy} run={run} />}
             {tab === "venues" && <VenuesTab venues={data.venues} busy={busy} run={run} />}
-            {(tab === "roster" || tab === "events") && !league && (
-              <p className="text-xs text-neutral-500">Create a league first.</p>
-            )}
             {tab === "roster" && league && <RosterTab league={league} data={data} busy={busy} run={run} />}
-            {tab === "events" && league && <EventsTab league={league} data={data} articles={articles} busy={busy} run={run} />}
+            {tab === "events" && league && <EventsTab league={league} data={data} articles={articles} busy={busy} run={run} initialEditing={openEvent} />}
           </>
         )}
       </div>
@@ -487,7 +504,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
   );
 }
 
-function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague; data: ReturnType<typeof useSportsData>["data"]; articles: SportsArticle[]; busy: boolean; run: RunFn }) {
+function EventsTab({ league, data, articles, busy, run, initialEditing = null }: { league: SportsLeague; data: ReturnType<typeof useSportsData>["data"]; articles: SportsArticle[]; busy: boolean; run: RunFn; initialEditing?: string | null }) {
   const teams = data.teams.filter((t) => t.leagueId === league.id);
   const events = useMemo(
     () => data.events.filter((e) => e.leagueId === league.id).sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt)),
@@ -501,7 +518,7 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
   const [startsAt, setStartsAt] = useState("");
   const [home, setHome] = useState("");
   const [away, setAway] = useState("");
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(initialEditing);
 
   return (
     <div className="grid grid-cols-1 gap-8 lg:grid-cols-[24rem_minmax(0,1fr)]">
@@ -758,6 +775,106 @@ function ResultEditor({
         </div>
       )}
       <Button size="sm" disabled={busy} onClick={save} className={primaryBtn}>Save result (marks final)</Button>
+    </div>
+  );
+}
+
+function Overview({ league, data, onEnterResult, onTab }: { league: SportsLeague; data: ReturnType<typeof useSportsData>["data"]; onEnterResult: (eventId: string) => void; onTab: (t: Tab) => void }) {
+  const events = data.events.filter((e) => e.leagueId === league.id).sort((a, b) => +new Date(a.startsAt) - +new Date(b.startsAt));
+  const teams = data.teams.filter((t) => t.leagueId === league.id);
+  const drivers = data.drivers.filter((d) => d.leagueId === league.id);
+  const now = Date.now();
+  const needsResult = events.filter((e) => e.status === "scheduled" && +new Date(e.startsAt) < now);
+  const upcoming = events.filter((e) => e.status === "scheduled" && +new Date(e.startsAt) >= now);
+  const latest = events.filter((e) => e.status === "final").slice(-3).reverse();
+  const racing = league.kind === "racing";
+  const label = (e: SportsEvent) =>
+    e.homeTeamId && e.awayTeamId
+      ? `${teams.find((t) => t.id === e.homeTeamId)?.name ?? "?"} vs ${teams.find((t) => t.id === e.awayTeamId)?.name ?? "?"}`
+      : `${e.round ? `Round ${e.round}: ` : ""}${e.name || (racing ? "Race" : "Match")}`;
+  const card = "rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900";
+  const kicker = "text-xs font-bold uppercase tracking-widest text-neutral-500";
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className={`${card} ${needsResult.length ? "border-[#16110a] bg-[#16110a] text-[#fff8e6] dark:border-black dark:bg-black" : ""}`}>
+          <div className={needsResult.length ? "text-xs font-bold uppercase tracking-widest text-[#fff8e6]/70" : kicker}>Needs a result</div>
+          {needsResult.length === 0 ? (
+            <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">Every finished {racing ? "race" : "match"} has its result entered.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-[#fff8e6]/15">
+              {needsResult.slice(0, 5).map((e) => (
+                <li key={e.id} className="flex items-center justify-between gap-4 py-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-bold">{label(e)}</div>
+                    <div className="text-sm text-[#fff8e6]/70">{formatDateTime(e.startsAt)}</div>
+                  </div>
+                  <button type="button" onClick={() => onEnterResult(e.id)} className="h-10 shrink-0 cursor-pointer rounded-full bg-brand px-5 text-sm font-bold text-brand-ink hover:bg-brand-hover">
+                    Enter result
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className={card}>
+          <div className={kicker}>Coming up</div>
+          {upcoming.length === 0 ? (
+            <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">Nothing scheduled.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-neutral-200 dark:divide-neutral-800">
+              {upcoming.slice(0, 4).map((e) => (
+                <li key={e.id} className="py-3">
+                  <div className="truncate font-bold">{label(e)}</div>
+                  <div className="text-sm text-neutral-500">{formatDateTime(e.startsAt)}</div>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button type="button" onClick={() => onTab("events")} className="mt-4 h-10 cursor-pointer rounded-full border border-neutral-300 px-5 text-sm font-bold hover:border-neutral-500 dark:border-neutral-700">
+            {racing ? "Add a round" : "Add a match"}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className={card}>
+          <div className={kicker}>{racing ? "Constructors" : "Teams"}</div>
+          <div className="gs-display mt-2 text-5xl font-extrabold leading-none">{teams.length}</div>
+          <button type="button" onClick={() => onTab("roster")} className="mt-3 cursor-pointer text-sm font-bold underline">Manage</button>
+        </div>
+        {racing && (
+          <div className={card}>
+            <div className={kicker}>Drivers</div>
+            <div className="gs-display mt-2 text-5xl font-extrabold leading-none">{drivers.length}</div>
+            <button type="button" onClick={() => onTab("roster")} className="mt-3 cursor-pointer text-sm font-bold underline">Manage</button>
+          </div>
+        )}
+        <div className={card}>
+          <div className={kicker}>Played</div>
+          <div className="gs-display mt-2 text-5xl font-extrabold leading-none">{events.filter((e) => e.status === "final").length}<span className="text-2xl text-neutral-400"> / {events.length}</span></div>
+          <button type="button" onClick={() => onTab("events")} className="mt-3 cursor-pointer text-sm font-bold underline">Schedule</button>
+        </div>
+      </div>
+
+      {latest.length > 0 && (
+        <div className={card}>
+          <div className={kicker}>Latest results</div>
+          <ul className="mt-3 divide-y divide-neutral-200 dark:divide-neutral-800">
+            {latest.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-4 py-3">
+                <span className="truncate font-bold">{label(e)}</span>
+                <span className="shrink-0 text-sm text-neutral-500">
+                  {e.homeTeamId && e.awayTeamId && e.homeScore != null ? `${e.homeScore}-${e.awayScore}${e.overtime ? " OT" : ""} · ` : ""}
+                  {formatDateTime(e.startsAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

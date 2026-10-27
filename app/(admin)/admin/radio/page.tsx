@@ -1,26 +1,21 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { X } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
+import { AdminPageHeader } from "@/components/gs/admin-header";
+import { Button } from "@/components/ui/button";
 import { canManageRadio } from "@/lib/rbac";
 import { ApiBroadcast, BroadcastRecord, ShowRecord, parseBroadcast } from "@/lib/schedule-client";
 import { ScheduleTab } from "@/components/admin/schedule/schedule-tab";
 import { ShowsTab } from "@/components/admin/schedule/shows-tab";
-import { StationTab } from "@/components/admin/schedule/station-tab";
-
-const TABS = [
-  { id: "schedule", label: "Schedule" },
-  { id: "shows", label: "Shows" },
-  { id: "station", label: "Station" },
-] as const;
-type TabId = (typeof TABS)[number]["id"];
+import { OnAirStrip } from "@/components/admin/schedule/on-air-strip";
 
 export default function AdminSchedulePage() {
-  const [tab, setTab] = useState<TabId>("schedule");
   const [shows, setShows] = useState<ShowRecord[]>([]);
   const [broadcasts, setBroadcasts] = useState<BroadcastRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showsOpen, setShowsOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -43,26 +38,46 @@ export default function AdminSchedulePage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Broadcast Schedule">
-      <div className="mx-auto max-w-7xl space-y-8 text-neutral-900 dark:text-white">
+      <div className="mx-auto max-w-7xl space-y-6 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Schedule"
-          description="Schedule radio shows and livestreams, manage shows and the broadcast password."
+          description="Click an empty slot to add a broadcast. Click a block to edit it."
           actions={
-            <Link href="/plus/schedule" className="gs-bar-link pb-0.5 text-sm font-bold">
-              View public schedule →
-            </Link>
+            <>
+              <Link href="/plus/schedule" className="gs-bar-link pb-0.5 text-sm font-bold">
+                View public schedule →
+              </Link>
+              <Button size="sm" onClick={() => setShowsOpen(true)} className="h-10 cursor-pointer px-5 text-sm">
+                Shows &amp; presenters
+              </Button>
+            </>
           }
-          tabs={TABS.map((t) => (
-            <AdminTab key={t.id} active={tab === t.id} onClick={() => setTab(t.id)}>
-              {t.label}
-            </AdminTab>
-          ))}
         />
 
-        {tab === "schedule" && <ScheduleTab shows={shows} broadcasts={broadcasts} reload={load} />}
-        {tab === "shows" && <ShowsTab shows={shows} loading={loading} reload={load} />}
-        {tab === "station" && <StationTab />}
+        <OnAirStrip shows={shows} broadcasts={broadcasts} />
+        <ScheduleTab shows={shows} broadcasts={broadcasts} reload={load} />
       </div>
+
+      {showsOpen && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={() => setShowsOpen(false)}>
+          <aside
+            role="dialog"
+            aria-label="Shows and presenters"
+            className="absolute inset-y-0 right-0 flex w-full max-w-4xl flex-col overflow-y-auto border-l border-border bg-background text-foreground shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between bg-brand px-6 py-5 text-brand-ink">
+              <h2 className="text-xl font-extrabold">Shows &amp; presenters</h2>
+              <button type="button" onClick={() => setShowsOpen(false)} aria-label="Close" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#16110a] text-[#fff8e6] hover:bg-black">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              <ShowsTab shows={shows} loading={loading} reload={load} />
+            </div>
+          </aside>
+        </div>
+      )}
     </AdminAuthGuard>
   );
 }
