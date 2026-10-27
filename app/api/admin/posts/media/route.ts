@@ -32,8 +32,8 @@ const KINDS: Record<string, { types: Record<string, string>; maxBytes: number }>
     },
     maxBytes: 200 * MB,
   },
-  // The finished post video. Discord refuses larger files.
-  final: { types: { "video/mp4": "mp4", "video/webm": "webm" }, maxBytes: MAX_VIDEO_BYTES },
+  // The finished post video (MP4) or animated WebP. Discord refuses larger files.
+  final: { types: { "video/mp4": "mp4", "video/webm": "webm", "image/webp": "webp" }, maxBytes: MAX_VIDEO_BYTES },
 };
 
 const KEY_PATTERN = /^posts\/media\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.[a-z0-9]{2,4}$/;

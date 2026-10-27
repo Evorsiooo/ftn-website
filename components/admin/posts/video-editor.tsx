@@ -4,6 +4,7 @@ import { Loader2, Music, Pause, Play, Redo2, Scissors, Trash2, Undo2, Upload, Vi
 import { Button } from "@/components/ui/button";
 import type { PostLayers } from "@/lib/post-template";
 import { exportPostVideo } from "@/lib/post-video/export";
+import { exportAnimatedWebp } from "@/lib/post-video/webp";
 import {
   MAX_DURATION,
   MAX_VIDEO_BYTES,
@@ -43,13 +44,15 @@ interface Props {
   layers: PostLayers | null;
   /** Uploads the still image of the video (a PNG) and returns its URL. */
   uploadPoster: (poster: Blob) => Promise<string>;
+  /** Export a transparent animated WebP (no sound) instead of an MP4. */
+  animatedWebp?: boolean;
 }
 
 type UploadState = { progress: number; error?: string };
 
 const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
-export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEditor({ canvasRef, layers, uploadPoster }, ref) {
+export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEditor({ canvasRef, layers, uploadPoster, animatedWebp = false }, ref) {
   const [sources, setSources] = useState<Map<string, LoadedSource>>(new Map());
   const [project, setProject] = useState<Project>(emptyProject());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -323,7 +326,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
   };
 
   // Everything the post needs: waits for the source uploads, renders, and uploads the result.
-  const render = async (): Promise<{ result: Awaited<ReturnType<typeof exportPostVideo>>; sources: SavedEdit["sources"] }> => {
+  const render = async (): Promise<{ result: { video: Blob; poster: Blob }; sources: SavedEdit["sources"] }> => {
     if (!layers) throw new Error("The preview is not ready yet.");
     player.current?.pause();
     const p = projectRef.current;
@@ -346,7 +349,8 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
         if (!url) throw new Error(`${source.info.name} did not upload. Remove it and add it again.`);
         saved.push({ id, kind: source.info.kind, name: source.info.name, url });
       }
-      const result = await exportPostVideo({
+      const run = animatedWebp ? exportAnimatedWebp : exportPostVideo;
+      const result = await run({
         project: p,
         sources: sourcesRef.current,
         layers,
@@ -370,7 +374,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       setRendering({ fraction: 1, label: "Uploading the video" });
       try {
         const [videoUrl, imageUrl] = await Promise.all([
-          uploadMedia(result.video, { kind: "final", name: "post.mp4" }),
+          uploadMedia(result.video, { kind: "final", name: animatedWebp ? "post.webp" : "post.mp4" }),
           uploadPoster(result.poster),
         ]);
         const edit: SavedEdit = { v: 1, sources: saved, project: projectRef.current };
@@ -384,7 +388,8 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       const url = URL.createObjectURL(result.video);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${name || "post"}.${result.video.type === "video/webm" ? "webm" : "mp4"}`;
+      const ext = result.video.type === "image/webp" ? "webp" : result.video.type === "video/webm" ? "webm" : "mp4";
+      link.download = `${name || "post"}.${ext}`;
       link.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     },

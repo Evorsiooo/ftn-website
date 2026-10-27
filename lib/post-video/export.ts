@@ -1,18 +1,17 @@
 import {
   AudioBufferSource,
   BufferTarget,
-  CanvasSink,
   CanvasSource,
   Mp4OutputFormat,
   Output,
   WebMOutputFormat,
   canEncodeAudio,
   canEncodeVideo,
-  type WrappedCanvas,
 } from "mediabunny";
-import { POST_SIZE, paintPost, type PostLayers } from "@/lib/post-template";
+import { POST_SIZE, type PostLayers } from "@/lib/post-template";
+import { frameTimes, renderFrames } from "./frames";
 import { hasAudio, mixAudio } from "./audio-mix";
-import { FPS, MAX_DURATION, MAX_VIDEO_BYTES, clipLength, clipStarts, projectDuration, type Project } from "./model";
+import { FPS, MAX_DURATION, MAX_VIDEO_BYTES, projectDuration, type Project } from "./model";
 import type { LoadedSource } from "./sources";
 
 export interface ExportResult {
@@ -35,9 +34,6 @@ export interface ExportOptions {
 }
 
 const AUDIO_BITRATE = 128_000;
-const MAX_SOURCE_EDGE = 2560;
-
-const abortError = () => new DOMException("Export cancelled", "AbortError");
 
 /** Whether this browser can write the MP4 (H.264 + AAC) that Discord plays inline. */
 export async function canExportMp4(): Promise<boolean> {
@@ -64,7 +60,7 @@ async function renderOnce(opts: ExportOptions, videoBitrate: number, label: stri
   const canvas = document.createElement("canvas");
   canvas.width = POST_SIZE;
   canvas.height = layers.under.height;
-  const ctx = canvas.getContext("2d", { alpha: false })!;
+  canvas.getContext("2d", { alpha: false });
 
   const target = new BufferTarget();
   const output = new Output({
@@ -99,49 +95,17 @@ async function renderOnce(opts: ExportOptions, videoBitrate: number, label: stri
       audioDone = audioSource.add(mixed);
     }
 
-    const starts = clipStarts(project.clips);
     const posterFrame = Math.min(frames - 1, Math.round(frames * 0.25));
-    let frame = 0;
-
-    for (let i = 0; i < project.clips.length; i++) {
-      const clip = project.clips[i];
-      const source = sources.get(clip.sourceId);
-      if (!source?.videoTrack) throw new Error("A clip's video file is missing.");
-      const edge = Math.max(source.info.width, source.info.height);
-      const scale = edge > MAX_SOURCE_EDGE ? MAX_SOURCE_EDGE / edge : 1;
-      const sink = new CanvasSink(source.videoTrack, {
-        width: Math.round(source.info.width * scale),
-        height: Math.round(source.info.height * scale),
-        fit: "fill",
-      });
-
-      const endFrame = i === project.clips.length - 1 ? frames : Math.round((starts[i] + clipLength(clip)) * FPS);
-      const times: number[] = [];
-      for (let f = frame; f < endFrame; f++) {
-        times.push(Math.min(clip.end - 0.001, clip.start + (f / FPS - starts[i])));
-      }
-
-      let last: WrappedCanvas | null = null;
-      for await (const wrapped of sink.canvasesAtTimestamps(times)) {
-        if (signal?.aborted) throw abortError();
-        if (wrapped) last = wrapped;
-        const shown = last?.canvas;
-        paintPost(
-          ctx,
-          layers,
-          shown ? { image: shown, width: shown.width, height: shown.height } : null,
-          clip.zoom,
-          clip.focusX,
-          clip.focusY
-        );
+    await renderFrames(
+      { project, sources, layers, times: frameTimes(duration, FPS), alpha: false, canvas, signal },
+      async (frameCanvas, frame) => {
         await videoSource.add(frame / FPS, 1 / FPS);
         if (frame === posterFrame) {
-          poster = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+          poster = await new Promise<Blob | null>((resolve) => frameCanvas.toBlob(resolve, "image/png"));
         }
-        frame++;
         if (frame % 3 === 0) opts.onProgress?.(frame / frames, `${label}Rendering`);
       }
-    }
+    );
     if (audioDone) await audioDone;
     opts.onProgress?.(1, `${label}Finishing`);
     await output.finalize();

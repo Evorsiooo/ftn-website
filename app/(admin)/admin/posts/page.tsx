@@ -73,6 +73,8 @@ export default function AdminPostsPage() {
   const [uploadingBg, setUploadingBg] = useState(false);
   const [mode, setMode] = useState<"image" | "video">("image");
   const [videoLayers, setVideoLayers] = useState<PostLayers | null>(null);
+  // Transparent animated WebP (no sound) instead of an MP4 on a dark backdrop.
+  const [transparent, setTransparent] = useState(false);
   const [openingVideo, setOpeningVideo] = useState(false);
   const videoEditor = useRef<VideoEditorHandle>(null);
   const [saving, setSaving] = useState(false);
@@ -126,7 +128,7 @@ export default function AdminPostsPage() {
         if (!canvasRef.current || token !== renderToken.current) return;
         if (mode === "video") {
           // The video editor draws the frames; it only needs the template layers.
-          const layers = await buildPostLayers({ headline, body, logo, ad: adImg, noAd }, TEMPLATE.videoBackdrop);
+          const layers = await buildPostLayers({ headline, body, logo, ad: adImg, noAd }, transparent ? null : TEMPLATE.videoBackdrop);
           if (token === renderToken.current) {
             setVideoLayers(layers);
             setLayout(layers.layout);
@@ -159,7 +161,7 @@ export default function AdminPostsPage() {
         }
       }
     })();
-  }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd, noAd, mode]);
+  }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd, noAd, mode, transparent]);
 
   // Downloads the image as it is now, without saving the post or using an ad impression.
   const handleExport = async () => {
@@ -187,6 +189,7 @@ export default function AdminPostsPage() {
   const resetForm = () => {
     setEditingId(null);
     setMode("image");
+    setTransparent(false);
     videoEditor.current?.reset();
     setHeadline("");
     setBody("");
@@ -225,6 +228,7 @@ export default function AdminPostsPage() {
   const startEditing = async (post: any) => {
     setEditingId(post.id);
     setMode(post.mediaType === "video" ? "video" : "image");
+    setTransparent(typeof post.videoUrl === "string" && post.videoUrl.endsWith(".webp"));
     setHeadline(post.headline);
     setBody(post.body || "");
     setRoState(post.roState);
@@ -444,7 +448,16 @@ export default function AdminPostsPage() {
               <div>
                 <label className={labelClass}>Video</label>
                 {openingVideo && <p className="mb-2 text-[11px] text-neutral-500">Opening the saved edit...</p>}
-                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
+                <label className="mb-2 flex items-start gap-2 text-xs text-neutral-700 dark:text-neutral-300">
+                  <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} className="mt-0.5" />
+                  <span>
+                    Transparent animated WebP
+                    <span className="block text-[11px] text-neutral-500">
+                      Keeps the gap above the ad and the rounded corners see-through. <b>No sound</b>: songs and clip volume are left out. Takes longer to render. When off, the post is an MP4 with sound on a dark background.
+                    </span>
+                  </span>
+                </label>
+                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
               </div>
             ) : (
             <div>
@@ -501,7 +514,9 @@ export default function AdminPostsPage() {
                 const canChange = mine || isLeadership;
                 return (
                   <Card key={p.id} className="p-3 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-2">
-                    {p.mediaType === "video" && p.videoUrl ? (
+                    {p.mediaType === "video" && p.videoUrl?.endsWith(".webp") ? (
+                      <img src={p.videoUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                    ) : p.mediaType === "video" && p.videoUrl ? (
                       <video src={p.videoUrl} poster={p.imageUrl} controls preload="none" playsInline className="w-full rounded-lg bg-neutral-900" />
                     ) : (
                       <a href={p.imageUrl} target="_blank" rel="noopener noreferrer">
