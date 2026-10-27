@@ -3,6 +3,7 @@ import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AdminRow, AdminSwitch } from "@/components/gs/admin-form";
+import { AdminDrawer } from "@/components/gs/admin-drawer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -19,9 +20,21 @@ type Tab = "overview" | "events" | "roster" | "leagues" | "venues";
 
 const labelClass = "block text-sm font-semibold mb-1";
 const selectClass =
-  "w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  "w-full h-10 rounded-full border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 const cardClass = "p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 lg:sticky lg:top-24 self-start";
 const primaryBtn = "font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50";
+
+const listCard = "divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900";
+const iconBtn = "cursor-pointer p-1.5 text-neutral-400 transition hover:text-red-500";
+
+function SectionHead({ title, count, action }: { title: string; count?: number; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="text-lg font-extrabold">{title}{count !== undefined && <span className="ml-2 font-normal text-neutral-500">{count}</span>}</h2>
+      {action}
+    </div>
+  );
+}
 
 async function api(method: string, entity: string, body?: unknown, id?: string) {
   const res = await fetch(`/api/sports/${entity}${id ? `?id=${encodeURIComponent(id)}` : ""}`, {
@@ -48,7 +61,7 @@ async function uploadPhoto(file: File): Promise<string> {
 function PhotoButton({ label = "Upload", onUploaded }: { label?: string; onUploaded: (url: string) => void | Promise<unknown> }) {
   const [busy, setBusy] = useState(false);
   return (
-    <label className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-2">
+    <label className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer rounded-full border border-neutral-300 dark:border-neutral-700 px-4 py-2">
       {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
       {label}
       <input
@@ -194,87 +207,93 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
   const [season, setSeason] = useState(String(new Date().getFullYear()));
   const [color, setColor] = useState("#FFBB14");
   const [scoring, setScoring] = useState<"points" | "order">("points");
+  const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const editingLeague = leagues.find((l) => l.id === editing);
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
-      <Card className={cardClass}>
-        <div>
-          <h2 className="text-lg font-extrabold">New league</h2>
-          <p className="mt-1 text-xs text-neutral-500">A season of racing or a team sport. Rules and logos are set afterwards, from the league card.</p>
-        </div>
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (await run(() => api("POST", "leagues", { name, kind, sport, season, color, scoring: kind === "racing" ? scoring : "points" }))) setName("");
-          }}
-        >
-          <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Harrison Rallying Championship" /></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Sport"><Input value={sport} onChange={(e) => setSport(e.target.value)} placeholder="Rally, Hockey..." /></Field>
-            <Field label="Season"><Input value={season} onChange={(e) => setSeason(e.target.value)} /></Field>
-          </div>
-          <Field label="Type">
-            <select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
-              <option value="racing">Racing (drivers and constructors)</option>
-              <option value="team">Team sport (matches)</option>
-            </select>
-          </Field>
-          {kind === "racing" && (
-            <Field label="Scoring">
-              <select value={scoring} onChange={(e) => setScoring(e.target.value as any)} className={selectClass}>
-                <option value="points">Points table (championship)</option>
-                <option value="order">Finishing order only (no points)</option>
-              </select>
-            </Field>
-          )}
-          <Field label="Colour"><Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#FFBB14" /></Field>
-          <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Create league</Button>
-        </form>
-      </Card>
-
-      <div className="space-y-4">
-        <h2 className="text-lg font-extrabold">Leagues ({leagues.length})</h2>
-        {leagues.length === 0 && (
-          <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
-            No leagues yet.
-          </div>
-        )}
-        {leagues.map((l) => (
-          <Card key={l.id} className="p-5 space-y-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-sm">{l.name}</h3>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                  <span className="uppercase font-mono text-[10px] text-neutral-500">{l.kind}</span> · {l.sport} · Season {l.season}
+    <div className="space-y-4">
+      <SectionHead title="Leagues" count={leagues.length} action={<Button size="sm" onClick={() => setCreating(true)} className={`h-10 px-5 text-sm ${primaryBtn}`}>New league</Button>} />
+      {leagues.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500 dark:border-neutral-700">No leagues yet.</div>
+      ) : (
+        <ul className={listCard}>
+          {leagues.map((l) => (
+            <li key={l.id} className="flex items-center gap-4 p-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 p-1.5 dark:border-neutral-700 dark:bg-neutral-800" style={{ borderColor: l.color || undefined }}>
+                {l.logoUrl ? <img src={l.logoUrl} alt="" className="h-full w-full object-contain" /> : <span className="text-xs font-extrabold">{l.name.slice(0, 2).toUpperCase()}</span>}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-bold">{l.name}</div>
+                <div className="text-xs text-neutral-500">
+                  {l.kind === "racing" ? "Racing" : "Team sport"} · {l.sport} · Season {l.season}
+                  {l.kind === "racing" && ` · ${l.scoring === "points" ? "points table" : "wins, then podiums"}`}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setEditing(editing === l.id ? null : l.id)}>
-                  Scoring
-                </Button>
-                <button
-                  type="button"
-                  title="Delete league"
-                  className="text-neutral-400 hover:text-red-500 transition cursor-pointer p-1.5"
-                  onClick={async () => {
-                    if (await confirmDialog(`Delete ${l.name} and all its teams, drivers and events?`)) run(() => api("DELETE", "leagues", undefined, l.id));
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
+              <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setEditing(l.id)}>Edit</Button>
+              <button
+                type="button"
+                title="Delete league"
+                className={iconBtn}
+                onClick={async () => {
+                  if (await confirmDialog(`Delete ${l.name} and all its teams, drivers and events?`)) run(() => api("DELETE", "leagues", undefined, l.id));
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {creating && (
+        <AdminDrawer title="New league" onClose={() => setCreating(false)}>
+          <p className="text-sm text-neutral-500">A season of racing or a team sport. Logo, banner and scoring rules are set afterwards with Edit.</p>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (await run(() => api("POST", "leagues", { name, kind, sport, season, color, scoring: kind === "racing" ? scoring : "points" }))) {
+                setName("");
+                setCreating(false);
+              }
+            }}
+          >
+            <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Harrison Rallying Championship" /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Sport"><Input value={sport} onChange={(e) => setSport(e.target.value)} placeholder="Rally, Hockey..." /></Field>
+              <Field label="Season"><Input value={season} onChange={(e) => setSeason(e.target.value)} /></Field>
             </div>
-            {editing === l.id && <RulesEditor league={l} busy={busy} run={run} />}
-          </Card>
-        ))}
-      </div>
+            <Field label="Type">
+              <select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
+                <option value="racing">Racing (drivers and constructors)</option>
+                <option value="team">Team sport (matches)</option>
+              </select>
+            </Field>
+            {kind === "racing" && (
+              <Field label="Scoring">
+                <select value={scoring} onChange={(e) => setScoring(e.target.value as any)} className={selectClass}>
+                  <option value="points">Points table (championship)</option>
+                  <option value="order">Finishing order only (no points)</option>
+                </select>
+              </Field>
+            )}
+            <Field label="Colour"><Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#FFBB14" /></Field>
+            <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Create league</Button>
+          </form>
+        </AdminDrawer>
+      )}
+
+      {editingLeague && (
+        <AdminDrawer title={editingLeague.name} onClose={() => setEditing(null)}>
+          <RulesEditor key={editingLeague.id} league={editingLeague} busy={busy} run={run} onSaved={() => setEditing(null)} />
+        </AdminDrawer>
+      )}
     </div>
   );
 }
 
-function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolean; run: RunFn }) {
+function RulesEditor({ league, busy, run, onSaved }: { league: SportsLeague; busy: boolean; run: RunFn; onSaved?: () => void }) {
   const rules = parseRules(league.kind, league.rulesJson);
   const racing = league.kind === "racing";
   const [scoring, setScoring] = useState<"points" | "order">(league.scoring);
@@ -288,8 +307,8 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
   const [loss, setLoss] = useState(String(t.loss ?? 0));
   const [otl, setOtl] = useState(String(t.overtimeLoss ?? 0));
 
-  const save = () =>
-    run(() =>
+  const save = async () => {
+    if (await run(() =>
       api(
         "PATCH",
         "leagues",
@@ -303,10 +322,11 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
         },
         league.id
       )
-    );
+    )) onSaved?.();
+  };
 
   return (
-    <div className="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-3">
+    <div className="space-y-4">
       <Field label="Accent colour"><Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#2DD4BF" /></Field>
       <div>
         <label className={labelClass}>Logo</label>
@@ -362,41 +382,48 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
 
 function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean; run: RunFn }) {
   const [name, setName] = useState("");
+  const [adding, setAdding] = useState(false);
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
-      <Card className={`${cardClass} self-start`}>
-        <h2 className="text-lg font-extrabold">Add venue</h2>
-        <p className="text-xs text-neutral-500">Tracks and stages. The photo shows on the Sports hub, calendar and league overview.</p>
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (await run(() => api("POST", "venues", { name }))) setName("");
-          }}
-        >
-          <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coastal Pass" /></Field>
-          <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Add</Button>
-        </form>
-      </Card>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 content-start">
-        {venues.length === 0 && <p className="text-xs text-neutral-500">No venues yet.</p>}
-        {venues.map((v) => (
-          <Card key={v.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="h-32 bg-neutral-200 dark:bg-neutral-900">
-              {v.photoUrl && <img src={v.photoUrl} alt="" className="h-full w-full object-cover" />}
-            </div>
-            <div className="p-3 flex items-center justify-between gap-2">
-              <span className="font-semibold text-sm truncate">{v.name}</span>
-              <div className="flex items-center gap-2">
-                <PhotoButton label={v.photoUrl ? "Replace" : "Upload"} onUploaded={(url) => run(() => api("PATCH", "venues", { photoUrl: url }, v.id))} />
-                <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog(`Delete ${v.name}?`) && run(() => api("DELETE", "venues", undefined, v.id))}>
-                  <Trash2 className="h-4 w-4" />
-                </button>
+    <div className="space-y-4">
+      <SectionHead title="Venues" count={venues.length} action={<Button size="sm" onClick={() => setAdding(true)} className={`h-10 px-5 text-sm ${primaryBtn}`}>Add venue</Button>} />
+      <p className="text-sm text-neutral-500">Tracks and stages. The photo shows on the Sports hub, calendar and league overview.</p>
+      {venues.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500 dark:border-neutral-700">No venues yet.</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {venues.map((v) => (
+            <Card key={v.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+              <div className="h-32 bg-neutral-200 dark:bg-neutral-800">{v.photoUrl && <img src={v.photoUrl} alt="" className="h-full w-full object-cover" />}</div>
+              <div className="flex items-center justify-between gap-2 p-3">
+                <span className="truncate text-sm font-semibold">{v.name}</span>
+                <div className="flex items-center gap-2">
+                  <PhotoButton label={v.photoUrl ? "Replace" : "Upload"} onUploaded={(url) => run(() => api("PATCH", "venues", { photoUrl: url }, v.id))} />
+                  <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog(`Delete ${v.name}?`)) && run(() => api("DELETE", "venues", undefined, v.id))}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      {adding && (
+        <AdminDrawer title="Add venue" onClose={() => setAdding(false)}>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (await run(() => api("POST", "venues", { name }))) {
+                setName("");
+                setAdding(false);
+              }
+            }}
+          >
+            <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coastal Pass" /></Field>
+            <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Add venue</Button>
+          </form>
+        </AdminDrawer>
+      )}
     </div>
   );
 }
@@ -404,6 +431,7 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
 function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: ReturnType<typeof useSportsData>["data"]; busy: boolean; run: RunFn }) {
   const teams = data.teams.filter((t) => t.leagueId === league.id);
   const drivers = data.drivers.filter((d) => d.leagueId === league.id);
+  const [drawer, setDrawer] = useState<null | "team" | "driver">(null);
   const [teamName, setTeamName] = useState("");
   const [shortName, setShortName] = useState("");
   const [teamColor, setTeamColor] = useState("");
@@ -415,90 +443,113 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
   const racing = league.kind === "racing";
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
-      <div className="space-y-4">
-        <Card className={cardClass}>
-          <h2 className="text-lg font-extrabold">{racing ? "Add constructor" : "Add team"}</h2>
+    <div className="space-y-10">
+      <section className="space-y-4">
+        <SectionHead title={racing ? "Constructors" : "Teams"} count={teams.length} action={<Button size="sm" onClick={() => setDrawer("team")} className={`h-10 px-5 text-sm ${primaryBtn}`}>{racing ? "Add constructor" : "Add team"}</Button>} />
+        {teams.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500 dark:border-neutral-700">Nobody here yet.</div>
+        ) : (
+          <ul className={listCard}>
+            {teams.map((t) => (
+              <li key={t.id} className="flex items-center gap-4 p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
+                  {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-full w-full object-contain" /> : <span className="h-4 w-4 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-bold">{t.name}</div>
+                  <div className="text-xs text-neutral-500">{[t.shortName, racing ? `${drivers.filter((d) => d.teamId === t.id).length} ${drivers.filter((d) => d.teamId === t.id).length === 1 ? "driver" : "drivers"}` : ""].filter(Boolean).join(" · ")}</div>
+                </div>
+                <PhotoButton label={t.logoUrl ? "Replace logo" : "Upload logo"} onUploaded={(url) => run(() => api("PATCH", "teams", { logoUrl: url }, t.id))} />
+                {t.logoUrl && (
+                  <button type="button" className="cursor-pointer text-xs text-neutral-500 hover:text-red-500" onClick={() => run(() => api("PATCH", "teams", { logoUrl: null }, t.id))}>
+                    Remove
+                  </button>
+                )}
+                <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog(`Delete ${t.name}?`)) && run(() => api("DELETE", "teams", undefined, t.id))}>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {racing && (
+        <section className="space-y-4">
+          <SectionHead title="Drivers" count={drivers.length} action={<Button size="sm" onClick={() => setDrawer("driver")} className={`h-10 px-5 text-sm ${primaryBtn}`}>Add driver</Button>} />
+          {drivers.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500 dark:border-neutral-700">No drivers yet.</div>
+          ) : (
+            <ul className={listCard}>
+              {drivers.map((d) => (
+                <li key={d.id} className="flex items-center gap-4 p-4">
+                  <span className="gs-display w-10 shrink-0 text-center text-xl font-extrabold text-brand-text">{d.number != null ? d.number : "–"}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-bold">{d.name}</div>
+                    <div className="text-xs text-neutral-500">{[teams.find((t) => t.id === d.teamId)?.name, d.robloxUsername ? `@${d.robloxUsername}` : ""].filter(Boolean).join(" · ") || "No constructor"}</div>
+                  </div>
+                  <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog(`Delete ${d.name}?`)) && run(() => api("DELETE", "drivers", undefined, d.id))}>
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {drawer === "team" && (
+        <AdminDrawer title={racing ? "Add constructor" : "Add team"} onClose={() => setDrawer(null)}>
           <form
-            className="space-y-3"
+            className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
               if (await run(() => api("POST", "teams", { leagueId: league.id, name: teamName, shortName, color: teamColor, logoUrl: teamLogo || null }))) {
                 setTeamName(""); setShortName(""); setTeamColor(""); setTeamLogo("");
+                setDrawer(null);
               }
             }}
           >
             <Field label="Name"><Input value={teamName} onChange={(e) => setTeamName(e.target.value)} /></Field>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <Field label="Short name"><Input value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="ABC" /></Field>
               <Field label="Colour"><Input value={teamColor} onChange={(e) => setTeamColor(e.target.value)} placeholder="#FF0000" /></Field>
             </div>
             <div className="flex items-center gap-3">
-              {teamLogo && <img src={teamLogo} alt="" className="h-10 w-10 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-1 object-contain" />}
+              {teamLogo && <img src={teamLogo} alt="" className="h-10 w-10 rounded-full border border-neutral-300 bg-neutral-100 p-1 object-contain dark:border-neutral-700 dark:bg-neutral-900" />}
               <PhotoButton label={teamLogo ? "Replace logo" : "Upload logo"} onUploaded={(url) => setTeamLogo(url)} />
             </div>
-            <Button type="submit" disabled={busy || !teamName.trim()} className={`w-full ${primaryBtn}`}>Add</Button>
+            <Button type="submit" disabled={busy || !teamName.trim()} className={`w-full ${primaryBtn}`}>{racing ? "Add constructor" : "Add team"}</Button>
           </form>
-        </Card>
-        {teams.map((t) => (
-          <Card key={t.id} className="p-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <span className="flex items-center gap-2 text-sm font-semibold">
-              {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-8 w-8 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-1 object-contain" /> : <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />} {t.name}
-            </span>
-            <span className="flex items-center gap-1">
-              <PhotoButton label={t.logoUrl ? "Replace logo" : "Upload logo"} onUploaded={(url) => run(() => api("PATCH", "teams", { logoUrl: url }, t.id))} />
-              {t.logoUrl && (
-                <button type="button" className="text-xs text-neutral-500 hover:text-red-500 cursor-pointer px-1.5" onClick={() => run(() => api("PATCH", "teams", { logoUrl: null }, t.id))}>
-                  Remove
-                </button>
-              )}
-            <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog(`Delete ${t.name}?`) && run(() => api("DELETE", "teams", undefined, t.id))}>
-              <Trash2 className="h-4 w-4" />
-            </button>
-            </span>
-          </Card>
-        ))}
-      </div>
+        </AdminDrawer>
+      )}
 
-      {racing && (
-        <div className="space-y-4">
-          <Card className={cardClass}>
-            <h2 className="text-lg font-extrabold">Add driver</h2>
-            <form
-              className="space-y-3"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (await run(() => api("POST", "drivers", { leagueId: league.id, name: driverName, number: driverNumber || null, teamId: driverTeam || null, robloxUsername: driverRoblox || null }))) {
-                  setDriverName(""); setDriverNumber(""); setDriverRoblox("");
-                }
-              }}
-            >
-              <Field label="Name"><Input value={driverName} onChange={(e) => setDriverName(e.target.value)} /></Field>
-              <Field label="Roblox username (for the headshot)"><Input value={driverRoblox} onChange={(e) => setDriverRoblox(e.target.value)} placeholder="optional" /></Field>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="Number"><Input value={driverNumber} onChange={(e) => setDriverNumber(e.target.value)} /></Field>
-                <Field label="Constructor">
-                  <select value={driverTeam} onChange={(e) => setDriverTeam(e.target.value)} className={selectClass}>
-                    <option value="">None</option>
-                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </Field>
-              </div>
-              <Button type="submit" disabled={busy || !driverName.trim()} className={`w-full ${primaryBtn}`}>Add</Button>
-            </form>
-          </Card>
-          {drivers.map((d) => (
-            <Card key={d.id} className="p-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-              <span className="text-sm">
-                <span className="font-semibold">{d.number != null ? `#${d.number} ` : ""}{d.name}</span>
-                <span className="text-neutral-500 text-xs ml-2">{teams.find((t) => t.id === d.teamId)?.name ?? ""}{d.robloxUsername ? ` · @${d.robloxUsername}` : ""}</span>
-              </span>
-              <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog(`Delete ${d.name}?`) && run(() => api("DELETE", "drivers", undefined, d.id))}>
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </Card>
-          ))}
-        </div>
+      {drawer === "driver" && (
+        <AdminDrawer title="Add driver" onClose={() => setDrawer(null)}>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (await run(() => api("POST", "drivers", { leagueId: league.id, name: driverName, number: driverNumber || null, teamId: driverTeam || null, robloxUsername: driverRoblox || null }))) {
+                setDriverName(""); setDriverNumber(""); setDriverRoblox("");
+                setDrawer(null);
+              }
+            }}
+          >
+            <Field label="Name"><Input value={driverName} onChange={(e) => setDriverName(e.target.value)} /></Field>
+            <Field label="Roblox username (for the headshot)"><Input value={driverRoblox} onChange={(e) => setDriverRoblox(e.target.value)} placeholder="optional" /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Number"><Input value={driverNumber} onChange={(e) => setDriverNumber(e.target.value)} /></Field>
+              <Field label="Constructor">
+                <select value={driverTeam} onChange={(e) => setDriverTeam(e.target.value)} className={selectClass}>
+                  <option value="">None</option>
+                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </Field>
+            </div>
+            <Button type="submit" disabled={busy || !driverName.trim()} className={`w-full ${primaryBtn}`}>Add driver</Button>
+          </form>
+        </AdminDrawer>
       )}
     </div>
   );

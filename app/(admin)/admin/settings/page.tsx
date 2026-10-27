@@ -1,6 +1,6 @@
 "use client";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SETTINGS_PAGES } from "@/components/gs/admin-nav";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader } from "@/components/gs/admin-header";
+import { AdminDrawer } from "@/components/gs/admin-drawer";
 import { AdminRow, AdminSaveBar, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { canConfigureSite } from "@/lib/rbac";
 import {
@@ -150,6 +151,9 @@ export default function SiteSettingsPage() {
   const [hiddenVideoIds, setHiddenVideoIds] = useState<string[]>([]);
   const [ingestedVideos, setIngestedVideos] = useState<any[]>([]);
   const [videoSearchQuery, setVideoSearchQuery] = useState("");
+  const [videoFilter, setVideoFilter] = useState<"all" | "shown" | "hidden">("all");
+  const [newSwimlaneOpen, setNewSwimlaneOpen] = useState(false);
+  const swimlaneCount = useRef(0);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [videosLoaded, setVideosLoaded] = useState(false);
@@ -157,6 +161,10 @@ export default function SiteSettingsPage() {
 
   // Custom Swimlanes
   const [swimlanes, setSwimlanes] = useState<CustomSwimlane[]>([]);
+  useEffect(() => {
+    if (swimlanes.length > swimlaneCount.current) setNewSwimlaneOpen(false);
+    swimlaneCount.current = swimlanes.length;
+  }, [swimlanes.length]);
   const [newSwimlaneType, setNewSwimlaneType] = useState<"filter" | "playlist">("filter");
   const [newSwimlaneTitle, setNewSwimlaneTitle] = useState("");
   const [newSwimlaneChannel, setNewSwimlaneChannel] = useState("");
@@ -1866,18 +1874,21 @@ export default function SiteSettingsPage() {
 
         {/* 5b. Synced Video Library & Stream Visibility Controls */}
       <AdminSection title={<>Video catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}</>} description="Hide duplicate or superseded streams from FTN+ swimlanes and the homepage.">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1">
-          <div className="w-full">
-            <Input
-              value={videoSearchQuery}
-              onChange={(e) => {
-                setVideoSearchQuery(e.target.value);
-                setVisibleVideoCount(25);
-              }}
-              placeholder="Search synced videos..."
-              className="h-10"
-            />
-          </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Input
+            value={videoSearchQuery}
+            onChange={(e) => {
+              setVideoSearchQuery(e.target.value);
+              setVisibleVideoCount(24);
+            }}
+            placeholder="Search by title, channel or video id"
+            className="h-10 sm:max-w-sm"
+          />
+          <AdminSegmented
+            value={videoFilter}
+            onChange={(v) => { setVideoFilter(v); setVisibleVideoCount(24); }}
+            options={[{ value: "all", label: "All" }, { value: "shown", label: "Shown" }, { value: "hidden", label: `Hidden (${ingestedVideos.filter((v) => hiddenVideoIds.includes(v.youtubeId || v.id) || hiddenVideoIds.includes(v.id)).length})` }]}
+          />
         </div>
 
         {loadingVideos && !videosLoaded ? (
@@ -1891,7 +1902,11 @@ export default function SiteSettingsPage() {
             (v.title || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
             (v.channelTitle || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
             (v.youtubeId || "").toLowerCase().includes(videoSearchQuery.toLowerCase())
-          );
+          ).filter((v) => {
+            if (videoFilter === "all") return true;
+            const hid = hiddenVideoIds.includes(v.youtubeId || v.id) || hiddenVideoIds.includes(v.id);
+            return videoFilter === "hidden" ? hid : !hid;
+          });
           const displayedVideos = filteredVideos.slice(0, visibleVideoCount);
           const hasMoreVideos = filteredVideos.length > displayedVideos.length;
 
@@ -1905,68 +1920,41 @@ export default function SiteSettingsPage() {
 
           return (
             <div className="space-y-3">
-              <div className="max-h-[480px] divide-y divide-neutral-200 overflow-y-auto rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {displayedVideos.map((video) => {
                   const ytid = video.youtubeId || video.id;
                   const isHidden = hiddenVideoIds.includes(ytid) || hiddenVideoIds.includes(video.id);
 
                   return (
-                    <div
-                      key={ytid}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 transition ${isHidden ? "opacity-60" : ""}`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
+                    <div key={ytid} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+                      <div className="relative aspect-video bg-neutral-200 dark:bg-neutral-950">
                         <img
                           src={video.thumbnailUrl || `https://img.youtube.com/vi/${ytid}/hqdefault.jpg`}
                           alt={video.title}
                           loading="lazy"
                           decoding="async"
-                          className="h-12 w-20 rounded object-cover shrink-0 border border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-950"
+                          className={`h-full w-full object-cover transition ${isHidden ? "opacity-40 grayscale" : ""}`}
                         />
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-neutral-900 dark:text-white truncate max-w-md" title={video.title}>
-                              {video.title}
-                            </span>
-                            {video.isLive && (
-                              <span className="rounded bg-red-600 px-1.5 py-0.2 text-[9px] font-bold uppercase text-white">
-                                LIVE
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-                            <span>{video.channelTitle || "FTN"}</span>
-                            <span>•</span>
-                            <span className="text-neutral-400 dark:text-neutral-500">{ytid}</span>
-                          </div>
-                        </div>
+                        {video.isLive && <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Live</span>}
+                        {isHidden && <span className="absolute left-2 bottom-2 rounded-full bg-[#16110a] px-2.5 py-0.5 text-xs font-bold text-[#fff8e6]">Hidden</span>}
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                        <a
-                          href={`https://www.youtube.com/watch?v=${ytid}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition"
-                          title="Watch on YouTube"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-
-                        <span className="text-xs font-semibold text-neutral-500">{isHidden ? "Hidden" : "Shown"}</span>
-                        <AdminSwitch checked={!isHidden} onChange={() => handleToggleHideVideo(ytid)} label={isHidden ? "Show video" : "Hide video"} />
-
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={deletingVideoId === ytid}
-                          onClick={() => handleDeleteVideo(ytid, video.title)}
-                          className="text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/60 dark:hover:bg-red-900 dark:text-red-300 dark:border-red-800/60 cursor-pointer"
-                          title="Delete completely"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                      <div className="space-y-2 p-3">
+                        <div className="line-clamp-2 text-sm font-bold leading-snug" title={video.title}>{video.title}</div>
+                        <div className="truncate text-xs text-neutral-500">{video.channelTitle || "FTN"}</div>
+                        <div className="flex items-center justify-between border-t border-neutral-200 pt-2 dark:border-neutral-800">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                            <AdminSwitch checked={!isHidden} onChange={() => handleToggleHideVideo(ytid)} label={isHidden ? "Show video" : "Hide video"} />
+                            {isHidden ? "Hidden" : "Shown"}
+                          </label>
+                          <span className="flex items-center gap-1">
+                            <a href={`https://www.youtube.com/watch?v=${ytid}`} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 transition hover:text-black dark:hover:text-white" title="Watch on YouTube">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                            <button type="button" disabled={deletingVideoId === ytid} onClick={() => handleDeleteVideo(ytid, video.title)} className="cursor-pointer p-1.5 text-neutral-400 transition hover:text-red-500 disabled:opacity-50" title="Delete completely">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1984,10 +1972,10 @@ export default function SiteSettingsPage() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setVisibleVideoCount((prev) => prev + 25)}
+                    onClick={() => setVisibleVideoCount((prev) => prev + 24)}
                     className="text-xs h-7 px-3 border-neutral-300 text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:text-neutral-200 dark:hover:text-white cursor-pointer"
                   >
-                    Load 25 More Videos
+                    Load more
                   </Button>
                 )}
               </div>
@@ -1998,13 +1986,124 @@ export default function SiteSettingsPage() {
 
       {/* 6. Custom FTN+ Swimlanes (Dynamic Filter & Curated Playlist) */}
       <AdminSection title="Swimlanes" description="Custom rows of videos on the FTN+ home page.">
-        <div className="flex items-center justify-between pb-1">
-          
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-neutral-500">Use the arrows to choose which lane appears first on FTN+.</p>
+          <Button type="button" size="sm" onClick={() => setNewSwimlaneOpen(true)} className="h-10 shrink-0 cursor-pointer bg-brand px-5 text-sm font-bold text-brand-ink shadow-sm hover:bg-brand-hover">
+            New swimlane
+          </Button>
         </div>
 
-        {/* Edit Swimlane Form */}
-        {editingSwimlane ? (
-          <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800/40 space-y-4">
+        {/* Configured Swimlanes List with Reordering */}
+        <div className="space-y-2">
+          <div className="text-sm font-semibold">Configured swimlanes ({swimlanes.length})</div>
+
+          {swimlanes.length === 0 ? (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-4 text-center text-xs text-neutral-500">
+              No custom swimlanes configured. Only the main Trending lane will be displayed.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {swimlanes.map((lane, index) => (
+                <div
+                  key={lane.id}
+                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 px-4 py-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition shadow-sm dark:shadow-none"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Reorder Buttons */}
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => handleMoveSwimlane(index, "up")}
+                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                        title="Move Up"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === swimlanes.length - 1}
+                        onClick={() => handleMoveSwimlane(index, "down")}
+                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                        title="Move Down"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                        <span>{lane.title}</span>
+                        {lane.type === "playlist" ? (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300 text-[9px] font-bold flex items-center gap-1">
+                            <ListVideo className="h-2.5 w-2.5" /> PLAYLIST ({lane.playlistVideos?.length || 0})
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded bg-brand/20 border border-brand text-brand-text text-[9px] font-bold flex items-center gap-1">
+                            <Sliders className="h-2.5 w-2.5" /> FILTER
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                        {lane.type === "playlist" ? (
+                          <span>{lane.playlistVideos?.length || 0} curated videos</span>
+                        ) : (
+                          <>
+                            {lane.channel && (
+                              <span>
+                                Channels: <strong className="text-neutral-800 dark:text-neutral-200">{lane.channel}</strong>
+                              </span>
+                            )}
+                            {lane.channel && lane.regexPattern && <span>•</span>}
+                            {lane.regexPattern && (
+                              <span>
+                                Keywords: <strong className="text-neutral-800 dark:text-neutral-200">{lane.regexPattern}</strong>
+                              </span>
+                            )}
+                          </>
+                        )}
+                        <span>•</span>
+                        <span>
+                          Sort:{" "}
+                          {lane.sortBy === "trending"
+                            ? "7-Day Trending"
+                            : lane.sortBy === "curated"
+                            ? "Curated Order"
+                            : "Most Recent"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditingSwimlane(lane)}
+                      className="text-neutral-400 hover:text-brand-text transition p-1.5 cursor-pointer"
+                      title="Edit Swimlane"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSwimlane(lane.id)}
+                      className="text-neutral-400 hover:text-red-500 transition p-1.5 cursor-pointer"
+                      title="Delete Swimlane"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {editingSwimlane && (
+          <AdminDrawer title={`Edit swimlane: ${editingSwimlane.title || "untitled"}`} wide onClose={() => setEditingSwimlane(null)}>
+
+          <div className="space-y-5">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                 <Edit2 className="h-3.5 w-3.5" /> Editing Swimlane: {editingSwimlane.title}
@@ -2037,7 +2136,7 @@ export default function SiteSettingsPage() {
 
             {editingSwimlane.type === "playlist" ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Input
                     value={editingSwimlane.title}
                     onChange={(e) => setEditingSwimlane({ ...editingSwimlane, title: e.target.value })}
@@ -2128,7 +2227,7 @@ export default function SiteSettingsPage() {
               </div>
             ) : (
               <form onSubmit={handleSaveEditedSwimlane} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Input
                     value={editingSwimlane.title}
                     onChange={(e) => setEditingSwimlane({ ...editingSwimlane, title: e.target.value })}
@@ -2165,9 +2264,14 @@ export default function SiteSettingsPage() {
               </form>
             )}
           </div>
-        ) : (
-          /* Add New Swimlane Form */
-          <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-4">
+
+          </AdminDrawer>
+        )}
+
+        {newSwimlaneOpen && !editingSwimlane && (
+          <AdminDrawer title="New swimlane" wide onClose={() => setNewSwimlaneOpen(false)}>
+
+          <div className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-sm font-bold text-neutral-900 dark:text-white">Add New Swimlane</span>
               <AdminSegmented
@@ -2182,7 +2286,7 @@ export default function SiteSettingsPage() {
 
             {newSwimlaneType === "playlist" ? (
               <form onSubmit={handleAddSwimlane} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold">Playlist Title</label>
                     <Input
@@ -2291,7 +2395,7 @@ export default function SiteSettingsPage() {
             ) : (
               /* Dynamic Filter Form */
               <form onSubmit={handleAddSwimlane} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Input
                     value={newSwimlaneTitle}
                     onChange={(e) => setNewSwimlaneTitle(e.target.value)}
@@ -2335,121 +2439,9 @@ export default function SiteSettingsPage() {
               </form>
             )}
           </div>
+
+          </AdminDrawer>
         )}
-
-        {/* Configured Swimlanes List with Reordering */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-semibold">
-              Configured Swimlanes ({swimlanes.length})
-            </label>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              Use arrows to reorder which swimlane appears first on FTN+.
-            </p>
-          </div>
-
-          {swimlanes.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-4 text-center text-xs text-neutral-500">
-              No custom swimlanes configured. Only the main Trending lane will be displayed.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {swimlanes.map((lane, index) => (
-                <div
-                  key={lane.id}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 px-4 py-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition shadow-sm dark:shadow-none"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Reorder Buttons */}
-                    <div className="flex flex-col gap-0.5">
-                      <button
-                        type="button"
-                        disabled={index === 0}
-                        onClick={() => handleMoveSwimlane(index, "up")}
-                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                        title="Move Up"
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === swimlanes.length - 1}
-                        onClick={() => handleMoveSwimlane(index, "down")}
-                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                        title="Move Down"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <div className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-2">
-                        <span>{lane.title}</span>
-                        {lane.type === "playlist" ? (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300 text-[9px] font-bold flex items-center gap-1">
-                            <ListVideo className="h-2.5 w-2.5" /> PLAYLIST ({lane.playlistVideos?.length || 0})
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-brand/20 border border-brand text-brand-text text-[9px] font-bold flex items-center gap-1">
-                            <Sliders className="h-2.5 w-2.5" /> FILTER
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-                        {lane.type === "playlist" ? (
-                          <span>{lane.playlistVideos?.length || 0} curated videos</span>
-                        ) : (
-                          <>
-                            {lane.channel && (
-                              <span>
-                                Channels: <strong className="text-neutral-800 dark:text-neutral-200">{lane.channel}</strong>
-                              </span>
-                            )}
-                            {lane.channel && lane.regexPattern && <span>•</span>}
-                            {lane.regexPattern && (
-                              <span>
-                                Keywords: <strong className="text-neutral-800 dark:text-neutral-200">{lane.regexPattern}</strong>
-                              </span>
-                            )}
-                          </>
-                        )}
-                        <span>•</span>
-                        <span>
-                          Sort:{" "}
-                          {lane.sortBy === "trending"
-                            ? "7-Day Trending"
-                            : lane.sortBy === "curated"
-                            ? "Curated Order"
-                            : "Most Recent"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setEditingSwimlane(lane)}
-                      className="text-neutral-400 hover:text-brand-text transition p-1.5 cursor-pointer"
-                      title="Edit Swimlane"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSwimlane(lane.id)}
-                      className="text-neutral-400 hover:text-red-500 transition p-1.5 cursor-pointer"
-                      title="Delete Swimlane"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </AdminSection>
     </div>
   )}
