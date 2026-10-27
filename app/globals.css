@@ -225,15 +225,15 @@
 /* Full Rich Text WYSIWYG & Article Typography */
 .article-prose,
 .ProseMirror {
-  color: #27272a;
-  font-size: 1.0625rem;
-  line-height: 1.8;
+  color: #2a2318;
+  font-size: 1.1875rem;
+  line-height: 1.75;
   word-break: break-word;
 }
 
 .dark .article-prose,
 .dark .ProseMirror {
-  color: #e4e4e7;
+  color: #f0e6cc;
 }
 
 .article-prose p,
@@ -246,7 +246,7 @@
 .ProseMirror h1 {
   font-size: 2.25rem;
   font-weight: 900;
-  color: #09090b;
+  color: #16110a;
   margin-top: 2.5rem;
   margin-bottom: 1rem;
   line-height: 1.2;
@@ -261,7 +261,7 @@
 .ProseMirror h2 {
   font-size: 1.625rem;
   font-weight: 800;
-  color: #09090b;
+  color: #16110a;
   margin-top: 2rem;
   margin-bottom: 0.85rem;
   line-height: 1.25;
@@ -276,7 +276,7 @@
 .ProseMirror h3 {
   font-size: 1.25rem;
   font-weight: 700;
-  color: #09090b;
+  color: #16110a;
   margin-top: 1.75rem;
   margin-bottom: 0.75rem;
   line-height: 1.35;
@@ -288,7 +288,7 @@
 
 .article-prose a,
 .ProseMirror a {
-  color: #00a9d2;
+  color: #9a6400;
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -297,17 +297,17 @@
 
 .article-prose a:hover,
 .ProseMirror a:hover {
-  color: #0284c7;
+  color: #6b4400;
 }
 .dark .article-prose a:hover,
 .dark .ProseMirror a:hover {
-  color: #38bdf8;
+  color: #ffd166;
 }
 
 .article-prose blockquote,
 .ProseMirror blockquote {
-  border-left: 4px solid #00a9d2;
-  background: rgba(0, 169, 210, 0.08);
+  border-left: 4px solid #9a6400;
+  background: rgba(255, 187, 20, 0.14);
   padding: 1rem 1.25rem;
   margin-top: 1.75rem;
   margin-bottom: 1.75rem;
@@ -320,7 +320,7 @@
 .dark .article-prose blockquote,
 .dark .ProseMirror blockquote {
   color: #f4f4f5;
-  background: rgba(0, 169, 210, 0.07);
+  background: rgba(255, 187, 20, 0.08);
 }
 
 .article-prose blockquote p,
@@ -370,7 +370,7 @@
 .article-prose strong,
 .ProseMirror strong {
   font-weight: 700;
-  color: #09090b;
+  color: #16110a;
 }
 .dark .article-prose strong,
 .dark .ProseMirror strong {
@@ -400,7 +400,7 @@
   border-radius: 0.375rem;
   font-family: monospace;
   font-size: 0.9em;
-  color: #09090b;
+  color: #16110a;
 }
 .dark .article-prose code,
 .dark .ProseMirror code {
@@ -543,4 +543,114 @@
 }
 .ftn-range:focus-visible {
   outline: none;
+}
+
+.dark .article-prose a,
+.dark .ProseMirror a {
+  color: #ffbb14;
+}
+.dark .article-prose blockquote,
+.dark .ProseMirror blockquote {
+  border-left-color: #ffbb14;
+}
+.article-prose blockquote {
+  font-family: var(--font-gs-display), var(--font-geist-sans), sans-serif;
+  font-style: normal;
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+
+/* Gold Standard: the main site and admin. A wrapper with class "gs" remaps the shadcn tokens and the
+   neutral / accent scales so every page and component inside it picks up the FTN gold palette. */
+.gs {
+  --gs-bg: #fff8e6;
+  --gs-card: #ffffff;
+  --gs-ink: #16110a;
+  --gs-ink-2: #52483a;
+  --gs-ink-3: #7a6f5d;
+  --gs-line: #eadfc2;
+  --gs-panel: #16110a;
+  --gs-panel-ink: #fff8e6;
+  --ftn-brand-text: #8a5700;
+
+  --background: var(--gs-bg);
+  --foreground: var(--gs-ink);
+  --card: var(--gs-card);
+  --card-foreground: var(--gs-ink);
+  --popover: var(--gs-card);
+  --popover-foreground: var(--gs-ink);
+  --primary: #ffbb14;
+  --primary-foreground: #16110a;
+  --secondary: #f8eed3;
+  --secondary-foreground: var(--gs-ink);
+  --muted: #f8eed3;
+  --muted-foreground: var(--gs-ink-3);
+  --accent: #f8eed3;
+  --accent-foreground: var(--gs-ink);
+  --border: var(--gs-line);
+  --input: #d6c8a4;
+  --ring: #ffbb14;
+  --radius: 0.875rem;
+
+  --color-white: #fffdf7;
+  --color-black: #110e08;
+  --color-neutral-50: #fff8e6;
+  --color-neutral-100: #f8eed3;
+  --color-neutral-200: #eadfc2;
+  --color-neutral-300: #d6c8a4;
+  --color-neutral-400: #a89c82;
+  --color-neutral-500: #7a6f5d;
+  --color-neutral-600: #5d5444;
+  --color-neutral-700: #463f33;
+  --color-neutral-800: #332b1b;
+  --color-neutral-900: #1c1710;
+  --color-neutral-950: #14100a;
+  --color-blue-300: #ffd166;
+  --color-blue-400: #ffbb14;
+  --color-blue-500: #c98300;
+  --color-blue-600: #9a6400;
+  --color-blue-700: #7a4f00;
+  --color-cyan-400: #ffbb14;
+  --color-cyan-500: #c98300;
+  --color-cyan-600: #9a6400;
+
+  background: var(--gs-bg);
+  color: var(--gs-ink);
+  font-family: var(--font-gs-body), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+.dark .gs {
+  --gs-bg: #110e08;
+  --gs-card: #1c1710;
+  --gs-ink: #fff3d6;
+  --gs-ink-2: #cfc3a5;
+  --gs-ink-3: #9a8f76;
+  --gs-line: #332b1b;
+  --gs-panel: #000000;
+  --gs-panel-ink: #fff3d6;
+  --ftn-brand-text: #ffbb14;
+  --secondary: #261f13;
+  --muted: #261f13;
+  --accent: #261f13;
+  --input: #473c25;
+}
+.gs h1,
+.gs h2,
+.gs .gs-display {
+  font-family: var(--font-gs-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+.gs h3 {
+  font-family: var(--font-gs-display), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.02em;
+}
+.gs ::selection {
+  background: #ffbb14;
+  color: #16110a;
+}
+.gs-bar-link {
+  background-image: linear-gradient(#ffbb14, #ffbb14);
+  background-size: 100% 2px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
 }

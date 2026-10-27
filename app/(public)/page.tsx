@@ -3,8 +3,7 @@ import React from "react";
 import Link from "next/link";
 import { DonationBanner } from "@/components/donation-banner";
 import { IconPlayerPlay } from "@tabler/icons-react";
-import { formatTimeAgo, calculateReadingTime } from "@/lib/utils";
-import { Clock, Newspaper } from "lucide-react";
+import { GsSectionHeading, GsStoryTile, type GsTone } from "@/components/gs/story";
 import { getDb } from "@/db";
 import { videos, siteSettings } from "@/db/schema";
 import { getPublishedArticles } from "@/lib/articles";
@@ -86,227 +85,110 @@ export default async function HomePage() {
     console.error("Error fetching homepage data:", err);
   }
 
-  const leadStory = articleList[0] || null;
+  const hasStories = articleList.length > 0;
+  const watchHref = featuredVideo ? plusHref(watchPath(featuredVideo.youtubeId || featuredVideo.id), "hero") : "/plus";
+  const bentoStories = articleList.slice(0, 5);
+  const moreStories = articleList.slice(5);
+  const BENTO_TONES: GsTone[] = ["white", "gold", "dark", "white"];
+  const MORE_TONES: GsTone[] = ["white", "gold", "white", "dark"];
 
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 dark:bg-black dark:text-white relative">
-      {/* 1. Featured Broadcast Showcase Banner */}
-      <section className="relative w-full overflow-hidden bg-neutral-900 dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-800">
-        {featuredVideo ? (
-          <div className="relative w-full min-h-[500px] sm:min-h-[560px] flex items-end">
-            {/* High-res backdrop thumbnail */}
-            <img
-              src={
-                featuredVideo.thumbnailUrl ||
-                "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1800&auto=format&fit=crop&q=80"
-              }
-              alt={featuredVideo.title}
-              className="absolute inset-0 w-full h-full object-cover object-center filter brightness-[0.75]"
-            />
-            {/* Refined, smooth cinematic gradient without muddy seams or weird splotches */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent" />
-
-            <div className="relative z-10 container mx-auto max-w-7xl px-4 sm:px-8 pt-28 sm:pt-36 pb-12 sm:pb-16 space-y-4">
-              {/* Only show LIVE badge if streaming */}
-              {featuredVideo.isLive && (
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-red-600 text-white text-[11px] font-black uppercase tracking-wider shadow-sm animate-pulse">
-                    <span className="h-2 w-2 rounded-full bg-white" />
-                    LIVE NOW
-                  </span>
+    <div className="text-neutral-900 dark:text-white">
+      {/* 1. Masthead hero: the featured FTN+ video on gold, the thumbnail breaking out of the band */}
+      <section className="bg-brand text-brand-ink">
+        <div className="mx-auto grid max-w-7xl items-end gap-8 px-4 pt-10 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pt-16">
+          <div className="pb-10 lg:pb-16">
+            {featuredVideo ? (
+              <>
+                <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
+                  {featuredVideo.isLive ? (
+                    <>
+                      <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" /> Live now on FTN+
+                    </>
+                  ) : (
+                    <span className="opacity-75">Latest on FTN+</span>
+                  )}
                 </div>
-              )}
-
-              {/* Title */}
-              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-white max-w-3xl leading-[1.15] drop-shadow-md">
-                {featuredVideo.title}
-              </h1>
-
-              {/* Description */}
-              {featuredVideo.description && (
-                <p className="text-xs sm:text-sm md:text-base text-neutral-200 line-clamp-2 sm:line-clamp-3 max-w-2xl leading-relaxed drop-shadow">
-                  {featuredVideo.description}
-                </p>
-              )}
-
-              {/* Action Button */}
-              <div className="pt-2">
-                <Link href={plusHref(watchPath(featuredVideo.youtubeId || featuredVideo.id), "hero")}>
-                  <button className="gap-2.5 font-black px-7 h-12 text-xs sm:text-sm rounded-xl bg-[#FFBB14] hover:bg-[#e5a710] text-black shadow-[0px_2px_0px_0px_#FFFFFF40_inset] flex items-center justify-center transition-all transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer">
+                <h1 className="text-4xl font-extrabold leading-[0.98] sm:text-5xl lg:text-6xl xl:text-7xl">{featuredVideo.title}</h1>
+                {featuredVideo.description && (
+                  <p className="mt-5 line-clamp-3 max-w-xl text-lg opacity-85 sm:text-xl">{featuredVideo.description}</p>
+                )}
+                <div className="mt-7">
+                  <Link href={watchHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-[#16110a] px-7 text-sm font-bold text-[#fff8e6] transition hover:bg-black">
                     <IconPlayerPlay className="h-4 w-4 fill-current" /> Watch on FTN+
-                  </button>
-                </Link>
-              </div>
-            </div>
+                  </Link>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="text-4xl font-extrabold leading-[0.98] sm:text-5xl lg:text-7xl">Independent journalism and live district coverage.</h1>
+                <p className="mt-5 max-w-xl text-lg opacity-85 sm:text-xl">
+                  Investigative reporting, municipal affairs, 24/7 web radio, and digital broadcasting.
+                </p>
+              </>
+            )}
           </div>
-        ) : (
-          /* Clean Minimal Hero when loading or library has no videos yet */
-          <div className="relative w-full min-h-[500px] sm:min-h-[560px] pt-28 sm:pt-36 pb-12 sm:pb-16 bg-gradient-to-br from-neutral-900 via-neutral-950 to-black flex items-end">
-            <div className="container mx-auto max-w-7xl px-4 sm:px-8 space-y-4">
-              <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-black tracking-tight text-white max-w-3xl leading-[1.15]">
-                Independent Journalism & Live District Coverage
-              </h1>
-              <p className="text-xs sm:text-sm md:text-base text-neutral-300 max-w-xl leading-relaxed">
-                Investigative reporting, municipal affairs, 24/7 web radio, and digital broadcasting.
-              </p>
+
+          {featuredVideo ? (
+            <Link href={watchHref} className="group relative block overflow-hidden rounded-t-[2rem] bg-[#16110a]" aria-label={`Watch ${featuredVideo.title}`}>
+              {featuredVideo.thumbnailUrl && (
+                <img src={featuredVideo.thumbnailUrl} alt="" className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
+              )}
+              {!featuredVideo.thumbnailUrl && <div className="aspect-[16/10] w-full" />}
+              <span className="absolute inset-0 flex items-center justify-center bg-black/15">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-brand-ink shadow-lg"><IconPlayerPlay className="h-6 w-6 fill-current" /></span>
+              </span>
+            </Link>
+          ) : (
+            <div className="hidden aspect-[16/10] items-center justify-center rounded-t-[2rem] bg-[#16110a] lg:flex">
+              <img src="/logos/ftn_favicon_transparent.png" alt="" className="h-24 w-auto opacity-90" />
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </section>
 
-      {/* Main Container */}
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 py-8 space-y-12 relative z-10">
-        {/* Donation appeal (replaces the old header leaderboard ad) */}
-        {donationBannerEnabled && <DonationBanner />}
-
-        {/* 2. Editorial News Grid - Shows all articles under Latest Reports */}
-        {leadStory ? (
-          <section className="space-y-8">
-            <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-              <h2 className="text-2xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2">
-                <Newspaper className="h-6 w-6 text-blue-600 dark:text-blue-400" /> Latest Reports
-              </h2>
-              <Link
-                href="/articles"
-                className="text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition"
-              >
-                Browse All Stories →
-              </Link>
-            </div>
-
-            {/* Main Lead Story (Top / Featured) */}
-            <div className="w-full">
-              <Link
-                href={`/articles/${leadStory.slug}`}
-                className="group block rounded-2xl border border-neutral-200 bg-white p-5 sm:p-7 hover:border-neutral-300 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700 dark:shadow-none transition"
-              >
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-                  {leadStory.coverImageUrl && (
-                    <div className="lg:col-span-7 h-64 sm:h-96 w-full overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-900">
-                      <img
-                        src={leadStory.coverImageUrl}
-                        alt={leadStory.title}
-                        className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
-                      />
-                    </div>
-                  )}
-
-                  <div className={`${leadStory.coverImageUrl ? "lg:col-span-5" : "lg:col-span-12"} space-y-3.5`}>
-                    <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                      <span className="uppercase font-mono text-[#00a9d2] font-bold">
-                        {leadStory.category}
-                      </span>
-                      <span>•</span>
-                      <span>{formatTimeAgo(leadStory.publishedAt || leadStory.createdAt)}</span>
-                      <span>•</span>
-                      <span className="flex items-center gap-1 font-medium">
-                        <Clock className="h-3 w-3" />
-                        {calculateReadingTime(leadStory.content)}
-                      </span>
-                    </div>
-
-                    <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-neutral-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-tight">
-                      {leadStory.title}
-                    </h2>
-
-                    <p className="text-xs sm:text-sm text-neutral-600 dark:text-neutral-300 line-clamp-3 leading-relaxed">
-                      {leadStory.summary}
-                    </p>
-
-                    <div className="flex items-center gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-900 text-xs text-neutral-500 dark:text-neutral-400">
-                      {leadStory.authorAvatar && (
-                        <img
-                          src={leadStory.authorAvatar}
-                          alt=""
-                          className="h-5 w-5 rounded-full object-cover"
-                        />
-                      )}
-                      <span>
-                        By{" "}
-                        <strong className="text-neutral-800 dark:text-neutral-200">
-                          {leadStory.authorUsername || leadStory.authorName || "FTN Editorial"}
-                        </strong>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Link>
-            </div>
-
-            {/* All Remaining Articles (Grid directly below the main latest article) */}
-            {articleList.length > 1 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-                {articleList.slice(1).map((story) => (
-                  <Link
+      <div className="mx-auto max-w-7xl space-y-14 px-4 pb-16 pt-12 sm:px-8">
+        {/* 2. Latest reports: one big tile, then a mixed grid */}
+        {hasStories ? (
+          <section>
+            <GsSectionHeading title="Latest reports" href="/articles" label="Browse all stories" />
+            {bentoStories.length > 0 && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {bentoStories.map((story, i) => (
+                  <GsStoryTile
                     key={story.id}
-                    href={`/articles/${story.slug}`}
-                    className="group rounded-2xl border border-neutral-200 bg-white overflow-hidden flex flex-col justify-between hover:border-neutral-300 shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:hover:border-neutral-700 dark:shadow-none transition"
-                  >
-                    {story.coverImageUrl && (
-                      <div className="h-48 w-full overflow-hidden bg-neutral-100 dark:bg-neutral-900">
-                        <img
-                          src={story.coverImageUrl}
-                          alt={story.title}
-                          className="h-full w-full object-cover group-hover:scale-105 transition duration-500"
-                        />
-                      </div>
-                    )}
-
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                          <span className="uppercase font-mono text-[#00a9d2] font-bold">
-                            {story.category}
-                          </span>
-                          <span>•</span>
-                          <span>{formatTimeAgo(story.publishedAt || story.createdAt)}</span>
-                          <span>•</span>
-                          <span className="flex items-center gap-1 font-medium">
-                            <Clock className="h-3 w-3" />
-                            {calculateReadingTime(story.content)}
-                          </span>
-                        </div>
-
-                        <h3 className="font-bold text-base sm:text-lg text-neutral-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition leading-snug">
-                          {story.title}
-                        </h3>
-
-                        <p className="text-xs text-neutral-600 dark:text-neutral-400 line-clamp-2 leading-relaxed">
-                          {story.summary}
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-900 text-xs text-neutral-500 dark:text-neutral-400 mt-3">
-                        {story.authorAvatar && (
-                          <img
-                            src={story.authorAvatar}
-                            alt=""
-                            className="h-4 w-4 rounded-full object-cover"
-                          />
-                        )}
-                        <span>
-                          By{" "}
-                          <strong className="text-neutral-800 dark:text-neutral-200">
-                            {story.authorUsername || story.authorName || "FTN Editorial"}
-                          </strong>
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
+                    story={story}
+                    tone={BENTO_TONES[i % BENTO_TONES.length]}
+                    big={i === 0}
+                    className={i === 0 ? "sm:col-span-2 lg:row-span-2" : undefined}
+                  />
                 ))}
               </div>
             )}
           </section>
         ) : (
-          <div className="p-16 text-center rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 space-y-3 shadow-sm dark:shadow-none">
-            <Newspaper className="h-10 w-10 text-neutral-400 dark:text-neutral-600 mx-auto" />
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">No Published Stories Yet</h2>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
+          <div className="rounded-[1.75rem] border border-neutral-200 bg-white p-14 text-center dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="text-2xl font-extrabold">No published stories yet</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm text-neutral-500 dark:text-neutral-400">
               Our editorial team is preparing coverage. Check back soon for the latest investigative reporting and regional news.
             </p>
           </div>
         )}
+
+        {/* 3. More reports */}
+        {moreStories.length > 0 && (
+          <section>
+            <GsSectionHeading title="More reports" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {moreStories.map((story, i) => (
+                <GsStoryTile key={story.id} story={story} tone={MORE_TONES[i % MORE_TONES.length]} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 4. Donation appeal */}
+        {donationBannerEnabled && <DonationBanner />}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Clock, ArrowLeft, MessageSquare, UserCheck, ShieldAlert, CheckCheck, Ban } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canPublishArticles, canConfigureSite } from "@/lib/rbac";
 
 interface TipItem {
@@ -127,52 +128,37 @@ export default function AdminTipsConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={(roles) => canPublishArticles(roles) || canConfigureSite(roles)} featureTitle="Investigative Tipline">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
-          <div>
-            <Link
-              href="/admin"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-            </Link>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-neutral-900 dark:text-white flex items-center gap-2.5">
-              <MessageSquare className="h-7 w-7 text-neutral-500 dark:text-neutral-400" /> Tipline Submissions
-            </h1>
-          </div>
-
-          {unreadCount > 0 && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleDismissAll}
-              disabled={actionLoading === "dismiss_all"}
-              className="text-xs gap-1.5 border-neutral-300 text-neutral-700 hover:text-black hover:bg-neutral-100 dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-900 self-start sm:self-auto cursor-pointer shadow-sm"
-            >
-              <CheckCheck className="h-3.5 w-3.5 text-neutral-500 dark:text-neutral-400" />
-              Dismiss All Unread ({unreadCount})
-            </Button>
-          )}
-        </div>
+      <div className="mx-auto max-w-4xl space-y-8 text-neutral-900 dark:text-white">
+        <AdminPageHeader
+          title="Tipline"
+          description="Review anonymous investigative leads and reports."
+          actions={
+            unreadCount > 0 ? (
+              <Button size="sm" variant="outline" onClick={handleDismissAll} disabled={actionLoading === "dismiss_all"} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
+                <CheckCheck className="h-4 w-4" /> Dismiss all unread ({unreadCount})
+              </Button>
+            ) : undefined
+          }
+        />
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Incoming Leads ({tipsList.length})</h2>
+            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Incoming Leads ({tipsList.length})</h2>
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 shadow-sm dark:shadow-none">
+            <div className="p-8 text-center text-xs text-neutral-500 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 shadow-sm dark:shadow-none">
               Loading tipline submissions...
             </div>
           ) : tipsList.length === 0 ? (
-            <div className="p-12 text-center text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950 space-y-2 shadow-sm dark:shadow-none">
+            <div className="p-12 text-center text-xs text-neutral-500 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2 shadow-sm dark:shadow-none">
               <MessageSquare className="h-8 w-8 text-neutral-400 dark:text-neutral-700 mx-auto" />
               <p>No tipline submissions received yet.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {tipsList.map((tip) => (
-                <Card key={tip.id} className="p-6 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none space-y-4">
+                <Card key={tip.id} className="p-6 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <div className="flex items-center gap-2.5">
                       <h3 className="font-bold text-base text-neutral-900 dark:text-white">{tip.subject}</h3>
@@ -204,7 +190,7 @@ export default function AdminTipsConsole() {
                         <Button
                           size="sm"
                           disabled={actionLoading === tip.id}
-                          className="text-xs bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold cursor-pointer shadow-sm"
+                          className="text-xs bg-brand hover:bg-brand-hover text-brand-ink font-bold cursor-pointer shadow-sm"
                           onClick={() => updateStatus(tip.id, "investigating")}
                         >
                           Investigate

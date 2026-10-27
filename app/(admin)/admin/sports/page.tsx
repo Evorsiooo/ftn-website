@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { ArrowLeft, ArrowDown, ArrowUp, Trophy, Trash2, Loader2, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManageSports } from "@/lib/rbac";
 import { useSportsData, type SportsArticle, type SportsDriver, type SportsEvent, type SportsLeague, type SportsVenue } from "@/lib/use-sports-data";
 import { broadcastLabel } from "@/components/sports/sports-ui";
@@ -17,8 +18,8 @@ type Tab = "leagues" | "roster" | "venues" | "events";
 const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
 const selectClass =
   "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
-const cardClass = "p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none";
-const primaryBtn = "font-semibold bg-[#00a9d2] hover:bg-[#0090b3] text-white cursor-pointer shadow-sm disabled:opacity-50";
+const cardClass = "p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900";
+const primaryBtn = "font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50";
 
 async function api(method: string, entity: string, body?: unknown, id?: string) {
   const res = await fetch(`/api/sports/${entity}${id ? `?id=${encodeURIComponent(id)}` : ""}`, {
@@ -123,27 +124,16 @@ export default function AdminSportsConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageSports} featureTitle="Sports Division Console">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-4">
-          <div>
-            <Link
-              href="/admin"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white transition mb-2"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Back to Admin
-            </Link>
-            <h1 className="text-3xl font-black tracking-tight flex items-center gap-2.5">
-              <Trophy className="h-7 w-7 text-yellow-500" /> Sports Settings
-            </h1>
-          </div>
-          <div className="flex gap-2">
-            {(["leagues", "roster", "venues", "events"] as Tab[]).map((t) => (
-              <Button key={t} size="sm" variant={tab === t ? "default" : "outline"} onClick={() => setTab(t)} className="cursor-pointer">
-                {t === "leagues" ? "Leagues" : t === "roster" ? "Teams & drivers" : t === "venues" ? "Venues" : "Schedule & results"}
-              </Button>
-            ))}
-          </div>
-        </div>
+      <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+        <AdminPageHeader
+          title="Sports Settings"
+          description="Manage league rosters and record match or race scores."
+          tabs={(["leagues", "roster", "venues", "events"] as Tab[]).map((t) => (
+            <AdminTab key={t} active={tab === t} onClick={() => setTab(t)}>
+              {t === "leagues" ? "Leagues" : t === "roster" ? "Teams & drivers" : t === "venues" ? "Venues" : "Schedule & results"}
+            </AdminTab>
+          ))}
+        />
 
         {loading ? (
           <div className="flex items-center justify-center p-8 text-neutral-500">
@@ -228,7 +218,7 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
           </div>
         )}
         {leagues.map((l) => (
-          <Card key={l.id} className="p-4 space-y-3 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+          <Card key={l.id} className="p-4 space-y-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-sm">{l.name}</h3>
@@ -566,7 +556,7 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
         <h2 className="text-lg font-bold">Schedule and results</h2>
         {events.length === 0 && <p className="text-xs text-neutral-500">No events yet.</p>}
         {events.map((e) => (
-          <Card key={e.id} className="p-4 space-y-3 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+          <Card key={e.id} className="p-4 space-y-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="font-bold text-sm">

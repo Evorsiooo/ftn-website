@@ -74,7 +74,7 @@ export function RichTextEditor({
       LinkExtension.configure({
         openOnClick: false,
         HTMLAttributes: {
-          class: "text-[#00a9d2] underline font-semibold cursor-pointer",
+          class: "text-brand-text underline font-semibold cursor-pointer",
           target: "_blank",
           rel: "noopener noreferrer",
         },
@@ -286,7 +286,7 @@ export function RichTextEditor({
               type="button"
               onClick={() => coverFileInputRef.current?.click()}
               disabled={uploadingCover}
-              className="text-[11px] font-bold text-[#00a9d2] hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+              className="text-[11px] font-bold text-brand-text hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
             >
               {uploadingCover ? (
                 <>
@@ -468,7 +468,7 @@ export function RichTextEditor({
               title="Upload & Insert Image to Body"
             >
               {uploadingBodyImage ? (
-                <Loader2 className="h-4 w-4 animate-spin text-[#00a9d2]" />
+                <Loader2 className="h-4 w-4 animate-spin text-brand-text" />
               ) : (
                 <ImageIcon className="h-4 w-4" />
               )}
@@ -553,7 +553,7 @@ export function RichTextEditor({
             type="button"
             disabled={saving}
             onClick={() => handleSubmit("published")}
-            className="bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold text-xs cursor-pointer shadow-sm"
+            className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs cursor-pointer shadow-sm"
           >
             {saving ? "Saving Story..." : initialArticle?.id ? "Update Story" : "Publish Story"}
           </Button>

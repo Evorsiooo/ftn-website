@@ -69,7 +69,7 @@ export function AdminAuthGuard({
     return (
       <div className="min-h-[70vh] flex items-center justify-center">
         <div className="text-center space-y-3 text-neutral-400 text-xs">
-          <div className="h-6 w-6 border-2 border-[#00a9d2] border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="h-6 w-6 border-2 border-brand border-t-transparent rounded-full animate-spin mx-auto" />
           <p>Verifying staff permissions...</p>
         </div>
       </div>
@@ -94,7 +94,7 @@ export function AdminAuthGuard({
 
           <div className="pt-2 flex flex-col gap-2">
             <Link href="/api/auth/roblox">
-              <Button className="w-full bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold text-xs h-10 shadow-sm cursor-pointer">
+              <Button className="w-full bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs h-10 shadow-sm cursor-pointer">
                 <Lock className="h-3.5 w-3.5 mr-1.5" /> Sign In with Roblox
               </Button>
             </Link>
@@ -128,7 +128,7 @@ export function AdminAuthGuard({
           <div className="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 text-left space-y-1 text-[11px]">
             <div className="text-neutral-600 dark:text-neutral-400">
               Your Roles:{" "}
-              <span className="text-[#00a9d2] font-semibold">
+              <span className="text-brand-text font-semibold">
                 {authenticatedUser.roles?.map((r: string) => r.replace("_", " ")).join(", ") || "None"}
               </span>
             </div>
@@ -136,7 +136,7 @@ export function AdminAuthGuard({
 
           <div className="pt-2 flex flex-col gap-2">
             <Link href="/admin">
-              <Button className="w-full bg-[#00a9d2] hover:bg-[#0090b3] text-white font-bold text-xs h-10 cursor-pointer shadow-sm">
+              <Button className="w-full bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs h-10 cursor-pointer shadow-sm">
                 <Shield className="h-3.5 w-3.5 mr-1.5" /> Return to Staff Hub
               </Button>
             </Link>
