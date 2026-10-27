@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
+import { AdminRow, AdminSwitch } from "@/components/gs/admin-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
@@ -178,9 +179,12 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
   const [editing, setEditing] = useState<string | null>(null);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <Card className={cardClass}>
-        <h2 className="text-lg font-extrabold">Create league</h2>
+        <div>
+          <h2 className="text-lg font-extrabold">New league</h2>
+          <p className="mt-1 text-xs text-neutral-500">A season of racing or a team sport. Rules and logos are set afterwards, from the league card.</p>
+        </div>
         <form
           className="space-y-3"
           onSubmit={async (e) => {
@@ -189,6 +193,10 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
           }}
         >
           <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Harrison Rallying Championship" /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Sport"><Input value={sport} onChange={(e) => setSport(e.target.value)} placeholder="Rally, Hockey..." /></Field>
+            <Field label="Season"><Input value={season} onChange={(e) => setSeason(e.target.value)} /></Field>
+          </div>
           <Field label="Type">
             <select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
               <option value="racing">Racing (drivers and constructors)</option>
@@ -203,15 +211,13 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
               </select>
             </Field>
           )}
-          <Field label="Sport"><Input value={sport} onChange={(e) => setSport(e.target.value)} placeholder="Rally, Hockey, Football..." /></Field>
-          <Field label="Season"><Input value={season} onChange={(e) => setSeason(e.target.value)} /></Field>
           <Field label="Colour"><Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#FFBB14" /></Field>
-          <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Register league</Button>
+          <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Create league</Button>
         </form>
       </Card>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-extrabold">Leagues</h2>
+        <h2 className="text-lg font-extrabold">Leagues ({leagues.length})</h2>
         {leagues.length === 0 && (
           <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
             No leagues yet.
@@ -319,9 +325,9 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
         </>
       )}
       {racing && (
-        <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={constructors} onChange={(e) => setConstructors(e.target.checked)} /> Constructors&apos; standings
-        </label>
+        <AdminRow label="Constructors' standings" hint="Also rank teams, not just drivers.">
+          <AdminSwitch checked={constructors} onChange={setConstructors} label="Constructors' standings" />
+        </AdminRow>
       )}
       {!racing && (
         <div className="grid grid-cols-4 gap-2">
@@ -339,7 +345,7 @@ function RulesEditor({ league, busy, run }: { league: SportsLeague; busy: boolea
 function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean; run: RunFn }) {
   const [name, setName] = useState("");
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <Card className={`${cardClass} self-start`}>
         <h2 className="text-lg font-extrabold">Add venue</h2>
         <p className="text-xs text-neutral-500">Tracks and stages. The photo shows on the Sports hub, calendar and league overview.</p>
@@ -354,7 +360,7 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
           <Button type="submit" disabled={busy || !name.trim()} className={`w-full ${primaryBtn}`}>Add</Button>
         </form>
       </Card>
-      <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 content-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 content-start">
         {venues.length === 0 && <p className="text-xs text-neutral-500">No venues yet.</p>}
         {venues.map((v) => (
           <Card key={v.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
@@ -391,7 +397,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
   const racing = league.kind === "racing";
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
       <div className="space-y-4">
         <Card className={cardClass}>
           <h2 className="text-lg font-extrabold">{racing ? "Add constructor" : "Add team"}</h2>
@@ -497,8 +503,8 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
   const [editing, setEditing] = useState<string | null>(null);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      <Card className={`${cardClass} lg:col-span-1 self-start`}>
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[24rem_minmax(0,1fr)]">
+      <Card className={`${cardClass} self-start`}>
         <h2 className="text-lg font-extrabold">{racing ? "Add round" : "Add match"}</h2>
         <form
           className="space-y-3"
@@ -552,7 +558,7 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
         </form>
       </Card>
 
-      <div className="lg:col-span-2 space-y-3">
+      <div className="space-y-3">
         <h2 className="text-lg font-extrabold">Schedule and results</h2>
         {events.length === 0 && <p className="text-xs text-neutral-500">No events yet.</p>}
         {events.map((e) => (

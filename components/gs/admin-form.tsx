@@ -59,3 +59,47 @@ export function AdminField({ label, hint, children, className }: { label: React.
     </div>
   );
 }
+
+/** A single setting on one line: label and hint on the left, the control on the right. */
+export function AdminRow({ label, hint, children }: { label: React.ReactNode; hint?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-6">
+      <div className="min-w-0">
+        <div className="text-sm font-semibold">{label}</div>
+        {hint && <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{hint}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Pick one of a few options. Replaces the hand-coloured button pairs. */
+export function AdminSegmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: React.ReactNode }[];
+}) {
+  return (
+    <div role="radiogroup" className="inline-flex shrink-0 rounded-full border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "flex cursor-pointer items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition",
+            value === o.value ? "bg-brand text-brand-ink shadow-sm" : "text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
