@@ -1,15 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque } from "next/font/google";
+import { Manrope } from "next/font/google";
 
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
-  weight: ["500", "700", "800"],
+  weight: ["600", "700", "800"],
 });
 
 export const runtime = "edge";
 
-export const viewport: Viewport = { themeColor: "#0b0a09" };
+export const viewport: Viewport = { themeColor: "#07080b" };
 
 export const metadata: Metadata = {
   title: { absolute: "FTN Radio" },
@@ -18,5 +18,5 @@ export const metadata: Metadata = {
 };
 
 export default function PopoutLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`${bricolage.variable} contents`}>{children}</div>;
+  return <div className={`${manrope.variable} contents`}>{children}</div>;
 }

@@ -4,17 +4,14 @@ import { IconVideo } from "@tabler/icons-react";
 import { OTTBillboard, BillboardItem } from "@/components/ott/ott-billboard";
 import { OTTSwimlane } from "@/components/ott/ott-swimlane";
 import { PageShell } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, Tag } from "@/components/ftn/ui";
-import { ArtTile, CardSurface, LaneSkeleton } from "@/components/ftn/media";
+import { Button, EmptyState, GUTTER } from "@/components/ftn/ui";
+import { Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { ContinueWatching } from "@/components/ftn/continue-watching";
 import { HomeSports } from "@/components/ftn/home-sports";
-import { OnAirStrip } from "@/components/ftn/on-air-strip";
+import { OnAirGlass, OnAirStrip } from "@/components/ftn/on-air-strip";
 import { useSchedule, type ScheduleEntry } from "@/components/ftn/use-schedule";
 import { useFTNPlus } from "@/lib/ftnplus-context";
 import { hhmm, localZone } from "@/lib/schedule-client";
-import { cn } from "@/lib/utils";
-import Link from "next/link";
-import { IconChevronRight } from "@tabler/icons-react";
 
 const FALLBACK_BACKDROP = "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1600&auto=format&fit=crop&q=80";
 
@@ -66,7 +63,7 @@ export default function FTNPlusHomePage() {
       description: next.presenter ? `with ${next.presenter}` : "",
       category: next.onStream ? "Livestream" : "FTN Radio",
       backdropUrl: next.artUrl || featuredBackdrop,
-      kicker: `Up next · ${untilLabel(new Date(next.start).getTime() - now)}`,
+      kicker: `Up next ${untilLabel(new Date(next.start).getTime() - now)}`,
       href: "/plus/schedule",
       ctaLabel: "See the schedule",
     };
@@ -94,12 +91,16 @@ export default function FTNPlusHomePage() {
 
   const loadingHero = loadingLibrary || !scheduleLoaded;
 
+  // The hero already is the live stream when it is live, so it is not repeated as an "on air" card.
+  const heroLiveId = billboardItem?.isLive ? billboardItem.id : null;
+  const onAir = live.filter((e) => !(heroLiveId && e.youtubeId === heroLiveId));
+
   return (
     <PageShell>
       {billboardItem ? (
-        <OTTBillboard item={billboardItem} />
+        <OTTBillboard item={billboardItem} aside={<OnAirGlass live={onAir} now={now} />} />
       ) : !loadingHero ? (
-        <div className={`pt-24 pb-10 ${GUTTER}`}>
+        <div className={`pt-32 pb-10 ${GUTTER}`}>
           <EmptyState
             icon={<IconVideo />}
             title="Welcome to FTN+"
@@ -112,41 +113,36 @@ export default function FTNPlusHomePage() {
           />
         </div>
       ) : (
-        <div className="relative h-[60vh] min-h-[420px] max-h-[560px] ftn-skeleton !rounded-none" aria-label="Loading FTN+" />
+        <div className="relative h-[78vh] min-h-[540px] max-h-[760px] ftn-skeleton !rounded-none" aria-label="Loading FTN+" />
       )}
 
-      <div className="relative z-20 -mt-10 space-y-10">
-        <OnAirStrip live={live} now={now} />
+      <div className="relative z-20 -mt-12 space-y-12">
+        <OnAirStrip live={onAir} now={now} className={billboardItem ? "lg:hidden" : undefined} />
 
         {comingUp.length > 0 && (
-          <section className={cn("space-y-3.5", GUTTER)}>
-            <div className="flex items-end justify-between gap-4">
-              <h2 className="ftn-title text-xl sm:text-2xl">
-                Coming up <span className="text-sm font-normal text-ftn-text-3 ml-2">{localZone()}</span>
-              </h2>
-              <Link href="/plus/schedule" className="inline-flex items-center gap-0.5 text-xs text-ftn-text-2 hover:text-ftn-text">
-                Full schedule <IconChevronRight className="h-3.5 w-3.5" />
-              </Link>
-            </div>
-            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              {comingUp.map((e) => {
-                const start = new Date(e.start);
-                return (
-                  <CardSurface key={e.id + e.start} href={entryHref(e)} className="!flex-row items-center gap-3 p-3.5">
-                    <ArtTile src={e.artUrl} className="h-14 w-14 flex-shrink-0 rounded-xl" />
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <div className="flex items-center gap-2">
-                        <span className="ftn-mono text-sm text-ftn-text">{hhmm(start)}</span>
-                        <span className="text-xs text-ftn-text-3">{dayLabel(start, now)}</span>
-                      </div>
-                      <div className="text-sm font-semibold truncate">{e.title}</div>
-                      <Tag tone={e.onStream ? "neutral" : "brand"}>{e.onStream ? "Stream" : "Radio"}</Tag>
+          <Lane title="Coming up" sub={localZone()} href="/plus/schedule" hrefLabel="Full schedule">
+            {comingUp.map((e) => {
+              const start = new Date(e.start);
+              return (
+                <MediaCard
+                  key={e.id + e.start}
+                  href={entryHref(e)}
+                  art={e.artUrl}
+                  shape="poster"
+                  title={e.title}
+                  className="w-44 sm:w-52 md:w-56"
+                  topLeft={
+                    <div className="leading-tight">
+                      <div className="ftn-display text-2xl">{hhmm(start)}</div>
+                      <div className="text-xs font-semibold text-white/85">{dayLabel(start, now)}</div>
                     </div>
-                  </CardSurface>
-                );
-              })}
-            </div>
-          </section>
+                  }
+                >
+                  {e.presenter && <p>with {e.presenter}</p>}
+                </MediaCard>
+              );
+            })}
+          </Lane>
         )}
 
         <ContinueWatching />

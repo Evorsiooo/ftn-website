@@ -94,7 +94,7 @@ export default function LibraryPage() {
         eyebrow="FTN+"
         title="Library"
         subtitle="Livestreams, replays and originals from every FTN channel."
-        glow={!(isAll && billboardItem)}
+        flush={isAll && !!billboardItem}
         className={isAll && billboardItem ? "-mt-6 relative z-20" : undefined}
       />
 
@@ -166,8 +166,7 @@ export default function LibraryPage() {
                       href={`/plus/watch/${v.youtubeId || v.id}`}
                       art={v.thumbnailUrl}
                       title={v.title}
-                      badge={v.isLive ? "LIVE" : undefined}
-                      badgeLive
+                      live={v.isLive}
                       showPlay
                       lead={
                         <ChannelAvatar

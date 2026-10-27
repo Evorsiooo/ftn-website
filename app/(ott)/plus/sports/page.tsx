@@ -3,7 +3,7 @@ export const runtime = "edge";
 import React, { useEffect, useMemo, useState } from "react";
 import { IconTrophy } from "@tabler/icons-react";
 import { PageShell, PageHeader } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, Skeleton, Tag } from "@/components/ftn/ui";
+import { Button, EmptyState, GUTTER, Skeleton } from "@/components/ftn/ui";
 import {
   Billboard,
   LeagueCard,
@@ -54,7 +54,7 @@ export default function SportsHubPage() {
     return (
       <PageShell>
         <PageHeader eyebrow="FTN Sports" title="Sports" />
-        <div className={cn("grid gap-3 sm:grid-cols-2 lg:grid-cols-4", GUTTER)}>
+        <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", GUTTER)}>
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-32" />
           ))}
@@ -75,24 +75,25 @@ export default function SportsHubPage() {
   return (
     <PageShell>
       {next ? (
-        <Billboard photo={eventPhoto(next, venues)} color={nextLeague?.color}>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Tag tone="brand">Next up</Tag>
-            {nextLeague && <Tag>{nextLeague.name}</Tag>}
-            {next.round && !(next.homeTeamId && next.awayTeamId) && <Tag>Round {next.round}</Tag>}
-          </div>
-          <h1 className="ftn-display text-4xl sm:text-5xl md:text-6xl text-ftn-text line-clamp-3 pb-1">
+        <Billboard
+          photo={eventPhoto(next, venues)}
+          color={nextLeague?.color}
+          aside={<div className="ftn-display text-6xl lg:text-7xl whitespace-nowrap">{countdown(next.startsAt, now)}</div>}
+        >
+          <p className="text-sm font-semibold text-white/80">
+            Next up{nextLeague ? ` · ${nextLeague.name}` : ""}
+            {next.round && !(next.homeTeamId && next.awayTeamId) ? ` · Round ${next.round}` : ""}
+          </p>
+          <h1 className="ftn-display text-4xl sm:text-6xl md:text-7xl line-clamp-3 pb-1 [text-wrap:balance]">
             {next.homeTeamId && next.awayTeamId ? roundTitle(next, teams) : next.name || "Race"}
           </h1>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
-            <span className="ftn-mono text-3xl font-extrabold tracking-tight">{countdown(next.startsAt, now)}</span>
-            <span className="text-sm text-ftn-text-2">
-              {fmtDay(next.startsAt)} · {fmtTime(next.startsAt)}
-              {venueName(next, venues) ? ` · ${venueName(next, venues)}` : ""}
-              {broadcastLabel(next.id, data.broadcasts) ? ` · ${broadcastLabel(next.id, data.broadcasts)}` : ""}
-            </span>
-          </div>
-          <div className="pt-2">
+          <p className="text-sm sm:text-lg text-white/85">
+            <span className="md:hidden font-bold">{countdown(next.startsAt, now)} · </span>
+            {fmtDay(next.startsAt)} · {fmtTime(next.startsAt)}
+            {venueName(next, venues) ? ` · ${venueName(next, venues)}` : ""}
+            {broadcastLabel(next.id, data.broadcasts) ? ` · ${broadcastLabel(next.id, data.broadcasts)}` : ""}
+          </p>
+          <div className="pt-3">
             {nextLeague && (
               <Button href={`/plus/sports/${nextLeague.slug}?tab=calendar`} size="lg">
                 View round
@@ -112,11 +113,11 @@ export default function SportsHubPage() {
         />
       )}
 
-      <div className={cn("space-y-10", next && "-mt-8 relative z-10")}>
+      <div className={cn("space-y-12", next && "-mt-12 relative z-10")}>
         {results.length > 0 && (
           <section className={GUTTER}>
             <SectionHead title="Latest results" />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {results.slice(0, 4).map((e) => (
                 <ResultCard key={e.id} event={e} league={leagues.get(e.leagueId)} teams={teams} drivers={drivers} />
               ))}
@@ -127,7 +128,7 @@ export default function SportsHubPage() {
         {thisWeek.length > 0 && (
           <section className={GUTTER}>
             <SectionHead title="This week" sub="your local time" href="/plus/schedule" hrefLabel="Full schedule" />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {thisWeek.map((e) => (
                 <SlotCard key={e.id} event={e} league={leagues.get(e.leagueId)} teams={teams} tag={broadcastLabel(e.id, data.broadcasts)} />
               ))}
@@ -138,7 +139,7 @@ export default function SportsHubPage() {
         {data.leagues.length > 0 && (
           <section className={GUTTER}>
             <SectionHead title="Leagues and series" />
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {data.leagues.map((l) => (
                 <LeagueCard key={l.id} league={l} meta={leagueMeta(l.id)} />
               ))}

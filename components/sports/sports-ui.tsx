@@ -4,7 +4,6 @@ import Link from "next/link";
 import type { SportsBroadcast, SportsData, SportsDriver, SportsEvent, SportsLeague, SportsTeam, SportsVenue } from "@/lib/use-sports-data";
 import { parseRaceResults } from "@/lib/sports";
 import { ArtTile } from "@/components/ftn/media";
-import { Tag } from "@/components/ftn/ui";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------- formatting
@@ -146,9 +145,7 @@ export function LeagueMark({ league, size = 40 }: { league: SportsLeague; size?:
 // ------------------------------------------------------------- shared cards
 // ResultCard and SlotCard are the hub's cards; Home's Sports lane uses the shared MediaCard instead.
 
-const eyebrow = "ftn-eyebrow text-ftn-text-3";
-
-/** A finished event: scoreboard for matches, top three for races. */
+/** A finished event: scoreboard for matches, top three for races. A dark league-colour tile in both themes. */
 export function ResultCard({
   event,
   league,
@@ -169,48 +166,51 @@ export function ResultCard({
         .filter((r) => r.status === "finished")
         .sort((a, b) => a.position - b.position)
         .slice(0, 3);
-  const label = match ? (event.overtime ? "Final · OT" : "Final") : event.round ? `R${event.round}` : "Final";
+  const label = match ? (event.overtime ? "Final · OT" : "Final") : event.round ? `Round ${event.round}` : "Final";
   return (
     <Link
       href={league ? `/plus/sports/${league.slug}?tab=results` : "/plus/sports"}
-      className={cn("block rounded-2xl border border-ftn-line bg-ftn-surface px-4 py-3.5 transition hover:border-ftn-line-strong", className)}
+      style={{ backgroundImage: `linear-gradient(145deg, ${league?.color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 92%)` }}
+      className={cn("flex min-h-52 flex-col justify-between rounded-3xl p-5 text-white ftn-shadow transition hover:-translate-y-0.5", className)}
     >
-      <div className="flex items-center gap-2 mb-2.5">
-        {league && <LeagueMark league={league} size={20} />}
-        <div className={cn(eyebrow, "truncate")}>
+      <div className="flex items-center gap-2">
+        {league && <LeagueMark league={league} size={22} />}
+        <div className="text-xs font-semibold text-white/80 truncate">
           {league?.name} · {label}
         </div>
       </div>
       {match ? (
-        [
-          { id: event.homeTeamId!, score: event.homeScore ?? 0, other: event.awayScore ?? 0 },
-          { id: event.awayTeamId!, score: event.awayScore ?? 0, other: event.homeScore ?? 0 },
-        ].map((side) => (
-          <div key={side.id} className="flex items-center justify-between ftn-title text-base">
-            <span className={cn("flex items-center gap-2 min-w-0", side.score > side.other ? "text-ftn-text" : "text-ftn-text-3")}>
-              <TeamMark team={teams.get(side.id)} size={22} />
-              <span className="truncate">{teams.get(side.id)?.name ?? "TBD"}</span>
-            </span>
-            <b className={cn("ftn-mono text-xl", side.score > side.other ? "text-ftn-text" : "text-ftn-text-3")}>{side.score}</b>
-          </div>
-        ))
+        <div className="space-y-1.5">
+          {[
+            { id: event.homeTeamId!, score: event.homeScore ?? 0, other: event.awayScore ?? 0 },
+            { id: event.awayTeamId!, score: event.awayScore ?? 0, other: event.homeScore ?? 0 },
+          ].map((side) => (
+            <div key={side.id} className={cn("flex items-center justify-between ftn-title text-lg", side.score > side.other ? "text-white" : "text-white/55")}>
+              <span className="flex items-center gap-2 min-w-0">
+                <TeamMark team={teams.get(side.id)} size={24} />
+                <span className="truncate">{teams.get(side.id)?.name ?? "TBD"}</span>
+              </span>
+              <b className="ftn-display text-2xl">{side.score}</b>
+            </div>
+          ))}
+        </div>
       ) : (
-        <>
-          <div className="ftn-title text-base leading-snug">{event.name || "Race"}</div>
-          <ol className="text-xs text-ftn-text-3 mt-1.5 space-y-0.5">
+        <div className="space-y-2">
+          <div className="ftn-display text-2xl leading-tight [text-wrap:balance]">{event.name || "Race"}</div>
+          <ol className="text-sm text-white/75 space-y-0.5">
             {top.map((r) => (
               <li key={r.driverId} className="truncate">
                 {r.position} {drivers.get(r.driverId)?.name ?? "Unknown"}
               </li>
             ))}
           </ol>
-        </>
+        </div>
       )}
     </Link>
   );
 }
 
-/** One upcoming event: time, optional tag, title, league. */
+/** One upcoming event: time, title, league. The broadcast label is plain text. */
 export function SlotCard({
   event,
   league,
@@ -225,19 +225,15 @@ export function SlotCard({
   return (
     <Link
       href={league ? `/plus/sports/${league.slug}?tab=calendar` : "/plus/sports"}
-      className="grid gap-1.5 rounded-2xl border border-ftn-line bg-ftn-surface px-4 py-3.5 transition hover:border-ftn-line-strong"
+      className="grid gap-2 rounded-3xl border border-ftn-line bg-ftn-surface p-5 ftn-shadow transition hover:-translate-y-0.5"
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="ftn-mono text-sm">
-          {fmtDay(event.startsAt)} {fmtTime(event.startsAt)}
-        </span>
-        {tag && <Tag>{tag}</Tag>}
-      </div>
-      <h3 className="text-sm font-semibold leading-snug">{roundTitle(event, teams)}</h3>
-      <div className="flex items-center gap-1.5 text-xs text-ftn-text-3">
-        {league && <LeagueMark league={league} size={16} />}
-        <span className="ftn-eyebrow text-sports">Sports</span>
-        <span className="truncate">{league?.name}</span>
+      <span className="ftn-display text-xl">
+        {fmtDay(event.startsAt)} <span className="text-ftn-text-2">{fmtTime(event.startsAt)}</span>
+      </span>
+      <h3 className="text-base font-semibold leading-snug">{roundTitle(event, teams)}</h3>
+      <div className="flex items-center gap-2 text-xs text-ftn-text-3">
+        {league && <LeagueMark league={league} size={18} />}
+        <span className="truncate">{[league?.name, tag].filter(Boolean).join(" · ")}</span>
       </div>
     </Link>
   );
@@ -245,10 +241,16 @@ export function SlotCard({
 
 export function LeagueCard({ league, meta }: { league: SportsLeague; meta: string }) {
   return (
-    <Link href={`/plus/sports/${league.slug}`} className="block rounded-2xl border border-ftn-line bg-ftn-surface p-4 transition hover:border-ftn-line-strong">
-      <LeagueMark league={league} size={38} />
-      <div className="ftn-title text-base mt-3 mb-1 leading-snug">{league.name}</div>
-      <div className="text-xs text-ftn-text-3">{meta}</div>
+    <Link
+      href={`/plus/sports/${league.slug}`}
+      style={{ backgroundImage: `linear-gradient(145deg, ${league.color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 92%)` }}
+      className="flex min-h-44 flex-col justify-between rounded-3xl p-5 text-white ftn-shadow transition hover:-translate-y-0.5"
+    >
+      <LeagueMark league={league} size={44} />
+      <div>
+        <div className="ftn-title text-lg leading-snug">{league.name}</div>
+        <div className="text-xs text-white/70 pt-1">{meta}</div>
+      </div>
     </Link>
   );
 }
@@ -258,24 +260,31 @@ export function Billboard({
   photo,
   color,
   children,
+  aside,
 }: {
   photo?: string | null;
   color?: string | null;
   children: React.ReactNode;
+  /** Right-hand slot on wide screens (e.g. the countdown). */
+  aside?: React.ReactNode;
 }) {
   return (
-    <div className="relative w-full h-[60vh] min-h-[420px] max-h-[560px] overflow-hidden select-none">
+    <div className="relative w-full h-[72vh] min-h-[500px] max-h-[700px] overflow-hidden select-none text-white">
       {photo ? (
         <img src={photo} alt="" className="absolute inset-0 h-full w-full object-cover object-center" />
       ) : (
         <div
           className="absolute inset-0"
-          style={{ backgroundImage: `linear-gradient(135deg, ${color || "var(--color-ftn-surface-2)"}, var(--color-ftn-bg) 80%)` }}
+          style={{ backgroundImage: `linear-gradient(135deg, ${color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 80%)` }}
         />
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/30 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-r from-ftn-bg/90 via-ftn-bg/50 to-transparent w-full md:w-3/4" />
-      <div className="relative z-10 h-full flex flex-col justify-end pb-16 max-w-4xl space-y-4 px-5 md:px-12">{children}</div>
+      <div className="absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-black/30" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/25 to-transparent w-full md:w-3/4" />
+      <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-ftn-bg to-transparent" />
+      <div className="relative z-10 h-full flex items-end justify-between gap-10 pb-28 md:pb-24 px-5 md:px-12">
+        <div className="max-w-3xl space-y-4">{children}</div>
+        {aside && <div className="hidden md:block text-right flex-shrink-0">{aside}</div>}
+      </div>
     </div>
   );
 }
@@ -283,13 +292,13 @@ export function Billboard({
 /** Section heading with an optional "see all" link, as on Home. */
 export function SectionHead({ title, sub, href, hrefLabel }: { title: string; sub?: string; href?: string; hrefLabel?: string }) {
   return (
-    <div className="flex items-end justify-between gap-4 mb-3.5">
-      <h2 className="ftn-title text-xl sm:text-2xl">
+    <div className="flex items-end justify-between gap-4 mb-4">
+      <h2 className="ftn-title text-2xl sm:text-3xl">
         {title}
         {sub && <small className="ml-2 text-sm font-medium text-ftn-text-3">{sub}</small>}
       </h2>
       {href && (
-        <Link href={href} className="text-xs text-ftn-text-2 hover:text-ftn-text transition">
+        <Link href={href} className="text-sm font-semibold text-ftn-text-2 hover:text-ftn-text transition">
           {hrefLabel ?? "See all"}
         </Link>
       )}

@@ -99,8 +99,7 @@ export default function WatchlistPage() {
                   href={`/plus/watch/${vidId}`}
                   art={item.thumbnailUrl || `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`}
                   title={item.title}
-                  badge={item.isLive ? "LIVE" : undefined}
-                  badgeLive
+                  live={item.isLive}
                   showPlay
                   className="w-full"
                   corner={

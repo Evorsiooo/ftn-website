@@ -1,7 +1,6 @@
 "use client";
 import { useMemo } from "react";
 import {
-  LeagueMark,
   broadcastLabel,
   countdown,
   eventPhoto,
@@ -47,7 +46,7 @@ export function HomeSports() {
   const gradient = (l?: SportsLeague) => (
     <div
       className="h-full w-full"
-      style={{ backgroundImage: `linear-gradient(135deg, ${l?.color || "var(--color-ftn-surface-2)"}, var(--color-ftn-bg) 85%)` }}
+      style={{ backgroundImage: `linear-gradient(135deg, ${l?.color || "var(--color-ftn-surface-2)"}, var(--color-ftn-night) 90%)` }}
     />
   );
 
@@ -62,15 +61,12 @@ export function HomeSports() {
             href={league ? `/plus/sports/${league.slug}?tab=${next ? "calendar" : "results"}` : "/plus/sports"}
             art={eventPhoto(e, venues)}
             fallback={gradient(league)}
+            shape="poster"
             title={roundTitle(e, teams)}
-            badge={next ? `Next up · ${countdown(e.startsAt)}` : "Final"}
-            className="w-64 sm:w-72 md:w-80"
-            lead={league ? <LeagueMark league={league} size={28} /> : undefined}
+            className="w-44 sm:w-52 md:w-56"
           >
-            <p className="text-xs text-ftn-text-3 truncate">{league?.name}</p>
-            <p className="text-xs text-ftn-text-3 truncate">
-              {next ? `${fmtDay(e.startsAt)} · ${fmtTime(e.startsAt)}${badge ? ` · ${badge}` : ""}` : summary(e)}
-            </p>
+            <p>{league?.name}</p>
+            <p>{next ? `${countdown(e.startsAt)} · ${fmtDay(e.startsAt)} ${fmtTime(e.startsAt)}${badge ? ` · ${badge}` : ""}` : summary(e)}</p>
           </MediaCard>
         );
       })}
