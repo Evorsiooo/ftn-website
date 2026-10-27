@@ -127,6 +127,8 @@ export interface PostRenderInput {
   logo: string;
   /** Loaded 1024x180 ad image, or null to show the boilerplate "your advertisement here". */
   ad: HTMLImageElement | null;
+  /** "No ad": no strip and no notice, and the canvas is cropped to the box. */
+  noAd?: boolean;
 }
 
 export interface PostLayout {
@@ -248,10 +250,17 @@ export interface PostLayers {
   layout: PostLayout;
 }
 
-function newLayer(): HTMLCanvasElement {
+/** Height of the finished post: the full square, or just the box for "No ad". */
+export function postHeight(noAd: boolean | undefined, forVideo = false): number {
+  if (!noAd) return POST_SIZE;
+  // H.264 needs an even height, so a video drops the last row of the box.
+  return forVideo ? TEMPLATE.boxBottom - (TEMPLATE.boxBottom % 2) : TEMPLATE.boxBottom;
+}
+
+function newLayer(height: number): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = POST_SIZE;
-  canvas.height = POST_SIZE;
+  canvas.height = height;
   return canvas;
 }
 
@@ -274,8 +283,9 @@ export async function buildPostLayers(
   const logo = LOGOS.find((l) => l.key === input.logo);
   const logoImg = logo ? await loadImage(logo.src) : null;
 
-  const under = newLayer();
-  const over = newLayer();
+  const height = postHeight(input.noAd, backdrop !== null);
+  const under = newLayer(height);
+  const over = newLayer(height);
   const uctx = under.getContext("2d")!;
   const ctx = over.getContext("2d")!;
 
@@ -283,7 +293,7 @@ export async function buildPostLayers(
   // because BOX.png carries its own rounding.
   if (backdrop) {
     uctx.fillStyle = backdrop;
-    uctx.fillRect(0, 0, POST_SIZE, POST_SIZE);
+    uctx.fillRect(0, 0, POST_SIZE, height);
   } else if (TEMPLATE.gapFill) {
     uctx.fillStyle = TEMPLATE.gapFill;
     uctx.fillRect(0, TEMPLATE.boxBottom, POST_SIZE, TEMPLATE.ad.y - TEMPLATE.boxBottom);
@@ -322,9 +332,11 @@ export async function buildPostLayers(
     if (line) ctx.fillText(line, b.x, b.firstBaseline + i * b.lineHeight);
   });
 
-  // 5. Advert strip and its notice.
-  drawAd(ctx, input.ad, boilerplate, rounding);
-  ctx.drawImage(notice, 0, 0);
+  // 5. Advert strip and its notice (left out for "No ad").
+  if (!input.noAd) {
+    drawAd(ctx, input.ad, boilerplate, rounding);
+    ctx.drawImage(notice, 0, 0);
+  }
 
   return { under, over, layout };
 }
@@ -345,7 +357,7 @@ export function paintPost(
   focusX = 0.5,
   focusY = 0.5
 ) {
-  ctx.clearRect(0, 0, POST_SIZE, POST_SIZE);
+  ctx.clearRect(0, 0, POST_SIZE, layers.under.height);
   ctx.drawImage(layers.under, 0, 0);
   const p = TEMPLATE.photo;
   if (photo) {
@@ -360,7 +372,7 @@ export function paintPost(
 export async function renderPost(canvas: HTMLCanvasElement, input: PostRenderInput): Promise<PostLayout> {
   const layers = await buildPostLayers(input);
   canvas.width = POST_SIZE;
-  canvas.height = POST_SIZE;
+  canvas.height = layers.under.height;
   const photo = input.photo
     ? { image: input.photo, width: input.photo.naturalWidth, height: input.photo.naturalHeight }
     : null;

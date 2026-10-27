@@ -50,6 +50,9 @@ function parseNotes(raw: string | null): string[] {
   }
 }
 
+// Dropdown value for "No ad" (an empty value is the placeholder).
+const NO_AD = "none";
+
 export default function AdminPostsPage() {
   const [me, setMe] = useState<{ id: string; roles: string[] } | null>(null);
   const [posts, setPosts] = useState<any[]>([]);
@@ -110,6 +113,7 @@ export default function AdminPostsPage() {
     loadAll();
   }, [loadAll]);
 
+  const noAd = adId === NO_AD;
   const selectedAd = ads.find((a) => a.id === adId) || null;
   const logo = logoForRoState(roState);
 
@@ -122,7 +126,7 @@ export default function AdminPostsPage() {
         if (!canvasRef.current || token !== renderToken.current) return;
         if (mode === "video") {
           // The video editor draws the frames; it only needs the template layers.
-          const layers = await buildPostLayers({ headline, body, logo, ad: adImg }, TEMPLATE.videoBackdrop);
+          const layers = await buildPostLayers({ headline, body, logo, ad: adImg, noAd }, TEMPLATE.videoBackdrop);
           if (token === renderToken.current) {
             setVideoLayers(layers);
             setLayout(layers.layout);
@@ -139,6 +143,7 @@ export default function AdminPostsPage() {
           photoFocusY: focusY,
           logo,
           ad: adImg,
+          noAd,
         });
         if (token === renderToken.current) {
           setLayout(result);
@@ -154,7 +159,7 @@ export default function AdminPostsPage() {
         }
       }
     })();
-  }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd, mode]);
+  }, [headline, body, photo, zoom, focusX, focusY, logo, selectedAd, noAd, mode]);
 
   // Downloads the image as it is now, without saving the post or using an ad impression.
   const handleExport = async () => {
@@ -223,7 +228,7 @@ export default function AdminPostsPage() {
     setHeadline(post.headline);
     setBody(post.body || "");
     setRoState(post.roState);
-    setAdId(post.adId || "");
+    setAdId(post.noAd ? NO_AD : post.adId || "");
     setBackgroundUrl(post.backgroundUrl || null);
     setZoom(1);
     setFocusX(0.5);
@@ -268,14 +273,14 @@ export default function AdminPostsPage() {
         // Renders the video in this browser, then uploads it with a still image of it.
         const saved = await videoEditor.current!.prepareSave();
         payload = {
-          headline, body, logo, roState, adId: adId || null, backgroundUrl: null,
+          headline, body, logo, roState, adId: noAd ? null : adId || null, noAd, backgroundUrl: null,
           mediaType: "video", imageUrl: saved.imageUrl, videoUrl: saved.videoUrl, videoEdit: saved.videoEdit,
         };
       } else {
         const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
         if (!blob) throw new Error("Could not create the image");
         const imageUrl = await uploadToPosts(blob, "post.png");
-        payload = { headline, body, logo, roState, adId: adId || null, backgroundUrl, imageUrl, mediaType: "image" };
+        payload = { headline, body, logo, roState, adId: noAd ? null : adId || null, noAd, backgroundUrl, imageUrl, mediaType: "image" };
       }
       const res = await fetch(editingId ? `/api/admin/posts/${editingId}` : "/api/admin/posts", {
         method: editingId ? "PATCH" : "POST",
@@ -394,7 +399,8 @@ export default function AdminPostsPage() {
               <label className={labelClass}>Ad</label>
               <div className="flex gap-2">
                 <select value={adId} onChange={(e) => setAdId(e.target.value)} className={fieldClass}>
-                  <option value="">No ad (&quot;your advertisement here&quot;)</option>
+                  <option value="">Placeholder (&quot;your advertisement here&quot;)</option>
+                  <option value={NO_AD}>No ad (image cropped to the box)</option>
                   {ads.map((a) => (
                     <option key={a.id} value={a.id} disabled={!a.imageUrl.startsWith("/")}>
                       {adOptionLabel(a)}{a.imageUrl.startsWith("/") ? "" : " (re-upload image first)"}

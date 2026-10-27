@@ -41,6 +41,8 @@ export class PreviewPlayer {
 
   setLayers(layers: PostLayers | null) {
     this.layers = layers;
+    // "No ad" posts are shorter than the full square.
+    if (layers && this.canvas.height !== layers.under.height) this.canvas.height = layers.under.height;
     this.draw();
   }
 

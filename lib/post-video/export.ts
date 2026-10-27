@@ -63,7 +63,7 @@ async function renderOnce(opts: ExportOptions, videoBitrate: number, label: stri
 
   const canvas = document.createElement("canvas");
   canvas.width = POST_SIZE;
-  canvas.height = POST_SIZE;
+  canvas.height = layers.under.height;
   const ctx = canvas.getContext("2d", { alpha: false })!;
 
   const target = new BufferTarget();
