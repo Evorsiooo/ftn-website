@@ -985,6 +985,20 @@ export default function SiteSettingsPage() {
     }
   };
 
+  const [settingQuery, setSettingQuery] = useState("");
+  const [settingMatches, setSettingMatches] = useState(0);
+  useEffect(() => {
+    const q = settingQuery.trim().toLowerCase();
+    let n = 0;
+    document.querySelectorAll<HTMLElement>("main section, [data-settings-root] section").forEach((el) => {
+      if (!el.matches("section.grid")) return;
+      const hit = !q || (el.textContent ?? "").toLowerCase().includes(q) || Array.from(el.querySelectorAll("input,textarea,select")).some((i) => ((i as HTMLInputElement).placeholder ?? "").toLowerCase().includes(q));
+      el.style.display = hit ? "" : "none";
+      if (hit && q) n++;
+    });
+    setSettingMatches(n);
+  }, [settingQuery, activeTab, videosLoaded]);
+
   return (
     <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
       <div className="mx-auto max-w-5xl space-y-8 text-neutral-900 dark:text-white">
@@ -992,6 +1006,19 @@ export default function SiteSettingsPage() {
         title={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.title ?? "Settings"}
         description={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.description}
       />
+
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-neutral-400" />
+        <input
+          type="search"
+          value={settingQuery}
+          onChange={(e) => setSettingQuery(e.target.value)}
+          placeholder="Search settings on this page"
+          aria-label="Search settings on this page"
+          className="h-10 w-full rounded-full border border-neutral-300 bg-white pl-10 pr-4 text-sm focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900"
+        />
+        {settingQuery.trim() && <p className="mt-2 pl-4 text-xs text-neutral-500">{settingMatches === 0 ? "No settings on this page match. Use the jump bar to search every page." : `${settingMatches} matching ${settingMatches === 1 ? "section" : "sections"}`}</p>}
+      </div>
 
       <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800 lg:hidden">
         {SETTINGS_PAGES.map((t) => (

@@ -101,6 +101,10 @@ export default function AdminRolesConsole() {
       if (give !== has && !lockedFor(u, bulkRole)) await toggleRole(u.id, bulkRole, has);
     }
   };
+  const history = usersList
+    .flatMap((u) => (u.grants ?? []).filter((g: any) => g.at).map((g: any) => ({ at: new Date(g.at), text: `${ALL_ROLES.find((r) => r.id === g.role)?.name ?? g.role} given to @${u.robloxUsername}${g.by ? ` by @${g.by}` : ""}` })))
+    .sort((a, b) => +b.at - +a.at)
+    .slice(0, 8);
   const counts = ALL_ROLES.map((r) => usersList.filter((u) => u.roles.includes(r.id)).length);
   const lockedFor = (u: any, roleId: string) => u.robloxUsername?.toLowerCase() === "alphaze1" && roleId === "site_admin";
 
@@ -237,17 +241,24 @@ export default function AdminRolesConsole() {
           </>
         )}
 
-        {log.length > 0 && (
+        {(log.length > 0 || history.length > 0) && (
           <div className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">Changed in this session</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">Change log</div>
             <ul className="mt-3 space-y-1.5 text-sm">
               {log.map((l, i) => (
-                <li key={i} className="flex justify-between gap-4">
-                  <span>{l.text}</span>
+                <li key={`s${i}`} className="flex justify-between gap-4">
+                  <span>{l.text} <span className="text-neutral-500">(this session)</span></span>
                   <span className="shrink-0 text-neutral-500">{l.at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </li>
               ))}
+              {history.map((l, i) => (
+                <li key={`h${i}`} className="flex justify-between gap-4">
+                  <span>{l.text}</span>
+                  <span className="shrink-0 text-neutral-500">{l.at.toLocaleDateString([], { day: "numeric", month: "short" })}</span>
+                </li>
+              ))}
             </ul>
+            <p className="mt-3 text-xs text-neutral-500">Earlier entries come from saved role grants. Removals are only listed for this session.</p>
           </div>
         )}
       </div>

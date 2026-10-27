@@ -438,6 +438,24 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
   );
 }
 
+/** A table cell that edits in place and saves on blur or Enter. */
+function InlineCell({ value, onSave, label, placeholder, className = "" }: { value: string; onSave: (v: string) => void; label: string; placeholder?: string; className?: string }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  const commit = () => { if (v.trim() !== value.trim()) onSave(v.trim()); };
+  return (
+    <input
+      value={v}
+      aria-label={label}
+      placeholder={placeholder}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setV(value); (e.target as HTMLInputElement).blur(); } }}
+      className={`h-9 w-full min-w-0 rounded-lg border border-neutral-200 bg-transparent px-2 text-sm font-semibold hover:border-neutral-400 dark:border-neutral-800 focus:border-brand focus:bg-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:hover:border-neutral-600 dark:focus:bg-neutral-950 ${className}`}
+    />
+  );
+}
+
 function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: ReturnType<typeof useSportsData>["data"]; busy: boolean; run: RunFn }) {
   const teams = data.teams.filter((t) => t.leagueId === league.id);
   const drivers = data.drivers.filter((d) => d.leagueId === league.id);
@@ -472,15 +490,16 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
         ) : (
           <ul className={listCard}>
             {teams.map((t) => (
-              <li key={t.id} className="flex items-center gap-4 p-4">
+              <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 pl-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-neutral-200 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
                   {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-full w-full object-contain" /> : <span className="h-4 w-4 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />}
                 </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold">{t.name}</div>
-                  <div className="text-xs text-neutral-500">{[t.shortName, racing ? `${drivers.filter((d) => d.teamId === t.id).length} ${drivers.filter((d) => d.teamId === t.id).length === 1 ? "driver" : "drivers"}` : ""].filter(Boolean).join(" · ")}</div>
+                <div className="min-w-[10rem] flex-1">
+                  <InlineCell value={t.name} label={`Name of ${t.name}`} onSave={(v) => v && run(() => api("PATCH", "teams", { name: v }, t.id))} />
                 </div>
-                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => openTeam(t)}>Edit</Button>
+                <div className="w-20"><InlineCell value={t.shortName ?? ""} label={`Short name of ${t.name}`} placeholder="Short" onSave={(v) => run(() => api("PATCH", "teams", { shortName: v }, t.id))} /></div>
+                <div className="w-28"><InlineCell value={t.color ?? ""} label={`Colour of ${t.name}`} placeholder="#FF0000" onSave={(v) => run(() => api("PATCH", "teams", { color: v }, t.id))} /></div>
+                {racing && <span className="w-20 text-xs text-neutral-500">{drivers.filter((d) => d.teamId === t.id).length} {drivers.filter((d) => d.teamId === t.id).length === 1 ? "driver" : "drivers"}</span>}
                 <PhotoButton label={t.logoUrl ? "Replace logo" : "Upload logo"} onUploaded={(url) => run(() => api("PATCH", "teams", { logoUrl: url }, t.id))} />
                 {t.logoUrl && (
                   <button type="button" className="cursor-pointer text-xs text-neutral-500 hover:text-red-500" onClick={() => run(() => api("PATCH", "teams", { logoUrl: null }, t.id))}>
@@ -504,13 +523,21 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
           ) : (
             <ul className={listCard}>
               {drivers.map((d) => (
-                <li key={d.id} className="flex items-center gap-4 p-4">
-                  <span className="gs-display w-10 shrink-0 text-center text-xl font-extrabold text-brand-text">{d.number != null ? d.number : "–"}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-bold">{d.name}</div>
-                    <div className="text-xs text-neutral-500">{[teams.find((t) => t.id === d.teamId)?.name, d.robloxUsername ? `@${d.robloxUsername}` : ""].filter(Boolean).join(" · ") || "No constructor"}</div>
+                <li key={d.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 pl-4">
+                  <div className="w-14"><InlineCell value={d.number != null ? String(d.number) : ""} label={`Number of ${d.name}`} placeholder="#" className="gs-display text-center text-lg font-extrabold text-brand-text" onSave={(v) => run(() => api("PATCH", "drivers", { number: v || null }, d.id))} /></div>
+                  <div className="min-w-[10rem] flex-1"><InlineCell value={d.name} label={`Name of ${d.name}`} onSave={(v) => v && run(() => api("PATCH", "drivers", { name: v }, d.id))} /></div>
+<div className="w-48">
+                    <select
+                      aria-label={`Constructor of ${d.name}`}
+                      value={d.teamId ?? ""}
+                      onChange={(e) => run(() => api("PATCH", "drivers", { teamId: e.target.value || null }, d.id))}
+                      className={`${selectClass} h-9`}
+                    >
+                      <option value="">No constructor</option>
+                      {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
                   </div>
-                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => openDriver(d)}>Edit</Button>
+                  <div className="w-36"><InlineCell value={d.robloxUsername ?? ""} label={`Roblox username of ${d.name}`} placeholder="Roblox name" onSave={(v) => run(() => api("PATCH", "drivers", { robloxUsername: v || null }, d.id))} /></div>
                   <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog(`Delete ${d.name}?`)) && run(() => api("DELETE", "drivers", undefined, d.id))}>
                     <Trash2 className="h-4 w-4" />
                   </button>

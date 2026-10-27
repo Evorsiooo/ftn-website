@@ -66,6 +66,9 @@ export async function GET(request: NextRequest) {
 
     const allUsers = await usersQuery.limit(50);
     const allRoles = await db.select().from(userRoles);
+    const granterIds = Array.from(new Set(allRoles.map((r) => r.assignedBy).filter(Boolean) as string[]));
+    const granters = granterIds.length ? await db.select().from(users).where(sql`${users.id} in (${sql.join(granterIds.map((g) => sql`${g}`), sql`, `)})`) : [];
+    const granterName = (id?: string | null) => (id ? granters.find((g) => g.id === id)?.robloxUsername ?? null : null);
 
     const enrichedUsers = allUsers.map((u) => {
       const roles = allRoles.filter((r) => r.userId === u.id).map((r) => r.role);
@@ -77,6 +80,9 @@ export async function GET(request: NextRequest) {
         avatarUrl: u.avatarUrl,
         createdAt: u.createdAt,
         roles,
+        grants: allRoles
+          .filter((r) => r.userId === u.id)
+          .map((r) => ({ role: r.role, at: r.assignedAt ? new Date(r.assignedAt).toISOString() : null, by: granterName(r.assignedBy) })),
       };
     });
 
