@@ -3,7 +3,8 @@ import { fetchSession } from "@/lib/session-client";
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Shield, LogOut, Newspaper } from "lucide-react";
+import { Shield, LogOut, Newspaper, ImageIcon } from "lucide-react";
+import { canManagePosts } from "@/lib/rbac";
 
 export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
   const [mounted, setMounted] = useState(false);
@@ -122,6 +123,17 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
                   <Newspaper className="h-3.5 w-3.5 text-[#00a9d2]" />
                   Articles
                 </Link>
+
+                {canManagePosts(user.roles) && (
+                  <Link
+                    href="/admin/posts"
+                    onClick={() => setShowMenu(false)}
+                    className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-neutral-700 hover:text-black hover:bg-neutral-100 dark:text-neutral-300 dark:hover:text-white dark:hover:bg-neutral-900 transition"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5 text-[#00a9d2]" />
+                    Posts
+                  </Link>
+                )}
               </>
             )}
 
