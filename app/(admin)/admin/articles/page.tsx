@@ -54,6 +54,20 @@ function AdminArticlesContent() {
     fetchArticles();
   }, []);
 
+  // "Start article from this tip" hands the lead over through sessionStorage.
+  useEffect(() => {
+    if (searchParams.get("from") !== "tip") return;
+    try {
+      const raw = sessionStorage.getItem("ftn_tip_draft");
+      sessionStorage.removeItem("ftn_tip_draft");
+      if (!raw) return;
+      const tip = JSON.parse(raw) as { title: string; content: string };
+      setEditingArticle({ title: tip.title, content: tip.content, category: "news", status: "draft" });
+      setActiveTab("create");
+      window.history.replaceState(null, "", "/admin/articles");
+    } catch {}
+  }, []);
+
   // Handle direct edit URL param only once on initial mount
   useEffect(() => {
     if (editSlugParam && articlesList.length > 0 && !initialParamHandled.current) {
@@ -309,7 +323,7 @@ function AdminArticlesContent() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 border-l-2 border-neutral-200 pl-5 dark:border-neutral-800">
               {revisions.map((rev, idx) => (
                 <Card
                   key={rev.id}
@@ -420,57 +434,56 @@ function AdminArticlesContent() {
               </Button>
             </div>
           ) : (
-            <div className="divide-y divide-neutral-200 border-y border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
-              {articlesList.map((art) => (
-                <div key={art.id} className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-                  <div className="min-w-0 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      <span className="font-bold uppercase tracking-widest text-brand-text">{art.category}</span>
-                      <span
-                        className={`inline-flex items-center gap-1.5 font-bold capitalize ${
-                          art.status === "published" ? "text-emerald-700 dark:text-emerald-400" : art.status === "archived" ? "text-neutral-500" : "text-amber-700 dark:text-amber-400"
-                        }`}
-                      >
-                        <span
-                          className={`h-2 w-2 rounded-full ${art.status === "published" ? "bg-emerald-500" : art.status === "archived" ? "bg-neutral-400" : "bg-amber-500"}`}
-                        />
-                        {art.status}
-                      </span>
-                      <span className="text-neutral-500">{formatDate(art.createdAt)}</span>
-                      {(art.authorUsername || art.authorName) && (
-                        <span className="text-neutral-500">@{art.authorUsername || art.authorName}</span>
-                      )}
+            <div className="grid items-start gap-5 lg:grid-cols-3">
+              {([
+                { key: "draft", title: "Drafts", note: "Not public yet", dot: "bg-amber-500" },
+                { key: "published", title: "Published", note: "Live on the site", dot: "bg-emerald-500" },
+                { key: "archived", title: "Archived", note: "Hidden from readers", dot: "bg-neutral-400" },
+              ] as const).map((col) => {
+                const items = articlesList.filter((a) => (a.status || "draft") === col.key);
+                return (
+                  <section key={col.key} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950">
+                    <header className="flex items-center justify-between px-2 pb-3 pt-1">
+                      <div>
+                        <div className="flex items-center gap-2 text-sm font-extrabold"><span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} />{col.title}</div>
+                        <div className="text-xs text-neutral-500">{col.note}</div>
+                      </div>
+                      <span className="rounded-full bg-neutral-200 px-2.5 text-xs font-extrabold dark:bg-neutral-800">{items.length}</span>
+                    </header>
+                    <div className="space-y-2.5">
+                      {items.length === 0 && <div className="rounded-xl border border-dashed border-neutral-300 p-4 text-center text-xs text-neutral-500 dark:border-neutral-700">Empty</div>}
+                      {items.map((art) => (
+                        <article key={art.id} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="font-bold uppercase tracking-widest text-brand-text">{art.category}</span>
+                            <span className="text-neutral-500">{formatTimeAgo(art.updatedAt || art.createdAt)}</span>
+                          </div>
+                          <button type="button" onClick={() => handleStartEdit(art)} className="mt-1.5 block w-full cursor-pointer text-left text-base font-bold leading-snug hover:underline">
+                            {art.title}
+                          </button>
+                          {(art.authorUsername || art.authorName) && <div className="mt-1 text-xs text-neutral-500">@{art.authorUsername || art.authorName}</div>}
+                          <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-neutral-200 pt-2 dark:border-neutral-800">
+                            <Button variant="ghost" size="sm" onClick={() => handleStartEdit(art)} className="h-8 cursor-pointer gap-1 px-2 font-bold">
+                              <Edit3 className="h-3.5 w-3.5" /> Edit
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleOpenHistory(art)} className="h-8 cursor-pointer gap-1 px-2" title="Version history">
+                              <History className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => handleToggleArchive(art)} className="h-8 cursor-pointer gap-1 px-2" title={art.status === "archived" ? "Unarchive and publish story" : "Archive and hide from public view"}>
+                              {art.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Link href={`/articles/${art.slug}`} target="_blank" className="ml-auto">
+                              <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 px-2" title="View on site">
+                                <ExternalLink className="h-3.5 w-3.5" />
+                              </Button>
+                            </Link>
+                          </div>
+                        </article>
+                      ))}
                     </div>
-                    <h3 className="text-xl font-bold leading-tight">{art.title}</h3>
-                    {art.summary && <p className="line-clamp-1 text-sm text-neutral-600 dark:text-neutral-400">{art.summary}</p>}
-                  </div>
-
-                  <div className="flex shrink-0 flex-wrap items-center gap-x-1 gap-y-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleStartEdit(art)} className="cursor-pointer gap-1.5 font-bold">
-                      <Edit3 className="h-3.5 w-3.5" /> Edit
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleOpenHistory(art)} className="cursor-pointer gap-1.5">
-                      <History className="h-3.5 w-3.5" /> History
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleToggleArchive(art)} className="cursor-pointer gap-1.5" title={art.status === "archived" ? "Unarchive and publish story" : "Archive and hide from public view"}>
-                      {art.status === "archived" ? (
-                        <>
-                          <ArchiveRestore className="h-3.5 w-3.5" /> Unarchive
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="h-3.5 w-3.5" /> Archive
-                        </>
-                      )}
-                    </Button>
-                    <Link href={`/articles/${art.slug}`} target="_blank">
-                      <Button variant="ghost" size="sm" className="cursor-pointer gap-1.5">
-                        <ExternalLink className="h-3.5 w-3.5" /> View
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                  </section>
+                );
+              })}
             </div>
           )}
         </div>
