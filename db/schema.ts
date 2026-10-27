@@ -341,7 +341,12 @@ export const posts = sqliteTable("posts", {
   organizationName: text("organization_name"),
   messageLink: text("message_link"),
   backgroundUrl: text("background_url"),
+  // For a video post, imageUrl is a still of the video and videoUrl is the MP4 itself.
   imageUrl: text("image_url").notNull(),
+  mediaType: text("media_type", { enum: ["image", "video"] }).notNull().default("image"),
+  videoUrl: text("video_url"),
+  // JSON of the edit (sources and clips) so a video post can be opened in the editor again.
+  videoEdit: text("video_edit"),
   status: text("status", {
     enum: ["pending", "approved", "denied"],
   }).notNull().default("pending"),
