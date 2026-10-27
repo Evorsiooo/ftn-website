@@ -374,19 +374,8 @@ export default function AdminPostsPage() {
   const current = editingId ? posts.find((p) => p.id === editingId) : viewing;
   const canDecide = !!current && current.status === "pending" && isLeadership;
 
-  return (
-    <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="mx-auto w-full max-w-[1600px] space-y-6 text-neutral-900 dark:text-white">
-        <AdminPageHeader
-          title="Posts"
-          description="Every post with its preview and details. Approve or deny from the post itself."
-          actions={
-            <Button size="sm" onClick={() => resetForm()} className="h-10 cursor-pointer px-5 text-sm">New post</Button>
-          }
-        />
-
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <section className="min-w-0 xl:col-span-2 xl:flex xl:items-start xl:gap-4">
+  const queueEl = (
+    <>
             <div className="mb-3 flex flex-wrap gap-1.5 xl:mb-0 xl:grid xl:w-56 xl:shrink-0 xl:grid-cols-2">
               {(["pending", "approved", "denied", "all"] as const).map((f) => (
                 <button
@@ -409,7 +398,7 @@ export default function AdminPostsPage() {
                   const canChange = me?.id === p.createdBy || isLeadership;
                   const selected = (editingId ?? viewing?.id) === p.id;
                   return (
-                    <li key={p.id} className={`w-64 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 ${selected ? "!bg-brand/15" : ""}`}>
+                    <li key={p.id} className={`w-56 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 ${selected ? "!bg-brand/15" : ""}`}>
                       <button
                         type="button"
                         onClick={() => (canChange && p.status === "pending" ? startEditing(p) : (resetForm(), setViewing(p)))}
@@ -430,6 +419,26 @@ export default function AdminPostsPage() {
                 })}
               </ul>
             )}
+    </>
+  );
+
+  return (
+    <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 text-neutral-900 dark:text-white">
+        <AdminPageHeader
+          title="Posts"
+          description="Preview, details and approval for each post."
+          actions={
+            <>
+              <div className="hidden min-w-0 flex-1 items-center gap-4 xl:flex">{queueEl}</div>
+              <Button size="sm" onClick={() => resetForm()} className="h-10 cursor-pointer px-5 text-sm">New post</Button>
+            </>
+          }
+        />
+
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <section className="min-w-0 xl:hidden">
+            {queueEl}
           </section>
 
           <section className="min-w-0 space-y-3">
@@ -462,21 +471,21 @@ export default function AdminPostsPage() {
             {viewing && !editingId && (
               <div className="space-y-2">
                 {viewing.mediaType === "video" && viewing.videoUrl && !viewing.videoUrl.endsWith(".webp") ? (
-                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="w-full max-w-[820px] rounded-lg bg-neutral-900" />
+                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full max-w-[clamp(460px,calc(100vh_-_630px),720px)] rounded-lg bg-neutral-900" />
                 ) : (
-                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="w-full max-w-[820px] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full max-w-[clamp(460px,calc(100vh_-_630px),720px)] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
                 )}
                 {parseNotes(viewing.amendments).map((n, i) => <p key={i} className="text-xs italic text-neutral-500">edit: {n}</p>)}
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
-              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full max-w-[460px]" style={CHECKERBOARD} />
+              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full max-w-[clamp(460px,calc(100vh_-_630px),720px)]" style={CHECKERBOARD} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
           </section>
 
-          <section className={`min-w-0 ${viewing && !editingId ? "opacity-60" : ""}`}>
+          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[max(40rem,calc(100vh_-_17rem))] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
           <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="text-lg font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
 
