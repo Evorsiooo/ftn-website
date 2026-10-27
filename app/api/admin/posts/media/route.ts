@@ -99,10 +99,16 @@ export async function POST(request: NextRequest) {
         parts.map((p: any) => ({ partNumber: Number(p.partNumber), etag: String(p.etag) }))
       );
       // The size and type chosen at the start must hold for what was actually uploaded.
-      const kind = KINDS[String(object.customMetadata?.kind)];
-      if (!kind || object.size > kind.maxBytes) {
+      // The object returned by complete() does not always carry the custom metadata, so read it back.
+      const stored = object.customMetadata?.kind ? object : await bucket.head(key);
+      const kind = KINDS[String(stored?.customMetadata?.kind || body.kind)];
+      if (!kind) {
         await bucket.delete(key);
-        return fail("The uploaded file is too large");
+        return fail("Unknown upload type");
+      }
+      if (object.size > kind.maxBytes) {
+        await bucket.delete(key);
+        return fail(`The uploaded file is larger than the ${Math.round(kind.maxBytes / MB)} MB limit`);
       }
       return NextResponse.json({ url: `/api/media/${key}`, size: object.size });
     }
