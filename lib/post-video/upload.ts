@@ -71,7 +71,7 @@ export async function uploadMedia(
       parts.push({ partNumber: n, etag: part.etag });
       opts.onProgress?.(n / count);
     }
-    const done = await call(base, json({ op: "complete", key, uploadId, parts }));
+    const done = await call(base, json({ op: "complete", key, uploadId, parts, kind: opts.kind }));
     return done.url as string;
   } catch (err) {
     fetch(base, json({ op: "abort", key, uploadId })).catch(() => {});
