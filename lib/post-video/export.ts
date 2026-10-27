@@ -44,8 +44,8 @@ export async function canExportMp4(): Promise<boolean> {
   }
 }
 
-function pickBitrate(duration: number, maxBytes: number, withAudio: boolean, attempt: number): number {
-  const budgetBits = maxBytes * 8 * 0.9 * Math.pow(0.85, attempt);
+function pickBitrate(duration: number, maxBytes: number, withAudio: boolean, shrink: number): number {
+  const budgetBits = maxBytes * 8 * 0.9 * shrink;
   const bits = budgetBits / duration - (withAudio ? AUDIO_BITRATE : 0);
   return Math.round(Math.min(10_000_000, Math.max(300_000, bits)));
 }
@@ -135,11 +135,15 @@ export async function exportPostVideo(opts: ExportOptions): Promise<ExportResult
     throw new Error("This browser cannot create the video (no H.264 encoder). Use Chrome or Edge on a computer.");
   }
 
+  // The encoder does not hit its bitrate exactly, so when the file is over the limit the next
+  // try lowers the bitrate by how much it was over (compressing it to fit).
   let result: ExportResult | null = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const bitrate = pickBitrate(duration, maxBytes, withAudio, attempt);
-    result = await renderOnce(opts, bitrate, attempt > 0 ? "Too large, trying again. " : "");
+  let shrink = 1;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const bitrate = pickBitrate(duration, maxBytes, withAudio, shrink);
+    result = await renderOnce(opts, bitrate, attempt > 0 ? "Over the size limit, compressing more. " : "");
     if (result.bytes <= maxBytes) return result;
+    shrink *= Math.min(0.9, (maxBytes * 0.95) / result.bytes);
   }
   throw new Error(
     `The video is ${(result!.bytes / 1048576).toFixed(1)} MB, over the ${Math.round(maxBytes / 1048576)} MB limit even at low quality. Make it shorter.`

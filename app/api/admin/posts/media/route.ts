@@ -13,7 +13,13 @@ const MB = 1024 * 1024;
 const KINDS: Record<string, { types: Record<string, string>; maxBytes: number }> = {
   // Imported video clips the post is cut from (kept so the post can be edited again).
   source: {
-    types: { "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-matroska": "mkv" },
+    types: {
+      "video/mp4": "mp4",
+      "video/x-m4v": "mp4",
+      "video/quicktime": "mov",
+      "video/webm": "webm",
+      "video/x-matroska": "mkv",
+    },
     maxBytes: 1536 * MB,
   },
   music: {
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
       if (!kind) return fail("Unknown upload type");
       const contentType = String(body.contentType || "").toLowerCase().split(";")[0].trim();
       const extension = kind.types[contentType];
-      if (!extension) return fail("This file type is not supported");
+      if (!extension) return fail(`This file type is not supported (${contentType || "unknown type"})`);
       const size = Number(body.size);
       if (!Number.isFinite(size) || size <= 0) return fail("Empty file");
       if (size > kind.maxBytes) {

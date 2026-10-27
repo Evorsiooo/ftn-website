@@ -1,5 +1,6 @@
 "use client";
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Music, Pause, Play, Redo2, Scissors, Trash2, Undo2, Upload, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { PostLayers } from "@/lib/post-template";
@@ -20,6 +21,7 @@ import {
   type SavedEdit,
   type VideoClip,
 } from "@/lib/post-video/model";
+import { detectFraming } from "@/lib/post-video/autofit";
 import { PreviewPlayer } from "@/lib/post-video/preview";
 import { disposeSource, loadSource, type LoadedSource } from "@/lib/post-video/sources";
 import { uploadMedia } from "@/lib/post-video/upload";
@@ -46,13 +48,15 @@ interface Props {
   uploadPoster: (poster: Blob) => Promise<string>;
   /** Export a transparent animated WebP (no sound) instead of an MP4. */
   animatedWebp?: boolean;
+  /** Where the timeline and clip controls go (full page width). Without it they stay in place. */
+  timelineHost?: HTMLElement | null;
 }
 
 type UploadState = { progress: number; error?: string };
 
 const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
-export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEditor({ canvasRef, layers, uploadPoster, animatedWebp = false }, ref) {
+export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEditor({ canvasRef, layers, uploadPoster, animatedWebp = false, timelineHost }, ref) {
   const [sources, setSources] = useState<Map<string, LoadedSource>>(new Map());
   const [project, setProject] = useState<Project>(emptyProject());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -195,8 +199,8 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
           focusX: 0.5,
           focusY: 0.5,
         };
-        const last = projectRef.current.clips[projectRef.current.clips.length - 1];
-        if (last) Object.assign(clip, { zoom: last.zoom, focusX: last.focusX, focusY: last.focusY });
+        // Fill the video area, cropping black bars that are part of the recording.
+        Object.assign(clip, await detectFraming(source, clip.start, clip.end));
         update({ ...projectRef.current, clips: [...projectRef.current.clips, clip] });
         setSelectedId(clip.id);
         if (source.info.duration > room) {
@@ -345,7 +349,18 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
           continue;
         }
         setRendering({ fraction: 0, label: `Uploading ${source.info.name}` });
-        const url = await uploadPromises.current.get(id)?.catch(() => null);
+        let url: string | null = null;
+        try {
+          url = (await uploadPromises.current.get(id)) ?? null;
+        } catch {
+          // The first try failed; one more before giving up.
+          startUpload(source);
+          try {
+            url = (await uploadPromises.current.get(id)) ?? null;
+          } catch (err: any) {
+            throw new Error(`${source.info.name} could not be uploaded: ${err?.message || "Upload failed"}. Remove it and add it again.`);
+          }
+        }
         if (!url) throw new Error(`${source.info.name} did not upload. Remove it and add it again.`);
         saved.push({ id, kind: source.info.kind, name: source.info.name, url });
       }
@@ -453,29 +468,8 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
     </label>
   );
 
-  return (
-    <div className="space-y-3 outline-none" tabIndex={0} onKeyDown={onKeyDown}>
-      <div className="flex flex-wrap items-center gap-2">
-        <input ref={videoInput} type="file" accept="video/*" multiple onChange={(e) => addVideos(e.target.files)} className="hidden" />
-        <input ref={songInput} type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" onChange={(e) => addSong(e.target.files)} className="hidden" />
-        <Button type="button" variant="outline" size="sm" onClick={() => videoInput.current?.click()} className="cursor-pointer">
-          <Video className="h-4 w-4 mr-1.5" /> Add video
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => songInput.current?.click()} className="cursor-pointer">
-          <Music className="h-4 w-4 mr-1.5" /> Add song
-        </Button>
-        {loading && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {loading}
-          </span>
-        )}
-        {uploading && !loading && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
-            <Upload className="h-3.5 w-3.5" /> Uploading files in the background...
-          </span>
-        )}
-      </div>
-
+  const timeline = (
+    <>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" size="sm" onClick={togglePlay} disabled={total <= 0} className="cursor-pointer" aria-label={playing ? "Pause" : "Play"}>
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
@@ -564,6 +558,33 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
           </Button>
         </div>
       )}
+    </>
+  );
+
+  return (
+    <div className="space-y-3 outline-none" tabIndex={0} onKeyDown={timelineHost ? undefined : onKeyDown}>
+      <div className="flex flex-wrap items-center gap-2">
+        <input ref={videoInput} type="file" accept="video/*" multiple onChange={(e) => addVideos(e.target.files)} className="hidden" />
+        <input ref={songInput} type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" onChange={(e) => addSong(e.target.files)} className="hidden" />
+        <Button type="button" variant="outline" size="sm" onClick={() => videoInput.current?.click()} className="cursor-pointer">
+          <Video className="h-4 w-4 mr-1.5" /> Add video
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => songInput.current?.click()} className="cursor-pointer">
+          <Music className="h-4 w-4 mr-1.5" /> Add song
+        </Button>
+        {loading && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> {loading}
+          </span>
+        )}
+        {uploading && !loading && (
+          <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
+            <Upload className="h-3.5 w-3.5" /> Uploading files in the background...
+          </span>
+        )}
+      </div>
+
+      {timelineHost ? createPortal(<div className="space-y-3 outline-none" tabIndex={0} onKeyDown={onKeyDown}>{timeline}</div>, timelineHost) : timeline}
     </div>
   );
 });
