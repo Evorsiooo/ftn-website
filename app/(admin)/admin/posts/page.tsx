@@ -14,7 +14,7 @@ import { RO_STATES } from "@/lib/ro-states";
 import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
 import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/video-editor";
 
-const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
+const labelClass = "mb-1 block text-sm font-bold";
 const fieldClass =
   "w-full rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
 
@@ -62,6 +62,7 @@ export default function AdminPostsPage() {
   const [ads, setAds] = useState<any[]>([]);
   const [suggestedAdId, setSuggestedAdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [studio, setStudio] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "denied">("all");
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export default function AdminPostsPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const renderToken = useRef(0);
+  const filterTouched = useRef(false);
 
   const isLeadership = me ? isPostsLeadership(me.roles) : false;
 
@@ -100,7 +102,11 @@ export default function AdminPostsPage() {
         fetch("/api/admin/posts/options"),
         fetch("/api/auth/session"),
       ]);
-      if (postsRes.ok) setPosts(((await postsRes.json()) as any).posts || []);
+      if (postsRes.ok) {
+        const list = ((await postsRes.json()) as any).posts || [];
+        setPosts(list);
+        if (!filterTouched.current && list.some((p: any) => p.status === "pending")) setStatusFilter("pending");
+      }
       if (optionsRes.ok) {
         const data = (await optionsRes.json()) as any;
         setAds(data.ads || []);
@@ -193,6 +199,7 @@ export default function AdminPostsPage() {
   };
 
   const resetForm = () => {
+    setStudio(false);
     setEditingId(null);
     setMode("image");
     setTransparent(false);
@@ -232,6 +239,7 @@ export default function AdminPostsPage() {
   };
 
   const startEditing = async (post: any) => {
+    setStudio(true);
     setEditingId(post.id);
     setMode(post.mediaType === "video" ? "video" : "image");
     setTransparent(typeof post.videoUrl === "string" && post.videoUrl.endsWith(".webp"));
@@ -364,10 +372,20 @@ export default function AdminPostsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="mx-auto w-full max-w-[1500px] space-y-8 text-neutral-900 dark:text-white">
-        <AdminPageHeader title="Posts" description="Design news posts with an ad, send them for approval and track them." />
+      <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-8 text-neutral-900 dark:text-white">
+        <AdminPageHeader
+          title="Posts"
+          description="Posts waiting for a decision come first. Open the studio to make a new one."
+          actions={
+            !studio ? (
+              <Button size="sm" onClick={() => { resetForm(); setStudio(true); }} className="h-10 cursor-pointer px-5 text-sm">New post</Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={resetForm} className="h-10 cursor-pointer px-5 text-sm">Close studio</Button>
+            )
+          }
+        />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] gap-8 xl:gap-10">
+        <div className={studio ? "order-1 grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] xl:gap-10" : "hidden"}>
           <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start">
             <h2 className="text-xl font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
 
@@ -490,13 +508,13 @@ export default function AdminPostsPage() {
           </div>
         </div>
 
-        <div ref={setTimelineHost} className={mode === "video" ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
+        <div ref={setTimelineHost} className={studio && mode === "video" ? "order-1 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
 
-        <div className="space-y-4">
-          <h2 className="text-xl font-extrabold">All posts</h2>
+        <div className={`space-y-4 ${studio ? "order-2" : "order-1"}`}>
+          <h2 className="text-xl font-extrabold">Queue</h2>
           <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
             {(["all", "pending", "approved", "denied"] as const).map((f) => (
-              <AdminTab key={f} active={statusFilter === f} onClick={() => setStatusFilter(f)}>
+              <AdminTab key={f} active={statusFilter === f} onClick={() => { filterTouched.current = true; setStatusFilter(f); }}>
                 {f[0].toUpperCase() + f.slice(1)} ({f === "all" ? posts.length : posts.filter((p) => p.status === f).length})
               </AdminTab>
             ))}

@@ -140,7 +140,7 @@ export default function SiteSettingsPage() {
 
   // Tab Navigation State
   const pathname = usePathname();
-  const activeTab: "site" | "radio" | "access" | "moderation" | "plus" = pathname.endsWith("/radio") ? "radio" : pathname.endsWith("/access") ? "access" : pathname.endsWith("/moderation") ? "moderation" : pathname.endsWith("/plus") ? "plus" : "site";
+  const activeTab: "site" | "radio" | "connections" | "access" | "moderation" | "plus" = pathname.endsWith("/connections") ? "connections" : pathname.endsWith("/radio") ? "radio" : pathname.endsWith("/access") ? "access" : pathname.endsWith("/moderation") ? "moderation" : pathname.endsWith("/plus") ? "plus" : "site";
 
   // YouTube Channels & Video Management
   const [youtubeChannels, setYoutubeChannels] = useState<string[]>([]);
@@ -199,6 +199,20 @@ export default function SiteSettingsPage() {
     if (configLoaded && baseline === null) setBaseline(payloadJson);
   }, [configLoaded, baseline, payloadJson]);
   const dirty = baseline !== null && payloadJson !== baseline;
+  const changedLabels = (() => {
+    if (!dirty || baseline === null) return [] as string[];
+    const labels: Record<string, string> = {
+      streamUrlInput: "Webradio stream", statusJsonInput: "Webradio stream", webradioToggle: "Webradio stream",
+      allowSignIn: "Sign-in", authMode: "Sign-in", ftnPlusAccess: "Access gates", tiplineAccess: "Access gates",
+      discordUrl: "Links", socialLinks: "Links", bannedWordsInput: "Profanity filter",
+      youtubeChannels: "YouTube channels", hiddenFeaturedChannels: "YouTube channels", hiddenTrendingChannels: "YouTube channels",
+      swimlanes: "Swimlanes", hiddenVideoIds: "Video catalog", autoModEnabled: "Auto-moderation", autoModThreshold: "Auto-moderation",
+      autoModMuteDuration: "Auto-moderation", donationBannerEnabled: "Donation banner", radioPublic: "Station", radioSecure: "Keys and passwords",
+    };
+    const was = JSON.parse(baseline) as Record<string, unknown>;
+    const now = JSON.parse(payloadJson) as Record<string, unknown>;
+    return Array.from(new Set(Object.keys(now).filter((k) => JSON.stringify(now[k]) !== JSON.stringify(was[k])).map((k) => labels[k] ?? k)));
+  })();
 
   useEffect(() => {
     // 1. Fetch site config
@@ -968,9 +982,10 @@ export default function SiteSettingsPage() {
     </div>
   )}
 
-      {activeTab === "radio" && (
+      {(activeTab === "radio" || activeTab === "connections") && (
         <div className="space-y-8">
           {/* 1. Webradio Stream Settings */}
+          {activeTab === "radio" && (<>
           <AdminSection title="Webradio stream" description="Where the live audio and its now-playing data come from.">
         <AdminRow label="Webradio on FTN+" hint={webradioToggle ? "The radio player is live for visitors." : "The radio player is switched off."}>
           <AdminSwitch checked={webradioToggle} onChange={setWebradioToggle} label="Enable webradio" />
@@ -1027,6 +1042,8 @@ export default function SiteSettingsPage() {
 
         {/* Icecast */}
         </AdminSection>
+</>)}
+{activeTab === "connections" && (<>
 <AdminSection title="Icecast" description="Optional admin credentials let the site read live listener counts and track metadata. They are stored encrypted and never sent to visitors.">
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
@@ -1050,7 +1067,7 @@ export default function SiteSettingsPage() {
 
         {/* Password rotation */}
         </AdminSection>
-<AdminSection title="Password rotation" description="Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown in the Station tab of the Schedule admin page.">
+<AdminSection title="Password rotation" description="Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown at the top of the Schedule admin page.">
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold">Rotation Endpoint URL</label>
@@ -1123,6 +1140,7 @@ export default function SiteSettingsPage() {
           </div>
         
       </AdminSection>
+</>)}
 
     </div>
   )}
@@ -2435,7 +2453,7 @@ export default function SiteSettingsPage() {
       </AdminSection>
     </div>
   )}
-      <AdminSaveBar dirty={dirty} saving={isSavingConfig} saved={savedSuccess} onSave={handleSaveAllSettings} onDiscard={async () => { if (await confirmDialog("Throw away your unsaved changes?")) window.location.reload(); }} />
+      <AdminSaveBar changed={changedLabels} dirty={dirty} saving={isSavingConfig} saved={savedSuccess} onSave={handleSaveAllSettings} onDiscard={async () => { if (await confirmDialog("Throw away your unsaved changes?")) window.location.reload(); }} />
     </div>
     </AdminAuthGuard>
   );

@@ -237,6 +237,7 @@ export function RichTextEditor({
   };
 
   return (
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
     <Card className="p-6 sm:p-8 space-y-6 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none text-neutral-900 dark:text-white">
       {/* Title */}
       <div className="space-y-1.5">
@@ -250,82 +251,6 @@ export function RichTextEditor({
           className="text-lg font-bold"
         />
       </div>
-
-      {/* Category & Cover Image */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1.5">
-          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-            Category
-          </label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as any)}
-            className="w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white text-sm px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-          >
-            <option value="news">News</option>
-            <option value="politics">Politics</option>
-            <option value="business">Business</option>
-            <option value="technology">Technology</option>
-            <option value="entertainment">Entertainment</option>
-            <option value="opinion">Opinion</option>
-          </select>
-        </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
-              Cover Image
-            </label>
-            <input
-              type="file"
-              ref={coverFileInputRef}
-              onChange={handleCoverFileUpload}
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => coverFileInputRef.current?.click()}
-              disabled={uploadingCover}
-              className="text-[11px] font-bold text-brand-text hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
-            >
-              {uploadingCover ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" /> Uploading to R2...
-                </>
-              ) : (
-                <>
-                  <Upload className="h-3 w-3" /> Upload from Device
-                </>
-              )}
-            </button>
-          </div>
-          <Input
-            value={coverImageUrl}
-            onChange={(e) => setCoverImageUrl(e.target.value)}
-            placeholder="Image URL or upload from device..."
-            className="text-sm"
-          />
-        </div>
-      </div>
-
-      {/* Cover Image Preview */}
-      {coverImageUrl && (
-        <div className="relative rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 max-h-48 w-full group">
-          <img
-            src={coverImageUrl}
-            alt="Cover Preview"
-            className="w-full h-48 object-cover"
-          />
-          <button
-            type="button"
-            onClick={() => setCoverImageUrl("")}
-            className="absolute top-2 right-2 rounded-md bg-black/80 px-2 py-1 text-[10px] font-bold text-red-400 hover:text-white transition cursor-pointer"
-          >
-            Remove Cover
-          </button>
-        </div>
-      )}
 
       {/* TipTap Editor Toolbar & Surface */}
       <div className="space-y-2">
@@ -512,8 +437,13 @@ export function RichTextEditor({
         </div>
       </div>
 
+    </Card>
+    <aside className="space-y-5 rounded-2xl border border-neutral-200 bg-white p-5 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-950 dark:text-white lg:sticky lg:top-24">
+      <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">
+        {initialArticle?.id ? `Currently ${initialArticle.status}` : "New story"}
+      </div>
       {/* Action Buttons */}
-      <div className="flex items-center justify-between pt-4 border-t border-neutral-200 dark:border-neutral-850">
+      <div className="space-y-3">
         <div>
           {onCancel && (
             <Button
@@ -527,7 +457,7 @@ export function RichTextEditor({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 [&>button]:w-full">
           <Button
             type="button"
             variant="outline"
@@ -560,6 +490,83 @@ export function RichTextEditor({
           </Button>
         </div>
       </div>
-    </Card>
+      {/* Category & Cover Image */}
+      <div className="grid grid-cols-1 gap-5">
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            Category
+          </label>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value as any)}
+            className="w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white text-sm px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            <option value="news">News</option>
+            <option value="politics">Politics</option>
+            <option value="business">Business</option>
+            <option value="technology">Technology</option>
+            <option value="entertainment">Entertainment</option>
+            <option value="opinion">Opinion</option>
+          </select>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              Cover Image
+            </label>
+            <input
+              type="file"
+              ref={coverFileInputRef}
+              onChange={handleCoverFileUpload}
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => coverFileInputRef.current?.click()}
+              disabled={uploadingCover}
+              className="text-[11px] font-bold text-brand-text hover:underline inline-flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            >
+              {uploadingCover ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" /> Uploading to R2...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-3 w-3" /> Upload from Device
+                </>
+              )}
+            </button>
+          </div>
+          <Input
+            value={coverImageUrl}
+            onChange={(e) => setCoverImageUrl(e.target.value)}
+            placeholder="Image URL or upload from device..."
+            className="text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Cover Image Preview */}
+      {coverImageUrl && (
+        <div className="relative rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 max-h-48 w-full group">
+          <img
+            src={coverImageUrl}
+            alt="Cover Preview"
+            className="w-full h-48 object-cover"
+          />
+          <button
+            type="button"
+            onClick={() => setCoverImageUrl("")}
+            className="absolute top-2 right-2 rounded-md bg-black/80 px-2 py-1 text-[10px] font-bold text-red-400 hover:text-white transition cursor-pointer"
+          >
+            Remove Cover
+          </button>
+        </div>
+      )}
+
+    </aside>
+    </div>
   );
 }

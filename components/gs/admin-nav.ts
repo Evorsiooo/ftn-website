@@ -34,7 +34,8 @@ export const ADMIN_MODULES: AdminModule[] = [
 /** Settings is a set of pages, not one long form. */
 export const SETTINGS_PAGES = [
   { title: "Site", href: "/admin/settings", description: "Donation banner, navbar and footer links" },
-  { title: "Radio", href: "/admin/settings/radio", description: "Stream, station, Icecast, password rotation, album art" },
+  { title: "Radio", href: "/admin/settings/radio", description: "Stream and station details" },
+  { title: "Connections", href: "/admin/settings/connections", description: "Keys, tokens and passwords: Icecast, password rotation, Discord webhook, album art" },
   { title: "Sign-in and access", href: "/admin/settings/access", description: "Login method, FTN+ and tipline gates, accounts" },
   { title: "Moderation", href: "/admin/settings/moderation", description: "Mutes, auto-moderation, profanity filter" },
   { title: "FTN+ network", href: "/admin/settings/plus", description: "YouTube channels, video catalog, swimlanes" },
