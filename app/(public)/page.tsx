@@ -1,6 +1,7 @@
 export const runtime = "edge";
 import React from "react";
 import Link from "next/link";
+import { PlusLink } from "@/components/gs/plus-link";
 import { DonationBanner } from "@/components/donation-banner";
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { GsSectionHeading, GsStoryTile, type GsTone } from "@/components/gs/story";
@@ -110,9 +111,9 @@ export default async function HomePage() {
                   <p className="mt-5 line-clamp-3 max-w-xl text-lg opacity-85 sm:text-xl">{featuredVideo.description}</p>
                 )}
                 <div className="mt-7">
-                  <Link href={watchHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-[#16110a] px-7 text-sm font-bold text-[#fff8e6] transition hover:bg-black">
+                  <PlusLink href={watchHref} className="inline-flex h-12 items-center gap-2 rounded-full bg-[#16110a] px-7 text-sm font-bold text-[#fff8e6] transition hover:bg-black">
                     <IconPlayerPlay className="h-4 w-4 fill-current" /> Watch on FTN+
-                  </Link>
+                  </PlusLink>
                 </div>
               </>
             ) : (
@@ -126,7 +127,7 @@ export default async function HomePage() {
           </div>
 
           {featuredVideo ? (
-            <Link href={watchHref} className="group relative block overflow-hidden rounded-t-[2rem] bg-[#16110a]" aria-label={`Watch ${featuredVideo.title}`}>
+            <PlusLink href={watchHref} className="group relative block overflow-hidden rounded-t-[2rem] bg-[#16110a]" aria-label={`Watch ${featuredVideo.title}`}>
               {featuredVideo.thumbnailUrl && (
                 <img src={featuredVideo.thumbnailUrl} alt="" className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
               )}
@@ -134,7 +135,7 @@ export default async function HomePage() {
               <span className="absolute inset-0 flex items-center justify-center bg-black/15">
                 <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand text-brand-ink shadow-lg"><IconPlayerPlay className="h-6 w-6 fill-current" /></span>
               </span>
-            </Link>
+            </PlusLink>
           ) : (
             <div className="hidden aspect-[16/10] items-center justify-center rounded-t-[2rem] bg-[#16110a] lg:flex">
               <img src="/logos/ftn_favicon_transparent.png" alt="" className="h-24 w-auto opacity-90" />

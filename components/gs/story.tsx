@@ -62,29 +62,28 @@ export function GsStoryTile({
 }) {
   const href = `/articles/${story.slug}`;
   if (story.coverImageUrl) {
-    // Image on top, text below on a solid panel, so a screenshot with text in it never sits behind the headline.
+    // Full-bleed image with the headline over it. The lower part of the image is darkened and blurred
+    // (fading out upwards), so a cover that has text in it stays readable and a plain photo keeps its top intact.
     return (
       <Link
         href={href}
-        className={cn("group flex flex-col overflow-hidden rounded-[1.75rem] transition hover:-translate-y-0.5", TONES[tone === "white" ? "white" : tone], className)}
+        className={cn("group relative flex min-h-[300px] flex-col justify-end overflow-hidden rounded-[1.75rem] bg-neutral-900 text-white", big && "min-h-[420px] sm:min-h-[520px]", className)}
       >
-        <div className={cn("overflow-hidden bg-neutral-200 dark:bg-neutral-800", big ? "aspect-[16/10] lg:aspect-auto lg:min-h-[340px] lg:flex-1" : "aspect-[16/10]")}>
-          <img
-            src={story.coverImageUrl}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-          />
-        </div>
-        <div className="space-y-2 p-5 sm:p-6">
-          {gsCategory(story.category) && (
-            <div className={cn("text-xs font-bold uppercase tracking-widest", tone === "white" ? "text-brand-text" : tone === "dark" ? "text-brand" : "opacity-70")}>
-              {story.category}
-            </div>
-          )}
-          <h3 className={cn("font-bold leading-[1.1]", big ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>{story.title}</h3>
-          <div className="text-xs opacity-70">{storyMeta(story)}</div>
+        <img
+          src={story.coverImageUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+        />
+        <div
+          aria-hidden
+          className="absolute inset-x-0 bottom-0 h-[78%] bg-gradient-to-t from-black/90 via-black/65 to-transparent backdrop-blur-md [mask-image:linear-gradient(to_top,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_top,black_55%,transparent)]"
+        />
+        <div className="relative z-10 space-y-2 p-5 sm:p-6">
+          {gsCategory(story.category) && <div className="text-xs font-bold uppercase tracking-widest text-brand">{story.category}</div>}
+          <h3 className={cn("font-bold leading-[1.1] [text-shadow:0_1px_12px_rgba(0,0,0,0.6)]", big ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>{story.title}</h3>
+          <div className="text-xs text-white/80">{storyMeta(story)}</div>
         </div>
       </Link>
     );

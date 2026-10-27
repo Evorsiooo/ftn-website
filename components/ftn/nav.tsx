@@ -1,4 +1,5 @@
 "use client";
+import { leaveFtnPlus, originOf } from "@/lib/site-transition";
 import React from "react";
 import Link from "next/link";
 import { IconArrowLeft, IconMoon, IconSun } from "@tabler/icons-react";
@@ -37,6 +38,11 @@ function ExitLink({ className }: { className?: string }) {
     // eslint-disable-next-line @next/next/no-html-link-for-pages -- intentional full load, see above
     <a
       href="/"
+      onClick={(e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+        e.preventDefault();
+        leaveFtnPlus(originOf(e), () => window.location.assign("/"));
+      }}
       aria-label="Exit to FTN Main"
       title="Exit to FTN Main"
       className={cn("h-10 w-10 inline-flex items-center justify-center rounded-full text-ftn-text-2 hover:text-ftn-text transition", focus, className)}

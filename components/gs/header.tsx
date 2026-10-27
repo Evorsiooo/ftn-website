@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconMenu2, IconX } from "@tabler/icons-react";
+import { PlusLink } from "@/components/gs/plus-link";
 import { AuthButton } from "@/components/layout/auth-button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSiteConfig } from "@/lib/site-config-context";
@@ -70,14 +71,14 @@ export function GsHeader({ section }: { section?: string }) {
           >
             Discord
           </a>
-          <Link
+          <PlusLink
             href={plusHref("/plus", "nav")}
             title={plusLive ? "Live now on FTN+" : "FTN+"}
             className="inline-flex h-9 items-center gap-2 rounded-full bg-[#16110a] px-4 transition hover:bg-black"
           >
             {plusLive && <span aria-hidden className="h-2 w-2 flex-none animate-pulse rounded-full bg-[#ff5a4d]" />}
             <img src="/logos/ftnplus_textwhite_transparent.png" alt="FTN+" className="h-4 w-auto object-contain" />
-          </Link>
+          </PlusLink>
           <AuthButton />
         </div>
 
@@ -107,9 +108,9 @@ export function GsHeader({ section }: { section?: string }) {
                 {item.name}
               </Link>
             ))}
-            <Link href={plusHref("/plus", "nav")} className="gs-display border-b border-brand-ink/15 py-3 text-2xl font-extrabold">
+            <PlusLink href={plusHref("/plus", "nav")} className="gs-display border-b border-brand-ink/15 py-3 text-2xl font-extrabold">
               FTN+ {plusLive && <span className="text-base font-bold">· Live now</span>}
-            </Link>
+            </PlusLink>
             <a href={discordUrl} target="_blank" rel="noopener noreferrer" className="gs-display py-3 text-2xl font-extrabold">
               Discord
             </a>

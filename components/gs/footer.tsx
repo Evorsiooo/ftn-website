@@ -2,6 +2,7 @@
 import React from "react";
 import Link from "next/link";
 import { useSiteConfig } from "@/lib/site-config-context";
+import { PlusLink } from "@/components/gs/plus-link";
 import { plusHref } from "@/lib/plus-links";
 
 const col = "space-y-2 text-sm";
@@ -29,7 +30,7 @@ export function GsFooter() {
         <div>
           <h4 className="mb-3 text-xs font-bold uppercase tracking-widest text-brand">Watch</h4>
           <ul className={col}>
-            <li><Link href={plusHref("/plus", "footer")} className={link}>FTN+</Link></li>
+            <li><PlusLink href={plusHref("/plus", "footer")} className={link}>FTN+</PlusLink></li>
             <li><Link href="/plus/radio" className={link}>Webradio</Link></li>
             <li><Link href="/plus/sports" className={link}>Sports</Link></li>
             <li><Link href="/games" className={link}>Games</Link></li>
