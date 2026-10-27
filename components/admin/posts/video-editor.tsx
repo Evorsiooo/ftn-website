@@ -507,7 +507,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       {selectedClip && (
         <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
           <p className={labelClass}>Selected clip</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-3">
             {sliderRow("Volume", selectedClip.volume, 0, 1, 0.05, (v) => setClip({ volume: v }, "volume"), `${Math.round(selectedClip.volume * 100)}%`)}
             {sliderRow("Zoom", selectedClip.zoom, 1, 3, 0.05, (v) => setClip({ zoom: v }, "zoom"), `${selectedClip.zoom.toFixed(2)}x`)}
             {sliderRow("Left / right", selectedClip.focusX, 0, 1, 0.01, (v) => setClip({ focusX: v }, "fx"))}
