@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatTimeAgo, calculateReadingTime } from "@/lib/utils";
+import { gsCategory } from "@/components/gs/story";
 import { sanitizeHtml } from "@/lib/sanitize";
 import { canPublishArticles } from "@/lib/rbac";
 import {
@@ -201,7 +202,8 @@ export function ArticleReadingClient({
           </div>
 
           <div className="mb-4 text-xs font-bold uppercase tracking-widest opacity-75">
-            {article.category} · {calculateReadingTime(article.content)}
+            {gsCategory(article.category) ? `${article.category} · ` : ""}
+            {calculateReadingTime(article.content)}
           </div>
           <h1 className="text-4xl font-extrabold leading-[0.98] sm:text-6xl lg:text-7xl">{article.title}</h1>
           {article.summary && <p className="mt-5 max-w-2xl text-lg opacity-85 sm:text-xl">{article.summary}</p>}

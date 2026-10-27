@@ -100,15 +100,11 @@ export default async function HomePage() {
           <div className="pb-10 lg:pb-16">
             {featuredVideo ? (
               <>
-                <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
-                  {featuredVideo.isLive ? (
-                    <>
-                      <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" /> Live now on FTN+
-                    </>
-                  ) : (
-                    <span className="opacity-75">Latest on FTN+</span>
-                  )}
-                </div>
+                {featuredVideo.isLive && (
+                  <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
+                    <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" /> Live now on FTN+
+                  </div>
+                )}
                 <h1 className="text-4xl font-extrabold leading-[0.98] sm:text-5xl lg:text-6xl xl:text-7xl">{featuredVideo.title}</h1>
                 {featuredVideo.description && (
                   <p className="mt-5 line-clamp-3 max-w-xl text-lg opacity-85 sm:text-xl">{featuredVideo.description}</p>

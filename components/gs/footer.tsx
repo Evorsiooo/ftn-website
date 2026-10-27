@@ -27,7 +27,7 @@ export function GsFooter() {
           </ul>
         </div>
         <div>
-          <h4 className="mb-3 text-xs font-bold uppercase tracking-widest text-brand">Watch and listen</h4>
+          <h4 className="mb-3 text-xs font-bold uppercase tracking-widest text-brand">Watch</h4>
           <ul className={col}>
             <li><Link href={plusHref("/plus", "footer")} className={link}>FTN+</Link></li>
             <li><Link href="/plus/radio" className={link}>Webradio</Link></li>

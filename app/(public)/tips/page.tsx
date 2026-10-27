@@ -74,14 +74,13 @@ export default function TiplinePage() {
   return (
     <div className="text-neutral-900 dark:text-white">
       <GsPageHeader
-        eyebrow="Tipline"
         title="Anonymous tipline"
         description="Confidential investigative leads submitted directly to the FTN newsroom."
       />
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
 
       {submitted ? (
-        <Card className="p-8 text-center space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+        <Card className="p-8 text-center space-y-4 rounded-[2rem] border-0 bg-white dark:bg-neutral-900">
           <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
           <h2 className="text-2xl font-bold text-neutral-900 dark:text-white">Tip Submitted</h2>
           <p className="text-xs text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
@@ -99,7 +98,7 @@ export default function TiplinePage() {
           </div>
         </Card>
       ) : (
-        <Card className="p-6 sm:p-8 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none">
+        <Card className="p-6 sm:p-8 rounded-[2rem] border-0 bg-white dark:bg-neutral-900">
           {isMuted ? (
             <div className="p-6 rounded-xl border border-red-200 bg-red-50 text-red-900 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-200 text-center space-y-3">
               <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400 mx-auto" />
@@ -136,7 +135,7 @@ export default function TiplinePage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-400 mb-1.5">
+                <label className="mb-2 block text-sm font-bold text-neutral-900 dark:text-white">
                   Subject
                 </label>
                 <Input
@@ -149,21 +148,21 @@ export default function TiplinePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-400 mb-1.5">
+                <label className="mb-2 block text-sm font-bold text-neutral-900 dark:text-white">
                   Details
                 </label>
                 <Textarea
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Provide dates, locations, and details..."
-                  rows={6}
+                  rows={8}
                   required
                   maxLength={5000}
                 />
               </div>
 
               {/* Username Sharing Option */}
-              <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/50 p-4 text-xs">
+              <div className="rounded-2xl bg-neutral-100 p-4 text-xs dark:bg-neutral-800/60">
                 {currentUser ? (
                   <label className="flex items-center gap-3 cursor-pointer select-none">
                     <input

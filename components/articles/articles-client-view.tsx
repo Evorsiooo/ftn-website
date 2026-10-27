@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { formatTimeAgo, formatMonthYear, calculateReadingTime } from "@/lib/utils";
+import { gsCategory } from "@/components/gs/story";
 import { Newspaper, ArrowLeft, User } from "lucide-react";
 
 const CATEGORIES = [
@@ -95,7 +96,6 @@ export function ArticlesClientView({
             </div>
           ) : (
             <>
-              <div className="mb-3 text-xs font-bold uppercase tracking-widest opacity-75">Archive</div>
               <h1 className="text-5xl font-extrabold leading-[0.95] sm:text-7xl">Every story we&apos;ve published.</h1>
               <nav className="mt-8 flex gap-1 overflow-x-auto" aria-label="Categories">
                 {CATEGORIES.map((cat) => (
@@ -153,7 +153,7 @@ export function ArticlesClientView({
                         </div>
                       )}
                       <div className="min-w-0 flex-1 space-y-2">
-                        <div className="text-xs font-bold uppercase tracking-widest text-brand-text">{art.category}</div>
+                        {gsCategory(art.category) && <div className="text-xs font-bold uppercase tracking-widest text-brand-text">{art.category}</div>}
                         <h3 className="text-xl font-bold leading-tight group-hover:underline group-hover:decoration-brand group-hover:decoration-4 group-hover:underline-offset-4 sm:text-2xl">
                           {art.title}
                         </h3>

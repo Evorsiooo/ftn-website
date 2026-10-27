@@ -6,7 +6,7 @@ export const runtime = "edge";
 export default function PrivacyPolicyPage() {
   return (
     <div className="text-neutral-800 dark:text-neutral-300">
-      <GsPageHeader eyebrow="Last updated: August 2026" title="Privacy Policy" />
+      <GsPageHeader description="Last updated: August 2026" title="Privacy Policy" />
       <div className="mx-auto max-w-4xl space-y-8 px-4 py-10 sm:px-8">
 
       <div className="prose dark:prose-invert max-w-none space-y-6 text-sm sm:text-base leading-relaxed">
