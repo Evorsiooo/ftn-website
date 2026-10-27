@@ -2,6 +2,7 @@
 import { leaveFtnPlus, originOf } from "@/lib/site-transition";
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { IconArrowLeft, IconMoon, IconSun } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 
@@ -33,15 +34,16 @@ function ThemeToggle({ theme, onToggle, className }: { theme: "dark" | "light"; 
 }
 
 function ExitLink({ className }: { className?: string }) {
-  // Full load: a soft transition into the heavy public home page can stall behind its server render and look like a dead button.
+  const router = useRouter();
+  // Soft navigation starts at once under the exit animation; if the main site has not arrived after a few seconds, it falls back to a full load.
   return (
-    // eslint-disable-next-line @next/next/no-html-link-for-pages -- intentional full load, see above
+    // eslint-disable-next-line @next/next/no-html-link-for-pages -- plain anchor kept for middle-click and no-JS; the click is handled above
     <a
       href="/"
       onClick={(e) => {
         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         e.preventDefault();
-        leaveFtnPlus(originOf(e), () => window.location.assign("/"));
+        leaveFtnPlus(originOf(e), () => router.push("/"), () => window.location.assign("/"));
       }}
       aria-label="Exit to FTN Main"
       title="Exit to FTN Main"

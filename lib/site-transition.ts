@@ -57,9 +57,24 @@ function mount(): HTMLDivElement {
   return root;
 }
 
-/** Main site to FTN+: gold ink spreads from the click, dark follows, the FTN+ wordmark appears, then it fades into FTN+'s splash. */
+/** Fades the overlay out once the new route is showing (and the animation has had its minimum time), or after a hard cap. */
+function finishWhenArrived(root: HTMLElement, arrived: () => boolean, minMs: number, capMs: number, onCap?: () => void) {
+  const started = Date.now();
+  const timer = window.setInterval(() => {
+    const elapsed = Date.now() - started;
+    const done = elapsed >= minMs && arrived();
+    if (!done && elapsed < capMs) return;
+    window.clearInterval(timer);
+    if (!done) onCap?.();
+    root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 480, easing: "ease-in-out", fill: "forwards" });
+    window.setTimeout(() => root.remove(), 520);
+  }, 80);
+}
+
+/** Main site to FTN+: navigation starts at once; gold ink spreads from the click, dark follows, the wordmark appears, then it fades into FTN+'s splash. */
 export function enterFtnPlus(origin: TransitionOrigin, navigate: () => void) {
-  if (reducedMotion()) return navigate();
+  navigate();
+  if (reducedMotion()) return;
   const root = mount();
   const gold = layer(GOLD, origin);
   const dark = layer(DARK, origin);
@@ -68,25 +83,20 @@ export function enterFtnPlus(origin: TransitionOrigin, navigate: () => void) {
   expand(gold, origin, 520);
   expand(dark, origin, 560, 220);
   fadeIn(mark, 560);
-  window.setTimeout(navigate, 760);
-  window.setTimeout(() => {
-    root.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 520, easing: "ease-in-out", fill: "forwards" });
-  }, 1250);
-  window.setTimeout(() => root.remove(), 1850);
-  window.setTimeout(() => root.remove(), 6000);
+  finishWhenArrived(root, () => window.location.pathname.startsWith("/plus"), 1250, 6000);
 }
 
-/** FTN+ to the main site: a gold wipe with the FTN wordmark, then a full page load (the main home is server-rendered). */
-export function leaveFtnPlus(origin: TransitionOrigin, navigate: () => void) {
-  if (reducedMotion()) return navigate();
+/** FTN+ to the main site: navigation starts at once under a gold wipe with the FTN wordmark; it lifts when the main site has arrived. */
+export function leaveFtnPlus(origin: TransitionOrigin, navigate: () => void, fallback?: () => void) {
+  navigate();
+  if (reducedMotion()) return;
   const root = mount();
   const gold = layer(GOLD, origin);
   const mark = logo("/logos/ftn_text_transparent.png", 52, false);
   [gold, mark].forEach((n) => root.appendChild(n));
   expand(gold, origin, 520);
   fadeIn(mark, 380);
-  window.setTimeout(navigate, 820);
-  window.setTimeout(() => root.remove(), 5000);
+  finishWhenArrived(root, () => !window.location.pathname.startsWith("/plus"), 1000, 7000, fallback);
 }
 
 export function originOf(e: { clientX: number; clientY: number; currentTarget: EventTarget }): TransitionOrigin {
