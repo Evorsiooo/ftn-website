@@ -53,8 +53,9 @@ export function amendmentsOf(post: Post): string[] {
 async function loadPostMedia(post: Post): Promise<DiscordFile> {
   const isVideo = post.mediaType === "video" && !!post.videoUrl;
   const url = isVideo ? post.videoUrl! : post.imageUrl;
-  const name = isVideo ? (url.endsWith(".webm") ? "post.webm" : "post.mp4") : "post.png";
-  const type = isVideo ? (url.endsWith(".webm") ? "video/webm" : "video/mp4") : "image/png";
+  const ext = url.split(".").pop();
+  const name = isVideo ? (ext === "webm" ? "post.webm" : ext === "webp" ? "post.webp" : "post.mp4") : "post.png";
+  const type = isVideo ? (ext === "webm" ? "video/webm" : ext === "webp" ? "image/webp" : "video/mp4") : "image/png";
   const key = url.replace(/^\/api\/media\//, "");
   const bucket = ((process.env as any).ftn_media as R2Bucket) || ((process.env as any).MEDIA_BUCKET as R2Bucket);
   if (bucket && key !== url) {
