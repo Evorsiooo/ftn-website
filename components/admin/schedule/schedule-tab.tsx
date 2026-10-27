@@ -1,4 +1,6 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
+import { AdminSegmented } from "@/components/gs/admin-form";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, Radio, Tv } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -229,7 +231,7 @@ function BroadcastTable({
   });
 
   if (list.length === 0) {
-    return <Card className="p-6 text-xs text-neutral-500 border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">Nothing matches these filters.</Card>;
+    return <Card className="p-6 text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">Nothing matches these filters.</Card>;
   }
   return (
     <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-x-auto bg-white dark:bg-neutral-950">
@@ -325,15 +327,15 @@ export function ScheduleTab({
   };
 
   const deleteOne = async () => {
-    if (!editing || !confirm("Delete this broadcast? Weekly broadcasts are removed for every week.")) return;
+    if (!editing || !await confirmDialog("Delete this broadcast? Weekly broadcasts are removed for every week.")) return;
     const res = await fetch(`/api/admin/broadcasts/${editing.id}`, { method: "DELETE" });
     if (res.ok) await saved();
-    else alert("Failed to delete");
+    else toast("Failed to delete");
   };
 
   const bulk = async (action: string, extra: Record<string, unknown> = {}) => {
     if (visibleSelected.length === 0) return;
-    if (action === "delete" && !confirm(`Delete ${visibleSelected.length} broadcast(s)? Weekly ones are removed for every week.`)) return;
+    if (action === "delete" && !await confirmDialog(`Delete ${visibleSelected.length} broadcast(s)? Weekly ones are removed for every week.`)) return;
     setBusy(true);
     try {
       const res = await fetch("/api/admin/broadcasts/bulk", {
@@ -343,7 +345,7 @@ export function ScheduleTab({
       });
       const data = (await res.json().catch(() => ({}))) as any;
       if (!res.ok) {
-        alert(data.error || "Bulk action failed");
+        toast(data.error || "Bulk action failed");
         return;
       }
       setSelected(new Set());
@@ -383,18 +385,7 @@ export function ScheduleTab({
           </>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <div className="inline-flex rounded-md border border-neutral-300 dark:border-neutral-800 overflow-hidden text-xs font-semibold">
-            {(["week", "list"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                onClick={() => setView(v)}
-                className={`px-3 py-2 cursor-pointer ${view === v ? "bg-neutral-900 text-white dark:bg-white dark:text-black" : ""}`}
-              >
-                {v === "week" ? "Week" : "All broadcasts"}
-              </button>
-            ))}
-          </div>
+          <AdminSegmented value={view} onChange={setView} options={[{ value: "week", label: "Week" }, { value: "list", label: "All broadcasts" }]} />
           <Button type="button" size="sm" onClick={() => setPanel({})} className="text-xs gap-1.5 cursor-pointer">
             <Plus className="h-3.5 w-3.5" /> New
           </Button>
@@ -402,7 +393,7 @@ export function ScheduleTab({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Input value={filters.q} onChange={(e) => set("q", e.target.value)} placeholder="Search title, show, presenter" className="h-9 w-56 text-xs" />
+        <Input value={filters.q} onChange={(e) => set("q", e.target.value)} placeholder="Search title, show, presenter" className="h-10 w-60" />
         <select value={filters.medium} onChange={(e) => set("medium", e.target.value as Filters["medium"])} className={`${selectClass} !w-auto`}>
           <option value="all">Radio and streams</option>
           <option value="radio">Radio only</option>
@@ -443,7 +434,7 @@ export function ScheduleTab({
       </div>
 
       {view === "list" && visibleSelected.length > 0 && (
-        <Card className="p-3 flex flex-wrap items-center gap-2 border-blue-300 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/40">
+        <Card className="p-3 flex flex-wrap items-center gap-2 border-brand/60 bg-brand/10">
           <span className="text-xs font-bold">{visibleSelected.length} selected</span>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => bulk("cancel")} className="text-xs cursor-pointer">Cancel</Button>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => bulk("restore")} className="text-xs cursor-pointer">Restore</Button>
@@ -474,7 +465,7 @@ export function ScheduleTab({
       )}
 
       {broadcasts.length === 0 ? (
-        <Card className="p-6 text-xs text-neutral-500 border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+        <Card className="p-6 text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
           Nothing scheduled yet. Create a show in the Shows tab for radio, then add a broadcast.
         </Card>
       ) : view === "week" ? (

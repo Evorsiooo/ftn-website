@@ -1,4 +1,5 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AdminRow, AdminSwitch } from "@/components/gs/admin-form";
@@ -62,7 +63,7 @@ function PhotoButton({ label = "Upload", onUploaded }: { label?: string; onUploa
           try {
             await onUploaded(await uploadPhoto(file));
           } catch (err: any) {
-            alert(err.message || "Upload failed");
+            toast(err.message || "Upload failed");
           } finally {
             setBusy(false);
           }
@@ -116,7 +117,7 @@ export default function AdminSportsConsole() {
       await reload();
       return true;
     } catch (e: any) {
-      alert(e.message || "Something went wrong");
+      toast(e.message || "Something went wrong");
       return false;
     } finally {
       setBusy(false);
@@ -240,8 +241,8 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
                   type="button"
                   title="Delete league"
                   className="text-neutral-400 hover:text-red-500 transition cursor-pointer p-1.5"
-                  onClick={() => {
-                    if (confirm(`Delete ${l.name} and all its teams, drivers and events?`)) run(() => api("DELETE", "leagues", undefined, l.id));
+                  onClick={async () => {
+                    if (await confirmDialog(`Delete ${l.name} and all its teams, drivers and events?`)) run(() => api("DELETE", "leagues", undefined, l.id));
                   }}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -371,7 +372,7 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
               <span className="font-semibold text-sm truncate">{v.name}</span>
               <div className="flex items-center gap-2">
                 <PhotoButton label={v.photoUrl ? "Replace" : "Upload"} onUploaded={(url) => run(() => api("PATCH", "venues", { photoUrl: url }, v.id))} />
-                <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={() => confirm(`Delete ${v.name}?`) && run(() => api("DELETE", "venues", undefined, v.id))}>
+                <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog(`Delete ${v.name}?`) && run(() => api("DELETE", "venues", undefined, v.id))}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -434,7 +435,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                   Remove
                 </button>
               )}
-            <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={() => confirm(`Delete ${t.name}?`) && run(() => api("DELETE", "teams", undefined, t.id))}>
+            <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog(`Delete ${t.name}?`) && run(() => api("DELETE", "teams", undefined, t.id))}>
               <Trash2 className="h-4 w-4" />
             </button>
             </span>
@@ -475,7 +476,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                 <span className="font-semibold">{d.number != null ? `#${d.number} ` : ""}{d.name}</span>
                 <span className="text-neutral-500 text-xs ml-2">{teams.find((t) => t.id === d.teamId)?.name ?? ""}{d.robloxUsername ? ` · @${d.robloxUsername}` : ""}</span>
               </span>
-              <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={() => confirm(`Delete ${d.name}?`) && run(() => api("DELETE", "drivers", undefined, d.id))}>
+              <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog(`Delete ${d.name}?`) && run(() => api("DELETE", "drivers", undefined, d.id))}>
                 <Trash2 className="h-4 w-4" />
               </button>
             </Card>
@@ -593,7 +594,7 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
                     Reschedule
                   </Button>
                 )}
-                <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={() => confirm("Delete this event?") && run(() => api("DELETE", "events", undefined, e.id))}>
+                <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog("Delete this event?") && run(() => api("DELETE", "events", undefined, e.id))}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -679,7 +680,7 @@ function ResultEditor({
     if (racing) {
       const used = rows.filter((r) => r.driverId);
       if (new Set(used.map((r) => r.driverId)).size !== used.length) {
-        alert("A driver appears more than once.");
+        toast("A driver appears more than once.");
         return;
       }
       body.results = used.map<RaceResultEntry>((r, i) => ({

@@ -1,4 +1,5 @@
 "use client";
+import { confirmDialog } from "@/components/gs/dialogs";
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
@@ -34,7 +35,7 @@ export function StationTab() {
   }, [load]);
 
   const handleRotate = async () => {
-    if (!confirm("Rotate the broadcast password now? The current source password will stop working.")) return;
+    if (!await confirmDialog("Rotate the broadcast password now? The current source password will stop working.")) return;
     setRotating(true);
     setPwError(null);
     try {
@@ -56,10 +57,10 @@ export function StationTab() {
   };
 
   return (
-        <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
+        <Card className="mx-auto max-w-3xl p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
           <div className="flex items-center gap-2">
-            <KeyRound className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <h2 className="text-lg font-bold">Broadcast Password</h2>
+            <KeyRound className="h-4 w-4 text-brand-text" />
+            <h2 className="text-lg font-extrabold">Broadcast password</h2>
           </div>
           <p className="text-xs text-neutral-600 dark:text-neutral-400">
             The Icecast source password used by the broadcasting software. Automatic rotation is configured in{" "}

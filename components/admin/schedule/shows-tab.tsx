@@ -1,4 +1,5 @@
 "use client";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,7 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
     try {
       apply(await uploadArt(file));
     } catch (err: any) {
-      alert(err.message || "Upload failed");
+      toast(err.message || "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -41,7 +42,7 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
   const handleAddShow = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newPresenter.trim()) {
-      alert("Show name and presenter are required.");
+      toast("Show name and presenter are required.");
       return;
     }
     setSubmitting(true);
@@ -58,7 +59,7 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
       });
       const data = (await res.json().catch(() => ({}))) as any;
       if (!res.ok) {
-        alert(data.error || "Failed to create show");
+        toast(data.error || "Failed to create show");
         return;
       }
       setNewName("");
@@ -72,10 +73,10 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
   };
 
   const handleDeleteShow = async (show: ShowRecord) => {
-    if (!confirm(`Delete "${show.name}"? Its radio airings are removed from the schedule; livestreams keep their entry.`)) return;
+    if (!await confirmDialog(`Delete "${show.name}"? Its radio airings are removed from the schedule; livestreams keep their entry.`)) return;
     const res = await fetch(`/api/admin/radio/shows/${show.id}`, { method: "DELETE" });
     if (res.ok) await load();
-    else alert(((await res.json().catch(() => ({}))) as any).error || "Failed to delete show");
+    else toast(((await res.json().catch(() => ({}))) as any).error || "Failed to delete show");
   };
 
   const handleReplaceArt = async (show: ShowRecord, file: File | undefined) => {
@@ -86,15 +87,15 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
         body: JSON.stringify({ artUrl: url }),
       });
       if (res.ok) await load();
-      else alert(((await res.json().catch(() => ({}))) as any).error || "Failed to update art");
+      else toast(((await res.json().catch(() => ({}))) as any).error || "Failed to update art");
     });
   };
 
   return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
           {/* Add show */}
-          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 h-fit">
-            <h2 className="text-lg font-bold">Create Show</h2>
+          <Card className="p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 h-fit lg:sticky lg:top-24">
+            <div><h2 className="text-lg font-extrabold">New show</h2><p className="mt-1 text-xs text-neutral-500">Shows are what you schedule on the Schedule tab.</p></div>
             <form onSubmit={handleAddShow} className="space-y-3">
               <div>
                 <label className={labelClass}>Show Name</label>
@@ -135,20 +136,20 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
           </Card>
 
           {/* Shows and slots */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-lg font-bold">Shows</h2>
+          <div className="space-y-4">
+            <h2 className="text-lg font-extrabold">Shows ({shows.length})</h2>
             {loading ? (
               <div className="flex items-center gap-2 text-xs text-neutral-500">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading shows...
               </div>
             ) : shows.length === 0 ? (
-              <Card className="p-6 text-xs text-neutral-500 border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+              <Card className="p-6 text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
                 No shows yet. Create one, then schedule it from the Schedule tab.
               </Card>
             ) : (
               shows.map((show) => {
                 return (
-                  <Card key={show.id} className="p-5 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
+                  <Card key={show.id} className="p-5 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
                     <div className="flex items-start gap-4">
                       {show.artUrl ? (
                         <img src={show.artUrl} alt="" className="h-16 w-16 rounded-lg object-cover flex-shrink-0" />

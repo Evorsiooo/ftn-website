@@ -1,4 +1,5 @@
 export const runtime = "edge";
+import { GsDialogHost } from "@/components/gs/dialogs";
 import { PlusTransitionHandler } from "@/components/gs/plus-transition-handler";
 import { GsHeader } from "@/components/gs/header";
 import { GsOnAir } from "@/components/gs/on-air";
@@ -14,6 +15,7 @@ export default function PublicLayout({
   return (
     <PlusNowProvider>
       <PlusTransitionHandler />
+      <GsDialogHost />
       <div className="gs flex min-h-screen flex-col">
         <GsHeader />
         <GsOnAir />
