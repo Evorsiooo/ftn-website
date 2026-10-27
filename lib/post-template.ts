@@ -39,8 +39,8 @@ export const TEMPLATE = {
   // Corner radius of the ROUNDING.png shape (top-left 14x14, mirrored for the other corners).
   roundingSize: 16,
   maxBodyBottom: 620,
-  // Video has no transparency, so the gap above the ad and the outer corners get this colour.
-  videoBackdrop: "#041E41",
+  // Video has no transparency, so the gap above the ad and the outer corners get this colour (dark, like Discord).
+  videoBackdrop: "#1a1a1e",
 };
 
 export const LOGOS: { key: string; label: string; src: string }[] = [
