@@ -46,7 +46,10 @@ function ExitLink({ className }: { className?: string }) {
   );
 }
 
-/** The FTN+ wordmark: white on the dark theme, navy on the light one. */
+/**
+ * The FTN+ wordmark: white on the dark theme, navy on the light one. The "ftn" letters fill only the top
+ * ~64% of the image (the plus hangs below), so it is nudged down by 18% of its height to put the letters on the nav's centre line.
+ */
 export function FtnLogo({ theme, className }: { theme: "dark" | "light"; className?: string }) {
   return (
     <img
@@ -54,7 +57,7 @@ export function FtnLogo({ theme, className }: { theme: "dark" | "light"; classNa
       alt="FTN+"
       width={856}
       height={453}
-      className={cn("h-9 w-auto select-none", className)}
+      className={cn("h-7 w-auto translate-y-[18%] select-none", className)}
       draggable={false}
     />
   );
@@ -94,7 +97,7 @@ export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; them
         className={cn("fixed left-3 z-40 flex md:hidden h-12 items-center rounded-full px-4", glass, focus)}
         style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
       >
-        <FtnLogo theme={theme} className="h-6" />
+        <FtnLogo theme={theme} className="h-5" />
       </Link>
 
       <div className={cn("fixed top-3 right-3 z-40 flex md:hidden rounded-full p-1", glass)} style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}>
