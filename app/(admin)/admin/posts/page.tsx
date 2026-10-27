@@ -77,6 +77,8 @@ export default function AdminPostsPage() {
   const [transparent, setTransparent] = useState(false);
   const [openingVideo, setOpeningVideo] = useState(false);
   const videoEditor = useRef<VideoEditorHandle>(null);
+  // The video timeline is drawn here, below the form and preview, at full page width.
+  const [timelineHost, setTimelineHost] = useState<HTMLDivElement | null>(null);
   const [saving, setSaving] = useState(false);
   const [layout, setLayout] = useState<PostLayout | null>(null);
   const [previewError, setPreviewError] = useState("");
@@ -457,7 +459,7 @@ export default function AdminPostsPage() {
                     </span>
                   </span>
                 </label>
-                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
+                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
               </div>
             ) : (
             <div>
@@ -500,6 +502,8 @@ export default function AdminPostsPage() {
             {previewError && <p className="text-xs text-red-600">{previewError}</p>}
           </div>
         </div>
+
+        <div ref={setTimelineHost} className={mode === "video" ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
 
         <div className="space-y-4">
           <h2 className="text-lg font-bold">All posts</h2>

@@ -22,6 +22,8 @@ export class PreviewPlayer {
   private raf = 0;
   private activeClipId: string | null = null;
   private disposed = false;
+  // The last frame that was on screen, shown while a video element is busy seeking.
+  private lastFrame: { canvas: HTMLCanvasElement; image: CanvasImageSource; width: number; height: number } | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -96,7 +98,9 @@ export class PreviewPlayer {
     const active = this.activeAt(this.t);
     if (active) {
       const el = this.videos.get(active.clip.sourceId);
-      if (el) el.currentTime = active.clip.start + (this.t - active.at);
+      const want = active.clip.start + (this.t - active.at);
+      // Seeking blanks the element for a moment, so skip it when it is already there.
+      if (el && Math.abs(el.currentTime - want) > 0.02) el.currentTime = want;
       this.activeClipId = active.clip.id;
     }
     this.draw();
@@ -210,15 +214,36 @@ export class PreviewPlayer {
     el.volume = Math.min(1, Math.max(0, m.volume * fadeIn * fadeOut));
   }
 
+  private keepFrame(el: HTMLVideoElement) {
+    let frame = this.lastFrame;
+    if (!frame) {
+      const canvas = document.createElement("canvas");
+      frame = { canvas, image: canvas, width: 0, height: 0 };
+    }
+    if (frame.width !== el.videoWidth || frame.height !== el.videoHeight) {
+      frame.canvas.width = frame.width = el.videoWidth;
+      frame.canvas.height = frame.height = el.videoHeight;
+    }
+    frame.canvas.getContext("2d")!.drawImage(el, 0, 0);
+    this.lastFrame = frame;
+  }
+
   draw() {
     if (!this.layers || this.disposed) return;
     const active = this.activeAt(this.t);
     const el = active ? this.videos.get(active.clip.sourceId) : undefined;
-    const ready = el && el.readyState >= 2 && el.videoWidth > 0;
+    const ready = !!el && el.readyState >= 2 && el.videoWidth > 0;
+    let photo: { image: CanvasImageSource; width: number; height: number } | null = null;
+    if (ready && el) {
+      photo = { image: el, width: el.videoWidth, height: el.videoHeight };
+      if (!this.playing) this.keepFrame(el);
+    } else if (active && this.lastFrame) {
+      photo = this.lastFrame;
+    }
     paintPost(
       this.ctx,
       this.layers,
-      ready ? { image: el, width: el.videoWidth, height: el.videoHeight } : null,
+      photo,
       active?.clip.zoom ?? 1,
       active?.clip.focusX ?? 0.5,
       active?.clip.focusY ?? 0.5

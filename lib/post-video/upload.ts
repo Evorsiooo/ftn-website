@@ -5,6 +5,27 @@ const PART_SIZE = 8 * 1024 * 1024;
 
 export type MediaKind = "source" | "music" | "final" | "poster";
 
+// Some Windows setups give files no type at all, so fall back to the extension.
+const TYPES_BY_EXTENSION: Record<string, string> = {
+  mp4: "video/mp4",
+  m4v: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  mkv: "video/x-matroska",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+  aac: "audio/aac",
+  wav: "audio/wav",
+  ogg: "audio/ogg",
+  oga: "audio/ogg",
+  flac: "audio/flac",
+};
+
+function contentTypeOf(file: Blob, name: string): string {
+  if (file.type && file.type !== "application/octet-stream") return file.type;
+  return TYPES_BY_EXTENSION[name.split(".").pop()?.toLowerCase() ?? ""] || file.type;
+}
+
 async function call(url: string, init: RequestInit, tries = 3): Promise<any> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < tries; attempt++) {
@@ -13,7 +34,7 @@ async function call(url: string, init: RequestInit, tries = 3): Promise<any> {
       const data = (await res.json().catch(() => ({}))) as any;
       if (res.ok) return data;
       // A refusal (bad file type, too large, not allowed) will not get better by retrying.
-      if (res.status >= 400 && res.status < 500) throw Object.assign(new Error(data.error || "Upload failed"), { fatal: true });
+      if (res.status >= 400 && res.status < 500) throw Object.assign(new Error(data.error || `Upload failed (${res.status})`), { fatal: true });
       lastError = new Error(data.error || `Upload failed (${res.status})`);
     } catch (err: any) {
       if (err?.fatal) throw err;
@@ -38,7 +59,7 @@ export async function uploadMedia(
   const base = "/api/admin/posts/media";
   const { key, uploadId } = await call(
     base,
-    json({ op: "create", kind: opts.kind, name: opts.name, contentType: file.type, size: file.size })
+    json({ op: "create", kind: opts.kind, name: opts.name, contentType: contentTypeOf(file, opts.name), size: file.size })
   );
   try {
     const parts: { partNumber: number; etag: string }[] = [];
