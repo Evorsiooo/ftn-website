@@ -649,6 +649,14 @@
   background: #ffbb14;
   color: #16110a;
 }
+/* The reserved scrollbar gutter is painted with the page canvas, so match it to the GS background. */
+html:has(.gs) {
+  background-color: #fff8e6;
+}
+html.dark:has(.gs),
+.dark html:has(.gs) {
+  background-color: #110e08;
+}
 .gs-bar-link {
   background-image: linear-gradient(#ffbb14, #ffbb14);
   background-size: 100% 2px;
