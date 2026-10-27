@@ -354,7 +354,7 @@ export default function AdminPostsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-8 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
+      <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-8 xl:px-12 pt-24 sm:pt-28 pb-12 space-y-8 text-neutral-900 dark:text-white">
         <div className="border-b border-neutral-200 dark:border-neutral-800 pb-4">
           <Link
             href="/admin"
@@ -367,7 +367,7 @@ export default function AdminPostsPage() {
           </h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] gap-8 xl:gap-10">
           <Card className="p-6 space-y-4 border-neutral-200 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-950 dark:shadow-none self-start">
             <h2 className="text-lg font-bold">{editingId ? "Edit Post" : "Create Post"}</h2>
 
@@ -383,7 +383,7 @@ export default function AdminPostsPage() {
               {layout?.bodyTooLong && <p className="mt-1 text-[11px] text-red-600">Too long for the post.</p>}
             </div>
 
-            <div className="grid grid-cols-1 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Ro-State (required)</label>
                 <select value={roState} onChange={(e) => setRoState(e.target.value)} className={fieldClass}>
@@ -480,9 +480,9 @@ export default function AdminPostsPage() {
             </div>
           </Card>
 
-          <div className="space-y-2 lg:sticky lg:top-24 self-start">
+          <div className="space-y-2 xl:sticky xl:top-24 self-start">
             <h2 className="text-lg font-bold">Live preview</h2>
-            <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[640px]"
+            <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[820px]"
               style={CHECKERBOARD} />
             {previewError && <p className="text-xs text-red-600">{previewError}</p>}
           </div>
@@ -495,7 +495,7 @@ export default function AdminPostsPage() {
           ) : posts.length === 0 ? (
             <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">No posts yet.</div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {posts.map((p) => {
                 const mine = me?.id === p.createdBy;
                 const canChange = mine || isLeadership;
