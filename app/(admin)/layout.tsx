@@ -1,3 +1,4 @@
+import { PlusTransitionHandler } from "@/components/gs/plus-transition-handler";
 import { GsHeader } from "@/components/gs/header";
 import { GsAdminShell } from "@/components/gs/admin-shell";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
@@ -12,6 +13,7 @@ export default function AdminLayout({
 }) {
   return (
     <PlusNowProvider>
+      <PlusTransitionHandler />
       <div className="gs flex min-h-screen flex-col text-neutral-900 dark:text-white">
         <GsHeader section="Admin" />
         <GsAdminShell>

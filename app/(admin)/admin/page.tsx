@@ -4,14 +4,6 @@ import Link from "next/link";
 import { fetchSession } from "@/lib/session-client";
 import { ADMIN_MODULES } from "@/components/gs/admin-nav";
 import { AdminPageHeader } from "@/components/gs/admin-header";
-import { cn } from "@/lib/utils";
-
-const TONES = [
-  "bg-brand text-brand-ink",
-  "bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-white dark:border-neutral-800",
-  "bg-[#16110a] text-[#fff8e6] dark:bg-black",
-  "bg-white text-neutral-900 border border-neutral-200 dark:bg-neutral-900 dark:text-white dark:border-neutral-800",
-];
 
 export default function AdminCentralDashboard() {
   const [roles, setRoles] = useState<string[] | null>(null);
@@ -32,20 +24,16 @@ export default function AdminCentralDashboard() {
         <div className="p-8 text-center text-sm text-neutral-500">Loading authorized modules...</div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {modules.map((m, i) => (
+          {modules.map((m) => (
             <Link
               key={m.href}
               href={m.href}
-              className={cn(
-                "group flex min-h-[210px] flex-col justify-between gap-8 rounded-[1.75rem] p-6 transition hover:-translate-y-0.5",
-                TONES[i % TONES.length],
-                i === 0 && "sm:col-span-2"
-              )}
+              className="group flex min-h-[180px] flex-col justify-between gap-8 rounded-2xl border border-border bg-card p-6 text-card-foreground transition hover:-translate-y-0.5 hover:border-brand hover:shadow-lg"
             >
-              <span className="text-2xl transition group-hover:translate-x-1">→</span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-lg text-brand-ink transition group-hover:translate-x-1">→</span>
               <div>
-                <h2 className="text-2xl font-extrabold leading-tight">{m.title}</h2>
-                <p className="mt-1.5 text-sm opacity-75">{m.description}</p>
+                <h2 className="text-xl font-extrabold leading-tight">{m.title}</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">{m.description}</p>
               </div>
             </Link>
           ))}

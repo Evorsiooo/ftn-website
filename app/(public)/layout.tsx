@@ -1,4 +1,5 @@
 export const runtime = "edge";
+import { PlusTransitionHandler } from "@/components/gs/plus-transition-handler";
 import { GsHeader } from "@/components/gs/header";
 import { GsOnAir } from "@/components/gs/on-air";
 import { GsFooter } from "@/components/gs/footer";
@@ -12,6 +13,7 @@ export default function PublicLayout({
 }) {
   return (
     <PlusNowProvider>
+      <PlusTransitionHandler />
       <div className="gs flex min-h-screen flex-col">
         <GsHeader />
         <GsOnAir />

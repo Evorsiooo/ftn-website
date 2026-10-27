@@ -492,17 +492,20 @@ export function ScheduleTab({
       )}
 
       {panel && (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/60 p-4 pt-20" onClick={closePanel}>
-          <Card
-            className="w-full max-w-xl p-6 space-y-4 border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950"
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={closePanel}>
+          <aside
+            role="dialog"
+            aria-label={editing ? "Edit broadcast" : "New broadcast"}
+            className="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col overflow-y-auto border-l border-border bg-card text-card-foreground shadow-2xl"
             onClick={(e: React.MouseEvent) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">{editing ? "Edit broadcast" : "New broadcast"}</h2>
-              <button type="button" onClick={closePanel} aria-label="Close" className="cursor-pointer">
+            <div className="flex items-center justify-between bg-brand px-6 py-5 text-brand-ink">
+              <h2 className="text-xl font-extrabold">{editing ? "Edit broadcast" : "New broadcast"}</h2>
+              <button type="button" onClick={closePanel} aria-label="Close" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#16110a] text-[#fff8e6] hover:bg-black">
                 <X className="h-4 w-4" />
               </button>
             </div>
+            <div className="space-y-4 p-6">
             <BroadcastForm
               key={editing?.id ?? "new"}
               shows={shows}
@@ -512,7 +515,8 @@ export function ScheduleTab({
               onCancel={closePanel}
               onDelete={editing ? deleteOne : undefined}
             />
-          </Card>
+            </div>
+          </aside>
         </div>
       )}
     </div>

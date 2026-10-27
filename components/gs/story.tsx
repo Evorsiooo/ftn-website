@@ -76,14 +76,17 @@ export function GsStoryTile({
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />
-        <div
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-[78%] bg-gradient-to-t from-black/90 via-black/65 to-transparent backdrop-blur-md [mask-image:linear-gradient(to_top,black_55%,transparent)] [-webkit-mask-image:linear-gradient(to_top,black_55%,transparent)]"
-        />
-        <div className="relative z-10 space-y-2 p-5 sm:p-6">
-          {gsCategory(story.category) && <div className="text-xs font-bold uppercase tracking-widest text-brand">{story.category}</div>}
-          <h3 className={cn("font-bold leading-[1.1] [text-shadow:0_1px_12px_rgba(0,0,0,0.6)]", big ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>{story.title}</h3>
-          <div className="text-xs text-white/80">{storyMeta(story)}</div>
+        {/* The darkened, blurred band is sized by the text block itself (plus a short fade above it), not a fixed height. */}
+        <div className="relative z-10 pt-12">
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent backdrop-blur-md [mask-image:linear-gradient(to_top,black_70%,transparent)] [-webkit-mask-image:linear-gradient(to_top,black_70%,transparent)]"
+          />
+          <div className="relative space-y-2 p-5 pt-0 sm:p-6 sm:pt-0">
+            {gsCategory(story.category) && <div className="text-xs font-bold uppercase tracking-widest text-brand">{story.category}</div>}
+            <h3 className={cn("font-bold leading-[1.1] [text-shadow:0_1px_12px_rgba(0,0,0,0.6)]", big ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl")}>{story.title}</h3>
+            <div className="text-xs text-white/80">{storyMeta(story)}</div>
+          </div>
         </div>
       </Link>
     );
