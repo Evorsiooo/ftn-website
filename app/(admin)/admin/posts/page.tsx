@@ -385,31 +385,31 @@ export default function AdminPostsPage() {
           }
         />
 
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[17rem_minmax(0,1fr)_24rem]">
-          <section className="min-w-0 space-y-3 xl:col-span-2 2xl:sticky 2xl:top-24 2xl:col-span-1">
-            <div className="flex flex-wrap gap-1.5">
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <section className="min-w-0 xl:col-span-2 xl:flex xl:items-start xl:gap-4">
+            <div className="mb-3 flex flex-wrap gap-1.5 xl:mb-0 xl:grid xl:w-56 xl:shrink-0 xl:grid-cols-2">
               {(["pending", "approved", "denied", "all"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => { filterTouched.current = true; setStatusFilter(f); }}
-                  className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-bold ${statusFilter === f ? "border-brand bg-brand text-brand-ink" : "border-neutral-300 text-neutral-600 hover:border-neutral-500 dark:border-neutral-700 dark:text-neutral-400"}`}
+                  className={`cursor-pointer whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold ${statusFilter === f ? "border-brand bg-brand text-brand-ink" : "border-neutral-300 text-neutral-600 hover:border-neutral-500 dark:border-neutral-700 dark:text-neutral-400"}`}
                 >
                   {f[0].toUpperCase() + f.slice(1)} {f === "all" ? posts.length : posts.filter((p) => p.status === f).length}
                 </button>
               ))}
             </div>
             {loading ? (
-              <div className="flex items-center p-6 text-neutral-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading...</div>
+              <div className="flex flex-1 items-center p-6 text-neutral-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading...</div>
             ) : visiblePosts.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">Nothing here.</div>
+              <div className="flex-1 rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">Nothing here.</div>
             ) : (
-              <ul className="flex gap-3 overflow-x-auto pb-1 2xl:block 2xl:max-h-[70vh] 2xl:gap-0 2xl:divide-y 2xl:divide-neutral-200 2xl:overflow-y-auto 2xl:rounded-2xl 2xl:border 2xl:border-neutral-200 2xl:bg-white 2xl:pb-0 2xl:dark:divide-neutral-800 2xl:dark:border-neutral-800 2xl:dark:bg-neutral-900">
+              <ul className="flex min-w-0 flex-1 gap-3 overflow-x-auto pb-1">
                 {visiblePosts.map((p) => {
                   const canChange = me?.id === p.createdBy || isLeadership;
                   const selected = (editingId ?? viewing?.id) === p.id;
                   return (
-                    <li key={p.id} className={`w-64 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 2xl:w-auto 2xl:rounded-none 2xl:border-0 ${selected ? "!bg-brand/15" : ""}`}>
+                    <li key={p.id} className={`w-64 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 ${selected ? "!bg-brand/15" : ""}`}>
                       <button
                         type="button"
                         onClick={() => (canChange && p.status === "pending" ? startEditing(p) : (resetForm(), setViewing(p)))}
@@ -470,7 +470,7 @@ export default function AdminPostsPage() {
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
-              <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[820px]" style={CHECKERBOARD} />
+              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full max-w-[460px]" style={CHECKERBOARD} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
