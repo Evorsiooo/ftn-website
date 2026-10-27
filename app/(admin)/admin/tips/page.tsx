@@ -3,8 +3,8 @@ import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { Clock, ArrowLeft, MessageSquare, UserCheck, ShieldAlert, CheckCheck, Ban } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Clock, ArrowLeft, MessageSquare, UserCheck, ShieldAlert, CheckCheck, Ban, PenLine } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
@@ -25,6 +25,8 @@ export default function AdminTipsConsole() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<"unread" | "investigating" | "dismissed" | "all">("unread");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const router = useRouter();
 
   const fetchTips = () => {
     fetch("/api/admin/tips")
@@ -131,12 +133,41 @@ export default function AdminTipsConsole() {
   const selected = visible.find((t) => t.id === selectedId) ?? visible[0];
   const unreadCount = tipsList.filter((t) => t.status === "unread").length;
 
+  const startArticle = (tip: TipItem) => {
+    try {
+      sessionStorage.setItem(
+        "ftn_tip_draft",
+        JSON.stringify({ title: tip.subject, content: `<p>${tip.details.replace(/&/g, "&amp;").replace(/</g, "&lt;").split("\n").join("</p><p>")}</p>` })
+      );
+    } catch {}
+    if (tip.status === "unread") updateStatus(tip.id, "investigating");
+    router.push("/admin/articles?from=tip");
+  };
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.metaKey || e.ctrlKey || e.altKey || (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable))) return;
+      const i = selected ? visible.findIndex((t) => t.id === selected.id) : -1;
+      if (e.key === "j" && visible[i + 1]) setSelectedId(visible[i + 1].id);
+      else if (e.key === "k" && i > 0) setSelectedId(visible[i - 1].id);
+      else if (e.key === "i" && selected && selected.status === "unread") updateStatus(selected.id, "investigating");
+      else if (e.key === "d" && selected && selected.status !== "dismissed") {
+        if (visible[i + 1]) setSelectedId(visible[i + 1].id);
+        else if (i > 0) setSelectedId(visible[i - 1].id);
+        updateStatus(selected.id, "dismissed");
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  });
+
   return (
     <AdminAuthGuard requiredPermission={(roles) => canPublishArticles(roles) || canConfigureSite(roles)} featureTitle="Investigative Tipline">
       <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Tipline"
-          description="Review anonymous investigative leads and reports."
+          description="Review anonymous leads. Keys: j / k to move, i to investigate, d to dismiss."
           actions={
             unreadCount > 0 ? (
               <Button size="sm" variant="outline" onClick={handleDismissAll} disabled={actionLoading === "dismiss_all"} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
@@ -202,6 +233,9 @@ export default function AdminTipsConsole() {
                       Investigate
                     </Button>
                   )}
+                  <Button size="sm" variant="outline" className="cursor-pointer gap-1 text-xs font-bold" onClick={() => startArticle(selected)}>
+                    <PenLine className="h-3.5 w-3.5" /> Start article from this tip
+                  </Button>
                   {selected.status !== "dismissed" && (
                     <Button size="sm" variant="outline" disabled={actionLoading === selected.id} className="cursor-pointer text-xs" onClick={() => updateStatus(selected.id, "dismissed")}>
                       Dismiss

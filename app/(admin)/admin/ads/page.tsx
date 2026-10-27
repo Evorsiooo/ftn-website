@@ -31,7 +31,7 @@ const ZONE_FORM_VALUES: Record<string, string> = {
 
 const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
 const selectClass =
-  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 function readImageSize(file: File): Promise<[number, number]> {
   return new Promise((resolve, reject) => {
@@ -90,7 +90,10 @@ export default function AdminAdsConsole() {
     loadData();
   }, []);
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   const resetForm = () => {
+    setDrawerOpen(false);
     setEditingId(null);
     setTitle("");
     setOrganizerId("");
@@ -208,6 +211,7 @@ export default function AdminAdsConsole() {
   };
 
   const startEditing = (c: any) => {
+    setDrawerOpen(true);
     setEditingId(c.id);
     setTitle(c.title || c.name);
     setOrganizerId(c.organizerId || "");
@@ -275,7 +279,7 @@ export default function AdminAdsConsole() {
             <h4 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{c.title || c.name}</h4>
             <div className="flex shrink-0 items-center gap-1">
               <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 mr-1">{c.adFormat}</span>
-              <button type="button" onClick={() => startEditing(c)} className="p-1 text-neutral-400 hover:text-blue-500 cursor-pointer" title="Edit">
+              <button type="button" onClick={() => startEditing(c)} className="p-1 text-neutral-400 hover:text-brand-text cursor-pointer" title="Edit">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
               <button type="button" onClick={() => toggleStatus(c)} className="p-1 text-neutral-400 hover:text-amber-500 cursor-pointer" title={c.status === "active" ? "Pause" : "Resume"}>
@@ -286,6 +290,11 @@ export default function AdminAdsConsole() {
               </button>
             </div>
           </div>
+          {c.postImpressionsPurchased ? (
+            <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" title="Post impressions left">
+              <div className={soldOut ? "h-full bg-red-500" : "h-full bg-brand"} style={{ width: `${Math.max(0, Math.min(100, ((left ?? 0) / c.postImpressionsPurchased) * 100))}%` }} />
+            </div>
+          ) : null}
           <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Destination: {c.targetUrl}</p>
           <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Message link: {c.messageLink || "same as destination"}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
@@ -300,6 +309,7 @@ export default function AdminAdsConsole() {
             </span>
             <span>Views: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0).toLocaleString()}</strong></span>
             <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount || 0}</strong></span>
+            <span>CTR: <strong className="text-neutral-900 dark:text-white">{c.impressionsCount ? (((c.clicksCount || 0) / c.impressionsCount) * 100).toFixed(2) : "0.00"}%</strong></span>
             <span className={c.status === "active" && !soldOut ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
               {soldOut ? "sold out (hidden)" : c.status}
             </span>
@@ -312,7 +322,15 @@ export default function AdminAdsConsole() {
   return (
     <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Commercial & Advertisements Console">
       <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
-        <AdminPageHeader title="Advertisements" description="Manage banner placements and track click metrics." />
+        <AdminPageHeader
+          title="Advertisements"
+          description="What is running, how much is left, and how it performs."
+          actions={
+            <Button size="sm" onClick={() => { resetForm(); setDrawerOpen(true); }} className="h-10 cursor-pointer px-5 text-sm">
+              New ad
+            </Button>
+          }
+        />
 
         <dl className="grid grid-cols-3 divide-x divide-neutral-200 rounded-[1.75rem] bg-[#16110a] text-[#fff8e6] dark:divide-neutral-800 dark:bg-black [&>div]:p-5 sm:[&>div]:p-8">
           <div>
@@ -329,9 +347,15 @@ export default function AdminAdsConsole() {
           </div>
         </dl>
 
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[26rem_minmax(0,1fr)]">
-          <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start lg:sticky lg:top-24">
-            <h2 className="text-lg font-extrabold">{editingId ? "Edit Ad" : "Create Ad"}</h2>
+        <div className="space-y-8">
+          {drawerOpen && (
+          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={resetForm}>
+          <aside role="dialog" aria-label={editingId ? "Edit ad" : "New ad"} onClick={(e) => e.stopPropagation()} className="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-background text-foreground shadow-2xl">
+          <div className="flex items-center justify-between bg-brand px-6 py-5 text-brand-ink">
+            <h2 className="text-xl font-extrabold">{editingId ? "Edit ad" : "New ad"}</h2>
+            <button type="button" onClick={resetForm} aria-label="Close" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#16110a] text-lg leading-none text-[#fff8e6] hover:bg-black">×</button>
+          </div>
+          <div className="space-y-4 p-6">
             <form onSubmit={handleSave} className="space-y-4">
               <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Who and where</h3>
               <div>
@@ -412,17 +436,18 @@ export default function AdminAdsConsole() {
                 <Button type="submit" disabled={submitting || uploading} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
                   {submitting ? "Saving..." : editingId ? "Save Changes" : "Save Ad"}
                 </Button>
-                {editingId && (
-                  <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">
-                    Cancel
-                  </Button>
-                )}
+                <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">
+                  Cancel
+                </Button>
               </div>
             </form>
-          </Card>
+          </div>
+          </aside>
+          </div>
+          )}
 
           <div className="space-y-4">
-            <h2 className="text-lg font-extrabold">Ads by organizer</h2>
+            <h2 className="text-lg font-extrabold">Running, by organizer</h2>
             {loading ? (
               <div className="flex items-center justify-center p-8 text-neutral-500">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading ads...

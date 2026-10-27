@@ -14,9 +14,9 @@ import { RO_STATES } from "@/lib/ro-states";
 import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
 import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/video-editor";
 
-const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
+const labelClass = "mb-1 block text-sm font-bold";
 const fieldClass =
-  "w-full rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+  "w-full rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 // Editor-only backdrop: the saved image is transparent outside the post, and the white
 // disclaimer needs something dark behind it to be readable here.
@@ -62,6 +62,7 @@ export default function AdminPostsPage() {
   const [ads, setAds] = useState<any[]>([]);
   const [suggestedAdId, setSuggestedAdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [viewing, setViewing] = useState<any | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "denied">("all");
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -90,6 +91,7 @@ export default function AdminPostsPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const renderToken = useRef(0);
+  const filterTouched = useRef(false);
 
   const isLeadership = me ? isPostsLeadership(me.roles) : false;
 
@@ -100,7 +102,11 @@ export default function AdminPostsPage() {
         fetch("/api/admin/posts/options"),
         fetch("/api/auth/session"),
       ]);
-      if (postsRes.ok) setPosts(((await postsRes.json()) as any).posts || []);
+      if (postsRes.ok) {
+        const list = ((await postsRes.json()) as any).posts || [];
+        setPosts(list);
+        if (!filterTouched.current && list.some((p: any) => p.status === "pending")) setStatusFilter("pending");
+      }
       if (optionsRes.ok) {
         const data = (await optionsRes.json()) as any;
         setAds(data.ads || []);
@@ -193,6 +199,7 @@ export default function AdminPostsPage() {
   };
 
   const resetForm = () => {
+    setViewing(null);
     setEditingId(null);
     setMode("image");
     setTransparent(false);
@@ -232,6 +239,7 @@ export default function AdminPostsPage() {
   };
 
   const startEditing = async (post: any) => {
+    setViewing(null);
     setEditingId(post.id);
     setMode(post.mediaType === "video" ? "video" : "image");
     setTransparent(typeof post.videoUrl === "string" && post.videoUrl.endsWith(".webp"));
@@ -362,14 +370,115 @@ export default function AdminPostsPage() {
   const adOptionLabel = (a: any) =>
     `${a.organizerName}: ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
 
+  const visiblePosts = posts.filter((p) => statusFilter === "all" || p.status === statusFilter);
+  const current = editingId ? posts.find((p) => p.id === editingId) : viewing;
+  const canDecide = !!current && current.status === "pending" && isLeadership;
+
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="mx-auto w-full max-w-[1500px] space-y-8 text-neutral-900 dark:text-white">
-        <AdminPageHeader title="Posts" description="Design news posts with an ad, send them for approval and track them." />
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 text-neutral-900 dark:text-white">
+        <AdminPageHeader
+          title="Posts"
+          description="Every post with its preview and details. Approve or deny from the post itself."
+          actions={
+            <Button size="sm" onClick={() => resetForm()} className="h-10 cursor-pointer px-5 text-sm">New post</Button>
+          }
+        />
 
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] gap-8 xl:gap-10">
-          <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start">
-            <h2 className="text-xl font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_24rem] 2xl:grid-cols-[17rem_minmax(0,1fr)_24rem]">
+          <section className="min-w-0 space-y-3 xl:col-span-2 2xl:sticky 2xl:top-24 2xl:col-span-1">
+            <div className="flex flex-wrap gap-1.5">
+              {(["pending", "approved", "denied", "all"] as const).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => { filterTouched.current = true; setStatusFilter(f); }}
+                  className={`cursor-pointer rounded-full border px-3 py-1 text-xs font-bold ${statusFilter === f ? "border-brand bg-brand text-brand-ink" : "border-neutral-300 text-neutral-600 hover:border-neutral-500 dark:border-neutral-700 dark:text-neutral-400"}`}
+                >
+                  {f[0].toUpperCase() + f.slice(1)} {f === "all" ? posts.length : posts.filter((p) => p.status === f).length}
+                </button>
+              ))}
+            </div>
+            {loading ? (
+              <div className="flex items-center p-6 text-neutral-500"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading...</div>
+            ) : visiblePosts.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">Nothing here.</div>
+            ) : (
+              <ul className="flex gap-3 overflow-x-auto pb-1 2xl:block 2xl:max-h-[70vh] 2xl:gap-0 2xl:divide-y 2xl:divide-neutral-200 2xl:overflow-y-auto 2xl:rounded-2xl 2xl:border 2xl:border-neutral-200 2xl:bg-white 2xl:pb-0 2xl:dark:divide-neutral-800 2xl:dark:border-neutral-800 2xl:dark:bg-neutral-900">
+                {visiblePosts.map((p) => {
+                  const canChange = me?.id === p.createdBy || isLeadership;
+                  const selected = (editingId ?? viewing?.id) === p.id;
+                  return (
+                    <li key={p.id} className={`w-64 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 2xl:w-auto 2xl:rounded-none 2xl:border-0 ${selected ? "!bg-brand/15" : ""}`}>
+                      <button
+                        type="button"
+                        onClick={() => (canChange && p.status === "pending" ? startEditing(p) : (resetForm(), setViewing(p)))}
+                        className="flex w-full cursor-pointer items-center gap-3 p-3 text-left"
+                      >
+                        <img src={p.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
+                        <span className="min-w-0">
+                          <span className="line-clamp-2 text-sm font-bold leading-snug">{p.headline}</span>
+                          <span className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
+                            <span className={`h-2 w-2 rounded-full ${p.status === "pending" ? "bg-amber-500" : p.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
+                            <span className={`font-semibold capitalize ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
+                            <span className="truncate">· {p.creatorName || "unknown"}</span>
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="min-w-0 space-y-3">
+            {current && (
+              <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
+                <span className={`h-2.5 w-2.5 rounded-full ${current.status === "pending" ? "bg-amber-500" : current.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
+                <span className="text-sm font-bold capitalize">{current.status}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-neutral-500">
+                  {RO_STATES.find((st) => st.key === current.roState)?.label} · {current.organizationName || "No ad"}
+                  {current.decidedByLabel ? ` · by ${current.decidedByLabel}` : ""}
+                  {current.status === "denied" && current.denyReason ? ` · ${current.denyReason}` : ""}
+                </span>
+                {current.status === "pending" && (me?.id === current.createdBy || isLeadership) && (!current.ftnPlusMessageId || !current.leadershipMessageId) && (
+                  <Button size="sm" variant="outline" onClick={() => handleResend(current)} className="cursor-pointer">Resend to Discord</Button>
+                )}
+                {canDecide && (
+                  <>
+                    <Button size="sm" onClick={() => handleDecision(current, "approve")} className="cursor-pointer"><Check className="h-3.5 w-3.5" /> Approve</Button>
+                    <Button size="sm" variant="destructive" onClick={() => handleDecision(current, "deny")} className="cursor-pointer"><X className="h-3.5 w-3.5" /> Deny</Button>
+                  </>
+                )}
+                {current.status !== "denied" && (me?.id === current.createdBy || isLeadership) && (
+                  <Button size="sm" variant="outline" onClick={() => handleAmend(current)} className="cursor-pointer"><MessageSquarePlus className="h-3.5 w-3.5" /> Edit note</Button>
+                )}
+                {(me?.id === current.createdBy || isLeadership) && (
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(current)} className="cursor-pointer text-red-600"><Trash2 className="h-3.5 w-3.5" /></Button>
+                )}
+              </div>
+            )}
+            {viewing && !editingId && (
+              <div className="space-y-2">
+                {viewing.mediaType === "video" && viewing.videoUrl && !viewing.videoUrl.endsWith(".webp") ? (
+                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="w-full max-w-[820px] rounded-lg bg-neutral-900" />
+                ) : (
+                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="w-full max-w-[820px] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                )}
+                {parseNotes(viewing.amendments).map((n, i) => <p key={i} className="text-xs italic text-neutral-500">edit: {n}</p>)}
+              </div>
+            )}
+            <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
+              <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[820px]" style={CHECKERBOARD} />
+              {previewError && <p className="text-xs text-red-600">{previewError}</p>}
+            </div>
+            <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
+          </section>
+
+          <section className={`min-w-0 ${viewing && !editingId ? "opacity-60" : ""}`}>
+          <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="text-lg font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
 
             <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">1</span>Write it</h3>
 
@@ -480,89 +589,8 @@ export default function AdminPostsPage() {
                 <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">Cancel</Button>
               )}
             </div>
-          </Card>
-
-          <div className="space-y-2 xl:sticky xl:top-24 self-start">
-            <h2 className="text-lg font-extrabold">Live preview</h2>
-            <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[820px]"
-              style={CHECKERBOARD} />
-            {previewError && <p className="text-xs text-red-600">{previewError}</p>}
           </div>
-        </div>
-
-        <div ref={setTimelineHost} className={mode === "video" ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
-
-        <div className="space-y-4">
-          <h2 className="text-xl font-extrabold">All posts</h2>
-          <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
-            {(["all", "pending", "approved", "denied"] as const).map((f) => (
-              <AdminTab key={f} active={statusFilter === f} onClick={() => setStatusFilter(f)}>
-                {f[0].toUpperCase() + f.slice(1)} ({f === "all" ? posts.length : posts.filter((p) => p.status === f).length})
-              </AdminTab>
-            ))}
-          </div>
-          {loading ? (
-            <div className="flex items-center p-8 text-neutral-500"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading...</div>
-          ) : posts.length === 0 ? (
-            <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">No posts yet.</div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
-              {posts.filter((p) => statusFilter === "all" || p.status === statusFilter).map((p) => {
-                const mine = me?.id === p.createdBy;
-                const canChange = mine || isLeadership;
-                return (
-                  <Card key={p.id} className="p-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-2">
-                    {p.mediaType === "video" && p.videoUrl?.endsWith(".webp") ? (
-                      <img src={p.videoUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
-                    ) : p.mediaType === "video" && p.videoUrl ? (
-                      <video src={p.videoUrl} poster={p.imageUrl} controls preload="none" playsInline className="w-full rounded-lg bg-neutral-900" />
-                    ) : (
-                      <a href={p.imageUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={p.imageUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
-                      </a>
-                    )}
-                    <div className="space-y-0.5">
-                      <h3 className="text-sm font-bold leading-snug">{p.headline}</h3>
-                      <p className="text-[11px] text-neutral-600 dark:text-neutral-400">
-                        {RO_STATES.find((s) => s.key === p.roState)?.label} · {p.organizationName || "No ad"} · by {p.creatorName || "unknown"}
-                      </p>
-                      <p className="text-[11px]">
-                        <span className={`font-semibold ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
-                        {p.decidedByLabel ? ` by ${p.decidedByLabel}` : ""}
-                        {p.status === "denied" && p.denyReason ? ` — ${p.denyReason}` : ""}
-                      </p>
-                    </div>
-                    {parseNotes(p.amendments).map((n, i) => (
-                      <p key={i} className="text-[11px] italic text-neutral-500">edit: {n}</p>
-                    ))}
-                    {p.status === "pending" && (!p.ftnPlusMessageId || !p.leadershipMessageId) && (
-                      <p className="text-[11px] text-red-600">Not fully sent to Discord yet.</p>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {p.status === "pending" && canChange && (!p.ftnPlusMessageId || !p.leadershipMessageId) && (
-                        <Button size="sm" variant="outline" onClick={() => handleResend(p)} className="cursor-pointer">Resend to Discord</Button>
-                      )}
-                      {p.status === "pending" && isLeadership && (
-                        <>
-                          <Button size="sm" onClick={() => handleDecision(p, "approve")} className="cursor-pointer"><Check className="h-3.5 w-3.5" /> Approve</Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDecision(p, "deny")} className="cursor-pointer"><X className="h-3.5 w-3.5" /> Deny</Button>
-                        </>
-                      )}
-                      {p.status === "pending" && canChange && (
-                        <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                      )}
-                      {p.status !== "denied" && canChange && (
-                        <Button size="sm" variant="outline" onClick={() => handleAmend(p)} className="cursor-pointer"><MessageSquarePlus className="h-3.5 w-3.5" /> Add edit note</Button>
-                      )}
-                      {canChange && (
-                        <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} className="cursor-pointer text-red-600"><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          </section>
         </div>
       </div>
     </AdminAuthGuard>

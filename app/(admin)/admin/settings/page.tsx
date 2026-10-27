@@ -1,14 +1,17 @@
 "use client";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { SETTINGS_PAGES } from "@/components/gs/admin-nav";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
-import { AdminRow, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
+import { AdminPageHeader } from "@/components/gs/admin-header";
+import { AdminDrawer } from "@/components/gs/admin-drawer";
+import { AdminRow, AdminSaveBar, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { canConfigureSite } from "@/lib/rbac";
 import {
   Radio,
@@ -137,7 +140,8 @@ export default function SiteSettingsPage() {
   const [bannedWordsInput, setBannedWordsInput] = useState("fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy");
 
   // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"general" | "auth" | "moderation" | "plus">("general");
+  const pathname = usePathname();
+  const activeTab: "site" | "radio" | "connections" | "access" | "moderation" | "plus" = pathname.endsWith("/connections") ? "connections" : pathname.endsWith("/radio") ? "radio" : pathname.endsWith("/access") ? "access" : pathname.endsWith("/moderation") ? "moderation" : pathname.endsWith("/plus") ? "plus" : "site";
 
   // YouTube Channels & Video Management
   const [youtubeChannels, setYoutubeChannels] = useState<string[]>([]);
@@ -147,6 +151,9 @@ export default function SiteSettingsPage() {
   const [hiddenVideoIds, setHiddenVideoIds] = useState<string[]>([]);
   const [ingestedVideos, setIngestedVideos] = useState<any[]>([]);
   const [videoSearchQuery, setVideoSearchQuery] = useState("");
+  const [videoFilter, setVideoFilter] = useState<"all" | "shown" | "hidden">("all");
+  const [newSwimlaneOpen, setNewSwimlaneOpen] = useState(false);
+  const swimlaneCount = useRef(0);
   const [deletingVideoId, setDeletingVideoId] = useState<string | null>(null);
   const [loadingVideos, setLoadingVideos] = useState(false);
   const [videosLoaded, setVideosLoaded] = useState(false);
@@ -154,6 +161,10 @@ export default function SiteSettingsPage() {
 
   // Custom Swimlanes
   const [swimlanes, setSwimlanes] = useState<CustomSwimlane[]>([]);
+  useEffect(() => {
+    if (swimlanes.length > swimlaneCount.current) setNewSwimlaneOpen(false);
+    swimlaneCount.current = swimlanes.length;
+  }, [swimlanes.length]);
   const [newSwimlaneType, setNewSwimlaneType] = useState<"filter" | "playlist">("filter");
   const [newSwimlaneTitle, setNewSwimlaneTitle] = useState("");
   const [newSwimlaneChannel, setNewSwimlaneChannel] = useState("");
@@ -185,9 +196,125 @@ export default function SiteSettingsPage() {
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [purgingVideos, setPurgingVideos] = useState(false);
 
+  const payloadJson = JSON.stringify({
+    streamUrlInput, statusJsonInput, webradioToggle, allowSignIn, authMode, ftnPlusAccess, tiplineAccess, discordUrl, socialLinks,
+    bannedWordsInput, youtubeChannels, hiddenFeaturedChannels, hiddenTrendingChannels, swimlanes, hiddenVideoIds, autoModEnabled,
+    donationBannerEnabled, autoModThreshold, autoModMuteDuration, radioPublic, radioSecure,
+  });
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const [baseline, setBaseline] = useState<string | null>(null);
+  useEffect(() => {
+    if (configLoaded && baseline === null) setBaseline(payloadJson);
+  }, [configLoaded, baseline, payloadJson]);
+  const dirty = baseline !== null && payloadJson !== baseline;
+  // Each section saves on its own. `keys` are payload fields; `pub` and `sec` are fields inside the radio objects.
+  const SECTIONS: Record<string, { label: string; keys?: string[]; pub?: string[]; sec?: string[] }> = {
+    donation: { label: "Donation banner", keys: ["donationBannerEnabled"] },
+    links: { label: "Links", keys: ["discordUrl", "socialLinks"] },
+    stream: { label: "Webradio stream", keys: ["streamUrlInput", "statusJsonInput", "webradioToggle"] },
+    station: { label: "Station & Discord bot", pub: ["stationName", "discordBotLink", "discordBotCommand"] },
+    icecast: { label: "Icecast", sec: ["icecastAdminUrl", "icecastUsername", "icecastPassword", "icecastMount"] },
+    rotation: { label: "Password rotation", sec: ["rotationEndpointUrl", "rotationEndpointToken", "rotationFrequencyHours", "rotationTimeUtc", "discordWebhookUrl"] },
+    art: { label: "Album art", pub: ["defaultArtUrl"], sec: ["lastFmApiKey", "fanartTvApiKey", "artPriority"] },
+    signin: { label: "Sign-in", keys: ["allowSignIn", "authMode"] },
+    gates: { label: "Access gates", keys: ["ftnPlusAccess", "tiplineAccess"] },
+    automod: { label: "Auto-moderation", keys: ["autoModEnabled", "autoModThreshold", "autoModMuteDuration"] },
+    profanity: { label: "Profanity filter", keys: ["bannedWordsInput"] },
+    channels: { label: "YouTube channels", keys: ["youtubeChannels", "hiddenFeaturedChannels", "hiddenTrendingChannels"] },
+    catalog: { label: "Video catalog", keys: ["hiddenVideoIds"] },
+    swimlanes: { label: "Swimlanes", keys: ["swimlanes"] },
+  };
+  const API_KEY: Record<string, string> = { streamUrlInput: "streamUrl", statusJsonInput: "statusJson", webradioToggle: "webradioEnabled", bannedWordsInput: "bannedWords", swimlanes: "customSwimlanes" };
+  const setters: Record<string, (v: any) => void> = {
+    donationBannerEnabled: setDonationBannerEnabled, discordUrl: setDiscordUrl, socialLinks: setSocialLinks, streamUrlInput: setStreamUrlInput,
+    statusJsonInput: setStatusJsonInput, webradioToggle: setWebradioToggle, allowSignIn: setAllowSignIn, authMode: setAuthMode,
+    ftnPlusAccess: setFtnPlusAccess, tiplineAccess: setTiplineAccess, autoModEnabled: setAutoModEnabled, autoModThreshold: setAutoModThreshold,
+    autoModMuteDuration: setAutoModMuteDuration, bannedWordsInput: setBannedWordsInput, youtubeChannels: setYoutubeChannels,
+    hiddenFeaturedChannels: setHiddenFeaturedChannels, hiddenTrendingChannels: setHiddenTrendingChannels, hiddenVideoIds: setHiddenVideoIds, swimlanes: setSwimlanes,
+  };
+  const dirtySections: string[] = (() => {
+    if (baseline === null) return [];
+    const was = JSON.parse(baseline) as Record<string, any>;
+    const now = JSON.parse(payloadJson) as Record<string, any>;
+    const differs = (x: unknown, y: unknown) => JSON.stringify(x) !== JSON.stringify(y);
+    return Object.keys(SECTIONS).filter((id) => {
+      const sec = SECTIONS[id];
+      return (
+        (sec.keys ?? []).some((k) => differs(now[k], was[k])) ||
+        (sec.pub ?? []).some((k) => differs(now.radioPublic?.[k], was.radioPublic?.[k])) ||
+        (sec.sec ?? []).some((k) => differs(now.radioSecure?.[k], was.radioSecure?.[k]))
+      );
+    });
+  })();
+  const changedLabels = dirtySections.map((id) => SECTIONS[id].label);
+  const [savingSection, setSavingSection] = useState<string | null>(null);
+
+  const saveSection = async (id: string) => {
+    if (baseline === null) return;
+    const sec = SECTIONS[id];
+    const now = JSON.parse(payloadJson) as Record<string, any>;
+    setSavingSection(id);
+    try {
+      const config: Record<string, unknown> = {};
+      for (const k of sec.keys ?? []) config[API_KEY[k] ?? k] = k === "autoModThreshold" ? Number(now[k]) : k === "streamUrlInput" || k === "statusJsonInput" || k === "discordUrl" ? String(now[k]).trim() : now[k];
+      if (Object.keys(config).length > 0) {
+        const res = await fetch("/api/radio/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+        if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any).error || "Save failed");
+      }
+      if (sec.pub || sec.sec) {
+        const pick = (obj: Record<string, any> | undefined, ks?: string[]) => Object.fromEntries((ks ?? []).map((k) => [k, obj?.[k]]));
+        const res = await fetch("/api/admin/radio/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ public: pick(now.radioPublic, sec.pub), secure: pick(now.radioSecure, sec.sec) }),
+        });
+        if (!res.ok) throw new Error("Save failed");
+      }
+      const next = JSON.parse(baseline) as Record<string, any>;
+      for (const k of sec.keys ?? []) next[k] = now[k];
+      for (const k of sec.pub ?? []) next.radioPublic = { ...next.radioPublic, [k]: now.radioPublic?.[k] };
+      for (const k of sec.sec ?? []) next.radioSecure = { ...next.radioSecure, [k]: now.radioSecure?.[k] };
+      setBaseline(JSON.stringify(next));
+      toast(`${sec.label} saved.`);
+    } catch (err: any) {
+      toast(err.message || "Could not save this section.");
+    } finally {
+      setSavingSection(null);
+    }
+  };
+
+  const revertSection = (id: string) => {
+    if (baseline === null) return;
+    const sec = SECTIONS[id];
+    const was = JSON.parse(baseline) as Record<string, any>;
+    for (const k of sec.keys ?? []) setters[k]?.(was[k]);
+    if (sec.pub) setRadioPublic((p) => ({ ...p, ...Object.fromEntries(sec.pub!.map((k) => [k, was.radioPublic?.[k]])) }));
+    if (sec.sec) setRadioSecure((p) => ({ ...p, ...Object.fromEntries(sec.sec!.map((k) => [k, was.radioSecure?.[k]])) }));
+  };
+
+  const connectionBadge = (connected: boolean) => (
+    <div className="flex items-center gap-2 text-sm font-bold">
+      <span className={`h-2.5 w-2.5 rounded-full ${connected ? "bg-emerald-500" : "bg-neutral-400"}`} />
+      {connected ? "Connected" : "Not set up yet"}
+    </div>
+  );
+
+  const sectionFooter = (id: string) =>
+    dirtySections.includes(id) ? (
+      <div className="flex items-center justify-between gap-3 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+        <span className="text-sm text-neutral-500">Unsaved changes in this section</span>
+        <span className="flex items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => revertSection(id)} className="cursor-pointer">Revert</Button>
+          <Button type="button" size="sm" disabled={savingSection === id} onClick={() => saveSection(id)} className="cursor-pointer bg-brand font-bold text-brand-ink hover:bg-brand-hover">
+            {savingSection === id ? "Saving…" : `Save ${SECTIONS[id].label.toLowerCase()}`}
+          </Button>
+        </span>
+      </div>
+    ) : null;
+
   useEffect(() => {
     // 1. Fetch site config
-    fetch("/api/radio/config")
+    const configDone = fetch("/api/radio/config")
       .then((res) => res.json())
       .then((data: any) => {
         if (data) {
@@ -215,13 +342,15 @@ export default function SiteSettingsPage() {
       .catch(() => {});
 
     // 1b. Fetch radio settings (site administrators only)
-    fetch("/api/admin/radio/settings")
+    const radioDone = fetch("/api/admin/radio/settings")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: any) => {
         if (data?.public) setRadioPublic((prev) => ({ ...prev, ...data.public }));
         if (data?.secure) setRadioSecure((prev) => ({ ...prev, ...data.secure }));
       })
       .catch(() => {});
+
+    Promise.all([configDone, radioDone]).then(() => setTimeout(() => setConfigLoaded(true), 0));
 
     // 2. Fetch registered users for moderation dropdown
     fetch("/api/admin/users")
@@ -236,24 +365,7 @@ export default function SiteSettingsPage() {
     // 3. Fetch active moderations
     fetchModerations();
 
-    // 4. Sync initial tab from URL if present
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get("tab");
-      if (tabParam === "general" || tabParam === "auth" || tabParam === "moderation" || tabParam === "plus") {
-        setActiveTab(tabParam);
-      }
-    }
   }, []);
-
-  const handleSelectTab = (tab: "general" | "auth" | "moderation" | "plus") => {
-    setActiveTab(tab);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", tab);
-      window.history.replaceState({}, "", url.toString());
-    }
-  };
 
   const fetchVideosCatalog = async (force = false) => {
     if ((videosLoaded && !force) || loadingVideos) return;
@@ -831,6 +943,7 @@ export default function SiteSettingsPage() {
       });
 
       if (res.ok && radioRes.ok) {
+        setBaseline(payloadJson);
         setSavedSuccess(true);
         setTimeout(() => setSavedSuccess(false), 3000);
       } else {
@@ -872,201 +985,57 @@ export default function SiteSettingsPage() {
     }
   };
 
+  const [settingQuery, setSettingQuery] = useState("");
+  const [settingMatches, setSettingMatches] = useState(0);
+  useEffect(() => {
+    const q = settingQuery.trim().toLowerCase();
+    let n = 0;
+    document.querySelectorAll<HTMLElement>("main section, [data-settings-root] section").forEach((el) => {
+      if (!el.matches("section.grid")) return;
+      const hit = !q || (el.textContent ?? "").toLowerCase().includes(q) || Array.from(el.querySelectorAll("input,textarea,select")).some((i) => ((i as HTMLInputElement).placeholder ?? "").toLowerCase().includes(q));
+      el.style.display = hit ? "" : "none";
+      if (hit && q) n++;
+    });
+    setSettingMatches(n);
+  }, [settingQuery, activeTab, videosLoaded]);
+
   return (
     <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
       <div className="mx-auto max-w-5xl space-y-8 text-neutral-900 dark:text-white">
       <AdminPageHeader
-        title="Site settings"
-        description="Configure live audio stream URL and system feeds."
-        actions={
-          <Button onClick={handleSaveAllSettings} disabled={isSavingConfig} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
-            {isSavingConfig ? (
-              <>
-                <RefreshCw className="h-4 w-4 animate-spin" /> Saving...
-              </>
-            ) : savedSuccess ? (
-              <>
-                <Check className="h-4 w-4" /> Saved
-              </>
-            ) : (
-              <>
-                <Check className="h-4 w-4" /> Save all settings
-              </>
-            )}
-          </Button>
-        }
+        title={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.title ?? "Settings"}
+        description={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.description}
       />
 
-      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
-        <AdminTab active={activeTab === "general"} onClick={() => handleSelectTab("general")}>General & Media</AdminTab>
-        <AdminTab active={activeTab === "auth"} onClick={() => handleSelectTab("auth")}>Authentication & Users</AdminTab>
-        <AdminTab active={activeTab === "moderation"} onClick={() => handleSelectTab("moderation")}>Moderation & Safety</AdminTab>
-        <AdminTab active={activeTab === "plus"} onClick={() => handleSelectTab("plus")}>FTN+ Video Network</AdminTab>
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3.5 top-3 h-4 w-4 text-neutral-400" />
+        <input
+          type="search"
+          value={settingQuery}
+          onChange={(e) => setSettingQuery(e.target.value)}
+          placeholder="Search settings on this page"
+          aria-label="Search settings on this page"
+          className="h-10 w-full rounded-full border border-neutral-300 bg-white pl-10 pr-4 text-sm focus:border-brand focus:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900"
+        />
+        {settingQuery.trim() && <p className="mt-2 pl-4 text-xs text-neutral-500">{settingMatches === 0 ? "No settings on this page match. Use the jump bar to search every page." : `${settingMatches} matching ${settingMatches === 1 ? "section" : "sections"}`}</p>}
       </div>
 
-      {/* 1. GENERAL & MEDIA TAB */}
-      {activeTab === "general" && (
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800 lg:hidden">
+        {SETTINGS_PAGES.map((t) => (
+          <Link key={t.href} href={t.href} aria-current={pathname === t.href ? "page" : undefined} className={`shrink-0 border-b-4 px-4 py-3 text-sm font-bold ${pathname === t.href ? "border-brand" : "border-transparent text-neutral-500"}`}>
+            {t.title}
+          </Link>
+        ))}
+      </div>
+
+      {activeTab === "site" && (
         <div className="space-y-8">
-          {/* Homepage donation banner */}
           <AdminSection title="Donation banner" description="The &quot;FTN needs your help!&quot; appeal at the top of the homepage.">
             <AdminRow label="Show on homepage" hint={donationBannerEnabled ? "Visitors see the appeal." : "Hidden from visitors."}>
               <AdminSwitch checked={donationBannerEnabled} onChange={setDonationBannerEnabled} label="Show donation banner" />
             </AdminRow>
-          </AdminSection>
-
-          {/* 1. Webradio Stream Settings */}
-          <AdminSection title="Webradio stream" description="Where the live audio and its now-playing data come from.">
-        <AdminRow label="Webradio on FTN+" hint={webradioToggle ? "The radio player is live for visitors." : "The radio player is switched off."}>
-          <AdminSwitch checked={webradioToggle} onChange={setWebradioToggle} label="Enable webradio" />
-        </AdminRow>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="block text-sm font-semibold">
-              Icecast Audio Stream URL (.mp3 / .aac)
-            </label>
-            <Input
-              value={streamUrlInput}
-              onChange={(e) => setStreamUrlInput(e.target.value)}
-              placeholder="https://icecast.ftnmedia.org/live.mp3"
-              className="font-mono text-xs"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-sm font-semibold">
-              Status JSON Metadata Endpoint
-            </label>
-            <Input
-              value={statusJsonInput}
-              onChange={(e) => setStatusJsonInput(e.target.value)}
-              placeholder="https://icecast.ftnmedia.org/status-json.xsl"
-              className="font-mono text-xs"
-            />
-          </div>
-        </div>
-
-        {/* Radio branding & Discord bot */}
-        </AdminSection>
-<AdminSection title="Station & Discord bot" description="Branding on the radio page and the details for the Discord bot.">
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Station Name</label>
-              <Input value={radioPublic.stationName} onChange={(e) => setRadioPublic({ ...radioPublic, stationName: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Default Album Art URL</label>
-              <Input value={radioPublic.defaultArtUrl} onChange={(e) => setRadioPublic({ ...radioPublic, defaultArtUrl: e.target.value })} placeholder="Shown when no show or track art is found" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Discord Bot Invite Link</label>
-              <Input value={radioPublic.discordBotLink} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotLink: e.target.value })} placeholder="https://discord.com/oauth2/authorize?client_id=..." />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Discord Bot Setup Command</label>
-              <Input value={radioPublic.discordBotCommand} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotCommand: e.target.value })} placeholder="/setup" className="font-mono text-xs" />
-            </div>
-          </div>
-        
-
-        {/* Icecast */}
-        </AdminSection>
-<AdminSection title="Icecast" description="Optional admin credentials let the site read live listener counts and track metadata. They are stored encrypted and never sent to visitors.">
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Admin URL</label>
-              <Input value={radioSecure.icecastAdminUrl} onChange={(e) => setRadioSecure({ ...radioSecure, icecastAdminUrl: e.target.value })} placeholder="http://127.0.0.1:8000" className="font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Mount Point</label>
-              <Input value={radioSecure.icecastMount} onChange={(e) => setRadioSecure({ ...radioSecure, icecastMount: e.target.value })} placeholder="/autodj" className="font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Admin Username</label>
-              <Input value={radioSecure.icecastUsername} onChange={(e) => setRadioSecure({ ...radioSecure, icecastUsername: e.target.value })} className="font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Admin Password</label>
-              <Input type="password" value={radioSecure.icecastPassword} onChange={(e) => setRadioSecure({ ...radioSecure, icecastPassword: e.target.value })} className="font-mono text-xs" />
-            </div>
-          </div>
-        
-
-        {/* Password rotation */}
-        </AdminSection>
-<AdminSection title="Password rotation" description="Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown in the Station tab of the Schedule admin page.">
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Rotation Endpoint URL</label>
-              <Input value={radioSecure.rotationEndpointUrl} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointUrl: e.target.value })} placeholder="https://euno.cc/rotate" className="font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Rotation Endpoint Token</label>
-              <Input type="password" value={radioSecure.rotationEndpointToken} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointToken: e.target.value })} className="font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Auto-Rotate Frequency</label>
-              <select
-                value={radioSecure.rotationFrequencyHours}
-                onChange={(e) => setRadioSecure({ ...radioSecure, rotationFrequencyHours: Number(e.target.value) })}
-                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-              >
-                <option value={0}>Off</option>
-                <option value={12}>Every 12 hours</option>
-                <option value={24}>Every 24 hours</option>
-                <option value={48}>Every 48 hours</option>
-                <option value={72}>Every 72 hours</option>
-              </select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Rotation Time (UTC, 24h+ only)</label>
-              <input
-                type="time"
-                value={radioSecure.rotationTimeUtc}
-                onChange={(e) => setRadioSecure({ ...radioSecure, rotationTimeUtc: e.target.value })}
-                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-              />
-            </div>
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-sm font-semibold">Discord Webhook (rotation notices)</label>
-              <Input type="password" value={radioSecure.discordWebhookUrl} onChange={(e) => setRadioSecure({ ...radioSecure, discordWebhookUrl: e.target.value })} placeholder="https://discord.com/api/webhooks/..." className="font-mono text-xs" />
-            </div>
-          </div>
-        
-
-        {/* API keys */}
-        </AdminSection>
-<AdminSection title="Album art" description="Keys and lookup order for finding cover art of the track on air.">
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Last.fm API Key</label>
-              <Input type="password" value={radioSecure.lastFmApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, lastFmApiKey: e.target.value })} className="font-mono text-xs" />
-            </div>
-            <div className="space-y-1.5">
-              <label className="block text-sm font-semibold">Fanart.tv API Key</label>
-              <Input type="password" value={radioSecure.fanartTvApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, fanartTvApiKey: e.target.value })} className="font-mono text-xs" />
-            </div>
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="space-y-1.5">
-                <label className="block text-sm font-semibold">Lookup Priority {i + 1}</label>
-                <select
-                  value={radioSecure.artPriority[i] || ""}
-                  onChange={(e) => {
-                    const next = [...radioSecure.artPriority];
-                    next[i] = e.target.value;
-                    setRadioSecure({ ...radioSecure, artPriority: next.filter(Boolean) });
-                  }}
-                  className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
-                >
-                  <option value="lastfm">Last.fm</option>
-                  <option value="itunes">iTunes</option>
-                  <option value="fanart">Fanart.tv</option>
-                </select>
-              </div>
-            ))}
-          </div>
-        
-      </AdminSection>
+          {sectionFooter("donation")}
+</AdminSection>
 
       {/* 3. Discord & Social Media Links */}
       <AdminSection title="Links" description="The Discord button in the navbar and the social links in the footer.">
@@ -1135,12 +1104,184 @@ export default function SiteSettingsPage() {
             </div>
           </div>
         </div>
-      </AdminSection>
+      {sectionFooter("links")}
+</AdminSection>
+    </div>
+  )}
+
+      {(activeTab === "radio" || activeTab === "connections") && (
+        <div className="space-y-8">
+          {/* 1. Webradio Stream Settings */}
+          {activeTab === "radio" && (<>
+          <AdminSection title="Webradio stream" description="Where the live audio and its now-playing data come from.">
+        <AdminRow label="Webradio on FTN+" hint={webradioToggle ? "The radio player is live for visitors." : "The radio player is switched off."}>
+          <AdminSwitch checked={webradioToggle} onChange={setWebradioToggle} label="Enable webradio" />
+        </AdminRow>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold">
+              Icecast Audio Stream URL (.mp3 / .aac)
+            </label>
+            <Input
+              value={streamUrlInput}
+              onChange={(e) => setStreamUrlInput(e.target.value)}
+              placeholder="https://icecast.ftnmedia.org/live.mp3"
+              className="font-mono text-xs"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="block text-sm font-semibold">
+              Status JSON Metadata Endpoint
+            </label>
+            <Input
+              value={statusJsonInput}
+              onChange={(e) => setStatusJsonInput(e.target.value)}
+              placeholder="https://icecast.ftnmedia.org/status-json.xsl"
+              className="font-mono text-xs"
+            />
+          </div>
+        </div>
+
+        {/* Radio branding & Discord bot */}
+        {sectionFooter("stream")}
+</AdminSection>
+<AdminSection title="Station & Discord bot" description="Branding on the radio page and the details for the Discord bot.">
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Station Name</label>
+              <Input value={radioPublic.stationName} onChange={(e) => setRadioPublic({ ...radioPublic, stationName: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Default Album Art URL</label>
+              <Input value={radioPublic.defaultArtUrl} onChange={(e) => setRadioPublic({ ...radioPublic, defaultArtUrl: e.target.value })} placeholder="Shown when no show or track art is found" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Discord Bot Invite Link</label>
+              <Input value={radioPublic.discordBotLink} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotLink: e.target.value })} placeholder="https://discord.com/oauth2/authorize?client_id=..." />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Discord Bot Setup Command</label>
+              <Input value={radioPublic.discordBotCommand} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotCommand: e.target.value })} placeholder="/setup" className="font-mono text-xs" />
+            </div>
+          </div>
+        
+
+        {/* Icecast */}
+        {sectionFooter("station")}
+</AdminSection>
+</>)}
+{activeTab === "connections" && (<>
+<AdminSection title="Icecast" description="Optional admin credentials let the site read live listener counts and track metadata. They are stored encrypted and never sent to visitors.">
+{connectionBadge(!!(radioSecure.icecastAdminUrl && radioSecure.icecastPassword))}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Admin URL</label>
+              <Input value={radioSecure.icecastAdminUrl} onChange={(e) => setRadioSecure({ ...radioSecure, icecastAdminUrl: e.target.value })} placeholder="http://127.0.0.1:8000" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Mount Point</label>
+              <Input value={radioSecure.icecastMount} onChange={(e) => setRadioSecure({ ...radioSecure, icecastMount: e.target.value })} placeholder="/autodj" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Admin Username</label>
+              <Input value={radioSecure.icecastUsername} onChange={(e) => setRadioSecure({ ...radioSecure, icecastUsername: e.target.value })} className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Admin Password</label>
+              <Input type="password" value={radioSecure.icecastPassword} onChange={(e) => setRadioSecure({ ...radioSecure, icecastPassword: e.target.value })} className="font-mono text-xs" />
+            </div>
+          </div>
+        
+
+        {/* Password rotation */}
+        {sectionFooter("icecast")}
+</AdminSection>
+<AdminSection title="Password rotation" description="Rotation runs a small service on the radio server. Automatic rotation is checked hourly by a scheduled GitHub workflow; the current password is shown at the top of the Schedule admin page.">
+{connectionBadge(!!(radioSecure.rotationEndpointUrl && radioSecure.rotationEndpointToken))}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Rotation Endpoint URL</label>
+              <Input value={radioSecure.rotationEndpointUrl} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointUrl: e.target.value })} placeholder="https://euno.cc/rotate" className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Rotation Endpoint Token</label>
+              <Input type="password" value={radioSecure.rotationEndpointToken} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointToken: e.target.value })} className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Auto-Rotate Frequency</label>
+              <select
+                value={radioSecure.rotationFrequencyHours}
+                onChange={(e) => setRadioSecure({ ...radioSecure, rotationFrequencyHours: Number(e.target.value) })}
+                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+              >
+                <option value={0}>Off</option>
+                <option value={12}>Every 12 hours</option>
+                <option value={24}>Every 24 hours</option>
+                <option value={48}>Every 48 hours</option>
+                <option value={72}>Every 72 hours</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Rotation Time (UTC, 24h+ only)</label>
+              <input
+                type="time"
+                value={radioSecure.rotationTimeUtc}
+                onChange={(e) => setRadioSecure({ ...radioSecure, rotationTimeUtc: e.target.value })}
+                className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+              />
+            </div>
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="block text-sm font-semibold">Discord Webhook (rotation notices)</label>
+              <Input type="password" value={radioSecure.discordWebhookUrl} onChange={(e) => setRadioSecure({ ...radioSecure, discordWebhookUrl: e.target.value })} placeholder="https://discord.com/api/webhooks/..." className="font-mono text-xs" />
+            </div>
+          </div>
+        
+
+        {/* API keys */}
+        {sectionFooter("rotation")}
+</AdminSection>
+<AdminSection title="Album art" description="Keys and lookup order for finding cover art of the track on air.">
+{connectionBadge(!!(radioSecure.lastFmApiKey || radioSecure.fanartTvApiKey))}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Last.fm API Key</label>
+              <Input type="password" value={radioSecure.lastFmApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, lastFmApiKey: e.target.value })} className="font-mono text-xs" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-sm font-semibold">Fanart.tv API Key</label>
+              <Input type="password" value={radioSecure.fanartTvApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, fanartTvApiKey: e.target.value })} className="font-mono text-xs" />
+            </div>
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="space-y-1.5">
+                <label className="block text-sm font-semibold">Lookup Priority {i + 1}</label>
+                <select
+                  value={radioSecure.artPriority[i] || ""}
+                  onChange={(e) => {
+                    const next = [...radioSecure.artPriority];
+                    next[i] = e.target.value;
+                    setRadioSecure({ ...radioSecure, artPriority: next.filter(Boolean) });
+                  }}
+                  className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
+                >
+                  <option value="lastfm">Last.fm</option>
+                  <option value="itunes">iTunes</option>
+                  <option value="fanart">Fanart.tv</option>
+                </select>
+              </div>
+            ))}
+          </div>
+        
+      {sectionFooter("art")}
+</AdminSection>
+</>)}
+
     </div>
   )}
 
   {/* 2. AUTHENTICATION & ACCESS CONTROL TAB */}
-  {activeTab === "auth" && (
+  {activeTab === "access" && (
     <div className="space-y-8">
       {/* 2. Access Control, Authentication Mode & User Management */}
       <AdminSection title="Sign-in" description="How visitors and staff create accounts and log in.">
@@ -1192,7 +1333,8 @@ export default function SiteSettingsPage() {
           </div>
 
         </div>
-      </AdminSection>
+      {sectionFooter("signin")}
+</AdminSection>
       <AdminSection title="Access gates" description="Who may open FTN+ and the tipline.">
         <div className="space-y-6">
           {/* FTN+ Access Gate */}
@@ -1242,12 +1384,13 @@ export default function SiteSettingsPage() {
           </div>
 
         </div>
-      </AdminSection>
+      {sectionFooter("gates")}
+</AdminSection>
       <AdminSection title="Accounts" description="Staff accounts and password resets.">
         <div className="space-y-6">
           {/* If Roblox Mode: Informative Notice */}
           {authMode === "roblox" && (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/30 p-4 text-xs text-neutral-600 dark:text-neutral-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 p-5 text-xs text-neutral-600 dark:text-neutral-400 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <strong className="text-neutral-900 dark:text-white">Roblox OAuth 2.0 Active</strong>
                 <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1264,7 +1407,7 @@ export default function SiteSettingsPage() {
 
           {/* If Password Mode: Add Employee / Provision Password Form */}
           {authMode === "credentials" && (
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 p-5 space-y-4">
+            <div className="rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 p-5 space-y-4">
               <div className="flex items-center gap-2">
                 <UserPlus className="h-4 w-4 text-brand-text" />
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-white">
@@ -1299,10 +1442,10 @@ export default function SiteSettingsPage() {
 
               {/* Created Account Details Card */}
               {createdEmployeeResult && (
-                <div className="rounded-xl border border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/40 p-4 space-y-3">
+                <div className="rounded-2xl border border-brand bg-brand/10 p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden border border-emerald-500 dark:border-emerald-700">
+                      <div className="h-10 w-10 rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden border border-brand">
                         {createdEmployeeResult.avatarUrl ? (
                           <img
                             src={createdEmployeeResult.avatarUrl}
@@ -1369,7 +1512,7 @@ export default function SiteSettingsPage() {
 
           {/* Reset Password Result Notification */}
           {resetPasswordResult && (
-            <div className="rounded-xl border border-brand/60 bg-brand/10 p-4 space-y-2">
+            <div className="rounded-2xl border border-brand bg-brand/10 p-4 space-y-2">
               <div className="text-xs font-bold text-brand-text">New Password Generated</div>
               <div className="p-2 rounded bg-white dark:bg-black/60 font-mono text-xs font-bold text-neutral-900 dark:text-white select-all border border-neutral-200 dark:border-transparent">
                 {resetPasswordResult.password}
@@ -1416,17 +1559,17 @@ export default function SiteSettingsPage() {
 
             {/* Search Results */}
             {searchingUsers ? (
-              <div className="p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Searching accounts...</div>
+              <div className="p-8 text-center text-sm text-neutral-500">Searching accounts...</div>
             ) : hasSearched && searchedUsers.length === 0 ? (
-              <div className="p-6 text-center text-xs text-neutral-500 rounded-xl border border-neutral-200 bg-white dark:border-neutral-900 dark:bg-neutral-900/30">
+              <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500 dark:border-neutral-700">
                 No user accounts found matching &quot;{userSearchQuery}&quot;.
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900">
                 {searchedUsers.map((emp) => (
                   <div
                     key={emp.id}
-                    className="p-3.5 rounded-xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900/60 shadow-sm dark:shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition"
+                    className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition"
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-9 w-9 rounded-full bg-neutral-200 text-neutral-800 dark:bg-neutral-800 dark:text-white overflow-hidden flex items-center justify-center font-bold text-xs shrink-0 border border-neutral-300 dark:border-neutral-700">
@@ -1688,7 +1831,8 @@ export default function SiteSettingsPage() {
             )}
           </div>
         </div>
-      </AdminSection>
+      {sectionFooter("automod")}
+</AdminSection>
 
       {/* 7. Comment Profanity Filter */}
       <AdminSection title="Profanity filter" description="Comments containing these words are blocked.">
@@ -1712,7 +1856,8 @@ export default function SiteSettingsPage() {
             className="font-mono text-xs"
           />
         </div>
-      </AdminSection>
+      {sectionFooter("profanity")}
+</AdminSection>
     </div>
   )}
 
@@ -1788,90 +1933,58 @@ export default function SiteSettingsPage() {
           </label>
 
           {youtubeChannels.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-4 text-center text-xs text-neutral-500">
+            <div className="rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
               No custom channel IDs added yet.
             </div>
           ) : (
-            <div className="space-y-2">
+            <ul className="divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+              <li className="hidden items-center gap-6 px-4 py-2 text-xs font-bold uppercase tracking-widest text-neutral-500 sm:flex">
+                <span className="flex-1">Channel</span>
+                <span className="w-24 text-center">Featured</span>
+                <span className="w-24 text-center">Trending</span>
+                <span className="w-8" />
+              </li>
               {youtubeChannels.map((channel, idx) => {
                 const isFeaturedHidden = hiddenFeaturedChannels.includes(channel);
                 const isTrendingHidden = hiddenTrendingChannels.includes(channel);
                 return (
-                  <div
-                    key={idx}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 px-4 py-2.5"
-                  >
-                    <span className="font-mono text-xs text-neutral-800 dark:text-neutral-200 truncate">{channel}</span>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleToggleHideFeatured(channel)}
-                        className={`text-xs h-7 px-2.5 cursor-pointer transition ${
-                          isFeaturedHidden
-                            ? "bg-brand/20 border-brand/50 text-neutral-900 dark:text-white font-semibold"
-                            : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                        }`}
-                        title={
-                          isFeaturedHidden
-                            ? "Channel is hidden from FTN & FTN+ featured sections. Click to allow."
-                            : "Hide this channel's videos from FTN and FTN+ featured sections"
-                        }
-                      >
-                        {isFeaturedHidden ? "Hidden from featured" : "Hide channel from featured"}
-                      </Button>
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleToggleHideTrending(channel)}
-                        className={`text-xs h-7 px-2.5 cursor-pointer transition ${
-                          isTrendingHidden
-                            ? "bg-brand/20 border-brand/50 text-neutral-900 dark:text-white font-semibold"
-                            : "border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
-                        }`}
-                        title={
-                          isTrendingHidden
-                            ? "Channel is hidden from the trending swimlane. Click to allow."
-                            : "Hide this channel's videos from the trending swimlane"
-                        }
-                      >
-                        {isTrendingHidden ? "Hidden from trending" : "Hide channel from trending"}
-                      </Button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveChannel(channel)}
-                        className="text-neutral-400 hover:text-red-500 transition p-1 cursor-pointer"
-                        title="Delete Channel"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
+                  <li key={idx} className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+                    <span className="min-w-0 flex-1 truncate font-mono text-sm">{channel}</span>
+                    <span className="flex w-24 justify-center" title="Show this channel in the FTN and FTN+ featured sections">
+                      <AdminSwitch checked={!isFeaturedHidden} onChange={() => handleToggleHideFeatured(channel)} label={`Show ${channel} in featured`} />
+                    </span>
+                    <span className="flex w-24 justify-center" title="Show this channel in the trending swimlane">
+                      <AdminSwitch checked={!isTrendingHidden} onChange={() => handleToggleHideTrending(channel)} label={`Show ${channel} in trending`} />
+                    </span>
+                    <button type="button" onClick={() => handleRemoveChannel(channel)} className="w-8 cursor-pointer p-1 text-neutral-400 transition hover:text-red-500" title="Delete channel">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </div>
-      </AdminSection>
+      {sectionFooter("channels")}
+</AdminSection>
 
         {/* 5b. Synced Video Library & Stream Visibility Controls */}
       <AdminSection title={<>Video catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}</>} description="Hide duplicate or superseded streams from FTN+ swimlanes and the homepage.">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1">
-          <div className="w-full">
-            <Input
-              value={videoSearchQuery}
-              onChange={(e) => {
-                setVideoSearchQuery(e.target.value);
-                setVisibleVideoCount(25);
-              }}
-              placeholder="Search synced videos..."
-              className="h-10"
-            />
-          </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Input
+            value={videoSearchQuery}
+            onChange={(e) => {
+              setVideoSearchQuery(e.target.value);
+              setVisibleVideoCount(24);
+            }}
+            placeholder="Search by title, channel or video id"
+            className="h-10 sm:max-w-sm"
+          />
+          <AdminSegmented
+            value={videoFilter}
+            onChange={(v) => { setVideoFilter(v); setVisibleVideoCount(24); }}
+            options={[{ value: "all", label: "All" }, { value: "shown", label: "Shown" }, { value: "hidden", label: `Hidden (${ingestedVideos.filter((v) => hiddenVideoIds.includes(v.youtubeId || v.id) || hiddenVideoIds.includes(v.id)).length})` }]}
+          />
         </div>
 
         {loadingVideos && !videosLoaded ? (
@@ -1885,7 +1998,11 @@ export default function SiteSettingsPage() {
             (v.title || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
             (v.channelTitle || "").toLowerCase().includes(videoSearchQuery.toLowerCase()) ||
             (v.youtubeId || "").toLowerCase().includes(videoSearchQuery.toLowerCase())
-          );
+          ).filter((v) => {
+            if (videoFilter === "all") return true;
+            const hid = hiddenVideoIds.includes(v.youtubeId || v.id) || hiddenVideoIds.includes(v.id);
+            return videoFilter === "hidden" ? hid : !hid;
+          });
           const displayedVideos = filteredVideos.slice(0, visibleVideoCount);
           const hasMoreVideos = filteredVideos.length > displayedVideos.length;
 
@@ -1899,68 +2016,41 @@ export default function SiteSettingsPage() {
 
           return (
             <div className="space-y-3">
-              <div className="max-h-[480px] divide-y divide-neutral-200 overflow-y-auto rounded-xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {displayedVideos.map((video) => {
                   const ytid = video.youtubeId || video.id;
                   const isHidden = hiddenVideoIds.includes(ytid) || hiddenVideoIds.includes(video.id);
 
                   return (
-                    <div
-                      key={ytid}
-                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 transition ${isHidden ? "opacity-60" : ""}`}
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
+                    <div key={ytid} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+                      <div className="relative aspect-video bg-neutral-200 dark:bg-neutral-950">
                         <img
                           src={video.thumbnailUrl || `https://img.youtube.com/vi/${ytid}/hqdefault.jpg`}
                           alt={video.title}
                           loading="lazy"
                           decoding="async"
-                          className="h-12 w-20 rounded object-cover shrink-0 border border-neutral-300 dark:border-neutral-800 bg-neutral-200 dark:bg-neutral-950"
+                          className={`h-full w-full object-cover transition ${isHidden ? "opacity-40 grayscale" : ""}`}
                         />
-                        <div className="space-y-0.5 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-neutral-900 dark:text-white truncate max-w-md" title={video.title}>
-                              {video.title}
-                            </span>
-                            {video.isLive && (
-                              <span className="rounded bg-red-600 px-1.5 py-0.2 text-[9px] font-bold uppercase text-white">
-                                LIVE
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-                            <span>{video.channelTitle || "FTN"}</span>
-                            <span>•</span>
-                            <span className="text-neutral-400 dark:text-neutral-500">{ytid}</span>
-                          </div>
-                        </div>
+                        {video.isLive && <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase text-white">Live</span>}
+                        {isHidden && <span className="absolute left-2 bottom-2 rounded-full bg-[#16110a] px-2.5 py-0.5 text-xs font-bold text-[#fff8e6]">Hidden</span>}
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                        <a
-                          href={`https://www.youtube.com/watch?v=${ytid}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white transition"
-                          title="Watch on YouTube"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-
-                        <span className="text-xs font-semibold text-neutral-500">{isHidden ? "Hidden" : "Shown"}</span>
-                        <AdminSwitch checked={!isHidden} onChange={() => handleToggleHideVideo(ytid)} label={isHidden ? "Show video" : "Hide video"} />
-
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="destructive"
-                          disabled={deletingVideoId === ytid}
-                          onClick={() => handleDeleteVideo(ytid, video.title)}
-                          className="text-xs h-7 px-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 dark:bg-red-950/60 dark:hover:bg-red-900 dark:text-red-300 dark:border-red-800/60 cursor-pointer"
-                          title="Delete completely"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                      <div className="space-y-2 p-3">
+                        <div className="line-clamp-2 text-sm font-bold leading-snug" title={video.title}>{video.title}</div>
+                        <div className="truncate text-xs text-neutral-500">{video.channelTitle || "FTN"}</div>
+                        <div className="flex items-center justify-between border-t border-neutral-200 pt-2 dark:border-neutral-800">
+                          <label className="flex items-center gap-2 text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                            <AdminSwitch checked={!isHidden} onChange={() => handleToggleHideVideo(ytid)} label={isHidden ? "Show video" : "Hide video"} />
+                            {isHidden ? "Hidden" : "Shown"}
+                          </label>
+                          <span className="flex items-center gap-1">
+                            <a href={`https://www.youtube.com/watch?v=${ytid}`} target="_blank" rel="noopener noreferrer" className="p-1.5 text-neutral-500 transition hover:text-black dark:hover:text-white" title="Watch on YouTube">
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                            <button type="button" disabled={deletingVideoId === ytid} onClick={() => handleDeleteVideo(ytid, video.title)} className="cursor-pointer p-1.5 text-neutral-400 transition hover:text-red-500 disabled:opacity-50" title="Delete completely">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1978,27 +2068,139 @@ export default function SiteSettingsPage() {
                     type="button"
                     size="sm"
                     variant="outline"
-                    onClick={() => setVisibleVideoCount((prev) => prev + 25)}
+                    onClick={() => setVisibleVideoCount((prev) => prev + 24)}
                     className="text-xs h-7 px-3 border-neutral-300 text-neutral-800 hover:bg-neutral-100 dark:border-neutral-800 dark:text-neutral-200 dark:hover:text-white cursor-pointer"
                   >
-                    Load 25 More Videos
+                    Load more
                   </Button>
                 )}
               </div>
             </div>
           );
         })()}
-      </AdminSection>
+      {sectionFooter("catalog")}
+</AdminSection>
 
       {/* 6. Custom FTN+ Swimlanes (Dynamic Filter & Curated Playlist) */}
       <AdminSection title="Swimlanes" description="Custom rows of videos on the FTN+ home page.">
-        <div className="flex items-center justify-between pb-1">
-          
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-neutral-500">Use the arrows to choose which lane appears first on FTN+.</p>
+          <Button type="button" size="sm" onClick={() => setNewSwimlaneOpen(true)} className="h-10 shrink-0 cursor-pointer bg-brand px-5 text-sm font-bold text-brand-ink shadow-sm hover:bg-brand-hover">
+            New swimlane
+          </Button>
         </div>
 
-        {/* Edit Swimlane Form */}
-        {editingSwimlane ? (
-          <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-800/40 space-y-4">
+        {/* Configured Swimlanes List with Reordering */}
+        <div className="space-y-2">
+          <div className="text-sm font-semibold">Configured swimlanes ({swimlanes.length})</div>
+
+          {swimlanes.length === 0 ? (
+            <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-4 text-center text-xs text-neutral-500">
+              No custom swimlanes configured. Only the main Trending lane will be displayed.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {swimlanes.map((lane, index) => (
+                <div
+                  key={lane.id}
+                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 px-4 py-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition shadow-sm dark:shadow-none"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Reorder Buttons */}
+                    <div className="flex flex-col gap-0.5">
+                      <button
+                        type="button"
+                        disabled={index === 0}
+                        onClick={() => handleMoveSwimlane(index, "up")}
+                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                        title="Move Up"
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        disabled={index === swimlanes.length - 1}
+                        onClick={() => handleMoveSwimlane(index, "down")}
+                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
+                        title="Move Down"
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-0.5">
+                      <div className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                        <span>{lane.title}</span>
+                        {lane.type === "playlist" ? (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300 text-[9px] font-bold flex items-center gap-1">
+                            <ListVideo className="h-2.5 w-2.5" /> PLAYLIST ({lane.playlistVideos?.length || 0})
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded bg-brand/20 border border-brand text-brand-text text-[9px] font-bold flex items-center gap-1">
+                            <Sliders className="h-2.5 w-2.5" /> FILTER
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
+                        {lane.type === "playlist" ? (
+                          <span>{lane.playlistVideos?.length || 0} curated videos</span>
+                        ) : (
+                          <>
+                            {lane.channel && (
+                              <span>
+                                Channels: <strong className="text-neutral-800 dark:text-neutral-200">{lane.channel}</strong>
+                              </span>
+                            )}
+                            {lane.channel && lane.regexPattern && <span>•</span>}
+                            {lane.regexPattern && (
+                              <span>
+                                Keywords: <strong className="text-neutral-800 dark:text-neutral-200">{lane.regexPattern}</strong>
+                              </span>
+                            )}
+                          </>
+                        )}
+                        <span>•</span>
+                        <span>
+                          Sort:{" "}
+                          {lane.sortBy === "trending"
+                            ? "7-Day Trending"
+                            : lane.sortBy === "curated"
+                            ? "Curated Order"
+                            : "Most Recent"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditingSwimlane(lane)}
+                      className="text-neutral-400 hover:text-brand-text transition p-1.5 cursor-pointer"
+                      title="Edit Swimlane"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSwimlane(lane.id)}
+                      className="text-neutral-400 hover:text-red-500 transition p-1.5 cursor-pointer"
+                      title="Delete Swimlane"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {editingSwimlane && (
+          <AdminDrawer title={`Edit swimlane: ${editingSwimlane.title || "untitled"}`} wide onClose={() => setEditingSwimlane(null)}>
+
+          <div className="space-y-5">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-neutral-900 dark:text-white flex items-center gap-1.5">
                 <Edit2 className="h-3.5 w-3.5" /> Editing Swimlane: {editingSwimlane.title}
@@ -2031,7 +2233,7 @@ export default function SiteSettingsPage() {
 
             {editingSwimlane.type === "playlist" ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Input
                     value={editingSwimlane.title}
                     onChange={(e) => setEditingSwimlane({ ...editingSwimlane, title: e.target.value })}
@@ -2122,7 +2324,7 @@ export default function SiteSettingsPage() {
               </div>
             ) : (
               <form onSubmit={handleSaveEditedSwimlane} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Input
                     value={editingSwimlane.title}
                     onChange={(e) => setEditingSwimlane({ ...editingSwimlane, title: e.target.value })}
@@ -2159,10 +2361,15 @@ export default function SiteSettingsPage() {
               </form>
             )}
           </div>
-        ) : (
-          /* Add New Swimlane Form */
-          <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900/40 space-y-4">
-            <div className="flex items-center justify-between">
+
+          </AdminDrawer>
+        )}
+
+        {newSwimlaneOpen && !editingSwimlane && (
+          <AdminDrawer title="New swimlane" wide onClose={() => setNewSwimlaneOpen(false)}>
+
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-sm font-bold text-neutral-900 dark:text-white">Add New Swimlane</span>
               <AdminSegmented
                 value={newSwimlaneType}
@@ -2176,7 +2383,7 @@ export default function SiteSettingsPage() {
 
             {newSwimlaneType === "playlist" ? (
               <form onSubmit={handleAddSwimlane} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold">Playlist Title</label>
                     <Input
@@ -2285,7 +2492,7 @@ export default function SiteSettingsPage() {
             ) : (
               /* Dynamic Filter Form */
               <form onSubmit={handleAddSwimlane} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <Input
                     value={newSwimlaneTitle}
                     onChange={(e) => setNewSwimlaneTitle(e.target.value)}
@@ -2329,124 +2536,14 @@ export default function SiteSettingsPage() {
               </form>
             )}
           </div>
+
+          </AdminDrawer>
         )}
-
-        {/* Configured Swimlanes List with Reordering */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="block text-sm font-semibold">
-              Configured Swimlanes ({swimlanes.length})
-            </label>
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-              Use arrows to reorder which swimlane appears first on FTN+.
-            </p>
-          </div>
-
-          {swimlanes.length === 0 ? (
-            <div className="rounded-xl border border-neutral-200 bg-neutral-50 dark:border-neutral-900 dark:bg-neutral-900/50 p-4 text-center text-xs text-neutral-500">
-              No custom swimlanes configured. Only the main Trending lane will be displayed.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {swimlanes.map((lane, index) => (
-                <div
-                  key={lane.id}
-                  className="flex items-center justify-between rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 px-4 py-3 hover:border-neutral-300 dark:hover:border-neutral-700 transition shadow-sm dark:shadow-none"
-                >
-                  <div className="flex items-center gap-3">
-                    {/* Reorder Buttons */}
-                    <div className="flex flex-col gap-0.5">
-                      <button
-                        type="button"
-                        disabled={index === 0}
-                        onClick={() => handleMoveSwimlane(index, "up")}
-                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                        title="Move Up"
-                      >
-                        <ChevronUp className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        disabled={index === swimlanes.length - 1}
-                        onClick={() => handleMoveSwimlane(index, "down")}
-                        className="p-0.5 text-neutral-400 hover:text-black dark:hover:text-white disabled:opacity-20 disabled:cursor-not-allowed cursor-pointer"
-                        title="Move Down"
-                      >
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <div className="text-xs font-bold text-neutral-900 dark:text-white flex items-center gap-2">
-                        <span>{lane.title}</span>
-                        {lane.type === "playlist" ? (
-                          <span className="px-1.5 py-0.5 rounded bg-amber-100 border border-amber-300 text-amber-800 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300 text-[9px] font-bold flex items-center gap-1">
-                            <ListVideo className="h-2.5 w-2.5" /> PLAYLIST ({lane.playlistVideos?.length || 0})
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-blue-100 border border-blue-300 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-300 text-[9px] font-bold flex items-center gap-1">
-                            <Sliders className="h-2.5 w-2.5" /> FILTER
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 font-mono">
-                        {lane.type === "playlist" ? (
-                          <span>{lane.playlistVideos?.length || 0} curated videos</span>
-                        ) : (
-                          <>
-                            {lane.channel && (
-                              <span>
-                                Channels: <strong className="text-neutral-800 dark:text-neutral-200">{lane.channel}</strong>
-                              </span>
-                            )}
-                            {lane.channel && lane.regexPattern && <span>•</span>}
-                            {lane.regexPattern && (
-                              <span>
-                                Keywords: <strong className="text-neutral-800 dark:text-neutral-200">{lane.regexPattern}</strong>
-                              </span>
-                            )}
-                          </>
-                        )}
-                        <span>•</span>
-                        <span>
-                          Sort:{" "}
-                          {lane.sortBy === "trending"
-                            ? "7-Day Trending"
-                            : lane.sortBy === "curated"
-                            ? "Curated Order"
-                            : "Most Recent"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setEditingSwimlane(lane)}
-                      className="text-neutral-400 hover:text-brand-text transition p-1.5 cursor-pointer"
-                      title="Edit Swimlane"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSwimlane(lane.id)}
-                      className="text-neutral-400 hover:text-red-500 transition p-1.5 cursor-pointer"
-                      title="Delete Swimlane"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </AdminSection>
+      {sectionFooter("swimlanes")}
+</AdminSection>
     </div>
   )}
+      <AdminSaveBar changed={changedLabels} dirty={dirty} saving={isSavingConfig} saved={savedSuccess} onSave={handleSaveAllSettings} onDiscard={async () => { if (await confirmDialog("Throw away your unsaved changes?")) window.location.reload(); }} />
     </div>
     </AdminAuthGuard>
   );

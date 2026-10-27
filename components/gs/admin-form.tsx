@@ -63,7 +63,7 @@ export function AdminField({ label, hint, children, className }: { label: React.
 /** A single setting on one line: label and hint on the left, the control on the right. */
 export function AdminRow({ label, hint, children }: { label: React.ReactNode; hint?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-6">
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
         <div className="text-sm font-semibold">{label}</div>
         {hint && <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">{hint}</p>}
@@ -84,7 +84,7 @@ export function AdminSegmented<T extends string>({
   options: { value: T; label: React.ReactNode }[];
 }) {
   return (
-    <div role="radiogroup" className="inline-flex shrink-0 rounded-full border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
+    <div role="radiogroup" className="inline-flex max-w-full shrink-0 flex-wrap rounded-full border border-neutral-300 bg-neutral-100 p-1 dark:border-neutral-700 dark:bg-neutral-800">
       {options.map((o) => (
         <button
           key={o.value}
@@ -100,6 +100,42 @@ export function AdminSegmented<T extends string>({
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** Sticks to the bottom of the screen while a settings page has unsaved changes. */
+export function AdminSaveBar({
+  dirty,
+  changed,
+  saving,
+  saved,
+  onSave,
+  onDiscard,
+}: {
+  dirty: boolean;
+  changed?: string[];
+  saving: boolean;
+  saved: boolean;
+  onSave: (e: React.FormEvent) => void;
+  onDiscard: () => void;
+}) {
+  if (!dirty && !saving && !saved) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[150] flex justify-center px-4">
+      <div className="pointer-events-auto flex items-center gap-4 rounded-full bg-[#16110a] py-2 pl-6 pr-2 text-sm font-semibold text-[#fff8e6] shadow-2xl">
+        <span>{saving ? "Saving…" : dirty ? (changed && changed.length ? `Unsaved: ${changed.join(", ")}` : "You have unsaved changes") : "Saved"}</span>
+        {dirty && !saving && (
+          <>
+            <button type="button" onClick={onDiscard} className="cursor-pointer text-[#fff8e6]/70 hover:text-[#fff8e6]">
+              Discard
+            </button>
+            <button type="button" onClick={onSave} className="h-10 cursor-pointer rounded-full bg-brand px-5 font-bold text-brand-ink hover:bg-brand-hover">
+              Save changes
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
