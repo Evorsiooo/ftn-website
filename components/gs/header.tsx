@@ -76,7 +76,7 @@ export function GsHeader({ section }: { section?: string }) {
             className="inline-flex h-9 items-center gap-2 rounded-full bg-[#16110a] px-4 transition hover:bg-black"
           >
             {plusLive && <span aria-hidden className="h-2 w-2 flex-none animate-pulse rounded-full bg-[#ff5a4d]" />}
-            <img src="/logos/ftnplus_textwhite_transparent.png" alt="FTN+" className="h-3.5 w-auto object-contain" />
+            <img src="/logos/ftnplus_textwhite_transparent.png" alt="FTN+" className="h-4 w-auto object-contain" />
           </Link>
           <AuthButton />
         </div>
