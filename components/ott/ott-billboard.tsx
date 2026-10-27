@@ -22,9 +22,15 @@ export interface BillboardItem {
  * Full-bleed hero. The headline sits on the image; the one line above it is plain text,
  * not chips ("Watch live" already says it is live). `aside` is an optional right-hand slot on wide screens.
  */
-export function OTTBillboard({ item, aside }: { item: BillboardItem; aside?: React.ReactNode }) {
+export function OTTBillboard({ item, aside, compact }: { item: BillboardItem; aside?: React.ReactNode; compact?: boolean }) {
+  const cta = (
+    <Button href={item.href ?? `/plus/watch/${item.id}`} size="lg">
+      <IconPlayerPlay className="h-5 w-5 fill-current" />
+      {item.ctaLabel ?? (item.isLive ? "Watch live" : "Watch now")}
+    </Button>
+  );
   return (
-    <div className="relative w-full h-[78vh] min-h-[540px] max-h-[760px] overflow-hidden select-none text-white">
+    <div className={cn("relative w-full overflow-hidden select-none text-white", compact ? "h-[58vh] min-h-[440px] max-h-[560px]" : "h-[78vh] min-h-[540px] max-h-[760px]")}>
       <img
         src={item.backdropUrl}
         alt=""
@@ -36,18 +42,14 @@ export function OTTBillboard({ item, aside }: { item: BillboardItem; aside?: Rea
       <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/25 to-transparent w-full md:w-3/4" />
       <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-ftn-bg to-transparent" />
 
-      <div className={cn("relative z-10 h-full flex items-end justify-between gap-10 pb-28 md:pb-24", GUTTER)}>
+      <div className={cn("relative z-10 h-full flex items-end justify-between gap-10", compact ? "pb-20 md:pb-16" : "pb-28 md:pb-24", compact && "flex-col items-start md:flex-row md:items-end", GUTTER)}>
         <div className="max-w-3xl space-y-4">
           <p className="text-sm font-semibold text-white/80">{item.kicker ?? item.category}</p>
           <h1 className="ftn-display text-4xl sm:text-6xl md:text-7xl line-clamp-3 pb-1 [text-wrap:balance]">{item.title}</h1>
-          {item.description && <p className="text-sm sm:text-lg text-white/85 line-clamp-3 leading-relaxed max-w-2xl">{item.description}</p>}
-          <div className="pt-3">
-            <Button href={item.href ?? `/plus/watch/${item.id}`} size="lg">
-              <IconPlayerPlay className="h-5 w-5 fill-current" />
-              {item.ctaLabel ?? (item.isLive ? "Watch live" : "Watch now")}
-            </Button>
-          </div>
+          {!compact && item.description && <p className="text-sm sm:text-lg text-white/85 line-clamp-3 leading-relaxed max-w-2xl">{item.description}</p>}
+          {!compact && <div className="pt-3">{cta}</div>}
         </div>
+        {compact && <div className="flex-shrink-0">{cta}</div>}
         {aside && <div className="hidden lg:flex flex-col gap-3 w-[22rem] flex-shrink-0">{aside}</div>}
       </div>
     </div>

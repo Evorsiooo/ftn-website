@@ -4,9 +4,9 @@ import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { GUTTER } from "./ui";
 
-/** Root of every FTN+ page: surface, enter animation, bottom space. */
+/** Root of every FTN+ page: surface and bottom space. The enter animation lives in the shell's PageTransition. */
 export function PageShell({ className, children }: { className?: string; children?: React.ReactNode }) {
-  return <div className={cn("ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text pb-32 md:pb-20", className)}>{children}</div>;
+  return <div className={cn("min-h-screen bg-ftn-bg text-ftn-text pb-32 md:pb-20", className)}>{children}</div>;
 }
 
 /** Standard page opening: display title, subtitle, actions. Clears the floating nav. */

@@ -46,13 +46,27 @@ function ExitLink({ className }: { className?: string }) {
   );
 }
 
+/** The FTN+ wordmark: white on the dark theme, navy on the light one. */
+export function FtnLogo({ theme, className }: { theme: "dark" | "light"; className?: string }) {
+  return (
+    <img
+      src={theme === "dark" ? "/logos/ftnplus_textwhite_transparent.png" : "/logos/ftnplus_text_transparent.png"}
+      alt="FTN+"
+      width={856}
+      height={453}
+      className={cn("h-9 w-auto select-none", className)}
+      draggable={false}
+    />
+  );
+}
+
 /** Floating pill at the top on desktop, icon dock at the bottom on phones. */
 export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; theme: "dark" | "light"; onToggleTheme: () => void }) {
   return (
     <>
       <nav aria-label="FTN+" className={cn("fixed top-5 left-1/2 -translate-x-1/2 z-40 hidden md:flex items-center gap-1 rounded-full p-1.5", glass)}>
-        <Link href="/plus" className={cn("pl-4 pr-3 ftn-display text-xl text-ftn-text rounded-full", focus)} aria-label="FTN+ home">
-          ftn<span className="text-brand-text">+</span>
+        <Link href="/plus" className={cn("pl-4 pr-3 inline-flex items-center rounded-full", focus)} aria-label="FTN+ home">
+          <FtnLogo theme={theme} />
         </Link>
         {links.map((l) => {
           const cls = cn(
@@ -73,6 +87,15 @@ export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; them
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <ExitLink />
       </nav>
+
+      <Link
+        href="/plus"
+        aria-label="FTN+ home"
+        className={cn("fixed left-3 z-40 flex md:hidden h-12 items-center rounded-full px-4", glass, focus)}
+        style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}
+      >
+        <FtnLogo theme={theme} className="h-6" />
+      </Link>
 
       <div className={cn("fixed top-3 right-3 z-40 flex md:hidden rounded-full p-1", glass)} style={{ top: "max(0.75rem, env(safe-area-inset-top))" }}>
         <ThemeToggle theme={theme} onToggle={onToggleTheme} />

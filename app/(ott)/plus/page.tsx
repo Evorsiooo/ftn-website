@@ -7,10 +7,11 @@ import { PageShell } from "@/components/ftn/page";
 import { Button, EmptyState, GUTTER } from "@/components/ftn/ui";
 import { Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { ContinueWatching } from "@/components/ftn/continue-watching";
-import { HomeSports } from "@/components/ftn/home-sports";
+import { HomeSports, SportsGlass, useSportsHighlights } from "@/components/ftn/home-sports";
 import { OnAirGlass, OnAirStrip } from "@/components/ftn/on-air-strip";
 import { useSchedule, type ScheduleEntry } from "@/components/ftn/use-schedule";
 import { useFTNPlus } from "@/lib/ftnplus-context";
+import { useSportsData } from "@/lib/use-sports-data";
 import { hhmm, localZone } from "@/lib/schedule-client";
 
 const FALLBACK_BACKDROP = "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1600&auto=format&fit=crop&q=80";
@@ -41,6 +42,8 @@ function entryHref(e: ScheduleEntry) {
 export default function FTNPlusHomePage() {
   const { featuredVideo, allVideos, loadingLibrary, error, refreshLibrary } = useFTNPlus();
   const { live, upcoming, loaded: scheduleLoaded, now } = useSchedule();
+  const { data: sports, loading: sportsLoading } = useSportsData();
+  const { next: nextSports } = useSportsHighlights(sports);
 
   const next = upcoming[0];
   const featuredBackdrop = featuredVideo?.thumbnailUrl || FALLBACK_BACKDROP;
@@ -78,7 +81,7 @@ export default function FTNPlusHomePage() {
   }
 
   const comingUp = upcoming.slice(0, 4);
-  const latest = allVideos.slice(0, 12).map((v: any) => ({
+  const latest = allVideos.slice(0, 8).map((v: any) => ({
     id: v.youtubeId || v.id,
     title: v.title,
     category: v.channelTitle || "FTN+",
@@ -98,7 +101,12 @@ export default function FTNPlusHomePage() {
   return (
     <PageShell>
       {billboardItem ? (
-        <OTTBillboard item={billboardItem} aside={<OnAirGlass live={onAir} now={now} />} />
+        <OTTBillboard item={billboardItem} aside={
+            <>
+              <OnAirGlass live={onAir} now={now} max={nextSports ? 1 : 2} />
+              <SportsGlass data={sports} />
+            </>
+          } />
       ) : !loadingHero ? (
         <div className={`pt-32 pb-10 ${GUTTER}`}>
           <EmptyState
@@ -120,7 +128,7 @@ export default function FTNPlusHomePage() {
         <OnAirStrip live={onAir} now={now} className={billboardItem ? "lg:hidden" : undefined} />
 
         {comingUp.length > 0 && (
-          <Lane title="Coming up" sub={localZone()} href="/plus/schedule" hrefLabel="Full schedule">
+          <Lane title="Coming up" sub={localZone()} href="/plus/schedule" hrefLabel="Full schedule" cols={4}>
             {comingUp.map((e) => {
               const start = new Date(e.start);
               return (
@@ -147,7 +155,7 @@ export default function FTNPlusHomePage() {
 
         <ContinueWatching />
 
-        <HomeSports />
+        <HomeSports data={sports} loading={sportsLoading} />
 
         {loadingLibrary && <LaneSkeleton />}
 

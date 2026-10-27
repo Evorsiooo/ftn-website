@@ -43,11 +43,11 @@ function OnAirCard({ e, now, glass }: { e: ScheduleEntry; now: number; glass?: b
 }
 
 /** What is on air now, as glass cards inside the hero (wide screens). Renders nothing when nothing is live. */
-export function OnAirGlass({ live, now }: { live: ScheduleEntry[]; now: number }) {
+export function OnAirGlass({ live, now, max = 2 }: { live: ScheduleEntry[]; now: number; max?: number }) {
   if (live.length === 0) return null;
   return (
     <>
-      {live.slice(0, 2).map((e) => (
+      {live.slice(0, max).map((e) => (
         <OnAirCard key={e.id} e={e} now={now} glass />
       ))}
     </>

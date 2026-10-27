@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { SportsBroadcast, SportsData, SportsDriver, SportsEvent, SportsLeague, SportsTeam, SportsVenue } from "@/lib/use-sports-data";
-import { parseRaceResults } from "@/lib/sports";
+import { computeRacingStandings, computeTeamStandings, parseRaceResults, parseRules, type RacingRules, type TeamRules } from "@/lib/sports";
 import { ArtTile } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
 
@@ -143,20 +143,69 @@ export function LeagueMark({ league, size = 40 }: { league: SportsLeague; size?:
 }
 
 // ------------------------------------------------------------- shared cards
-// ResultCard and SlotCard are the hub's cards; Home's Sports lane uses the shared MediaCard instead.
+// Every sports card is a tile: artwork fills it, text sits on a scrim. The art is the venue photo, then the
+// league banner; a league-colour gradient is the last fallback.
 
-/** A finished event: scoreboard for matches, top three for races. A dark league-colour tile in both themes. */
+/** Art for an event: its venue photo, else the league banner. */
+export const eventArt = (e: SportsEvent, venues: Map<string, SportsVenue>, league?: SportsLeague) =>
+  eventPhoto(e, venues) ?? league?.bannerUrl ?? null;
+
+/** Artwork tile. `eyebrow` is plain small text top-left; `children` sit at the bottom. */
+export function SportsTile({
+  href,
+  art,
+  color,
+  eyebrow,
+  children,
+  className,
+}: {
+  href: string;
+  art?: string | null;
+  color?: string | null;
+  eyebrow?: React.ReactNode;
+  children?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "group relative isolate flex flex-col justify-between gap-6 overflow-hidden rounded-3xl p-5 text-white ftn-shadow focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand",
+        className
+      )}
+    >
+      <div className="absolute inset-0 -z-10">
+        {art ? (
+          <img src={art} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]" />
+        ) : (
+          <div className="h-full w-full" style={{ backgroundImage: `linear-gradient(145deg, ${color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 92%)` }} />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-black/35" />
+      </div>
+      {eyebrow ? (
+        <div className="text-[length:var(--text-eyebrow)] font-bold uppercase tracking-wider text-white/80 drop-shadow-[0_1px_6px_rgb(0_0_0/0.6)]">{eyebrow}</div>
+      ) : (
+        <span />
+      )}
+      <div className="space-y-1">{children}</div>
+    </Link>
+  );
+}
+
+/** A finished event: scoreboard for matches, top three for races. */
 export function ResultCard({
   event,
   league,
   teams,
   drivers,
+  art,
   className,
 }: {
   event: SportsEvent;
   league?: SportsLeague;
   teams: Map<string, SportsTeam>;
   drivers: Map<string, SportsDriver>;
+  art?: string | null;
   className?: string;
 }) {
   const match = isMatch(event);
@@ -168,24 +217,20 @@ export function ResultCard({
         .slice(0, 3);
   const label = match ? (event.overtime ? "Final · OT" : "Final") : event.round ? `Round ${event.round}` : "Final";
   return (
-    <Link
+    <SportsTile
       href={league ? `/plus/sports/${league.slug}?tab=results` : "/plus/sports"}
-      style={{ backgroundImage: `linear-gradient(145deg, ${league?.color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 92%)` }}
-      className={cn("flex min-h-52 flex-col justify-between rounded-3xl p-5 text-white ftn-shadow transition hover:-translate-y-0.5", className)}
+      art={art}
+      color={league?.color}
+      eyebrow={`${league?.name ?? ""} · ${label}`}
+      className={cn("min-h-64", className)}
     >
-      <div className="flex items-center gap-2">
-        {league && <LeagueMark league={league} size={22} />}
-        <div className="text-xs font-semibold text-white/80 truncate">
-          {league?.name} · {label}
-        </div>
-      </div>
       {match ? (
         <div className="space-y-1.5">
           {[
             { id: event.homeTeamId!, score: event.homeScore ?? 0, other: event.awayScore ?? 0 },
             { id: event.awayTeamId!, score: event.awayScore ?? 0, other: event.homeScore ?? 0 },
           ].map((side) => (
-            <div key={side.id} className={cn("flex items-center justify-between ftn-title text-lg", side.score > side.other ? "text-white" : "text-white/55")}>
+            <div key={side.id} className={cn("flex items-center justify-between ftn-title text-lg", side.score > side.other ? "text-white" : "text-white/60")}>
               <span className="flex items-center gap-2 min-w-0">
                 <TeamMark team={teams.get(side.id)} size={24} />
                 <span className="truncate">{teams.get(side.id)?.name ?? "TBD"}</span>
@@ -195,18 +240,18 @@ export function ResultCard({
           ))}
         </div>
       ) : (
-        <div className="space-y-2">
+        <>
           <div className="ftn-display text-2xl leading-tight [text-wrap:balance]">{event.name || "Race"}</div>
-          <ol className="text-sm text-white/75 space-y-0.5">
+          <ol className="text-sm text-white/80 space-y-0.5">
             {top.map((r) => (
               <li key={r.driverId} className="truncate">
                 {r.position} {drivers.get(r.driverId)?.name ?? "Unknown"}
               </li>
             ))}
           </ol>
-        </div>
+        </>
       )}
-    </Link>
+    </SportsTile>
   );
 }
 
@@ -215,43 +260,136 @@ export function SlotCard({
   event,
   league,
   teams,
+  art,
   tag,
+  className,
 }: {
   event: SportsEvent;
   league?: SportsLeague;
   teams: Map<string, SportsTeam>;
+  art?: string | null;
   tag?: string | null;
+  className?: string;
 }) {
   return (
-    <Link
+    <SportsTile
       href={league ? `/plus/sports/${league.slug}?tab=calendar` : "/plus/sports"}
-      className="grid gap-2 rounded-3xl border border-ftn-line bg-ftn-surface p-5 ftn-shadow transition hover:-translate-y-0.5"
+      art={art}
+      color={league?.color}
+      eyebrow={league?.name}
+      className={cn("min-h-56", className)}
     >
-      <span className="ftn-display text-xl">
-        {fmtDay(event.startsAt)} <span className="text-ftn-text-2">{fmtTime(event.startsAt)}</span>
-      </span>
-      <h3 className="text-base font-semibold leading-snug">{roundTitle(event, teams)}</h3>
-      <div className="flex items-center gap-2 text-xs text-ftn-text-3">
-        {league && <LeagueMark league={league} size={18} />}
-        <span className="truncate">{[league?.name, tag].filter(Boolean).join(" · ")}</span>
-      </div>
-    </Link>
+      <div className="ftn-display text-2xl">{fmtTime(event.startsAt)}</div>
+      <h3 className="text-base font-bold leading-snug">{roundTitle(event, teams)}</h3>
+      <div className="text-xs text-white/75">{[fmtDay(event.startsAt), tag].filter(Boolean).join(" · ")}</div>
+    </SportsTile>
   );
 }
 
-export function LeagueCard({ league, meta }: { league: SportsLeague; meta: string }) {
+export function LeagueCard({ league, meta, className }: { league: SportsLeague; meta: string; className?: string }) {
   return (
-    <Link
-      href={`/plus/sports/${league.slug}`}
-      style={{ backgroundImage: `linear-gradient(145deg, ${league.color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 92%)` }}
-      className="flex min-h-44 flex-col justify-between rounded-3xl p-5 text-white ftn-shadow transition hover:-translate-y-0.5"
-    >
-      <LeagueMark league={league} size={44} />
-      <div>
-        <div className="ftn-title text-lg leading-snug">{league.name}</div>
-        <div className="text-xs text-white/70 pt-1">{meta}</div>
+    <SportsTile href={`/plus/sports/${league.slug}`} art={league.bannerUrl} color={league.color} className={cn("min-h-52", className)}>
+      <div className="pb-3">
+        <LeagueMark league={league} size={44} />
       </div>
-    </Link>
+      <div className="ftn-title text-lg leading-snug">{league.name}</div>
+      <div className="text-xs text-white/75">{meta}</div>
+    </SportsTile>
+  );
+}
+
+/** Top of a league's table, for the hub: drivers for a racing series, teams for a match league. */
+export function StandingsPreview({
+  league,
+  data,
+  teams,
+  drivers,
+  limit = 5,
+}: {
+  league: SportsLeague;
+  data: SportsData;
+  teams: Map<string, SportsTeam>;
+  drivers: Map<string, SportsDriver>;
+  limit?: number;
+}) {
+  const rows = useMemo(() => {
+    const finals = data.events.filter((e) => e.leagueId === league.id && e.status === "final");
+    const leagueTeams = data.teams.filter((t) => t.leagueId === league.id);
+    const rules = parseRules(league.kind, league.rulesJson);
+    if (league.kind === "racing") {
+      const table = computeRacingStandings(
+        data.drivers.filter((d) => d.leagueId === league.id),
+        leagueTeams.map((t) => t.id),
+        finals,
+        rules as RacingRules,
+        league.scoring
+      );
+      const points = league.scoring === "points";
+      return {
+        head: ["Driver", "Team", "Wins", points ? "Pts" : "Podiums"],
+        body: table.drivers.slice(0, limit).map((r) => ({
+          key: r.driverId,
+          cells: [
+            <span key="n" className="font-semibold text-ftn-text">{drivers.get(r.driverId)?.name ?? "Unknown"}</span>,
+            <span key="t" className="text-ftn-text-2">{(r.teamId && teams.get(r.teamId)?.name) || ""}</span>,
+            r.wins,
+            points ? r.points : r.podiums,
+          ],
+        })),
+      };
+    }
+    const table = computeTeamStandings(leagueTeams.map((t) => t.id), finals, rules as TeamRules);
+    return {
+      head: ["Team", "", "P", "Pts"],
+      body: table.slice(0, limit).map((r) => ({
+        key: r.teamId,
+        cells: [
+          <span key="n" className="flex items-center gap-2 font-semibold text-ftn-text">
+            <TeamMark team={teams.get(r.teamId)} size={22} />
+            {teams.get(r.teamId)?.name ?? "Unknown"}
+          </span>,
+          "",
+          r.played,
+          r.points,
+        ],
+      })),
+    };
+  }, [league, data, teams, drivers, limit]);
+
+  if (rows.body.length === 0) return null;
+  return (
+    <div className="rounded-3xl border border-ftn-line bg-ftn-surface ftn-shadow p-5 sm:p-6">
+      <div className="flex items-baseline justify-between gap-3 pb-2">
+        <h3 className="ftn-title text-xl">Standings</h3>
+        <Link href={`/plus/sports/${league.slug}?tab=standings`} className="text-sm font-semibold text-ftn-text-2 hover:text-ftn-text transition truncate">
+          {league.name}
+        </Link>
+      </div>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-[length:var(--text-eyebrow)] uppercase tracking-wider text-ftn-text-3">
+            <th className="py-2 pr-2 font-semibold w-8">#</th>
+            {rows.head.map((h, i) => (
+              <th key={i} className={cn("py-2 font-semibold", i === 1 && "hidden sm:table-cell", i >= 2 && "text-right w-16")}>
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.body.map((r, i) => (
+            <tr key={r.key} className="border-t border-ftn-line">
+              <td className="py-3 pr-2 ftn-display text-ftn-text-2">{i + 1}</td>
+              {r.cells.map((c, j) => (
+                <td key={j} className={cn("py-3", j === 1 && "hidden sm:table-cell", j >= 2 && "text-right ftn-mono text-ftn-text-2")}>
+                  {c}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
