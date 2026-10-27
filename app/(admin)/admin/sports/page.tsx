@@ -945,7 +945,7 @@ function Overview({ league, data, onEnterResult, onTab }: { league: SportsLeague
   return (
     <div className="space-y-6">
       <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className={`${card} ${needsResult.length ? "border-[#16110a] bg-[#16110a] text-[#fff8e6] dark:border-black dark:bg-black" : ""}`}>
+        <div className={needsResult.length ? "rounded-2xl border border-[#16110a] bg-[#16110a] p-6 text-[#fff8e6] dark:border-brand/60 dark:bg-black" : card}>
           <div className={needsResult.length ? "text-xs font-bold uppercase tracking-widest text-[#fff8e6]/70" : kicker}>Needs a result</div>
           {needsResult.length === 0 ? (
             <p className="mt-3 text-sm text-neutral-600 dark:text-neutral-400">Every finished {racing ? "race" : "match"} has its result entered.</p>
@@ -1005,6 +1005,12 @@ function Overview({ league, data, onEnterResult, onTab }: { league: SportsLeague
           <button type="button" onClick={() => onTab("events")} className="mt-3 cursor-pointer text-sm font-bold underline">Schedule</button>
         </div>
       </div>
+
+      {finals.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-neutral-300 p-6 text-sm text-neutral-500 dark:border-neutral-700">
+          Standings and latest results appear here after the first {racing ? "race" : "match"} result is entered.
+        </div>
+      )}
 
       {finals.length > 0 && standings.length > 0 && (
         <div className={card}>

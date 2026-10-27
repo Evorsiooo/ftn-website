@@ -379,7 +379,7 @@ export default function AdminPostsPage() {
       <div className="mx-auto w-full max-w-[1600px] space-y-6 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Posts"
-          description="Queue on the left, canvas in the middle, details on the right. Approve or deny from the post itself."
+          description="Every post with its preview and details. Approve or deny from the post itself."
           actions={
             <Button size="sm" onClick={() => resetForm()} className="h-10 cursor-pointer px-5 text-sm">New post</Button>
           }
