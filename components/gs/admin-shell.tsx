@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { fetchSession } from "@/lib/session-client";
 import { fetchAdminSummary, type AdminSummary } from "@/lib/admin-summary";
-import { ADMIN_MODULES, GROUP_ORDER, SETTINGS_PAGES, type AdminBadge } from "./admin-nav";
+import { ADMIN_MODULES, GROUP_ORDER, SETTINGS_PAGES, SETTINGS_SECTIONS, type AdminBadge } from "./admin-nav";
 import { cn } from "@/lib/utils";
 
 function badgeCount(summary: AdminSummary | null, key?: AdminBadge): number {
@@ -135,10 +135,53 @@ function JumpBar({ modules, onClose }: { modules: typeof ADMIN_MODULES; onClose:
       { title: "Today", hint: "What needs you now", href: "/admin" },
       ...modules.map((m) => ({ title: m.title, hint: m.description, href: m.href })),
       ...(modules.some((m) => m.href === "/admin/settings") ? SETTINGS_PAGES.filter((s) => s.href !== "/admin/settings").map((s) => ({ title: `Settings: ${s.title}`, hint: s.description, href: s.href })) : []),
+      ...(modules.some((m) => m.href === "/admin/settings") ? SETTINGS_SECTIONS.map((s) => ({ title: `Setting: ${s.title}`, hint: "Opens its settings page", href: s.href })) : []),
     ],
     [modules]
   );
-  const results = entries.filter((e) => `${e.title} ${e.hint}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const needle = q.trim().toLowerCase();
+  const pageResults = entries.filter((e) => `${e.title} ${e.hint}`.toLowerCase().includes(needle));
+
+  // Stories and people are looked up as you type, for the roles you can open.
+  const canStories = modules.some((m) => m.href === "/admin/articles");
+  const canPeople = modules.some((m) => m.href === "/admin/roles");
+  const [stories, setStories] = useState<{ title: string; slug: string; status: string }[] | null>(null);
+  const canShows = modules.some((m) => m.href === "/admin/radio");
+  const [shows, setShows] = useState<{ title: string; hint: string; href: string }[] | null>(null);
+  useEffect(() => {
+    if (!canShows || needle.length < 2 || shows) return;
+    fetch("/api/admin/broadcasts")
+      .then((r) => r.json() as Promise<{ shows?: any[] }>)
+      .then((d) => setShows((d.shows ?? []).map((sh) => ({ title: sh.name, hint: `Show${sh.presenter ? ` · ${sh.presenter}` : ""}`, href: "/admin/radio" }))))
+      .catch(() => setShows([]));
+  }, [canShows, needle, shows]);
+  const [people, setPeople] = useState<{ title: string; hint: string; href: string }[]>([]);
+
+  useEffect(() => {
+    if (!canStories || needle.length < 2 || stories) return;
+    fetch("/api/articles?admin=true")
+      .then((r) => r.json() as Promise<{ articles?: any[] }>)
+      .then((d) => setStories((d.articles ?? []).map((a) => ({ title: a.title, slug: a.slug, status: a.status }))))
+      .catch(() => setStories([]));
+  }, [canStories, needle, stories]);
+
+  useEffect(() => {
+    if (!canPeople || needle.length < 2) {
+      setPeople([]);
+      return;
+    }
+    const t = setTimeout(() => {
+      fetch(`/api/admin/users?search=${encodeURIComponent(needle)}`)
+        .then((r) => r.json() as Promise<{ users?: any[] }>)
+        .then((d) => setPeople((d.users ?? []).slice(0, 5).map((u) => ({ title: u.displayName || u.robloxUsername, hint: `@${u.robloxUsername} · staff roles`, href: `/admin/roles?q=${encodeURIComponent(u.robloxUsername)}` }))))
+        .catch(() => setPeople([]));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [canPeople, needle]);
+
+  const storyResults = needle.length < 2 ? [] : (stories ?? []).filter((a) => a.title.toLowerCase().includes(needle)).slice(0, 5).map((a) => ({ title: a.title, hint: `Story · ${a.status}`, href: `/admin/articles?edit=${encodeURIComponent(a.slug)}` }));
+  const showResults = needle.length < 2 ? [] : (shows ?? []).filter((x) => `${x.title} ${x.hint}`.toLowerCase().includes(needle)).slice(0, 5);
+  const results = [...pageResults, ...storyResults, ...showResults, ...people];
 
   useEffect(() => inputRef.current?.focus(), []);
 
@@ -175,13 +218,13 @@ function JumpBar({ modules, onClose }: { modules: typeof ADMIN_MODULES; onClose:
             setQ(e.target.value);
             setIndex(0);
           }}
-          placeholder="Jump to a page or setting"
+          placeholder="Jump to a page, setting, story or person"
           className="h-14 w-full bg-transparent px-5 text-base font-semibold outline-none"
         />
         <ul className="max-h-80 divide-y divide-neutral-200 overflow-y-auto border-t border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
           {results.length === 0 && <li className="px-5 py-4 text-sm text-neutral-500">Nothing matches.</li>}
           {results.map((r, i) => (
-            <li key={r.href}>
+            <li key={r.href + r.title}>
               <button
                 type="button"
                 onClick={() => go(r.href)}

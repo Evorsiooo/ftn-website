@@ -41,4 +41,24 @@ export const SETTINGS_PAGES = [
   { title: "FTN+ network", href: "/admin/settings/plus", description: "YouTube channels, video catalog, swimlanes" },
 ] as const;
 
+/** Every settings section, so the jump bar can find a setting by name and open its page. */
+export const SETTINGS_SECTIONS = [
+  { title: "Donation banner", href: "/admin/settings" },
+  { title: "Links (Discord and footer)", href: "/admin/settings" },
+  { title: "Webradio stream", href: "/admin/settings/radio" },
+  { title: "Station & Discord bot", href: "/admin/settings/radio" },
+  { title: "Icecast", href: "/admin/settings/connections" },
+  { title: "Password rotation", href: "/admin/settings/connections" },
+  { title: "Album art keys", href: "/admin/settings/connections" },
+  { title: "Sign-in method", href: "/admin/settings/access" },
+  { title: "Access gates (FTN+ and tipline)", href: "/admin/settings/access" },
+  { title: "Staff accounts and passwords", href: "/admin/settings/access" },
+  { title: "Mute a user", href: "/admin/settings/moderation" },
+  { title: "Auto-moderation", href: "/admin/settings/moderation" },
+  { title: "Profanity filter", href: "/admin/settings/moderation" },
+  { title: "YouTube channels", href: "/admin/settings/plus" },
+  { title: "Video catalog", href: "/admin/settings/plus" },
+  { title: "Swimlanes", href: "/admin/settings/plus" },
+] as const;
+
 export const GROUP_ORDER = ["Newsroom", "Broadcast", "Sports", "Revenue", "Site"];

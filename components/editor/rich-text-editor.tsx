@@ -51,6 +51,13 @@ export function RichTextEditor({
   onCancel,
 }: RichTextEditorProps) {
   const [title, setTitle] = useState(initialArticle?.title || "");
+  // Empty means "use the opening of the story". A summary that differs from that opening was written by hand.
+  const autoOf = (html: string) => {
+    const text = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+    return text.slice(0, 220).trim() + (text.length > 220 ? "..." : "");
+  };
+  const customSummary = (a?: ArticleData | null) => (a?.summary && a.summary !== autoOf(a.content || "") ? a.summary : "");
+  const [summaryInput, setSummaryInput] = useState(customSummary(initialArticle));
   const [category, setCategory] = useState<ArticleData["category"]>(
     initialArticle?.category || "news"
   );
@@ -118,6 +125,7 @@ export function RichTextEditor({
       if (initialArticle) {
         setTitle(initialArticle.title);
         setCategory(initialArticle.category);
+        setSummaryInput(customSummary(initialArticle));
         setCoverImageUrl(initialArticle.coverImageUrl || "");
         editor.commands.setContent(initialArticle.content || "");
       }
@@ -226,7 +234,7 @@ export function RichTextEditor({
         slug: initialArticle?.slug,
         title: title.trim(),
         content: htmlContent,
-        summary: autoSummary,
+        summary: summaryInput.trim() || autoSummary,
         category,
         coverImageUrl: coverImageUrl.trim() || undefined,
         status,
@@ -444,19 +452,6 @@ export function RichTextEditor({
       </div>
       {/* Action Buttons */}
       <div className="space-y-3">
-        <div>
-          {onCancel && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-              className="border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 text-xs cursor-pointer"
-            >
-              Cancel
-            </Button>
-          )}
-        </div>
-
         <div className="flex flex-col gap-2 [&>button]:w-full">
           <Button
             type="button"
@@ -492,6 +487,16 @@ export function RichTextEditor({
       </div>
       {/* Category & Cover Image */}
       <div className="grid grid-cols-1 gap-5">
+        <div className="space-y-1.5">
+          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Summary</label>
+          <textarea
+            value={summaryInput}
+            onChange={(e) => setSummaryInput(e.target.value.slice(0, 300))}
+            rows={3}
+            placeholder="Leave empty to use the opening of the story"
+            className="w-full rounded-2xl border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-800 dark:bg-neutral-900 dark:text-white"
+          />
+        </div>
         <div className="space-y-1.5">
           <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
             Category

@@ -22,6 +22,8 @@ export default function AdminRolesConsole() {
   const [usersList, setUsersList] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [bulkRole, setBulkRole] = useState(ALL_ROLES[2].id);
   const [log, setLog] = useState<{ at: Date; text: string }[]>([]);
 
   const fetchStaffUsers = (query: string = "") => {
@@ -42,7 +44,9 @@ export default function AdminRolesConsole() {
   };
 
   useEffect(() => {
-    fetchStaffUsers();
+    const q = new URLSearchParams(window.location.search).get("q") || "";
+    setSearchQuery(q);
+    fetchStaffUsers(q);
   }, []);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -90,6 +94,13 @@ export default function AdminRolesConsole() {
   };
 
   const shown = usersList;
+  const togglePick = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const bulk = async (give: boolean) => {
+    for (const u of usersList.filter((x) => picked.includes(x.id))) {
+      const has = u.roles.includes(bulkRole);
+      if (give !== has && !lockedFor(u, bulkRole)) await toggleRole(u.id, bulkRole, has);
+    }
+  };
   const counts = ALL_ROLES.map((r) => usersList.filter((u) => u.roles.includes(r.id)).length);
   const lockedFor = (u: any, roleId: string) => u.robloxUsername?.toLowerCase() === "alphaze1" && roleId === "site_admin";
 
@@ -121,6 +132,18 @@ export default function AdminRolesConsole() {
           </div>
         ) : (
           <>
+            {picked.length > 0 && (
+              <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#16110a] p-3 pl-5 text-sm font-semibold text-[#fff8e6]">
+                <span>{picked.length} selected</span>
+                <select value={bulkRole} onChange={(e) => setBulkRole(e.target.value)} className="h-9 rounded-full bg-[#fff8e6] px-3 text-sm text-[#16110a]">
+                  {ALL_ROLES.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+                <Button size="sm" onClick={() => bulk(true)} className="cursor-pointer bg-brand font-bold text-brand-ink hover:bg-brand-hover">Give role</Button>
+                <Button size="sm" variant="outline" onClick={() => bulk(false)} className="cursor-pointer border-[#fff8e6]/40 bg-transparent text-[#fff8e6] hover:bg-white/10">Remove role</Button>
+                <button type="button" onClick={() => setPicked([])} className="ml-auto cursor-pointer pr-3 text-[#fff8e6]/70 hover:text-[#fff8e6]">Clear</button>
+              </div>
+            )}
+
             {/* Matrix on wide screens */}
             <div className="hidden overflow-x-auto rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 lg:block">
               <table className="w-full text-sm">
@@ -140,6 +163,7 @@ export default function AdminRolesConsole() {
                     <tr key={staff.id}>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
+                          <input type="checkbox" checked={picked.includes(staff.id)} onChange={() => togglePick(staff.id)} aria-label={`Select ${staff.displayName}`} className="h-4 w-4 cursor-pointer accent-[#FFBB14]" />
                           <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-200 text-xs font-bold dark:bg-neutral-800">
                             {staff.avatarUrl ? <img src={staff.avatarUrl} alt="" className="h-full w-full object-cover" /> : staff.displayName.slice(0, 2).toUpperCase()}
                           </span>
@@ -181,6 +205,10 @@ export default function AdminRolesConsole() {
             <ul className="divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:divide-neutral-800 dark:border-neutral-800 dark:bg-neutral-900 lg:hidden">
               {shown.map((staff) => (
                 <li key={staff.id} className="space-y-3 p-4">
+                  <label className="flex items-center gap-3">
+                    <input type="checkbox" checked={picked.includes(staff.id)} onChange={() => togglePick(staff.id)} className="h-4 w-4 accent-[#FFBB14]" />
+                    <span className="text-xs text-neutral-500">Select for bulk change</span>
+                  </label>
                   <div>
                     <div className="font-bold">{staff.displayName}</div>
                     <div className="text-xs text-neutral-500">@{staff.robloxUsername}</div>

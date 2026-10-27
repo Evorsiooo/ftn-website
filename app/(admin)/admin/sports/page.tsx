@@ -1,5 +1,5 @@
 "use client";
-import { toast, confirmDialog } from "@/components/gs/dialogs";
+import { toast, confirmDialog, promptDialog } from "@/components/gs/dialogs";
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { AdminRow, AdminSwitch } from "@/components/gs/admin-form";
@@ -13,7 +13,7 @@ import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManageSports } from "@/lib/rbac";
 import { useSportsData, type SportsArticle, type SportsDriver, type SportsEvent, type SportsLeague, type SportsVenue } from "@/lib/use-sports-data";
 import { broadcastLabel } from "@/components/sports/sports-ui";
-import { parseRaceResults, parseRules, type RacingRules, type RaceResultEntry, type TeamRules } from "@/lib/sports";
+import { computeRacingStandings, computeTeamStandings, parseRaceResults, parseRules, type RacingRules, type RaceResultEntry, type TeamRules } from "@/lib/sports";
 import { formatDateTime } from "@/lib/utils";
 
 type Tab = "overview" | "events" | "roster" | "leagues" | "venues";
@@ -34,6 +34,16 @@ function SectionHead({ title, count, action }: { title: string; count?: number; 
       {action}
     </div>
   );
+}
+
+/** Adds a venue from a prompt and hands back its id, so a form can pick it straight away. */
+async function quickVenue(run: (fn: () => Promise<unknown>) => Promise<boolean>, pick: (id: string) => void) {
+  const name = ((await promptDialog("Name of the new venue:")) || "").trim();
+  if (!name) return;
+  await run(async () => {
+    const json = (await api("POST", "venues", { name })) as { item?: { id?: string } };
+    if (json.item?.id) pick(json.item.id);
+  });
 }
 
 async function api(method: string, entity: string, body?: unknown, id?: string) {
@@ -432,6 +442,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
   const teams = data.teams.filter((t) => t.leagueId === league.id);
   const drivers = data.drivers.filter((d) => d.leagueId === league.id);
   const [drawer, setDrawer] = useState<null | "team" | "driver">(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [teamName, setTeamName] = useState("");
   const [shortName, setShortName] = useState("");
   const [teamColor, setTeamColor] = useState("");
@@ -441,11 +452,21 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
   const [driverTeam, setDriverTeam] = useState("");
   const [driverRoblox, setDriverRoblox] = useState("");
   const racing = league.kind === "racing";
+  const openTeam = (t?: (typeof teams)[number]) => {
+    setEditId(t?.id ?? null);
+    setTeamName(t?.name ?? ""); setShortName(t?.shortName ?? ""); setTeamColor(t?.color ?? ""); setTeamLogo(t?.logoUrl ?? "");
+    setDrawer("team");
+  };
+  const openDriver = (d?: (typeof drivers)[number]) => {
+    setEditId(d?.id ?? null);
+    setDriverName(d?.name ?? ""); setDriverNumber(d?.number != null ? String(d.number) : ""); setDriverTeam(d?.teamId ?? ""); setDriverRoblox(d?.robloxUsername ?? "");
+    setDrawer("driver");
+  };
 
   return (
     <div className="space-y-10">
       <section className="space-y-4">
-        <SectionHead title={racing ? "Constructors" : "Teams"} count={teams.length} action={<Button size="sm" onClick={() => setDrawer("team")} className={`h-10 px-5 text-sm ${primaryBtn}`}>{racing ? "Add constructor" : "Add team"}</Button>} />
+        <SectionHead title={racing ? "Constructors" : "Teams"} count={teams.length} action={<Button size="sm" onClick={() => openTeam()} className={`h-10 px-5 text-sm ${primaryBtn}`}>{racing ? "Add constructor" : "Add team"}</Button>} />
         {teams.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500 dark:border-neutral-700">Nobody here yet.</div>
         ) : (
@@ -459,6 +480,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                   <div className="truncate font-bold">{t.name}</div>
                   <div className="text-xs text-neutral-500">{[t.shortName, racing ? `${drivers.filter((d) => d.teamId === t.id).length} ${drivers.filter((d) => d.teamId === t.id).length === 1 ? "driver" : "drivers"}` : ""].filter(Boolean).join(" · ")}</div>
                 </div>
+                <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => openTeam(t)}>Edit</Button>
                 <PhotoButton label={t.logoUrl ? "Replace logo" : "Upload logo"} onUploaded={(url) => run(() => api("PATCH", "teams", { logoUrl: url }, t.id))} />
                 {t.logoUrl && (
                   <button type="button" className="cursor-pointer text-xs text-neutral-500 hover:text-red-500" onClick={() => run(() => api("PATCH", "teams", { logoUrl: null }, t.id))}>
@@ -476,7 +498,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
 
       {racing && (
         <section className="space-y-4">
-          <SectionHead title="Drivers" count={drivers.length} action={<Button size="sm" onClick={() => setDrawer("driver")} className={`h-10 px-5 text-sm ${primaryBtn}`}>Add driver</Button>} />
+          <SectionHead title="Drivers" count={drivers.length} action={<Button size="sm" onClick={() => openDriver()} className={`h-10 px-5 text-sm ${primaryBtn}`}>Add driver</Button>} />
           {drivers.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-neutral-300 p-8 text-center text-sm text-neutral-500 dark:border-neutral-700">No drivers yet.</div>
           ) : (
@@ -488,6 +510,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                     <div className="truncate font-bold">{d.name}</div>
                     <div className="text-xs text-neutral-500">{[teams.find((t) => t.id === d.teamId)?.name, d.robloxUsername ? `@${d.robloxUsername}` : ""].filter(Boolean).join(" · ") || "No constructor"}</div>
                   </div>
+                  <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => openDriver(d)}>Edit</Button>
                   <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog(`Delete ${d.name}?`)) && run(() => api("DELETE", "drivers", undefined, d.id))}>
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -499,12 +522,12 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
       )}
 
       {drawer === "team" && (
-        <AdminDrawer title={racing ? "Add constructor" : "Add team"} onClose={() => setDrawer(null)}>
+        <AdminDrawer title={editId ? "Edit " + (racing ? "constructor" : "team") : racing ? "Add constructor" : "Add team"} onClose={() => setDrawer(null)}>
           <form
             className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (await run(() => api("POST", "teams", { leagueId: league.id, name: teamName, shortName, color: teamColor, logoUrl: teamLogo || null }))) {
+              if (await run(() => (editId ? api("PATCH", "teams", { name: teamName, shortName, color: teamColor, logoUrl: teamLogo || null }, editId) : api("POST", "teams", { leagueId: league.id, name: teamName, shortName, color: teamColor, logoUrl: teamLogo || null })))) {
                 setTeamName(""); setShortName(""); setTeamColor(""); setTeamLogo("");
                 setDrawer(null);
               }
@@ -519,18 +542,18 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
               {teamLogo && <img src={teamLogo} alt="" className="h-10 w-10 rounded-full border border-neutral-300 bg-neutral-100 p-1 object-contain dark:border-neutral-700 dark:bg-neutral-900" />}
               <PhotoButton label={teamLogo ? "Replace logo" : "Upload logo"} onUploaded={(url) => setTeamLogo(url)} />
             </div>
-            <Button type="submit" disabled={busy || !teamName.trim()} className={`w-full ${primaryBtn}`}>{racing ? "Add constructor" : "Add team"}</Button>
+            <Button type="submit" disabled={busy || !teamName.trim()} className={`w-full ${primaryBtn}`}>{editId ? "Save changes" : racing ? "Add constructor" : "Add team"}</Button>
           </form>
         </AdminDrawer>
       )}
 
       {drawer === "driver" && (
-        <AdminDrawer title="Add driver" onClose={() => setDrawer(null)}>
+        <AdminDrawer title={editId ? "Edit driver" : "Add driver"} onClose={() => setDrawer(null)}>
           <form
             className="space-y-4"
             onSubmit={async (e) => {
               e.preventDefault();
-              if (await run(() => api("POST", "drivers", { leagueId: league.id, name: driverName, number: driverNumber || null, teamId: driverTeam || null, robloxUsername: driverRoblox || null }))) {
+              if (await run(() => (editId ? api("PATCH", "drivers", { name: driverName, number: driverNumber || null, teamId: driverTeam || null, robloxUsername: driverRoblox || null }, editId) : api("POST", "drivers", { leagueId: league.id, name: driverName, number: driverNumber || null, teamId: driverTeam || null, robloxUsername: driverRoblox || null })))) {
                 setDriverName(""); setDriverNumber(""); setDriverRoblox("");
                 setDrawer(null);
               }
@@ -547,7 +570,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                 </select>
               </Field>
             </div>
-            <Button type="submit" disabled={busy || !driverName.trim()} className={`w-full ${primaryBtn}`}>Add driver</Button>
+            <Button type="submit" disabled={busy || !driverName.trim()} className={`w-full ${primaryBtn}`}>{editId ? "Save changes" : "Add driver"}</Button>
           </form>
         </AdminDrawer>
       )}
@@ -570,120 +593,147 @@ function EventsTab({ league, data, articles, busy, run, initialEditing = null }:
   const [home, setHome] = useState("");
   const [away, setAway] = useState("");
   const [editing, setEditing] = useState<string | null>(initialEditing);
+  const [adding, setAdding] = useState(false);
+  const editingEvent = events.find((e) => e.id === editing);
+
+  const title = (e: SportsEvent) =>
+    e.homeTeamId && e.awayTeamId
+      ? `${teams.find((t) => t.id === e.homeTeamId)?.name ?? "?"} vs ${teams.find((t) => t.id === e.awayTeamId)?.name ?? "?"}`
+      : `${e.round ? `Round ${e.round}: ` : ""}${e.name || "Race"}`;
+
+  const now = Date.now();
+  const needs = events.filter((e) => e.status === "scheduled" && +new Date(e.startsAt) < now);
+  const upcoming = events.filter((e) => (e.status === "scheduled" && +new Date(e.startsAt) >= now) || e.status === "postponed" || (e.status !== "final" && e.status !== "scheduled"));
+  const done = events.filter((e) => e.status === "final").reverse();
+
+  const row = (e: SportsEvent) => {
+    const venueName = data.venues.find((v) => v.id === e.venueId)?.name;
+    const bc = broadcastLabel(e.id, data.broadcasts);
+    return (
+      <li key={e.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 p-4">
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-bold">
+            {title(e)}
+            {e.status === "final" && e.homeScore != null && <span className="ml-2 text-neutral-500">{e.homeScore}-{e.awayScore}{e.overtime ? " OT" : ""}</span>}
+          </div>
+          <div className="text-xs text-neutral-500">
+            {formatDateTime(e.startsAt)}
+            {e.status !== "scheduled" && e.status !== "final" && <> · <span className="font-bold capitalize">{e.status}</span></>}
+            {venueName ? ` · ${venueName}` : e.venue ? ` · ${e.venue}` : ""}
+            {bc ? ` · ${bc}` : ""}
+            {articles.find((a) => a.id === e.articleId) ? " · Report linked" : ""}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={e.status === "final" ? "outline" : "default"} className={e.status === "final" ? "cursor-pointer" : `cursor-pointer ${primaryBtn}`} onClick={() => setEditing(e.id)}>
+            {e.status === "final" ? "Edit result" : "Enter result"}
+          </Button>
+          {e.status === "scheduled" && (
+            <Button size="sm" variant="outline" className="cursor-pointer" disabled={busy} onClick={() => run(() => api("PATCH", "events", { status: "postponed" }, e.id))}>Postpone</Button>
+          )}
+          {e.status !== "scheduled" && e.status !== "final" && (
+            <Button size="sm" variant="outline" className="cursor-pointer" disabled={busy} onClick={() => run(() => api("PATCH", "events", { status: "scheduled" }, e.id))}>Reschedule</Button>
+          )}
+          <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog("Delete this event?")) && run(() => api("DELETE", "events", undefined, e.id))}>
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </li>
+    );
+  };
+
+  const group = (label: string, note: string, list: SportsEvent[]) =>
+    list.length === 0 ? null : (
+      <section className="space-y-3">
+        <div>
+          <h3 className="text-base font-extrabold">{label} <span className="font-normal text-neutral-500">{list.length}</span></h3>
+          <p className="text-xs text-neutral-500">{note}</p>
+        </div>
+        <ul className={listCard}>{list.map(row)}</ul>
+      </section>
+    );
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[24rem_minmax(0,1fr)]">
-      <Card className={`${cardClass} self-start`}>
-        <h2 className="text-lg font-extrabold">{racing ? "Add round" : "Add match"}</h2>
-        <form
-          className="space-y-3"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const ok = await run(() =>
-              api("POST", "events", {
-                leagueId: league.id,
-                name: name || null,
-                round: round || null,
-                venue: venue || null,
-                venueId: venueId || null,
-                startsAt: new Date(startsAt).toISOString(),
-                homeTeamId: racing ? null : home || null,
-                awayTeamId: racing ? null : away || null,
-              })
-            );
-            if (ok) { setName(""); setRound(""); setVenue(""); }
-          }}
-        >
-          {racing ? (
-            <>
-              <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coastal Rally" /></Field>
-              <Field label="Round"><Input value={round} onChange={(e) => setRound(e.target.value)} /></Field>
-            </>
-          ) : (
-            <>
-              <Field label="Home">
-                <select value={home} onChange={(e) => setHome(e.target.value)} className={selectClass}>
-                  <option value="">Select</option>
-                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Away">
-                <select value={away} onChange={(e) => setAway(e.target.value)} className={selectClass}>
-                  <option value="">Select</option>
-                  {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              </Field>
-            </>
-          )}
-          <Field label="Venue (with photo)">
-            <select value={venueId} onChange={(e) => setVenueId(e.target.value)} className={selectClass}>
-              <option value="">None</option>
-              {data.venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Location note (optional)"><Input value={venue} onChange={(e) => setVenue(e.target.value)} /></Field>
-          <Field label="Start (your local time)"><Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
-          <Button type="submit" disabled={busy || !startsAt || (!racing && (!home || !away))} className={`w-full ${primaryBtn}`}>Add</Button>
-        </form>
-      </Card>
+    <div className="space-y-8">
+      <SectionHead title="Schedule & results" action={<Button size="sm" onClick={() => setAdding(true)} className={`h-10 px-5 text-sm ${primaryBtn}`}>{racing ? "Add round" : "Add match"}</Button>} />
+      {events.length === 0 && <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500 dark:border-neutral-700">No events yet.</div>}
+      {group("Needs a result", "Started already, no result entered.", needs)}
+      {group("Coming up", "Scheduled, postponed or in progress.", upcoming)}
+      {group("Finished", "Latest first.", done)}
 
-      <div className="space-y-3">
-        <h2 className="text-lg font-extrabold">Schedule and results</h2>
-        {events.length === 0 && <p className="text-xs text-neutral-500">No events yet.</p>}
-        {events.map((e) => (
-          <Card key={e.id} className="p-5 space-y-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="font-bold text-sm">
-                  {e.homeTeamId && e.awayTeamId
-                    ? `${teams.find((t) => t.id === e.homeTeamId)?.name ?? "?"} vs ${teams.find((t) => t.id === e.awayTeamId)?.name ?? "?"}`
-                    : `${e.round ? `Round ${e.round}: ` : ""}${e.name || "Race"}`}
-                  {e.status === "final" && e.homeScore != null && ` (${e.homeScore}-${e.awayScore}${e.overtime ? " OT" : ""})`}
-                </div>
-                <div className="text-xs text-neutral-500">
-                  {formatDateTime(e.startsAt)} · <span className="uppercase font-mono">{e.status}</span>
-                  {e.venue ? ` · ${e.venue}` : ""}
-                  {data.venues.find((v) => v.id === e.venueId) ? ` · ${data.venues.find((v) => v.id === e.venueId)!.name}` : ""}
-                  {broadcastLabel(e.id, data.broadcasts) ? ` · Broadcast: ${broadcastLabel(e.id, data.broadcasts)}` : ""}
-                  {articles.find((a) => a.id === e.articleId) ? " · Report linked" : ""}
-                </div>
+      {adding && (
+        <AdminDrawer title={racing ? "Add round" : "Add match"} onClose={() => setAdding(false)}>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const ok = await run(() =>
+                api("POST", "events", {
+                  leagueId: league.id,
+                  name: name || null,
+                  round: round || null,
+                  venue: venue || null,
+                  venueId: venueId || null,
+                  startsAt: new Date(startsAt).toISOString(),
+                  homeTeamId: racing ? null : home || null,
+                  awayTeamId: racing ? null : away || null,
+                })
+              );
+              if (ok) { setName(""); setRound(""); setVenue(""); setAdding(false); }
+            }}
+          >
+            {racing ? (
+              <div className="grid grid-cols-[1fr_6rem] gap-3">
+                <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Coastal Rally" /></Field>
+                <Field label="Round"><Input value={round} onChange={(e) => setRound(e.target.value)} /></Field>
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setEditing(editing === e.id ? null : e.id)}>
-                  {e.status === "final" ? "Edit result" : "Enter result"}
-                </Button>
-                {e.status === "scheduled" && (
-                  <Button size="sm" variant="outline" className="cursor-pointer" disabled={busy} onClick={() => run(() => api("PATCH", "events", { status: "postponed" }, e.id))}>
-                    Postpone
-                  </Button>
-                )}
-                {e.status !== "scheduled" && e.status !== "final" && (
-                  <Button size="sm" variant="outline" className="cursor-pointer" disabled={busy} onClick={() => run(() => api("PATCH", "events", { status: "scheduled" }, e.id))}>
-                    Reschedule
-                  </Button>
-                )}
-                <button type="button" title="Delete" className="text-neutral-400 hover:text-red-500 cursor-pointer p-1.5" onClick={async () => await confirmDialog("Delete this event?") && run(() => api("DELETE", "events", undefined, e.id))}>
-                  <Trash2 className="h-4 w-4" />
-                </button>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Home">
+                  <select value={home} onChange={(e) => setHome(e.target.value)} className={selectClass}>
+                    <option value="">Select</option>
+                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Away">
+                  <select value={away} onChange={(e) => setAway(e.target.value)} className={selectClass}>
+                    <option value="">Select</option>
+                    {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </Field>
               </div>
-            </div>
-            {editing === e.id && (
-              <ResultEditor
-                event={e}
-                racing={racing}
-                league={league}
-                venues={data.venues}
-                articles={articles}
-                broadcast={broadcastLabel(e.id, data.broadcasts)}
-                drivers={data.drivers.filter((d) => d.leagueId === league.id)}
-                busy={busy}
-                run={run}
-                onSaved={() => setEditing(null)}
-              />
             )}
-          </Card>
-        ))}
-      </div>
+            <Field label="Venue (with photo)">
+              <select value={venueId} onChange={(e) => (e.target.value === "__new" ? quickVenue(run, setVenueId) : setVenueId(e.target.value))} className={selectClass}>
+                <option value="">None</option>
+                {data.venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                <option value="__new">+ New venue…</option>
+              </select>
+            </Field>
+            <Field label="Location note (optional)"><Input value={venue} onChange={(e) => setVenue(e.target.value)} /></Field>
+            <Field label="Start (your local time)"><Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
+            <Button type="submit" disabled={busy || !startsAt || (!racing && (!home || !away))} className={`w-full ${primaryBtn}`}>{racing ? "Add round" : "Add match"}</Button>
+          </form>
+        </AdminDrawer>
+      )}
+
+      {editingEvent && (
+        <AdminDrawer title={title(editingEvent)} wide onClose={() => setEditing(null)}>
+          <ResultEditor
+            key={editingEvent.id}
+            event={editingEvent}
+            racing={racing}
+            league={league}
+            venues={data.venues}
+            articles={articles}
+            broadcast={broadcastLabel(editingEvent.id, data.broadcasts)}
+            drivers={data.drivers.filter((d) => d.leagueId === league.id)}
+            busy={busy}
+            run={run}
+            onSaved={() => setEditing(null)}
+          />
+        </AdminDrawer>
+      )}
     </div>
   );
 }
@@ -767,65 +817,71 @@ function ResultEditor({
   };
 
   return (
-    <div className="space-y-3 border-t border-neutral-200 dark:border-neutral-800 pt-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <Field label="Start (local)"><Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
-        <Field label="Video link (optional)"><Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="/plus/watch/..." /></Field>
-        <Field label="Venue (with photo)">
-          <select value={venueId} onChange={(e) => setVenueId(e.target.value)} className={selectClass}>
-            <option value="">None</option>
-            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Round report (published article)">
-          <select value={articleId} onChange={(e) => setArticleId(e.target.value)} className={selectClass}>
-            <option value="">None</option>
-            {articles.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}
-          </select>
-        </Field>
-      </div>
-      <p className="text-[11px] text-neutral-500">
-        Broadcast: {broadcast ?? "none linked. Pick this event in the Schedule admin to show a Livestream or Radio badge."}
-      </p>
-      {racing ? (
-        <div className="space-y-1.5">
-          <label className={labelClass}>Finishing order{points ? "" : " (no points in this series)"}</label>
-          {rows.map((r, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <span className="w-6 text-right font-mono text-xs text-neutral-500">{i + 1}</span>
-              <select value={r.driverId} onChange={(e) => patchRow(i, { driverId: e.target.value })} className={selectClass}>
-                <option value="">-</option>
-                {drivers.map((d) => <option key={d.id} value={d.id}>{d.number != null ? `#${d.number} ` : ""}{d.name}</option>)}
-              </select>
-              <Input value={r.time} onChange={(e) => patchRow(i, { time: e.target.value })} placeholder="48:12.4 or +6.8" className="w-36 font-mono" />
-              <select value={r.status} onChange={(e) => patchRow(i, { status: e.target.value as Row["status"] })} className={`${selectClass} w-28`}>
-                <option value="finished">Finished</option>
-                <option value="dnf">DNF</option>
-                <option value="dsq">DSQ</option>
-              </select>
-              {points && (
-                <label className="flex items-center gap-1 text-xs whitespace-nowrap">
-                  <input type="radio" name={`fl-${event.id}`} checked={r.fl} onChange={() => setRows(rows.map((x, j) => ({ ...x, fl: j === i })))} /> FL
-                </label>
-              )}
-              <button type="button" title="Move up" className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer" onClick={() => move(i, -1)}><ArrowUp className="h-4 w-4" /></button>
-              <button type="button" title="Move down" className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer" onClick={() => move(i, 1)}><ArrowDown className="h-4 w-4" /></button>
-            </div>
-          ))}
-          <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setRows([...rows, { driverId: "", status: "finished", fl: false, time: "" }])}>
-            Add row
-          </Button>
+    <div className="space-y-6">
+      <section className="space-y-3">
+        <h3 className="text-base font-extrabold">{racing ? `Finishing order${points ? "" : " (no points in this series)"}` : "Score"}</h3>
+        {racing ? (
+          <div className="space-y-2">
+            {rows.map((r, i) => (
+              <div key={i} className="grid grid-cols-[2rem_minmax(0,1fr)_8rem] items-center gap-2 rounded-2xl border border-neutral-200 p-2 dark:border-neutral-800 sm:grid-cols-[2rem_minmax(0,1fr)_8rem_6.5rem_auto]">
+                <span className="gs-display text-center text-lg font-extrabold text-brand-text">{i + 1}</span>
+                <select value={r.driverId} onChange={(e) => patchRow(i, { driverId: e.target.value })} className={selectClass}>
+                  <option value="">Driver</option>
+                  {drivers.map((d) => <option key={d.id} value={d.id}>{d.number != null ? `#${d.number} ` : ""}{d.name}</option>)}
+                </select>
+                <Input value={r.time} onChange={(e) => patchRow(i, { time: e.target.value })} placeholder="48:12.4" className="font-mono" />
+                <select value={r.status} onChange={(e) => patchRow(i, { status: e.target.value as Row["status"] })} className={`${selectClass} col-span-3 sm:col-span-1`}>
+                  <option value="finished">Finished</option>
+                  <option value="dnf">DNF</option>
+                  <option value="dsq">DSQ</option>
+                </select>
+                <span className="col-span-3 flex items-center justify-end gap-2 sm:col-span-1">
+                  {points && (
+                    <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold">
+                      <input type="radio" name={`fl-${event.id}`} checked={r.fl} onChange={() => setRows(rows.map((x, j) => ({ ...x, fl: j === i })))} /> FL
+                    </label>
+                  )}
+                  <button type="button" title="Move up" className="cursor-pointer p-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white" onClick={() => move(i, -1)}><ArrowUp className="h-4 w-4" /></button>
+                  <button type="button" title="Move down" className="cursor-pointer p-1.5 text-neutral-400 hover:text-neutral-900 dark:hover:text-white" onClick={() => move(i, 1)}><ArrowDown className="h-4 w-4" /></button>
+                </span>
+              </div>
+            ))}
+            <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => setRows([...rows, { driverId: "", status: "finished", fl: false, time: "" }])}>
+              Add row
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 items-end gap-3">
+            <Field label="Home score"><Input value={homeScore} onChange={(e) => setHomeScore(e.target.value)} /></Field>
+            <Field label="Away score"><Input value={awayScore} onChange={(e) => setAwayScore(e.target.value)} /></Field>
+            <AdminRow label="Overtime"><AdminSwitch checked={overtime} onChange={setOvertime} label="Overtime" /></AdminRow>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-3 border-t border-neutral-200 pt-5 dark:border-neutral-800">
+        <h3 className="text-base font-extrabold">Details</h3>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Field label="Start (local)"><Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
+          <Field label="Video link (optional)"><Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="/plus/watch/..." /></Field>
+          <Field label="Venue (with photo)">
+            <select value={venueId} onChange={(e) => (e.target.value === "__new" ? quickVenue(run, setVenueId) : setVenueId(e.target.value))} className={selectClass}>
+              <option value="">None</option>
+              {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+              <option value="__new">+ New venue…</option>
+            </select>
+          </Field>
+          <Field label="Round report (published article)">
+            <select value={articleId} onChange={(e) => setArticleId(e.target.value)} className={selectClass}>
+              <option value="">None</option>
+              {articles.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}
+            </select>
+          </Field>
         </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-2 items-end">
-          <Field label="Home score"><Input value={homeScore} onChange={(e) => setHomeScore(e.target.value)} /></Field>
-          <Field label="Away score"><Input value={awayScore} onChange={(e) => setAwayScore(e.target.value)} /></Field>
-          <label className="flex items-center gap-1.5 text-xs h-9">
-            <input type="checkbox" checked={overtime} onChange={(e) => setOvertime(e.target.checked)} /> Overtime
-          </label>
-        </div>
-      )}
-      <Button size="sm" disabled={busy} onClick={save} className={primaryBtn}>Save result (marks final)</Button>
+        <p className="text-xs text-neutral-500">Broadcast: {broadcast ?? "none linked. Pick this event in the Schedule admin to show a Livestream or Radio badge."}</p>
+      </section>
+
+      <Button disabled={busy} onClick={save} className={`w-full ${primaryBtn}`}>Save result (marks final)</Button>
     </div>
   );
 }
@@ -845,6 +901,19 @@ function Overview({ league, data, onEnterResult, onTab }: { league: SportsLeague
       : `${e.round ? `Round ${e.round}: ` : ""}${e.name || (racing ? "Race" : "Match")}`;
   const card = "rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900";
   const kicker = "text-xs font-bold uppercase tracking-widest text-neutral-500";
+
+  // Top of the table, computed the same way as the public league page.
+  const finals = events.filter((e) => e.status === "final");
+  const rules = parseRules(league.kind, league.rulesJson);
+  const standings: { id: string; name: string; value: string }[] = racing
+    ? computeRacingStandings(drivers, teams.map((t) => t.id), finals, rules as RacingRules, league.scoring).drivers
+        .sort((a, b) => b.points - a.points || b.wins - a.wins || b.podiums - a.podiums)
+        .slice(0, 5)
+        .map((r) => ({ id: r.driverId, name: drivers.find((d) => d.id === r.driverId)?.name ?? "?", value: league.scoring === "points" ? `${r.points} pts` : `${r.wins} wins` }))
+    : computeTeamStandings(teams.map((t) => t.id), finals, rules as TeamRules)
+        .sort((a, b) => b.points - a.points || b.goalDiff - a.goalDiff)
+        .slice(0, 5)
+        .map((r) => ({ id: r.teamId, name: teams.find((t) => t.id === r.teamId)?.name ?? "?", value: `${r.points} pts` }));
 
   return (
     <div className="space-y-6">
@@ -909,6 +978,21 @@ function Overview({ league, data, onEnterResult, onTab }: { league: SportsLeague
           <button type="button" onClick={() => onTab("events")} className="mt-3 cursor-pointer text-sm font-bold underline">Schedule</button>
         </div>
       </div>
+
+      {finals.length > 0 && standings.length > 0 && (
+        <div className={card}>
+          <div className={kicker}>{racing ? "Drivers' standings" : "Standings"}</div>
+          <ol className="mt-3 divide-y divide-neutral-200 dark:divide-neutral-800">
+            {standings.map((r, i) => (
+              <li key={r.id} className="flex items-center gap-4 py-2.5">
+                <span className="gs-display w-6 text-center text-lg font-extrabold text-brand-text">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate font-bold">{r.name}</span>
+                <span className="text-sm text-neutral-500">{r.value}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
 
       {latest.length > 0 && (
         <div className={card}>

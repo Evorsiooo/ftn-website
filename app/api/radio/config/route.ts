@@ -148,6 +148,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: "Boilerplate demo videos purged." });
     }
 
+    // Start from what is stored, so a save of one section never overwrites another with stale values.
+    if (d1) {
+      try {
+        const stored = await getDb(d1).select().from(siteSettings).where(eq(siteSettings.key, "main_config")).limit(1);
+        if (stored.length > 0) inMemoryConfig = { ...DEFAULT_CONFIG, ...JSON.parse(stored[0].valueJson) };
+      } catch {}
+    }
+
     // Merge and sanitize new config with existing
     const updatedConfig: SiteConfig = {
       ...inMemoryConfig,
@@ -155,14 +163,14 @@ export async function POST(req: Request) {
       statusJson: typeof body.statusJson === "string" ? body.statusJson.trim().slice(0, 500) : inMemoryConfig.statusJson,
       webradioEnabled: typeof body.webradioEnabled === "boolean" ? body.webradioEnabled : inMemoryConfig.webradioEnabled,
       allowSignIn: typeof body.allowSignIn === "boolean" ? body.allowSignIn : inMemoryConfig.allowSignIn,
-      authMode: body.authMode === "credentials" ? "credentials" : "roblox",
+      authMode: body.authMode === undefined ? inMemoryConfig.authMode : body.authMode === "credentials" ? "credentials" : "roblox",
       discordUrl: typeof body.discordUrl === "string" ? body.discordUrl.trim().slice(0, 500) : inMemoryConfig.discordUrl,
       youtubeChannels: Array.isArray(body.youtubeChannels)
         ? body.youtubeChannels.filter((c: any) => typeof c === "string" && c.trim()).map((c: string) => c.trim().slice(0, 100))
         : inMemoryConfig.youtubeChannels,
       bannedWords: typeof body.bannedWords === "string" ? body.bannedWords.slice(0, 50000) : inMemoryConfig.bannedWords,
-      ftnPlusAccess: body.ftnPlusAccess === "members_only" ? "members_only" : "public",
-      tiplineAccess: body.tiplineAccess === "members_only" ? "members_only" : "public",
+      ftnPlusAccess: body.ftnPlusAccess === undefined ? inMemoryConfig.ftnPlusAccess : body.ftnPlusAccess === "members_only" ? "members_only" : "public",
+      tiplineAccess: body.tiplineAccess === undefined ? inMemoryConfig.tiplineAccess : body.tiplineAccess === "members_only" ? "members_only" : "public",
       socialLinks: Array.isArray(body.socialLinks) ? body.socialLinks.slice(0, 20) : inMemoryConfig.socialLinks,
       customSwimlanes: Array.isArray(body.customSwimlanes) ? body.customSwimlanes.slice(0, 50) : inMemoryConfig.customSwimlanes,
       hiddenVideoIds: Array.isArray(body.hiddenVideoIds) ? body.hiddenVideoIds.filter((id: any) => typeof id === "string" && id.trim()).map((id: string) => id.trim()) : inMemoryConfig.hiddenVideoIds || [],

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { RichTextEditor, ArticleData } from "@/components/editor/rich-text-editor";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
@@ -36,6 +37,7 @@ function AdminArticlesContent() {
   const [loadingRevisions, setLoadingRevisions] = useState(false);
   const [revertingRevisionId, setRevertingRevisionId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   const fetchArticles = () => {
     setLoading(true);
@@ -141,21 +143,12 @@ function AdminArticlesContent() {
       status: art.status,
     });
     setActiveTab("create");
+    if (art.slug) fetchRevisions(art.slug);
   };
 
   const handleOpenHistory = (art: any) => {
-    setEditingArticle({
-      id: art.id,
-      slug: art.slug,
-      title: art.title,
-      content: art.content || "",
-      summary: art.summary,
-      category: art.category,
-      coverImageUrl: art.coverImageUrl,
-      status: art.status,
-    });
-    setActiveTab("history");
-    fetchRevisions(art.slug);
+    handleStartEdit(art);
+    setTimeout(() => document.getElementById("article-history")?.scrollIntoView({ behavior: "smooth" }), 400);
   };
 
   const handleToggleArchive = async (art: any) => {
@@ -243,17 +236,6 @@ function AdminArticlesContent() {
             <AdminTab active={activeTab === "list"} onClick={handleBackToList}>
               All stories ({articlesList.length})
             </AdminTab>
-            {editingArticle && (
-              <AdminTab
-                active={activeTab === "history"}
-                onClick={() => {
-                  setActiveTab("history");
-                  if (editingArticle.slug) fetchRevisions(editingArticle.slug);
-                }}
-              >
-                Version history
-              </AdminTab>
-            )}
             {activeTab === "create" && <AdminTab active>{editingArticle ? "Editing" : "New story"}</AdminTab>}
           </>
         }
@@ -290,26 +272,13 @@ function AdminArticlesContent() {
             onSave={handleSaveArticle}
             onCancel={handleBackToList}
           />
-        </div>
-      ) : activeTab === "history" && editingArticle ? (
+
+        {editingArticle?.slug && (
         /* Version History Drawer / Tab */
         <div className="space-y-6">
-          <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-4">
-            <div>
-              <div className="text-xs font-mono uppercase text-brand-text font-bold">
-                Version History
-              </div>
-              <h2 className="text-2xl font-black text-neutral-900 dark:text-white">{editingArticle.title}</h2>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setActiveTab("create")}
-              className="text-xs border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white cursor-pointer"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back to Editor
-            </Button>
+          <div id="article-history" className="border-b border-neutral-200 pb-3 dark:border-neutral-800">
+            <h2 className="text-xl font-extrabold">Version history</h2>
+            <p className="text-xs text-neutral-500">Every save is kept. Revert to any earlier version.</p>
           </div>
 
           {loadingRevisions ? (
@@ -413,6 +382,8 @@ function AdminArticlesContent() {
             </div>
           )}
         </div>
+        )}
+        </div>
       ) : (
         /* All Articles Table / Grid */
         <div className="space-y-4">
@@ -434,13 +405,15 @@ function AdminArticlesContent() {
               </Button>
             </div>
           ) : (
+            <>
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search stories by title, author or category" className="max-w-md" />
             <div className="grid items-start gap-5 lg:grid-cols-3">
               {([
                 { key: "draft", title: "Drafts", note: "Not public yet", dot: "bg-amber-500" },
                 { key: "published", title: "Published", note: "Live on the site", dot: "bg-emerald-500" },
                 { key: "archived", title: "Archived", note: "Hidden from readers", dot: "bg-neutral-400" },
               ] as const).map((col) => {
-                const items = articlesList.filter((a) => (a.status || "draft") === col.key);
+                const items = articlesList.filter((a) => (a.status || "draft") === col.key && (!query.trim() || `${a.title} ${a.authorUsername || a.authorName || ""} ${a.category}`.toLowerCase().includes(query.trim().toLowerCase())));
                 return (
                   <section key={col.key} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950">
                     <header className="flex items-center justify-between px-2 pb-3 pt-1">
@@ -485,6 +458,7 @@ function AdminArticlesContent() {
                 );
               })}
             </div>
+            </>
           )}
         </div>
       )}

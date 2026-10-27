@@ -309,6 +309,7 @@ export default function AdminAdsConsole() {
             </span>
             <span>Views: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0).toLocaleString()}</strong></span>
             <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount || 0}</strong></span>
+            <span>CTR: <strong className="text-neutral-900 dark:text-white">{c.impressionsCount ? (((c.clicksCount || 0) / c.impressionsCount) * 100).toFixed(2) : "0.00"}%</strong></span>
             <span className={c.status === "active" && !soldOut ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
               {soldOut ? "sold out (hidden)" : c.status}
             </span>
