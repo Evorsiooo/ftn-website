@@ -10,8 +10,10 @@ import {
   ResultCard,
   SectionHead,
   SlotCard,
+  StandingsPreview,
   broadcastLabel,
   countdown,
+  eventArt,
   eventPhoto,
   fmtDay,
   fmtTime,
@@ -48,6 +50,8 @@ export default function SportsHubPage() {
 
   const next = upcoming[0];
   const nextLeague = next ? leagues.get(next.leagueId) : undefined;
+  // The table shown is the league that played most recently.
+  const tableLeague = leagues.get(results[0]?.leagueId ?? "") ?? data.leagues[0];
   const thisWeek = upcoming.filter((e) => new Date(e.startsAt).getTime() <= now + WEEK_MS).slice(0, 8);
 
   if (loading) {
@@ -78,7 +82,9 @@ export default function SportsHubPage() {
         <Billboard
           photo={eventPhoto(next, venues)}
           color={nextLeague?.color}
-          aside={<div className="ftn-display text-6xl lg:text-7xl whitespace-nowrap">{countdown(next.startsAt, now)}</div>}
+          aside={
+            <div className="ftn-display text-6xl lg:text-7xl whitespace-nowrap">{countdown(next.startsAt, now)}</div>
+          }
         >
           <p className="text-sm font-semibold text-white/80">
             Next up{nextLeague ? ` · ${nextLeague.name}` : ""}
@@ -119,7 +125,14 @@ export default function SportsHubPage() {
             <SectionHead title="Latest results" />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {results.slice(0, 4).map((e) => (
-                <ResultCard key={e.id} event={e} league={leagues.get(e.leagueId)} teams={teams} drivers={drivers} />
+                <ResultCard
+                  key={e.id}
+                  event={e}
+                  league={leagues.get(e.leagueId)}
+                  teams={teams}
+                  drivers={drivers}
+                  art={eventArt(e, venues, leagues.get(e.leagueId))}
+                />
               ))}
             </div>
           </section>
@@ -130,19 +143,33 @@ export default function SportsHubPage() {
             <SectionHead title="This week" sub="your local time" href="/plus/schedule" hrefLabel="Full schedule" />
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {thisWeek.map((e) => (
-                <SlotCard key={e.id} event={e} league={leagues.get(e.leagueId)} teams={teams} tag={broadcastLabel(e.id, data.broadcasts)} />
+                <SlotCard
+                  key={e.id}
+                  event={e}
+                  league={leagues.get(e.leagueId)}
+                  teams={teams}
+                  art={eventArt(e, venues, leagues.get(e.leagueId))}
+                  tag={broadcastLabel(e.id, data.broadcasts)}
+                />
               ))}
             </div>
           </section>
         )}
 
         {data.leagues.length > 0 && (
-          <section className={GUTTER}>
-            <SectionHead title="Leagues and series" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {data.leagues.map((l) => (
-                <LeagueCard key={l.id} league={l} meta={leagueMeta(l.id)} />
-              ))}
+          <section className={cn("grid gap-8 lg:grid-cols-[3fr_2fr] lg:items-start", GUTTER)}>
+            {tableLeague && results.length > 0 && (
+              <div className="min-w-0">
+                <StandingsPreview league={tableLeague} data={data} teams={teams} drivers={drivers} />
+              </div>
+            )}
+            <div className={cn("min-w-0", !(tableLeague && results.length > 0) && "lg:col-span-2")}>
+              <SectionHead title="Leagues and series" />
+              <div className={cn("grid gap-4 grid-cols-1 sm:grid-cols-2", !(tableLeague && results.length > 0) && "lg:grid-cols-4")}>
+                {data.leagues.map((l) => (
+                  <LeagueCard key={l.id} league={l} meta={leagueMeta(l.id)} />
+                ))}
+              </div>
             </div>
           </section>
         )}

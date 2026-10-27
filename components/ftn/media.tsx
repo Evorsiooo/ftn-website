@@ -48,6 +48,7 @@ export function Lane({
   sub,
   href,
   hrefLabel = "See all",
+  cols,
   children,
   className,
 }: {
@@ -56,6 +57,8 @@ export function Lane({
   sub?: React.ReactNode;
   href?: string;
   hrefLabel?: string;
+  /** From the lg breakpoint, lay the cards out as a full-width grid of this many columns instead of a scrolling row. */
+  cols?: 3 | 4 | 5;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -76,17 +79,26 @@ export function Lane({
               {hrefLabel} <IconChevronRight className="h-4 w-4" />
             </Link>
           )}
-          <button aria-label="Scroll left" onClick={() => scroll(-1)} className={arrow}>
-            <IconArrowNarrowLeft className="h-4 w-4" />
-          </button>
-          <button aria-label="Scroll right" onClick={() => scroll(1)} className={arrow}>
-            <IconArrowNarrowRight className="h-4 w-4" />
-          </button>
+          <div className={cn("flex items-center gap-2", cols && "lg:hidden")}>
+            <button aria-label="Scroll left" onClick={() => scroll(-1)} className={arrow}>
+              <IconArrowNarrowLeft className="h-4 w-4" />
+            </button>
+            <button aria-label="Scroll right" onClick={() => scroll(1)} className={arrow}>
+              <IconArrowNarrowRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
       <div
         ref={scrollRef}
-        className={cn("flex gap-5 overflow-x-auto scroll-smooth snap-x scroll-px-5 md:scroll-px-12 py-2 no-scrollbar [&>*]:snap-start", GUTTER)}
+        className={cn(
+          "flex gap-5 overflow-x-auto scroll-smooth snap-x scroll-px-5 md:scroll-px-12 py-2 no-scrollbar [&>*]:snap-start",
+          cols && "lg:grid lg:overflow-visible lg:[&>*]:w-full!",
+          cols === 3 && "lg:grid-cols-3",
+          cols === 4 && "lg:grid-cols-4",
+          cols === 5 && "lg:grid-cols-5",
+          GUTTER
+        )}
       >
         {children}
       </div>

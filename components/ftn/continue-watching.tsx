@@ -7,7 +7,7 @@ export function ContinueWatching() {
   const items = useContinueWatching();
   if (items.length === 0) return null;
   return (
-    <Lane title="Continue watching">
+    <Lane title="Continue watching" cols={4}>
       {items.map((p) => {
         const left = Math.max(1, Math.round((p.duration - p.position) / 60));
         return (

@@ -2,6 +2,7 @@
 import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { FtnNav, type NavLink } from "@/components/ftn/nav";
+import { PageTransition } from "@/components/ftn/page-transition";
 import { OTTLoader } from "@/components/ott/ott-loader";
 import { Button } from "@/components/ftn/ui";
 import {
@@ -105,7 +106,8 @@ function OTTShell({ children }: { children: React.ReactNode }) {
   ];
 
   // The player is always dark and has its own back button, so it gets no nav and ignores the theme.
-  const onPlayer = pathname.startsWith("/plus/watch");
+  // "/plus/watchlist" is Saved, not the player, so the match is on the segment.
+  const onPlayer = pathname === "/plus/watch" || pathname.startsWith("/plus/watch/");
   const shownTheme = onPlayer ? "dark" : theme;
 
   const gated = ftnPlusAccess === "members_only" && !currentUser;
@@ -153,7 +155,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       {/* Session Entry Loader */}
       {splash}
       {!onPlayer && <FtnNav links={links} theme={theme} onToggleTheme={toggleTheme} />}
-      {children}
+      <PageTransition order={links.map((l) => l.href)}>{children}</PageTransition>
     </div>
   );
 }

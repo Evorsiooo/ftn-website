@@ -151,7 +151,7 @@ export default function FTNPlusRadioPage() {
       <div className="relative w-full overflow-hidden select-none">
         <Crossfade id={artUrl || "no-art"} duration={1.4} className="absolute inset-0">
           {artUrl ? (
-            <img src={artUrl} alt="" className="h-full w-full object-cover scale-125 blur-3xl opacity-40" />
+            <img src={artUrl} alt="" className="h-full w-full object-cover scale-125 blur-3xl saturate-150 opacity-60" />
           ) : (
             <div className="h-full w-full bg-gradient-to-br from-ftn-surface via-ftn-bg to-ftn-bg" />
           )}
@@ -160,15 +160,36 @@ export default function FTNPlusRadioPage() {
 
         <div
           className={cn(
-            "relative z-10 flex flex-col-reverse md:flex-row items-start md:items-center justify-between gap-8 md:gap-12 pt-20 md:pt-32 pb-12",
+            "relative z-10 flex flex-col md:flex-row items-start md:items-center gap-8 md:gap-14 pt-24 md:pt-32 pb-14",
             GUTTER
           )}
         >
+          {/* Cover art */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
+            className="relative flex-shrink-0 self-center"
+          >
+            <div
+              className={cn(
+                "absolute -inset-3 rounded-[2rem] bg-brand/25 blur-2xl transition-opacity duration-700",
+                isPlaying ? "opacity-100" : "opacity-30"
+              )}
+            />
+            <Crossfade
+              id={artUrl || "no-art"}
+              zoom
+              className="relative h-64 w-64 sm:h-80 sm:w-80 md:h-[24rem] md:w-[24rem] lg:h-[26rem] lg:w-[26rem] rounded-[2rem] ftn-shadow ring-1 ring-ftn-line-strong"
+            >
+              <ArtTile src={artUrl} onError={() => setArtFailed(true)} className="h-full w-full" />
+            </Crossfade>
+          </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-            className="max-w-2xl space-y-5 w-full"
+            className="max-w-2xl space-y-5 w-full min-w-0 flex-1"
           >
             {/* One plain line of context; no chips. */}
             {(() => {
@@ -289,27 +310,6 @@ export default function FTNPlusRadioPage() {
             )}
           </motion.div>
 
-          {/* Cover art */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: 0.1 }}
-            className="relative flex-shrink-0 self-center md:self-auto md:mr-[6vw]"
-          >
-            <div
-              className={cn(
-                "absolute -inset-3 rounded-[2rem] bg-brand/25 blur-2xl transition-opacity duration-700",
-                isPlaying ? "opacity-100" : "opacity-30"
-              )}
-            />
-            <Crossfade
-              id={artUrl || "no-art"}
-              zoom
-              className="relative h-56 w-56 sm:h-80 sm:w-80 md:h-[22rem] md:w-[22rem] lg:h-[26rem] lg:w-[26rem] rounded-[2rem] ftn-shadow ring-1 ring-ftn-line-strong"
-            >
-              <ArtTile src={artUrl} onError={() => setArtFailed(true)} className="h-full w-full" />
-            </Crossfade>
-          </motion.div>
         </div>
       </div>
 
@@ -323,8 +323,8 @@ export default function FTNPlusRadioPage() {
           </div>
         ) : (
           <>
-            <Lane title="Coming up" href="/plus/schedule" hrefLabel="Full schedule">
-              {schedule.map((entry) => {
+            <Lane title="Coming up" href="/plus/schedule" hrefLabel="Full schedule" cols={4}>
+              {schedule.slice(0, 8).map((entry) => {
                 const start = new Date(entry.start);
                 const isNow = start.getTime() <= now && new Date(entry.end).getTime() > now;
                 return (
@@ -342,8 +342,8 @@ export default function FTNPlusRadioPage() {
             </Lane>
 
             {shows.size > 0 && (
-              <Lane title="The shows">
-                {Array.from(shows.values()).map((s) => (
+              <Lane title="The shows" cols={5}>
+                {Array.from(shows.values()).slice(0, 10).map((s) => (
                   <ShowCard key={s.id} title={s.name} presenter={s.presenter} artUrl={s.artUrl} />
                 ))}
               </Lane>

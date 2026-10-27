@@ -88,17 +88,11 @@ export default function LibraryPage() {
 
   return (
     <PageShell>
-      {isAll && billboardItem && <OTTBillboard item={billboardItem} />}
+      {isAll && billboardItem && <OTTBillboard item={billboardItem} compact />}
 
-      <PageHeader
-        eyebrow="FTN+"
-        title="Library"
-        subtitle="Livestreams, replays and originals from every FTN channel."
-        flush={isAll && !!billboardItem}
-        className={isAll && billboardItem ? "-mt-6 relative z-20" : undefined}
-      />
+      {!(isAll && billboardItem) && <PageHeader title="Library" subtitle="Livestreams, replays and originals from every FTN channel." />}
 
-      <div className={cn("flex flex-wrap gap-2 pb-8", GUTTER)} role="group" aria-label="Filter videos">
+      <div className={cn("flex flex-wrap gap-2 pb-8", isAll && billboardItem && "pt-6", GUTTER)} role="group" aria-label="Filter videos">
         <Chip active={isAll} onClick={() => select({ kind: "all" })}>
           All
         </Chip>
@@ -159,7 +153,7 @@ export default function LibraryPage() {
               <EmptyState icon={<IconVideo />} title="No videos match" description="Try a different filter." />
             ) : (
               <>
-                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
                   {filtered.slice(0, shown).map((v) => (
                     <MediaCard
                       key={v.id}

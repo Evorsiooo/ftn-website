@@ -27,7 +27,7 @@ export function OTTSwimlane({
 }) {
   return (
     <div style={{ contentVisibility: "auto", containIntrinsicSize: "0 300px" }}>
-      <Lane title={title} href={href} hrefLabel={hrefLabel}>
+      <Lane title={title} href={href} hrefLabel={hrefLabel} cols={4}>
         {videos.map((video) => (
           <MediaCard
             key={video.id}

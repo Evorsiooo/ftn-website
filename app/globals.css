@@ -468,6 +468,18 @@
 .ftn-page-enter {
   animation: ftn-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+@keyframes ftn-slide-from-right {
+  from { opacity: 0; transform: translate3d(64px, 0, 0); }
+}
+@keyframes ftn-slide-from-left {
+  from { opacity: 0; transform: translate3d(-64px, 0, 0); }
+}
+.ftn-slide-from-right {
+  animation: ftn-slide-from-right 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.ftn-slide-from-left {
+  animation: ftn-slide-from-left 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
 .ftn-skeleton {
   background: linear-gradient(90deg, var(--color-ftn-surface) 30%, var(--color-ftn-surface-2) 50%, var(--color-ftn-surface) 70%);
   background-size: 300% 100%;
@@ -475,6 +487,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .ftn-page-enter,
+  .ftn-slide-from-right,
+  .ftn-slide-from-left,
   .ftn-skeleton,
   .ftn-live-dot {
     animation: none !important;
