@@ -365,8 +365,8 @@ export default function AdminPostsPage() {
         <AdminPageHeader title="Posts" description="Design news posts with an ad, send them for approval and track them." />
 
         <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,min(46vw,820px))] gap-8 xl:gap-10">
-          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 self-start">
-            <h2 className="text-lg font-bold">{editingId ? "Edit Post" : "Create Post"}</h2>
+          <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start lg:sticky lg:top-24">
+            <h2 className="text-lg font-extrabold">{editingId ? "Edit Post" : "Create Post"}</h2>
 
             <div>
               <label className={labelClass}>Headline (max 3 lines)</label>
@@ -487,7 +487,7 @@ export default function AdminPostsPage() {
           </Card>
 
           <div className="space-y-2 xl:sticky xl:top-24 self-start">
-            <h2 className="text-lg font-bold">Live preview</h2>
+            <h2 className="text-lg font-extrabold">Live preview</h2>
             <canvas ref={canvasRef} width={1024} height={1024} className="w-full max-w-[820px]"
               style={CHECKERBOARD} />
             {previewError && <p className="text-xs text-red-600">{previewError}</p>}
@@ -497,7 +497,7 @@ export default function AdminPostsPage() {
         <div ref={setTimelineHost} className={mode === "video" ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
 
         <div className="space-y-4">
-          <h2 className="text-lg font-bold">All posts</h2>
+          <h2 className="text-lg font-extrabold">All posts</h2>
           {loading ? (
             <div className="flex items-center p-8 text-neutral-500"><Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading...</div>
           ) : posts.length === 0 ? (
@@ -508,7 +508,7 @@ export default function AdminPostsPage() {
                 const mine = me?.id === p.createdBy;
                 const canChange = mine || isLeadership;
                 return (
-                  <Card key={p.id} className="p-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2">
+                  <Card key={p.id} className="p-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-2">
                     {p.mediaType === "video" && p.videoUrl?.endsWith(".webp") ? (
                       <img src={p.videoUrl} alt={p.headline} className="w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" />
                     ) : p.mediaType === "video" && p.videoUrl ? (

@@ -329,8 +329,8 @@ export default function AdminAdsConsole() {
         </dl>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <Card className="p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 self-start">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">{editingId ? "Edit Ad" : "Create Ad"}</h2>
+          <Card className="p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 self-start lg:sticky lg:top-24">
+            <h2 className="text-lg font-extrabold">{editingId ? "Edit Ad" : "Create Ad"}</h2>
             <form onSubmit={handleSave} className="space-y-3">
               <div>
                 <label className={labelClass}>Ad Title</label>
@@ -418,7 +418,7 @@ export default function AdminAdsConsole() {
           </Card>
 
           <div className="space-y-4">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Organizers and Ads</h2>
+            <h2 className="text-lg font-extrabold">Organizers and Ads</h2>
             {loading ? (
               <div className="flex items-center justify-center p-8 text-neutral-500">
                 <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading ads...
@@ -430,7 +430,7 @@ export default function AdminAdsConsole() {
             ) : (
               <>
                 {groups.map(({ organizer, ads }) => (
-                  <Card key={organizer.id} className="p-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3">
+                  <Card key={organizer.id} className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
                       {organizer.name} <span className="font-normal text-neutral-500">({ads.length} {ads.length === 1 ? "ad" : "ads"})</span>
                     </h3>
@@ -438,7 +438,7 @@ export default function AdminAdsConsole() {
                   </Card>
                 ))}
                 {unassigned.length > 0 && (
-                  <Card className="p-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3">
+                  <Card className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">No organizer</h3>
                     {unassigned.map(renderAd)}
                   </Card>

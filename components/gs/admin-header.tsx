@@ -21,7 +21,7 @@ export function AdminPageHeader({
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-      {tabs && <div className="flex gap-1 overflow-x-auto border-b border-neutral-200 dark:border-neutral-800">{tabs}</div>}
+      {tabs && <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">{tabs}</div>}
     </div>
   );
 }
@@ -41,7 +41,7 @@ export function AdminTab({
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={`-mb-px shrink-0 cursor-pointer border-b-4 px-4 py-3 text-sm font-bold transition ${
+      className={`shrink-0 cursor-pointer border-b-4 px-4 py-3 text-sm font-bold transition ${
         active ? "border-brand text-neutral-900 dark:text-white" : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
       }`}
     >

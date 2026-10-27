@@ -143,22 +143,22 @@ export default function AdminTipsConsole() {
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Incoming Leads ({tipsList.length})</h2>
+            <h2 className="text-lg font-extrabold">Incoming Leads ({tipsList.length})</h2>
           </div>
 
           {loading ? (
-            <div className="p-8 text-center text-xs text-neutral-500 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 shadow-sm dark:shadow-none">
+            <div className="p-8 text-center text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 shadow-sm dark:shadow-none">
               Loading tipline submissions...
             </div>
           ) : tipsList.length === 0 ? (
-            <div className="p-12 text-center text-xs text-neutral-500 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2 shadow-sm dark:shadow-none">
+            <div className="p-12 text-center text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-2 shadow-sm dark:shadow-none">
               <MessageSquare className="h-8 w-8 text-neutral-400 dark:text-neutral-700 mx-auto" />
               <p>No tipline submissions received yet.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
               {tipsList.map((tip) => (
-                <Card key={tip.id} className="p-6 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-4">
+                <Card key={tip.id} className="p-6 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                     <div className="flex items-center gap-2.5">
                       <h3 className="font-bold text-base text-neutral-900 dark:text-white">{tip.subject}</h3>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
+import { AdminSection, AdminSwitch } from "@/components/gs/admin-form";
 import { canConfigureSite } from "@/lib/rbac";
 import {
   Radio,
@@ -895,136 +896,40 @@ export default function SiteSettingsPage() {
         }
       />
 
-      {/* Modern Tabs Navigation */}
-      <div className="flex items-center gap-1 border-b border-neutral-200 dark:border-neutral-800 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          onClick={() => handleSelectTab("general")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "general"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Radio className="h-3.5 w-3.5 text-brand-text" />
-          <span>General & Media</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectTab("auth")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "auth"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Lock className="h-3.5 w-3.5 text-brand-text" />
-          <span>Authentication & Users</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectTab("moderation")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "moderation"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Shield className="h-3.5 w-3.5 text-red-500" />
-          <span>Moderation & Safety</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => handleSelectTab("plus")}
-          className={`-mb-px flex items-center gap-2 border-b-4 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
-            activeTab === "plus"
-              ? "border-brand text-neutral-900 dark:text-white"
-              : "border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white"
-          }`}
-        >
-          <Video className="h-3.5 w-3.5 text-brand-text" />
-          <span>FTN+ Video Network</span>
-        </button>
+      <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800">
+        <AdminTab active={activeTab === "general"} onClick={() => handleSelectTab("general")}>General & Media</AdminTab>
+        <AdminTab active={activeTab === "auth"} onClick={() => handleSelectTab("auth")}>Authentication & Users</AdminTab>
+        <AdminTab active={activeTab === "moderation"} onClick={() => handleSelectTab("moderation")}>Moderation & Safety</AdminTab>
+        <AdminTab active={activeTab === "plus"} onClick={() => handleSelectTab("plus")}>FTN+ Video Network</AdminTab>
       </div>
 
       {/* 1. GENERAL & MEDIA TAB */}
       {activeTab === "general" && (
         <div className="space-y-8">
           {/* Homepage donation banner */}
-          <Card className="rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
+          <AdminSection title="Homepage Donation Banner">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Homepage Donation Banner</h2>
+                
                 <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
                   Shows the &quot;FTN needs your help!&quot; donation appeal at the top of the homepage.
                 </p>
               </div>
-              <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setDonationBannerEnabled(true)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                    donationBannerEnabled
-                      ? "bg-emerald-600 text-white shadow-sm"
-                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                  }`}
-                >
-                  ON
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDonationBannerEnabled(false)}
-                  className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                    !donationBannerEnabled
-                      ? "bg-red-600 text-white shadow-sm"
-                      : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                  }`}
-                >
-                  OFF
-                </button>
-              </div>
+              <AdminSwitch checked={donationBannerEnabled} onChange={setDonationBannerEnabled} label="Toggle" />
             </div>
-          </Card>
+          </AdminSection>
 
           {/* 1. Webradio Stream Settings */}
-          <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN Live WebRadio Broadcasts</h2>
-          </div>
+          <AdminSection title="FTN Live WebRadio Broadcasts">
+        <div className="flex items-center justify-between pb-1">
+          
 
-          <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1">
-            <button
-              type="button"
-              onClick={() => setWebradioToggle(true)}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                webradioToggle
-                  ? "bg-emerald-600 text-white shadow-sm"
-                  : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-              }`}
-            >
-              ON
-            </button>
-            <button
-              type="button"
-              onClick={() => setWebradioToggle(false)}
-              className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                !webradioToggle
-                  ? "bg-red-600 text-white shadow-sm"
-                  : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-              }`}
-            >
-              OFF
-            </button>
-          </div>
+          <AdminSwitch checked={webradioToggle} onChange={setWebradioToggle} label="Toggle" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Icecast Audio Stream URL (.mp3 / .aac)
             </label>
             <Input
@@ -1036,7 +941,7 @@ export default function SiteSettingsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Status JSON Metadata Endpoint
             </label>
             <Input
@@ -1053,19 +958,19 @@ export default function SiteSettingsPage() {
           <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Station & Discord Bot</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Station Name</label>
+              <label className="block text-sm font-semibold">Station Name</label>
               <Input value={radioPublic.stationName} onChange={(e) => setRadioPublic({ ...radioPublic, stationName: e.target.value })} />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Default Album Art URL</label>
+              <label className="block text-sm font-semibold">Default Album Art URL</label>
               <Input value={radioPublic.defaultArtUrl} onChange={(e) => setRadioPublic({ ...radioPublic, defaultArtUrl: e.target.value })} placeholder="Shown when no show or track art is found" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Bot Invite Link</label>
+              <label className="block text-sm font-semibold">Discord Bot Invite Link</label>
               <Input value={radioPublic.discordBotLink} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotLink: e.target.value })} placeholder="https://discord.com/oauth2/authorize?client_id=..." />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Bot Setup Command</label>
+              <label className="block text-sm font-semibold">Discord Bot Setup Command</label>
               <Input value={radioPublic.discordBotCommand} onChange={(e) => setRadioPublic({ ...radioPublic, discordBotCommand: e.target.value })} placeholder="/setup" className="font-mono text-xs" />
             </div>
           </div>
@@ -1079,19 +984,19 @@ export default function SiteSettingsPage() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin URL</label>
+              <label className="block text-sm font-semibold">Admin URL</label>
               <Input value={radioSecure.icecastAdminUrl} onChange={(e) => setRadioSecure({ ...radioSecure, icecastAdminUrl: e.target.value })} placeholder="http://127.0.0.1:8000" className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Mount Point</label>
+              <label className="block text-sm font-semibold">Mount Point</label>
               <Input value={radioSecure.icecastMount} onChange={(e) => setRadioSecure({ ...radioSecure, icecastMount: e.target.value })} placeholder="/autodj" className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin Username</label>
+              <label className="block text-sm font-semibold">Admin Username</label>
               <Input value={radioSecure.icecastUsername} onChange={(e) => setRadioSecure({ ...radioSecure, icecastUsername: e.target.value })} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Admin Password</label>
+              <label className="block text-sm font-semibold">Admin Password</label>
               <Input type="password" value={radioSecure.icecastPassword} onChange={(e) => setRadioSecure({ ...radioSecure, icecastPassword: e.target.value })} className="font-mono text-xs" />
             </div>
           </div>
@@ -1105,15 +1010,15 @@ export default function SiteSettingsPage() {
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Endpoint URL</label>
+              <label className="block text-sm font-semibold">Rotation Endpoint URL</label>
               <Input value={radioSecure.rotationEndpointUrl} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointUrl: e.target.value })} placeholder="https://euno.cc/rotate" className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Endpoint Token</label>
+              <label className="block text-sm font-semibold">Rotation Endpoint Token</label>
               <Input type="password" value={radioSecure.rotationEndpointToken} onChange={(e) => setRadioSecure({ ...radioSecure, rotationEndpointToken: e.target.value })} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Auto-Rotate Frequency</label>
+              <label className="block text-sm font-semibold">Auto-Rotate Frequency</label>
               <select
                 value={radioSecure.rotationFrequencyHours}
                 onChange={(e) => setRadioSecure({ ...radioSecure, rotationFrequencyHours: Number(e.target.value) })}
@@ -1127,7 +1032,7 @@ export default function SiteSettingsPage() {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Rotation Time (UTC, 24h+ only)</label>
+              <label className="block text-sm font-semibold">Rotation Time (UTC, 24h+ only)</label>
               <input
                 type="time"
                 value={radioSecure.rotationTimeUtc}
@@ -1136,7 +1041,7 @@ export default function SiteSettingsPage() {
               />
             </div>
             <div className="space-y-1.5 md:col-span-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Discord Webhook (rotation notices)</label>
+              <label className="block text-sm font-semibold">Discord Webhook (rotation notices)</label>
               <Input type="password" value={radioSecure.discordWebhookUrl} onChange={(e) => setRadioSecure({ ...radioSecure, discordWebhookUrl: e.target.value })} placeholder="https://discord.com/api/webhooks/..." className="font-mono text-xs" />
             </div>
           </div>
@@ -1147,16 +1052,16 @@ export default function SiteSettingsPage() {
           <h3 className="text-sm font-bold text-neutral-900 dark:text-white">Album Art API Keys</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Last.fm API Key</label>
+              <label className="block text-sm font-semibold">Last.fm API Key</label>
               <Input type="password" value={radioSecure.lastFmApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, lastFmApiKey: e.target.value })} className="font-mono text-xs" />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Fanart.tv API Key</label>
+              <label className="block text-sm font-semibold">Fanart.tv API Key</label>
               <Input type="password" value={radioSecure.fanartTvApiKey} onChange={(e) => setRadioSecure({ ...radioSecure, fanartTvApiKey: e.target.value })} className="font-mono text-xs" />
             </div>
             {[0, 1, 2].map((i) => (
               <div key={i} className="space-y-1.5">
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">Lookup Priority {i + 1}</label>
+                <label className="block text-sm font-semibold">Lookup Priority {i + 1}</label>
                 <select
                   value={radioSecure.artPriority[i] || ""}
                   onChange={(e) => {
@@ -1174,18 +1079,16 @@ export default function SiteSettingsPage() {
             ))}
           </div>
         </div>
-      </Card>
+      </AdminSection>
 
       {/* 3. Discord & Social Media Links */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Discord & Social Media Links</h2>
-        </div>
+      <AdminSection title="Discord & Social Media Links">
+        
 
         <div className="space-y-6">
           {/* Discord Button URL */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Navbar Discord Button URL
             </label>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -1201,7 +1104,7 @@ export default function SiteSettingsPage() {
 
           {/* Custom Footer Social Links */}
           <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Footer Social Links ({socialLinks.length})
             </label>
 
@@ -1245,7 +1148,7 @@ export default function SiteSettingsPage() {
             </div>
           </div>
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
 
@@ -1253,16 +1156,14 @@ export default function SiteSettingsPage() {
   {activeTab === "auth" && (
     <div className="space-y-8">
       {/* 2. Access Control, Authentication Mode & User Management */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Authentication & Access Control</h2>
-        </div>
+      <AdminSection title="Authentication & Access Control">
+        
 
         <div className="space-y-6">
           {/* Account Creation Toggle */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Account Creation
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1274,41 +1175,13 @@ export default function SiteSettingsPage() {
               </p>
             </div>
 
-            <div className="flex items-center rounded-lg border border-neutral-300 bg-neutral-100 dark:border-neutral-800 dark:bg-neutral-900 p-1">
-              <button
-                type="button"
-                disabled={authMode === "credentials"}
-                onClick={() => {
-                  if (authMode !== "credentials") setAllowSignIn(true);
-                }}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition ${
-                  authMode === "credentials"
-                    ? "opacity-30 cursor-not-allowed text-neutral-400"
-                    : allowSignIn
-                    ? "bg-emerald-600 text-white shadow-sm cursor-pointer"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white cursor-pointer"
-                }`}
-              >
-                ENABLED
-              </button>
-              <button
-                type="button"
-                onClick={() => setAllowSignIn(false)}
-                className={`px-3 py-1 text-xs font-bold rounded-md transition cursor-pointer ${
-                  !allowSignIn || authMode === "credentials"
-                    ? "bg-red-600 text-white shadow-sm"
-                    : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
-                }`}
-              >
-                DISABLED
-              </button>
-            </div>
+            <AdminSwitch checked={allowSignIn && authMode !== "credentials"} disabled={authMode === "credentials"} onChange={setAllowSignIn} label="Account creation" />
           </div>
 
           {/* Authentication Method Selector */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Active Authentication Method
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1350,7 +1223,7 @@ export default function SiteSettingsPage() {
           {/* FTN+ Access Gate */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 FTN+ Access Gate
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1389,7 +1262,7 @@ export default function SiteSettingsPage() {
           {/* Tipline Access Gate */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Investigative Tipline Access Gate
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1560,7 +1433,7 @@ export default function SiteSettingsPage() {
           {/* User Search Bar */}
           <div className="space-y-4 pt-2">
             <div className="space-y-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+              <label className="block text-sm font-semibold">
                 Search User Accounts
               </label>
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -1732,7 +1605,7 @@ export default function SiteSettingsPage() {
             )}
           </div>
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
 
@@ -1740,10 +1613,8 @@ export default function SiteSettingsPage() {
   {activeTab === "moderation" && (
     <div className="space-y-8">
       {/* 4. User Moderation & Auto-Mod */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">User Moderation & Auto-Mod</h2>
-        </div>
+      <AdminSection title="User Moderation & Auto-Mod">
+        
 
         <div className="space-y-6">
           {/* Manual Mute Form */}
@@ -1791,7 +1662,7 @@ export default function SiteSettingsPage() {
 
           {/* Active Mutes List */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Currently Muted Accounts ({moderations.length})
             </label>
 
@@ -1898,17 +1769,15 @@ export default function SiteSettingsPage() {
             )}
           </div>
         </div>
-      </Card>
+      </AdminSection>
 
       {/* 7. Comment Profanity Filter */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">Comment Profanity Filter</h2>
-        </div>
+      <AdminSection title="Comment Profanity Filter">
+        
 
         <div className="space-y-3">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Banned Words (One per line)
             </label>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1924,7 +1793,7 @@ export default function SiteSettingsPage() {
             className="font-mono text-xs"
           />
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
 
@@ -1932,11 +1801,9 @@ export default function SiteSettingsPage() {
   {activeTab === "plus" && (
     <div className="space-y-8">
       {/* 5. FTN+ YouTube Channels & Library Purge */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN+ YouTube Channels & Video Sync</h2>
-          </div>
+      <AdminSection title="FTN+ YouTube Channels & Video Sync">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+          
 
           <div className="flex items-center gap-2">
             <Button
@@ -1968,7 +1835,7 @@ export default function SiteSettingsPage() {
         )}
 
         <div className="space-y-3">
-          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+          <label className="block text-sm font-semibold">
             Add Channel ID or Handle
           </label>
           <div className="flex gap-2">
@@ -1995,7 +1862,7 @@ export default function SiteSettingsPage() {
         </div>
 
         <div className="space-y-2 pt-2">
-          <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+          <label className="block text-sm font-semibold">
             Active Channel Ingestions ({youtubeChannels.length})
           </label>
 
@@ -2068,16 +1935,14 @@ export default function SiteSettingsPage() {
             </div>
           )}
         </div>
-      </Card>
+      </AdminSection>
 
         {/* 5b. Synced Video Library & Stream Visibility Controls */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
+      <AdminSection title={<>FTN+ Synced Video Catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}</>}>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-1">
           <div className="flex items-center gap-2">
             <div>
-              <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                FTN+ Synced Video Catalog {videosLoaded ? `(${ingestedVideos.length})` : ""}
-              </h2>
+              
               <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
                 Hide duplicate or superseded streams from appearing on FTN+ swimlanes and the homepage.
               </p>
@@ -2237,14 +2102,12 @@ export default function SiteSettingsPage() {
             </div>
           );
         })()}
-      </Card>
+      </AdminSection>
 
       {/* 6. Custom FTN+ Swimlanes (Dynamic Filter & Curated Playlist) */}
-      <Card className="space-y-6 rounded-[1.75rem] border-0 bg-white p-6 sm:p-8 dark:bg-neutral-900">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">FTN+ Custom Swimlanes</h2>
-          </div>
+      <AdminSection title="FTN+ Custom Swimlanes">
+        <div className="flex items-center justify-between pb-1">
+          
         </div>
 
         {/* Edit Swimlane Form */}
@@ -2617,7 +2480,7 @@ export default function SiteSettingsPage() {
         {/* Configured Swimlanes List with Reordering */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+            <label className="block text-sm font-semibold">
               Configured Swimlanes ({swimlanes.length})
             </label>
             <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -2727,7 +2590,7 @@ export default function SiteSettingsPage() {
             </div>
           )}
         </div>
-      </Card>
+      </AdminSection>
     </div>
   )}
     </div>

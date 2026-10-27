@@ -259,16 +259,6 @@ function AdminArticlesContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              {editingArticle?.slug && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenHistory(editingArticle)}
-                  className="text-xs gap-1.5 border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white cursor-pointer"
-                >
-                  <History className="h-3.5 w-3.5 text-brand-text" /> Version History
-                </Button>
-              )}
               <Button
                 variant="outline"
                 size="sm"

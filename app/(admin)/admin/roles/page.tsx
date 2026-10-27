@@ -127,7 +127,7 @@ export default function AdminRolesConsole() {
 
       {/* Users List */}
       <div className="space-y-4">
-        <div className="text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+        <div className="text-sm font-bold text-neutral-600 dark:text-neutral-400">
           {searchQuery
             ? `Search Results (${usersList.length})`
             : `Active Staff Members (${usersList.length})`}
@@ -136,7 +136,7 @@ export default function AdminRolesConsole() {
         {loading ? (
           <div className="p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading user accounts...</div>
         ) : usersList.length === 0 ? (
-          <div className="p-12 text-center rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-2 shadow-sm dark:shadow-none">
+          <div className="p-12 text-center rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-2 shadow-sm dark:shadow-none">
             <UserCheck className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mx-auto" />
             <div className="text-sm font-bold text-neutral-900 dark:text-white">No accounts found</div>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -148,7 +148,7 @@ export default function AdminRolesConsole() {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {usersList.map((staff) => (
-              <Card key={staff.id} className="p-6 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-4">
+              <Card key={staff.id} className="p-6 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-3">
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-neutral-200 text-neutral-800 dark:bg-neutral-800 dark:text-white overflow-hidden flex items-center justify-center font-bold text-xs">
@@ -176,7 +176,7 @@ export default function AdminRolesConsole() {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 uppercase tracking-wider">
+                  <div className="text-sm font-semibold text-neutral-600 dark:text-neutral-400">
                     Permissions
                   </div>
                   <div className="flex flex-wrap gap-2">

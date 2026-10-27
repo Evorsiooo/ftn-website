@@ -15,10 +15,10 @@ import { formatDateTime } from "@/lib/utils";
 
 type Tab = "leagues" | "roster" | "venues" | "events";
 
-const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
+const labelClass = "block text-sm font-semibold mb-1";
 const selectClass =
-  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
-const cardClass = "p-6 space-y-4 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900";
+  "w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500";
+const cardClass = "p-5 sm:p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 lg:sticky lg:top-24 self-start";
 const primaryBtn = "font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50";
 
 async function api(method: string, entity: string, body?: unknown, id?: string) {
@@ -180,7 +180,7 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       <Card className={cardClass}>
-        <h2 className="text-lg font-bold">Create league</h2>
+        <h2 className="text-lg font-extrabold">Create league</h2>
         <form
           className="space-y-3"
           onSubmit={async (e) => {
@@ -211,14 +211,14 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
       </Card>
 
       <div className="space-y-4">
-        <h2 className="text-lg font-bold">Leagues</h2>
+        <h2 className="text-lg font-extrabold">Leagues</h2>
         {leagues.length === 0 && (
           <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
             No leagues yet.
           </div>
         )}
         {leagues.map((l) => (
-          <Card key={l.id} className="p-4 space-y-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
+          <Card key={l.id} className="p-5 space-y-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-bold text-sm">{l.name}</h3>
@@ -341,7 +341,7 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
       <Card className={`${cardClass} self-start`}>
-        <h2 className="text-lg font-bold">Add venue</h2>
+        <h2 className="text-lg font-extrabold">Add venue</h2>
         <p className="text-xs text-neutral-500">Tracks and stages. The photo shows on the Sports hub, calendar and league overview.</p>
         <form
           className="space-y-3"
@@ -357,7 +357,7 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
       <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 content-start">
         {venues.length === 0 && <p className="text-xs text-neutral-500">No venues yet.</p>}
         {venues.map((v) => (
-          <Card key={v.id} className="overflow-hidden border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+          <Card key={v.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <div className="h-32 bg-neutral-200 dark:bg-neutral-900">
               {v.photoUrl && <img src={v.photoUrl} alt="" className="h-full w-full object-cover" />}
             </div>
@@ -394,7 +394,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       <div className="space-y-4">
         <Card className={cardClass}>
-          <h2 className="text-lg font-bold">{racing ? "Add constructor" : "Add team"}</h2>
+          <h2 className="text-lg font-extrabold">{racing ? "Add constructor" : "Add team"}</h2>
           <form
             className="space-y-3"
             onSubmit={async (e) => {
@@ -417,7 +417,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
           </form>
         </Card>
         {teams.map((t) => (
-          <Card key={t.id} className="p-3 flex items-center justify-between border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+          <Card key={t.id} className="p-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <span className="flex items-center gap-2 text-sm font-semibold">
               {t.logoUrl ? <img src={t.logoUrl} alt="" className="h-8 w-8 rounded-full border border-neutral-300 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-900 p-1 object-contain" /> : <span className="h-3 w-3 rounded-full" style={{ backgroundColor: t.color || "#525252" }} />} {t.name}
             </span>
@@ -439,7 +439,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
       {racing && (
         <div className="space-y-4">
           <Card className={cardClass}>
-            <h2 className="text-lg font-bold">Add driver</h2>
+            <h2 className="text-lg font-extrabold">Add driver</h2>
             <form
               className="space-y-3"
               onSubmit={async (e) => {
@@ -464,7 +464,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
             </form>
           </Card>
           {drivers.map((d) => (
-            <Card key={d.id} className="p-3 flex items-center justify-between border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-950">
+            <Card key={d.id} className="p-4 flex items-center justify-between rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <span className="text-sm">
                 <span className="font-semibold">{d.number != null ? `#${d.number} ` : ""}{d.name}</span>
                 <span className="text-neutral-500 text-xs ml-2">{teams.find((t) => t.id === d.teamId)?.name ?? ""}{d.robloxUsername ? ` · @${d.robloxUsername}` : ""}</span>
@@ -499,7 +499,7 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
       <Card className={`${cardClass} lg:col-span-1 self-start`}>
-        <h2 className="text-lg font-bold">{racing ? "Add round" : "Add match"}</h2>
+        <h2 className="text-lg font-extrabold">{racing ? "Add round" : "Add match"}</h2>
         <form
           className="space-y-3"
           onSubmit={async (e) => {
@@ -553,10 +553,10 @@ function EventsTab({ league, data, articles, busy, run }: { league: SportsLeague
       </Card>
 
       <div className="lg:col-span-2 space-y-3">
-        <h2 className="text-lg font-bold">Schedule and results</h2>
+        <h2 className="text-lg font-extrabold">Schedule and results</h2>
         {events.length === 0 && <p className="text-xs text-neutral-500">No events yet.</p>}
         {events.map((e) => (
-          <Card key={e.id} className="p-4 space-y-3 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900">
+          <Card key={e.id} className="p-5 space-y-3 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="font-bold text-sm">
