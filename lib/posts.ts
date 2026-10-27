@@ -14,6 +14,7 @@ export interface PostInput {
   logo?: string;
   roState?: string;
   adId?: string | null;
+  noAd?: boolean;
   backgroundUrl?: string | null;
   imageUrl?: string;
 }
@@ -50,6 +51,7 @@ export function validatePostInput(
     if (!RO_STATES.some((s) => s.key === input.roState)) return { error: "Choose a valid Ro-State" };
     values.roState = input.roState;
   }
+  if (input.noAd !== undefined) values.noAd = input.noAd === true;
   if (input.imageUrl !== undefined) {
     if (!isPostMediaUrl(input.imageUrl)) return { error: "Invalid generated image" };
     values.imageUrl = input.imageUrl;

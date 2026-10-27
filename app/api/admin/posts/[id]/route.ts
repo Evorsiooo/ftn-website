@@ -66,8 +66,8 @@ export async function PATCH(
 
     const values = { ...parsed.values, updatedAt: new Date() } as Record<string, unknown>;
 
-    if (body.adId !== undefined && (body.adId || null) !== existing.adId) {
-      const newAdId = body.adId || null;
+    if (body.adId !== undefined && (body.noAd === true ? null : body.adId || null) !== existing.adId) {
+      const newAdId = body.noAd === true ? null : body.adId || null;
       if (newAdId) {
         const ad = await db.select().from(adCampaigns).where(eq(adCampaigns.id, newAdId)).limit(1);
         if (ad.length === 0 || ad[0].adFormat !== "1024x180") {

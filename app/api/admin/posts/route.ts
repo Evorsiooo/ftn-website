@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
 
     let organizationName: string | null = null;
     let messageLink: string | null = null;
-    const adId = body.adId || null;
+    const noAd = body.noAd === true;
+    const adId = noAd ? null : body.adId || null;
     if (adId) {
       const ad = await db.select().from(adCampaigns).where(eq(adCampaigns.id, adId)).limit(1);
       if (ad.length === 0 || ad[0].adFormat !== "1024x180") {
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
       logo: (parsed.values as any).logo ?? "",
       backgroundUrl: (parsed.values as any).backgroundUrl ?? null,
       adId,
+      noAd,
       organizationName,
       messageLink,
       status: "pending" as const,
