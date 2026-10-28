@@ -145,7 +145,7 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
             <input type="checkbox" checked={onRadio} onChange={(e) => setOnRadio(e.target.checked)} /> Radio
           </label>
           <label className={check}>
-            <input type="checkbox" checked={onStream} onChange={(e) => setOnStream(e.target.checked)} /> Livestream (YouTube)
+            <input type="checkbox" checked={onStream} onChange={(e) => setOnStream(e.target.checked)} /> Livestream
           </label>
         </div>
       </div>
