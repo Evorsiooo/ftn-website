@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/ui/select";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
@@ -366,12 +367,12 @@ export default function AdminAdsConsole() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Organizer</label>
-                  <select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className={selectClass}>
+                  <Select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className={selectClass}>
                     <option value="">New organizer...</option>
                     {organizers.map((o) => (
                       <option key={o.id} value={o.id}>{o.name}</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
                 {!organizerId && (
                   <div>
@@ -384,18 +385,18 @@ export default function AdminAdsConsole() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Format</label>
-                  <select value={format} onChange={(e) => setFormat(e.target.value as AdFormat)} className={selectClass}>
+                  <Select value={format} onChange={(e) => setFormat(e.target.value as AdFormat)} className={selectClass}>
                     <option value="1024x180">1024x180 (single ad)</option>
                     <option value="512x180">512x180 (shared ad)</option>
-                  </select>
+                  </Select>
                 </div>
                 <div>
                   <label className={labelClass}>Website Zone</label>
-                  <select value={zone} onChange={(e) => setZone(e.target.value)} className={selectClass}>
+                  <Select value={zone} onChange={(e) => setZone(e.target.value)} className={selectClass}>
                     <option value="homepage_top">Homepage Top</option>
                     <option value="articles_inline">Articles Inline</option>
                     <option value="sports_sidebar">Sports Sidebar</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
 

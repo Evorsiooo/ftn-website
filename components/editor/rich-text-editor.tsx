@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/ui/select";
 import { toast, promptDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
@@ -501,7 +502,7 @@ export function RichTextEditor({
           <label className="block text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
             Category
           </label>
-          <select
+          <Select
             value={category}
             onChange={(e) => setCategory(e.target.value as any)}
             className="w-full h-10 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white text-sm px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
@@ -512,7 +513,7 @@ export function RichTextEditor({
             <option value="technology">Technology</option>
             <option value="entertainment">Entertainment</option>
             <option value="opinion">Opinion</option>
-          </select>
+          </Select>
         </div>
 
         <div className="space-y-1.5">

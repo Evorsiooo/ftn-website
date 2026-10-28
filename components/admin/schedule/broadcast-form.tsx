@@ -1,4 +1,6 @@
 "use client";
+import { Select } from "@/components/ui/select";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import React, { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -153,14 +155,14 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Show {onRadio ? "" : "(optional)"}</label>
-          <select value={showId} onChange={(e) => setShowId(e.target.value)} className={selectClass}>
+          <Select value={showId} onChange={(e) => setShowId(e.target.value)} className={selectClass}>
             <option value="">{onRadio ? "Choose a show…" : "No show"}</option>
             {shows.map((s) => (
               <option key={s.id} value={s.id}>
                 {s.name} — {s.presenter}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <label className={labelClass}>Title {showId ? "(optional, replaces the show name)" : ""}</label>
@@ -176,14 +178,14 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       {sportsEvents.length > 0 && (
         <div>
           <label className={labelClass}>Sports event (optional)</label>
-          <select value={sportsEventId} onChange={(e) => setSportsEventId(e.target.value)} className={selectClass}>
+          <Select value={sportsEventId} onChange={(e) => setSportsEventId(e.target.value)} className={selectClass}>
             <option value="">None</option>
             {sportsEvents.map((e) => (
               <option key={e.id} value={e.id}>
                 {e.label}
               </option>
             ))}
-          </select>
+          </Select>
           <p className="text-[11px] text-neutral-500 mt-1">Links this broadcast to the event so FTN+ Sports shows a Livestream or Radio badge on it.</p>
         </div>
       )}
@@ -205,20 +207,20 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelClass}>Repeats</label>
-          <select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
+          <Select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
             <option value="once">One-off</option>
             <option value="weekly">Weekly</option>
-          </select>
+          </Select>
         </div>
         <div>
           <label className={labelClass}>Type</label>
-          <select value={tag} onChange={(e) => setTag(e.target.value as any)} className={selectClass}>
+          <Select value={tag} onChange={(e) => setTag(e.target.value as any)} className={selectClass}>
             {TAGS.map((t) => (
               <option key={t} value={t}>
                 {t[0].toUpperCase() + t.slice(1)}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -226,17 +228,17 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className={labelClass}>Day</label>
-            <select value={day} onChange={(e) => setDay(Number(e.target.value))} className={selectClass}>
+            <Select value={day} onChange={(e) => setDay(Number(e.target.value))} className={selectClass}>
               {DAYS.map((d, i) => (
                 <option key={d} value={i}>
                   {d}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
           <div>
             <label className={labelClass}>Start</label>
-            <input type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectClass} />
+            <DateTimeInput type="time" value={time} onChange={(e) => setTime(e.target.value)} className={selectClass} />
           </div>
           <div>
             <label className={labelClass}>Minutes</label>
@@ -254,24 +256,24 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass}>Starts</label>
-            <input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={selectClass} />
+            <DateTimeInput type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} className={selectClass} />
           </div>
           <div>
             <label className={labelClass}>Ends</label>
-            <input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={selectClass} />
+            <DateTimeInput type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} className={selectClass} />
           </div>
         </div>
       )}
       <div>
         <label className={labelClass}>Timezone</label>
-        <select value={timezone} onChange={(e) => changeTimezone(e.target.value)} className={selectClass}>
+        <Select value={timezone} onChange={(e) => changeTimezone(e.target.value)} className={selectClass}>
           {timezoneList([timezone, defaultTimezone()]).map((z) => (
             <option key={z} value={z}>
               {z}
               {z === defaultTimezone() ? " (yours)" : ""}
             </option>
           ))}
-        </select>
+        </Select>
         <p className="text-[11px] text-neutral-500 mt-1">
           {kind === "weekly"
             ? "Weekly shows keep this local time all year: if the zone changes between summer and winter time, the show stays at the same wall-clock time."

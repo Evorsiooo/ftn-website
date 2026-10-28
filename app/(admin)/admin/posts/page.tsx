@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/ui/select";
 import { toast, confirmDialog, promptDialog } from "@/components/gs/dialogs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -508,19 +509,19 @@ export default function AdminPostsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Ro-State (required)</label>
-                <select value={roState} onChange={(e) => setRoState(e.target.value)} className={fieldClass}>
+                <Select value={roState} onChange={(e) => setRoState(e.target.value)} className={fieldClass}>
                   <option value="">Choose...</option>
                   {RO_STATES.map((s) => (
                     <option key={s.key} value={s.key}>{s.label}</option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
 
             <div>
               <label className={labelClass}>Ad</label>
               <div className="flex gap-2">
-                <select value={adId} onChange={(e) => setAdId(e.target.value)} className={fieldClass}>
+                <Select value={adId} onChange={(e) => setAdId(e.target.value)} className={fieldClass}>
                   <option value="">Placeholder (&quot;your advertisement here&quot;)</option>
                   <option value={NO_AD}>No ad (image cropped to the box)</option>
                   {ads.map((a) => (
@@ -528,7 +529,7 @@ export default function AdminPostsPage() {
                       {adOptionLabel(a)}{a.imageUrl.startsWith("/") ? "" : " (re-upload image first)"}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <Button
                   type="button"
                   variant="outline"

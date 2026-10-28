@@ -1,4 +1,6 @@
 "use client";
+import { Select } from "@/components/ui/select";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import { AdminSegmented } from "@/components/gs/admin-form";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -372,7 +374,7 @@ export function ScheduleTab({
             <Button type="button" size="sm" variant="outline" onClick={() => setWeekStart(addDays(weekStart, 7))} aria-label="Next week" className="cursor-pointer">
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <input
+            <DateTimeInput
               type="date"
               className={input}
               value={`${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`}
@@ -394,32 +396,32 @@ export function ScheduleTab({
 
       <div className="flex flex-wrap items-center gap-2">
         <Input value={filters.q} onChange={(e) => set("q", e.target.value)} placeholder="Search title, show, presenter" className="h-10 w-60" />
-        <select value={filters.medium} onChange={(e) => set("medium", e.target.value as Filters["medium"])} className={`${selectClass} !w-auto`}>
+        <Select value={filters.medium} onChange={(e) => set("medium", e.target.value as Filters["medium"])} className={`${selectClass} !w-auto`}>
           <option value="all">Radio and streams</option>
           <option value="radio">Radio only</option>
           <option value="stream">Streams only</option>
-        </select>
-        <select value={filters.tag} onChange={(e) => set("tag", e.target.value)} className={`${selectClass} !w-auto`}>
+        </Select>
+        <Select value={filters.tag} onChange={(e) => set("tag", e.target.value)} className={`${selectClass} !w-auto`}>
           <option value="">Any type</option>
           {TAGS.map((t) => (
             <option key={t} value={t}>
               {t[0].toUpperCase() + t.slice(1)}
             </option>
           ))}
-        </select>
-        <select value={filters.showId} onChange={(e) => set("showId", e.target.value)} className={`${selectClass} !w-auto`}>
+        </Select>
+        <Select value={filters.showId} onChange={(e) => set("showId", e.target.value)} className={`${selectClass} !w-auto`}>
           <option value="">All shows</option>
           {shows.map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
             </option>
           ))}
-        </select>
-        <select value={filters.status} onChange={(e) => set("status", e.target.value as Filters["status"])} className={`${selectClass} !w-auto`}>
+        </Select>
+        <Select value={filters.status} onChange={(e) => set("status", e.target.value as Filters["status"])} className={`${selectClass} !w-auto`}>
           <option value="all">Any status</option>
           <option value="active">Scheduled</option>
           <option value="cancelled">Cancelled</option>
-        </select>
+        </Select>
         {filtersActive && (
           <button type="button" onClick={() => setFilters(DEFAULT_FILTERS)} className="text-xs underline cursor-pointer">
             Clear filters
@@ -438,7 +440,7 @@ export function ScheduleTab({
           <span className="text-xs font-bold">{visibleSelected.length} selected</span>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => bulk("cancel")} className="text-xs cursor-pointer">Cancel</Button>
           <Button size="sm" variant="outline" disabled={busy} onClick={() => bulk("restore")} className="text-xs cursor-pointer">Restore</Button>
-          <select
+          <Select
             defaultValue=""
             disabled={busy}
             onChange={(e) => {
@@ -451,7 +453,7 @@ export function ScheduleTab({
             {TAGS.map((t) => (
               <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>
             ))}
-          </select>
+          </Select>
           <span className="inline-flex items-center gap-1">
             <input type="number" value={shiftHours} step={0.5} onChange={(e) => setShiftHours(Number(e.target.value))} className={`${input} w-16`} aria-label="Hours to shift" />
             <span className="text-xs">h</span>

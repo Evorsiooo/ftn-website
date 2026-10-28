@@ -1,4 +1,6 @@
 "use client";
+import { Select } from "@/components/ui/select";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { toast, confirmDialog, promptDialog } from "@/components/gs/dialogs";
 import React, { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
@@ -275,17 +277,17 @@ function LeaguesTab({ leagues, busy, run }: { leagues: SportsLeague[]; busy: boo
               <Field label="Season"><Input value={season} onChange={(e) => setSeason(e.target.value)} /></Field>
             </div>
             <Field label="Type">
-              <select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
+              <Select value={kind} onChange={(e) => setKind(e.target.value as any)} className={selectClass}>
                 <option value="racing">Racing (drivers and constructors)</option>
                 <option value="team">Team sport (matches)</option>
-              </select>
+              </Select>
             </Field>
             {kind === "racing" && (
               <Field label="Scoring">
-                <select value={scoring} onChange={(e) => setScoring(e.target.value as any)} className={selectClass}>
+                <Select value={scoring} onChange={(e) => setScoring(e.target.value as any)} className={selectClass}>
                   <option value="points">Points table (championship)</option>
                   <option value="order">Finishing order only (no points)</option>
-                </select>
+                </Select>
               </Field>
             )}
             <Field label="Colour"><Input value={color} onChange={(e) => setColor(e.target.value)} placeholder="#FFBB14" /></Field>
@@ -360,10 +362,10 @@ function RulesEditor({ league, busy, run, onSaved }: { league: SportsLeague; bus
       </div>
       {racing && (
         <Field label="Scoring">
-          <select value={scoring} onChange={(e) => setScoring(e.target.value as any)} className={selectClass}>
+          <Select value={scoring} onChange={(e) => setScoring(e.target.value as any)} className={selectClass}>
             <option value="points">Points table (championship)</option>
             <option value="order">Finishing order only: ranked by wins, then podiums</option>
-          </select>
+          </Select>
         </Field>
       )}
       {racing && scoring === "points" && (
@@ -527,7 +529,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                   <div className="w-14"><InlineCell value={d.number != null ? String(d.number) : ""} label={`Number of ${d.name}`} placeholder="#" className="gs-display text-center text-lg font-extrabold text-brand-text" onSave={(v) => run(() => api("PATCH", "drivers", { number: v || null }, d.id))} /></div>
                   <div className="min-w-[10rem] flex-1"><InlineCell value={d.name} label={`Name of ${d.name}`} onSave={(v) => v && run(() => api("PATCH", "drivers", { name: v }, d.id))} /></div>
 <div className="w-48">
-                    <select
+                    <Select
                       aria-label={`Constructor of ${d.name}`}
                       value={d.teamId ?? ""}
                       onChange={(e) => run(() => api("PATCH", "drivers", { teamId: e.target.value || null }, d.id))}
@@ -535,7 +537,7 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
                     >
                       <option value="">No constructor</option>
                       {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                    </Select>
                   </div>
                   <div className="w-36"><InlineCell value={d.robloxUsername ?? ""} label={`Roblox username of ${d.name}`} placeholder="Roblox name" onSave={(v) => run(() => api("PATCH", "drivers", { robloxUsername: v || null }, d.id))} /></div>
                   <button type="button" title="Delete" className={iconBtn} onClick={async () => (await confirmDialog(`Delete ${d.name}?`)) && run(() => api("DELETE", "drivers", undefined, d.id))}>
@@ -591,10 +593,10 @@ function RosterTab({ league, data, busy, run }: { league: SportsLeague; data: Re
             <div className="grid grid-cols-2 gap-3">
               <Field label="Number"><Input value={driverNumber} onChange={(e) => setDriverNumber(e.target.value)} /></Field>
               <Field label="Constructor">
-                <select value={driverTeam} onChange={(e) => setDriverTeam(e.target.value)} className={selectClass}>
+                <Select value={driverTeam} onChange={(e) => setDriverTeam(e.target.value)} className={selectClass}>
                   <option value="">None</option>
                   {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                </Select>
               </Field>
             </div>
             <Button type="submit" disabled={busy || !driverName.trim()} className={`w-full ${primaryBtn}`}>{editId ? "Save changes" : "Add driver"}</Button>
@@ -717,28 +719,28 @@ function EventsTab({ league, data, articles, busy, run, initialEditing = null }:
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Home">
-                  <select value={home} onChange={(e) => setHome(e.target.value)} className={selectClass}>
+                  <Select value={home} onChange={(e) => setHome(e.target.value)} className={selectClass}>
                     <option value="">Select</option>
                     {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  </Select>
                 </Field>
                 <Field label="Away">
-                  <select value={away} onChange={(e) => setAway(e.target.value)} className={selectClass}>
+                  <Select value={away} onChange={(e) => setAway(e.target.value)} className={selectClass}>
                     <option value="">Select</option>
                     {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
+                  </Select>
                 </Field>
               </div>
             )}
             <Field label="Venue (with photo)">
-              <select value={venueId} onChange={(e) => (e.target.value === "__new" ? quickVenue(run, setVenueId) : setVenueId(e.target.value))} className={selectClass}>
+              <Select value={venueId} onChange={(e) => (e.target.value === "__new" ? quickVenue(run, setVenueId) : setVenueId(e.target.value))} className={selectClass}>
                 <option value="">None</option>
                 {data.venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 <option value="__new">+ New venue…</option>
-              </select>
+              </Select>
             </Field>
             <Field label="Location note (optional)"><Input value={venue} onChange={(e) => setVenue(e.target.value)} /></Field>
-            <Field label="Start (your local time)"><Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
+            <Field label="Start (your local time)"><DateTimeInput type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
             <Button type="submit" disabled={busy || !startsAt || (!racing && (!home || !away))} className={`w-full ${primaryBtn}`}>{racing ? "Add round" : "Add match"}</Button>
           </form>
         </AdminDrawer>
@@ -852,16 +854,16 @@ function ResultEditor({
             {rows.map((r, i) => (
               <div key={i} className="grid grid-cols-[2rem_minmax(0,1fr)_8rem] items-center gap-2 rounded-2xl border border-neutral-200 p-2 dark:border-neutral-800 sm:grid-cols-[2rem_minmax(0,1fr)_8rem_6.5rem_auto]">
                 <span className="gs-display text-center text-lg font-extrabold text-brand-text">{i + 1}</span>
-                <select value={r.driverId} onChange={(e) => patchRow(i, { driverId: e.target.value })} className={selectClass}>
+                <Select value={r.driverId} onChange={(e) => patchRow(i, { driverId: e.target.value })} className={selectClass}>
                   <option value="">Driver</option>
                   {drivers.map((d) => <option key={d.id} value={d.id}>{d.number != null ? `#${d.number} ` : ""}{d.name}</option>)}
-                </select>
+                </Select>
                 <Input value={r.time} onChange={(e) => patchRow(i, { time: e.target.value })} placeholder="48:12.4" className="font-mono" />
-                <select value={r.status} onChange={(e) => patchRow(i, { status: e.target.value as Row["status"] })} className={`${selectClass} col-span-3 sm:col-span-1`}>
+                <Select value={r.status} onChange={(e) => patchRow(i, { status: e.target.value as Row["status"] })} className={`${selectClass} col-span-3 sm:col-span-1`}>
                   <option value="finished">Finished</option>
                   <option value="dnf">DNF</option>
                   <option value="dsq">DSQ</option>
-                </select>
+                </Select>
                 <span className="col-span-3 flex items-center justify-end gap-2 sm:col-span-1">
                   {points && (
                     <label className="flex items-center gap-1 whitespace-nowrap text-xs font-semibold">
@@ -889,20 +891,20 @@ function ResultEditor({
       <section className="space-y-3 border-t border-neutral-200 pt-5 dark:border-neutral-800">
         <h3 className="text-base font-extrabold">Details</h3>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Start (local)"><Input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
+          <Field label="Start (local)"><DateTimeInput type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} /></Field>
           <Field label="Video link (optional)"><Input value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)} placeholder="/plus/watch/..." /></Field>
           <Field label="Venue (with photo)">
-            <select value={venueId} onChange={(e) => (e.target.value === "__new" ? quickVenue(run, setVenueId) : setVenueId(e.target.value))} className={selectClass}>
+            <Select value={venueId} onChange={(e) => (e.target.value === "__new" ? quickVenue(run, setVenueId) : setVenueId(e.target.value))} className={selectClass}>
               <option value="">None</option>
               {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
               <option value="__new">+ New venue…</option>
-            </select>
+            </Select>
           </Field>
           <Field label="Round report (published article)">
-            <select value={articleId} onChange={(e) => setArticleId(e.target.value)} className={selectClass}>
+            <Select value={articleId} onChange={(e) => setArticleId(e.target.value)} className={selectClass}>
               <option value="">None</option>
               {articles.map((a) => <option key={a.id} value={a.id}>{a.title}</option>)}
-            </select>
+            </Select>
           </Field>
         </div>
         <p className="text-xs text-neutral-500">Broadcast: {broadcast ?? "none linked. Pick this event in the Schedule admin to show a Livestream or Radio badge."}</p>
