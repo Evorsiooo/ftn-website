@@ -51,6 +51,13 @@ export async function POST(request: NextRequest) {
 
     let organizationName: string | null = null;
     let messageLink: string | null = null;
+    let scheduledAt: Date | null = null;
+    if (body.scheduledAt !== undefined && body.scheduledAt !== null) {
+      scheduledAt = new Date(Number(body.scheduledAt));
+      if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() < Date.now() + 60_000) {
+        return NextResponse.json({ error: "The publish time must be in the future" }, { status: 400 });
+      }
+    }
     const noAd = body.noAd === true;
     const adId = noAd ? null : body.adId || null;
     if (adId) {
@@ -79,6 +86,7 @@ export async function POST(request: NextRequest) {
       organizationName,
       messageLink,
       status: "pending" as const,
+      scheduledAt,
       createdBy: auth.user.id,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -91,6 +99,8 @@ export async function POST(request: NextRequest) {
     }
     // Send it to #ftn-plus and #leadership. The post is saved either way; if Discord fails
     // the page offers a Resend button.
+    // A scheduled post is sent by the cron endpoint at its time.
+    if (scheduledAt) return NextResponse.json({ post }, { status: 201 });
     const discord = await sendPostToDiscord(db, post.id);
     return NextResponse.json({ post, discordWarning: discord.ok ? undefined : discord.error }, { status: 201 });
   } catch (error) {

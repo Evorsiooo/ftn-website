@@ -351,6 +351,8 @@ export const posts = sqliteTable("posts", {
     enum: ["pending", "approved", "denied"],
   }).notNull().default("pending"),
   denyReason: text("deny_reason"),
+  // Set while the post waits to be sent to Discord; cleared once it has been sent.
+  scheduledAt: integer("scheduled_at", { mode: "timestamp" }),
   decidedBy: text("decided_by").references(() => users.id),
   // Who decided, as shown in Discord ("Carol on the website" or a Discord name).
   decidedByLabel: text("decided_by_label"),

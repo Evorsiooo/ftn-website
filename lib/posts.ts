@@ -20,6 +20,8 @@ export interface PostInput {
   mediaType?: "image" | "video";
   videoUrl?: string | null;
   videoEdit?: string | null;
+  /** Epoch milliseconds the post should be sent to Discord, or null/absent to send now. */
+  scheduledAt?: number | null;
 }
 
 const MAX_VIDEO_EDIT_LENGTH = 100_000;
