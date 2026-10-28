@@ -32,10 +32,17 @@ function dayLabel(d: Date, now: number) {
   return d.toLocaleDateString(undefined, { weekday: "short" });
 }
 
+/** Schedule page opened on the day the entry airs (local date). */
+function scheduleHref(start: string) {
+  const d = new Date(start);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `/plus/schedule?date=${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function entryHref(e: ScheduleEntry) {
   if (e.onStream && e.youtubeId) return `/plus/watch/${e.youtubeId}`;
   if (e.onRadio) return "/plus/radio";
-  return "/plus/schedule";
+  return scheduleHref(e.start);
 }
 
 /** Home: what is on FTN+ right now, what is next, and what is new. */
@@ -67,7 +74,7 @@ export default function FTNPlusHomePage() {
       category: next.onStream ? "Livestream" : "FTN Radio",
       backdropUrl: next.artUrl || featuredBackdrop,
       kicker: `Up next ${untilLabel(new Date(next.start).getTime() - now)}`,
-      href: "/plus/schedule",
+      href: scheduleHref(next.start),
       ctaLabel: "See the schedule",
     };
   } else if (featuredVideo) {
