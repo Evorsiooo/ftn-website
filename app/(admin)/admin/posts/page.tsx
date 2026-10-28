@@ -473,7 +473,7 @@ export default function AdminPostsPage() {
   // the status bar when a post is open, and the timeline in video mode.
   const previewStyle: React.CSSProperties = {
     maxWidth: mode === "video" && !viewing
-      ? `clamp(200px, calc(100vh - ${34.25 + (current ? 5 : 0)}rem), 900px)`
+      ? `clamp(200px, calc(100vh - ${30.25 + (current ? 5 : 0)}rem), 900px)`
       : `clamp(300px, calc(100vh - ${18 + (current ? 5 : 0)}rem), 900px)`,
   };
   const canDecide = !!current && current.status === "pending" && !current.scheduledAt && isLeadership;
@@ -537,7 +537,7 @@ export default function AdminPostsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="w-full space-y-6 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-6 text-neutral-900 dark:text-white xl:space-y-3">
         <AdminPageHeader
           title="Posts"
           description="Preview, details and approval for each post."
@@ -613,15 +613,15 @@ export default function AdminPostsPage() {
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "relative space-y-2"}>
-              <div ref={setSelectedHost} className={mode === "video" ? "mb-2 space-y-3 xl:absolute xl:bottom-0 xl:left-0 xl:z-10 xl:mb-0 xl:w-60" : "hidden"} />
+              <div ref={setSelectedHost} className={mode === "video" ? "mb-2 space-y-3 xl:absolute xl:bottom-0 xl:left-0 xl:z-10 xl:mb-0 xl:w-64" : "hidden"} />
               <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full" style={{ ...CHECKERBOARD, ...previewStyle }} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
           </section>
 
-          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100vh_-_17.5rem)] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
-          <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+          <section className={`min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 xl:sticky xl:top-20 xl:flex xl:max-h-[calc(100vh_-_16.5rem)] xl:flex-col ${viewing && !editingId ? "opacity-60" : ""}`}>
+          <div className="space-y-4 p-5 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
             <h2 className="text-lg font-extrabold">{editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</h2>
 
             <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">1</span>Write it</h3>
@@ -739,6 +739,8 @@ export default function AdminPostsPage() {
               </div>
             )}
 
+          </div>
+          <div className="border-t border-neutral-200 p-4 dark:border-neutral-800">
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="min-w-[10rem] flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
                 {saving ? "Saving..." : editingId && !editingDraft ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
