@@ -146,6 +146,8 @@ export default function SiteSettingsPage() {
   // YouTube Channels & Video Management
   const [youtubeChannels, setYoutubeChannels] = useState<string[]>([]);
   const [newChannelInput, setNewChannelInput] = useState("");
+  const [twitchChannels, setTwitchChannels] = useState<string[]>([]);
+  const [newTwitchInput, setNewTwitchInput] = useState("");
   const [hiddenFeaturedChannels, setHiddenFeaturedChannels] = useState<string[]>([]);
   const [hiddenTrendingChannels, setHiddenTrendingChannels] = useState<string[]>([]);
   const [hiddenVideoIds, setHiddenVideoIds] = useState<string[]>([]);
@@ -198,7 +200,7 @@ export default function SiteSettingsPage() {
 
   const payloadJson = JSON.stringify({
     streamUrlInput, statusJsonInput, webradioToggle, allowSignIn, authMode, ftnPlusAccess, tiplineAccess, discordUrl, socialLinks,
-    bannedWordsInput, youtubeChannels, hiddenFeaturedChannels, hiddenTrendingChannels, swimlanes, hiddenVideoIds, autoModEnabled,
+    bannedWordsInput, youtubeChannels, twitchChannels, hiddenFeaturedChannels, hiddenTrendingChannels, swimlanes, hiddenVideoIds, autoModEnabled,
     donationBannerEnabled, autoModThreshold, autoModMuteDuration, radioPublic, radioSecure,
   });
   const [configLoaded, setConfigLoaded] = useState(false);
@@ -221,6 +223,7 @@ export default function SiteSettingsPage() {
     automod: { label: "Auto-moderation", keys: ["autoModEnabled", "autoModThreshold", "autoModMuteDuration"] },
     profanity: { label: "Profanity filter", keys: ["bannedWordsInput"] },
     channels: { label: "YouTube channels", keys: ["youtubeChannels", "hiddenFeaturedChannels", "hiddenTrendingChannels"] },
+    twitch: { label: "Twitch channels", keys: ["twitchChannels"] },
     catalog: { label: "Video catalog", keys: ["hiddenVideoIds"] },
     swimlanes: { label: "Swimlanes", keys: ["swimlanes"] },
   };
@@ -229,7 +232,7 @@ export default function SiteSettingsPage() {
     donationBannerEnabled: setDonationBannerEnabled, discordUrl: setDiscordUrl, socialLinks: setSocialLinks, streamUrlInput: setStreamUrlInput,
     statusJsonInput: setStatusJsonInput, webradioToggle: setWebradioToggle, allowSignIn: setAllowSignIn, authMode: setAuthMode,
     ftnPlusAccess: setFtnPlusAccess, tiplineAccess: setTiplineAccess, autoModEnabled: setAutoModEnabled, autoModThreshold: setAutoModThreshold,
-    autoModMuteDuration: setAutoModMuteDuration, bannedWordsInput: setBannedWordsInput, youtubeChannels: setYoutubeChannels,
+    autoModMuteDuration: setAutoModMuteDuration, bannedWordsInput: setBannedWordsInput, youtubeChannels: setYoutubeChannels, twitchChannels: setTwitchChannels,
     hiddenFeaturedChannels: setHiddenFeaturedChannels, hiddenTrendingChannels: setHiddenTrendingChannels, hiddenVideoIds: setHiddenVideoIds, swimlanes: setSwimlanes,
   };
   const dirtySections: string[] = (() => {
@@ -329,6 +332,7 @@ export default function SiteSettingsPage() {
           if (data.bannedWords !== undefined) setBannedWordsInput(data.bannedWords);
           if (Array.isArray(data.socialLinks)) setSocialLinks(data.socialLinks);
           if (Array.isArray(data.youtubeChannels)) setYoutubeChannels(data.youtubeChannels);
+          if (Array.isArray(data.twitchChannels)) setTwitchChannels(data.twitchChannels);
           if (Array.isArray(data.hiddenFeaturedChannels)) setHiddenFeaturedChannels(data.hiddenFeaturedChannels);
           if (Array.isArray(data.hiddenTrendingChannels)) setHiddenTrendingChannels(data.hiddenTrendingChannels);
           if (Array.isArray(data.customSwimlanes)) setSwimlanes(data.customSwimlanes);
@@ -600,6 +604,17 @@ export default function SiteSettingsPage() {
     } else {
       setNewChannelInput("");
     }
+  };
+
+  const handleAddTwitchChannel = (e: React.FormEvent) => {
+    e.preventDefault();
+    const login = newTwitchInput.trim().toLowerCase().replace(/^https?:\/\/(www\.|m\.)?twitch\.tv\//, "").split(/[/?#]/)[0].replace(/^@/, "");
+    if (!/^[a-z0-9_]{3,25}$/.test(login)) {
+      setSyncStatus("That doesn't look like a Twitch channel name. Use the name from twitch.tv/<name>.");
+      return;
+    }
+    if (!twitchChannels.includes(login)) setTwitchChannels([...twitchChannels, login]);
+    setNewTwitchInput("");
   };
 
   const handleRemoveChannel = (ch: string) => {
@@ -925,6 +940,7 @@ export default function SiteSettingsPage() {
           socialLinks,
           bannedWords: bannedWordsInput,
           youtubeChannels,
+          twitchChannels,
           hiddenFeaturedChannels,
           hiddenTrendingChannels,
           customSwimlanes: swimlanes,
@@ -1898,6 +1914,46 @@ export default function SiteSettingsPage() {
           </div>
         )}
 
+      </AdminSection>
+      <AdminSection title="Twitch channels" description="Twitch channels that appear in FTN+ and on the main site as live streams while they are broadcasting. Needs TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET set in Cloudflare.">
+        <div className="space-y-3">
+          <label className="block text-sm font-semibold">Add Twitch channel</label>
+          <div className="flex gap-2">
+            <Input
+              value={newTwitchInput}
+              onChange={(e) => setNewTwitchInput(e.target.value)}
+              placeholder="e.g. ftnmedia or twitch.tv/ftnmedia"
+              className="font-mono text-xs"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddTwitchChannel(e);
+              }}
+            />
+            <Button
+              type="button"
+              onClick={handleAddTwitchChannel}
+              className="font-semibold text-xs px-4 gap-1.5 bg-brand hover:bg-brand-hover text-black font-bold cursor-pointer shadow-sm"
+            >
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+        </div>
+        {twitchChannels.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-500 dark:border-neutral-700">
+            No Twitch channels added yet.
+          </div>
+        ) : (
+          <ul className="divide-y divide-neutral-200 overflow-hidden rounded-2xl border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
+            {twitchChannels.map((channel) => (
+              <li key={channel} className="flex items-center gap-4 px-4 py-3">
+                <span className="min-w-0 flex-1 truncate font-mono text-sm">{channel}</span>
+                <button type="button" onClick={() => setTwitchChannels(twitchChannels.filter((c) => c !== channel))} className="w-8 cursor-pointer p-1 text-neutral-400 transition hover:text-red-500" title="Remove channel">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {sectionFooter("twitch")}
       </AdminSection>
       <AdminSection title="YouTube channels" description="Channels FTN+ ingests from, and where each one may appear.">
         <div className="space-y-3">

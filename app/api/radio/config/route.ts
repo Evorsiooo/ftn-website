@@ -4,6 +4,7 @@ import { siteSettings, videos } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifySessionToken } from "@/lib/auth";
 import { canConfigureSite } from "@/lib/rbac";
+import { normalizeTwitchLogin } from "@/lib/twitch";
 
 export const runtime = "edge";
 
@@ -29,6 +30,7 @@ export interface SiteConfig {
   authMode: "roblox" | "credentials";
   discordUrl: string;
   youtubeChannels: string[];
+  twitchChannels: string[];
   bannedWords: string;
   ftnPlusAccess: "public" | "members_only";
   tiplineAccess: "public" | "members_only";
@@ -51,6 +53,7 @@ const DEFAULT_CONFIG: SiteConfig = {
   authMode: "roblox",
   discordUrl: "https://discord.gg/ftn",
   youtubeChannels: [],
+  twitchChannels: [],
   hiddenFeaturedChannels: [],
   hiddenTrendingChannels: [],
   bannedWords: "fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy\nnigger\nfaggot",
@@ -168,6 +171,9 @@ export async function POST(req: Request) {
       youtubeChannels: Array.isArray(body.youtubeChannels)
         ? body.youtubeChannels.filter((c: any) => typeof c === "string" && c.trim()).map((c: string) => c.trim().slice(0, 100))
         : inMemoryConfig.youtubeChannels,
+      twitchChannels: Array.isArray(body.twitchChannels)
+        ? Array.from(new Set<string>(body.twitchChannels.map((c: any) => (typeof c === "string" ? normalizeTwitchLogin(c) : null)).filter((c: string | null): c is string => !!c))).slice(0, 50)
+        : inMemoryConfig.twitchChannels || [],
       bannedWords: typeof body.bannedWords === "string" ? body.bannedWords.slice(0, 50000) : inMemoryConfig.bannedWords,
       ftnPlusAccess: body.ftnPlusAccess === undefined ? inMemoryConfig.ftnPlusAccess : body.ftnPlusAccess === "members_only" ? "members_only" : "public",
       tiplineAccess: body.tiplineAccess === undefined ? inMemoryConfig.tiplineAccess : body.tiplineAccess === "members_only" ? "members_only" : "public",

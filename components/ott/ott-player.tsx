@@ -5,6 +5,7 @@ import {
   IconArrowLeft,
   IconBookmark,
   IconBookmarkFilled,
+  IconBrandTwitch,
   IconBrandYoutube,
   IconShare,
   IconCheck,
@@ -12,6 +13,7 @@ import {
   IconCalendar,
 } from "@tabler/icons-react";
 import { Button, LivePill } from "@/components/ftn/ui";
+import { isTwitchId, twitchLoginFromId } from "@/lib/twitch-id";
 import {
   fetchServerProgress,
   isResumable,
@@ -42,6 +44,12 @@ export function OTTPlayer({
   isLive?: boolean;
 }) {
   const youtubeId = (rawYoutubeId || "").replace(/[^a-zA-Z0-9_\-]/g, "");
+  const twitchLogin = isTwitchId(youtubeId) ? twitchLoginFromId(youtubeId) : null;
+  // Twitch refuses to embed unless it is told which domain the player runs on.
+  const [twitchParent, setTwitchParent] = useState<string | null>(null);
+  useEffect(() => {
+    setTwitchParent(window.location.hostname);
+  }, []);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -51,7 +59,7 @@ export function OTTPlayer({
   // Resume position: the newest of this device's and the server's record.
   useEffect(() => {
     if (!youtubeId) return;
-    if (isLive) {
+    if (isLive || twitchLogin) {
       setStartAt(0);
       return;
     }
@@ -70,7 +78,7 @@ export function OTTPlayer({
       finish(best && isResumable(best) ? best.position : 0);
     });
     return () => clearTimeout(timer);
-  }, [youtubeId, isLive]);
+  }, [youtubeId, isLive, twitchLogin]);
 
   // Record watch position from the embedded player (YouTube iframe postMessage API).
   useEffect(() => {
@@ -245,7 +253,9 @@ export function OTTPlayer({
     }
   };
 
-  const channelLink = channelId
+  const channelLink = twitchLogin
+    ? `https://www.twitch.tv/${twitchLogin}`
+    : channelId
     ? channelId.startsWith("UC")
       ? `https://www.youtube.com/channel/${channelId}`
       : `https://www.youtube.com/${channelId}`
@@ -264,7 +274,16 @@ export function OTTPlayer({
       {/* 1. INITIAL FULL SCREEN VIEWPORT */}
       <div className="relative w-full h-screen bg-ftn-bg overflow-hidden">
         {/* Full-bleed YouTube Embed */}
-        {startAt !== null && (
+        {startAt !== null && twitchLogin && twitchParent && (
+        <iframe
+          src={`https://player.twitch.tv/?channel=${encodeURIComponent(twitchLogin)}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
+          title={title}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          className="w-full h-full border-0 absolute inset-0 z-0"
+        />
+        )}
+        {startAt !== null && !twitchLogin && (
         <iframe
           ref={iframeRef}
           src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${startAt > 0 ? `&start=${Math.floor(startAt)}` : ""}`}
@@ -350,9 +369,9 @@ export function OTTPlayer({
             {saved ? "Saved" : "Save to watchlist"}
           </Button>
 
-          <Button href={`https://www.youtube.com/watch?v=${youtubeId}`} external variant="secondary">
-            <IconBrandYoutube className="h-4 w-4 text-red-500" />
-            Watch on YouTube
+          <Button href={twitchLogin ? `https://www.twitch.tv/${twitchLogin}` : `https://www.youtube.com/watch?v=${youtubeId}`} external variant="secondary">
+            {twitchLogin ? <IconBrandTwitch className="h-4 w-4 text-purple-400" /> : <IconBrandYoutube className="h-4 w-4 text-red-500" />}
+            {twitchLogin ? "Watch on Twitch" : "Watch on YouTube"}
           </Button>
 
           <Button onClick={handleShare} variant="secondary">

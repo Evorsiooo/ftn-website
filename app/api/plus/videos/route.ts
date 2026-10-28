@@ -4,6 +4,7 @@ import { videos, videoViews, siteSettings } from "@/db/schema";
 import { desc, eq, gte, sql } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { syncAllConfiguredChannels, verifyActiveLives, isChannelMatching } from "@/lib/youtube";
+import { isTwitchId, syncTwitchLives } from "@/lib/twitch";
 
 export const runtime = "edge";
 
@@ -60,6 +61,7 @@ async function buildResponse(): Promise<Response> {
     let allowSignIn = true;
     let configuredSwimlanes: any[] = [];
     let configuredChannels: string[] = [];
+    let twitchChannels: string[] = [];
     let hiddenVideoIds: string[] = [];
     let hiddenFeaturedChannels: string[] = [];
     let hiddenTrendingChannels: string[] = [];
@@ -88,6 +90,9 @@ async function buildResponse(): Promise<Response> {
               .filter((c: any) => typeof c === "string" && c.trim())
               .map((c: string) => c.trim());
           }
+          if (Array.isArray(config.twitchChannels)) {
+            twitchChannels = config.twitchChannels.filter((c: any) => typeof c === "string");
+          }
           if (Array.isArray(config.youtubeChannels)) {
             configuredChannels = config.youtubeChannels
               .filter((c: any) => typeof c === "string" && c.trim())
@@ -108,6 +113,9 @@ async function buildResponse(): Promise<Response> {
       })
     );
 
+    // Twitch lives are checked the same way, so a stream going live or offline shows up on the next refresh.
+    runInBackground(syncTwitchLives(db, twitchChannels));
+
     // 3. Fetch all ingested videos
     let rawVideos: any[] = [];
     try {
@@ -120,7 +128,7 @@ async function buildResponse(): Promise<Response> {
     }
 
     // 4. Live status verification against the YouTube API, also after the response.
-    const activeLivesInDb = rawVideos.filter((v) => v.isLive === true);
+    const activeLivesInDb = rawVideos.filter((v) => v.isLive === true && !isTwitchId(v.youtubeId));
     if (activeLivesInDb.length > 0 && process.env.YOUTUBE_API_KEY) {
       runInBackground(verifyActiveLives(db, activeLivesInDb.map((v) => ({ ...v }))));
     }
