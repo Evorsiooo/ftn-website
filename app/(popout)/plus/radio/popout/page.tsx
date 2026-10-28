@@ -44,6 +44,18 @@ export default function RadioPopoutPage() {
 
   useEffect(() => setArtFailed(false), [info?.artUrl]);
 
+  // The window is the whole UI: no scrollbar and no reserved gutter painted grey beside it.
+  useEffect(() => {
+    const html = document.documentElement;
+    const prev = { gutter: html.style.scrollbarGutter, overflow: html.style.overflow };
+    html.style.scrollbarGutter = "auto";
+    html.style.overflow = "hidden";
+    return () => {
+      html.style.scrollbarGutter = prev.gutter;
+      html.style.overflow = prev.overflow;
+    };
+  }, []);
+
 
   const show = info?.currentShow || null;
   const artUrl = info?.artUrl && !artFailed ? info.artUrl : null;
@@ -74,13 +86,13 @@ export default function RadioPopoutPage() {
         : "Listen live";
 
   return (
-    <div className="relative flex h-screen flex-col overflow-y-auto overflow-x-hidden bg-ftn-bg text-ftn-text select-none">
+    <div className="relative flex h-screen flex-col overflow-hidden bg-ftn-bg text-ftn-text select-none">
       <Crossfade id={artUrl || "no-art"} duration={1.4} className="pointer-events-none absolute inset-0">
         {artUrl ? <img src={artUrl} alt="" className="h-full w-full scale-125 object-cover opacity-30 blur-3xl" /> : <div className="h-full w-full" />}
       </Crossfade>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/60 to-ftn-bg/30" />
 
-      <div className="relative z-10 flex min-h-full flex-1 flex-col items-center justify-center gap-3 p-4 sm:gap-4 sm:p-5">
+      <div className="relative z-10 flex min-h-full flex-1 flex-col items-center justify-center gap-3 p-4 sm:gap-4 sm:p-5 [@media(max-height:20rem)]:gap-1.5 [@media(max-height:20rem)]:p-2">
         {info && !info.online && <span className="text-xs font-semibold text-ftn-text-3">Offline</span>}
 
         {/* Art scales with the window (width and height) and never disappears. */}
@@ -97,9 +109,9 @@ export default function RadioPopoutPage() {
           </Crossfade>
         </div>
 
-        <div className="w-full space-y-1 text-center">
-          <h1 className="ftn-display text-xl leading-tight line-clamp-2 sm:text-2xl">{title}</h1>
-          <p className="text-sm text-ftn-text-2 line-clamp-1">{subtitle}</p>
+        <div className="w-full min-w-0 space-y-1 text-center [@media(max-height:20rem)]:space-y-0">
+          <h1 className="ftn-display text-xl leading-tight line-clamp-2 sm:text-2xl [@media(max-height:20rem)]:line-clamp-1 [@media(max-height:20rem)]:text-base">{title}</h1>
+          <p className="text-sm text-ftn-text-2 line-clamp-1 [@media(max-height:16rem)]:hidden">{subtitle}</p>
         </div>
 
         <div className="flex flex-col items-center gap-3">
@@ -113,7 +125,7 @@ export default function RadioPopoutPage() {
             )}
             <span className="tabular-nums">{label}</span>
           </Button>
-          <div className="flex w-full max-w-[18rem] items-center gap-3 rounded-full border border-ftn-line-strong bg-ftn-surface-2 px-5 h-11">
+          <div className="flex w-full max-w-[18rem] items-center gap-3 rounded-full [@media(max-height:22rem)]:hidden border border-ftn-line-strong bg-ftn-surface-2 px-5 h-11">
             <IconVolume className="h-4 w-4 text-ftn-text-2" />
             <input
               type="range"
