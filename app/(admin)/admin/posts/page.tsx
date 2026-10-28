@@ -45,6 +45,29 @@ async function uploadToPosts(file: Blob, name: string): Promise<string> {
   return data.url as string;
 }
 
+const MAX_BACKGROUND_EDGE = 2048;
+const BACKGROUND_SKIP_BYTES = 2 * 1024 * 1024;
+
+// Downscale and re-encode big photos in the browser so they stay well under the upload limit.
+async function shrinkImage(file: File, img: HTMLImageElement): Promise<File> {
+  if (file.type === "image/gif") return file;
+  const edge = Math.max(img.naturalWidth, img.naturalHeight);
+  if (edge <= MAX_BACKGROUND_EDGE && file.size <= BACKGROUND_SKIP_BYTES) return file;
+  const scale = Math.min(1, MAX_BACKGROUND_EDGE / edge);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  // WebP keeps transparency; browsers without WebP encoding fall back to PNG, so retry as JPEG.
+  let blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/webp", 0.9));
+  if (!blob || blob.type !== "image/webp") blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+  if (!blob || blob.size >= file.size) return file;
+  const ext = blob.type === "image/webp" ? "webp" : "jpg";
+  return new File([blob], file.name.replace(/\.[^.]+$/, "") + "." + ext, { type: blob.type });
+}
+
 function parseNotes(raw: string | null): string[] {
   try {
     const list = JSON.parse(raw || "[]");
@@ -73,7 +96,7 @@ export default function AdminPostsPage() {
   const [suggestedAdId, setSuggestedAdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewing, setViewing] = useState<any | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "denied">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "denied" | "scheduled" | "drafts">("all");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [headline, setHeadline] = useState("");
@@ -237,8 +260,10 @@ export default function AdminPostsPage() {
     if (!file) return;
     // Show it straight away from the local file, and upload to R2 in the background.
     const localUrl = URL.createObjectURL(file);
+    let img: HTMLImageElement;
     try {
-      setPhoto(await loadImage(localUrl));
+      img = await loadImage(localUrl);
+      setPhoto(img);
     } catch {
       toast("Could not read this image.");
       return;
@@ -246,7 +271,8 @@ export default function AdminPostsPage() {
     setBackgroundUrl(null);
     setUploadingBg(true);
     try {
-      setBackgroundUrl(await uploadToPosts(file, file.name));
+      const upload = await shrinkImage(file, img);
+      setBackgroundUrl(await uploadToPosts(upload, upload.name));
     } catch (err: any) {
       toast(err.message || "Background upload failed");
     } finally {
@@ -431,22 +457,38 @@ export default function AdminPostsPage() {
     .filter((p) => p.scheduledAt && p.status !== "draft")
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
   const sentPosts = posts.filter((p) => !p.scheduledAt && p.status !== "draft");
-  const visiblePosts = sentPosts.filter((p) => statusFilter === "all" || p.status === statusFilter);
+  const visiblePosts =
+    statusFilter === "scheduled" ? scheduledPosts
+    : statusFilter === "drafts" ? drafts
+    : statusFilter === "all" ? [...scheduledPosts, ...sentPosts]
+    : sentPosts.filter((p) => p.status === statusFilter);
+  const filterCount = (f: string) =>
+    f === "all" ? scheduledPosts.length + sentPosts.length
+    : f === "scheduled" ? scheduledPosts.length
+    : f === "drafts" ? drafts.length
+    : sentPosts.filter((p) => p.status === f).length;
   const editingDraft = !!editingId && posts.find((p) => p.id === editingId)?.status === "draft";
   const current = editingId ? posts.find((p) => p.id === editingId) : viewing;
+  // The preview shrinks with the window so the page never needs a scrollbar. Reserved space: header,
+  // the status bar when a post is open, and the timeline in video mode.
+  const previewStyle: React.CSSProperties = {
+    maxWidth: mode === "video" && !viewing
+      ? `clamp(200px, calc(100vh - ${34.25 + (current ? 5 : 0)}rem), 900px)`
+      : `clamp(300px, calc(100vh - ${18 + (current ? 5 : 0)}rem), 900px)`,
+  };
   const canDecide = !!current && current.status === "pending" && !current.scheduledAt && isLeadership;
 
   const queueEl = (
     <>
             <div className="mb-3 flex flex-wrap gap-1.5 xl:mb-0 xl:grid xl:w-56 xl:shrink-0 xl:grid-cols-2">
-              {(["pending", "approved", "denied", "all"] as const).map((f) => (
+              {(["pending", "approved", "denied", "scheduled", "drafts", "all"] as const).map((f) => (
                 <button
                   key={f}
                   type="button"
                   onClick={() => { filterTouched.current = true; setStatusFilter(f); }}
                   className={`cursor-pointer whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold ${statusFilter === f ? "border-brand bg-brand text-brand-ink" : "border-neutral-300 text-neutral-600 hover:border-neutral-500 dark:border-neutral-700 dark:text-neutral-400"}`}
                 >
-                  {f[0].toUpperCase() + f.slice(1)} {f === "all" ? sentPosts.length : sentPosts.filter((p) => p.status === f).length}
+                  {f[0].toUpperCase() + f.slice(1)} {filterCount(f)}
                 </button>
               ))}
             </div>
@@ -463,15 +505,24 @@ export default function AdminPostsPage() {
                     <li key={p.id} className={`w-56 shrink-0 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 ${selected ? "!bg-brand/15" : ""}`}>
                       <button
                         type="button"
-                        onClick={() => (canChange && p.status === "pending" ? startEditing(p) : (resetForm(), setViewing(p)))}
+                        onClick={() => (canChange && (p.status === "pending" || p.status === "draft") ? startEditing(p) : (resetForm(), setViewing(p)))}
                         className="flex w-full cursor-pointer items-center gap-3 p-3 text-left"
                       >
                         <img src={p.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
                         <span className="min-w-0">
                           <span className="line-clamp-2 text-sm font-bold leading-snug">{p.headline}</span>
                           <span className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
-                            <span className={`h-2 w-2 rounded-full ${p.status === "pending" ? "bg-amber-500" : p.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
-                            <span className={`font-semibold capitalize ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
+                            {p.scheduledAt ? (
+                              <>
+                                <Clock className="h-3 w-3 text-sky-600 dark:text-sky-400" />
+                                <span className="font-semibold text-sky-600 dark:text-sky-400">{formatWhen(new Date(p.scheduledAt).getTime())}</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className={`h-2 w-2 rounded-full ${p.status === "draft" ? "bg-neutral-400" : p.status === "pending" ? "bg-amber-500" : p.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
+                                <span className={`font-semibold capitalize ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
+                              </>
+                            )}
                             <span className="truncate">· {p.creatorName || "unknown"}</span>
                           </span>
                         </span>
@@ -515,9 +566,26 @@ export default function AdminPostsPage() {
                   {current.decidedByLabel ? ` · by ${current.decidedByLabel}` : ""}
                   {current.status === "denied" && current.denyReason ? ` · ${current.denyReason}` : ""}
                 </span>
-                {current.scheduledAt && (
-                  <span className="flex items-center gap-1 text-xs font-semibold text-sky-600 dark:text-sky-400"><Clock className="h-3.5 w-3.5" /> Sends {formatWhen(new Date(current.scheduledAt).getTime())}</span>
-                )}
+                {current.scheduledAt && (() => {
+                  const whenMs = new Date(current.scheduledAt).getTime();
+                  const edit = timeEdits[current.id];
+                  const canChangeTime = me?.id === current.createdBy || isLeadership;
+                  return (
+                    <>
+                      <span className="flex items-center gap-1 text-xs font-semibold text-sky-600 dark:text-sky-400"><Clock className="h-3.5 w-3.5" /> {canChangeTime ? "Sends" : `Sends ${formatWhen(whenMs)}`}</span>
+                      {canChangeTime && (
+                        <>
+                          <div className="w-48"><DateTimeInput type="datetime-local" value={edit ?? toLocalInput(new Date(whenMs))} min={toLocalInput(new Date())} onChange={(e) => setTimeEdits((m) => ({ ...m, [current.id]: e.target.value }))} className={fieldClass} /></div>
+                          {edit && edit !== toLocalInput(new Date(whenMs)) && (
+                            <Button size="sm" onClick={() => handleSaveTime(current)} className="cursor-pointer">Save time</Button>
+                          )}
+                          <Button size="sm" variant="outline" onClick={() => handlePublishNow(current)} className="cursor-pointer">Publish now</Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleCancelSchedule(current)} className="cursor-pointer text-red-600"><X className="h-3.5 w-3.5" /> Cancel</Button>
+                        </>
+                      )}
+                    </>
+                  );
+                })()}
                 {!current.scheduledAt && current.status === "pending" && (me?.id === current.createdBy || isLeadership) && (!current.ftnPlusMessageId || !current.leadershipMessageId) && (
                   <Button size="sm" variant="outline" onClick={() => handleResend(current)} className="cursor-pointer">Resend to Discord</Button>
                 )}
@@ -538,21 +606,21 @@ export default function AdminPostsPage() {
             {viewing && !editingId && (
               <div className="space-y-2">
                 {viewing.mediaType === "video" && viewing.videoUrl && !viewing.videoUrl.endsWith(".webp") ? (
-                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full max-w-[clamp(300px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-900" />
+                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full rounded-lg bg-neutral-900" style={previewStyle} />
                 ) : (
-                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full max-w-[clamp(300px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full rounded-lg bg-neutral-200 dark:bg-neutral-800" style={previewStyle} />
                 )}
                 {parseNotes(viewing.amendments).map((n, i) => <p key={i} className="text-xs italic text-neutral-500">edit: {n}</p>)}
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
-              <canvas ref={canvasRef} width={1024} height={1024} className={`mx-auto w-full ${mode === "video" ? "max-w-[clamp(200px,calc(100vh_-_32.5rem),900px)]" : "max-w-[clamp(300px,calc(100vh_-_16rem),900px)]"}`} style={CHECKERBOARD} />
+              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full" style={{ ...CHECKERBOARD, ...previewStyle }} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
           </section>
 
-          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100vh_-_16rem)] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
+          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100vh_-_17.5rem)] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
           <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="text-lg font-extrabold">{editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</h2>
 
@@ -690,74 +758,6 @@ export default function AdminPostsPage() {
           </div>
           </section>
         </div>
-
-        {drafts.length > 0 && (
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold"><Pencil className="h-5 w-5" /> Drafts <span className="text-sm font-semibold text-neutral-500">{drafts.length}</span></h2>
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-              {drafts.map((p) => (
-                <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
-                  <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
-                  <div className="min-w-0 flex-1 basis-56">
-                    <p className="line-clamp-1 text-sm font-bold">{p.headline}</p>
-                    <p className="truncate text-xs text-neutral-500">
-                      {RO_STATES.find((st) => st.key === p.roState)?.label} · {p.organizationName || "No organizer"} · {p.creatorName || "unknown"} · saved {formatWhen(new Date(p.updatedAt).getTime())}
-                    </p>
-                  </div>
-                  {(me?.id === p.createdBy || isLeadership) && (
-                    <div className="flex items-center gap-1">
-                      <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Open</Button>
-                      <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} className="cursor-pointer text-red-600"><Trash2 className="h-3.5 w-3.5" /></Button>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {scheduledPosts.length > 0 && (
-          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold"><Clock className="h-5 w-5" /> Scheduled posts <span className="text-sm font-semibold text-neutral-500">{scheduledPosts.length}</span></h2>
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-              {scheduledPosts.map((p) => {
-                const canChange = me?.id === p.createdBy || isLeadership;
-                const whenMs = new Date(p.scheduledAt).getTime();
-                const edit = timeEdits[p.id];
-                return (
-                  <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
-                    <div className="min-w-0 flex-1 basis-56">
-                      <p className="line-clamp-1 text-sm font-bold">{p.headline}</p>
-                      <p className="truncate text-xs text-neutral-500">
-                        {RO_STATES.find((st) => st.key === p.roState)?.label} · {p.organizationName || "No organizer"} · {p.creatorName || "unknown"}
-                      </p>
-                    </div>
-                    {canChange ? (
-                      <div className="flex items-center gap-2">
-                        <div className="w-52">
-                          <DateTimeInput type="datetime-local" value={edit ?? toLocalInput(new Date(whenMs))} min={toLocalInput(new Date())} onChange={(e) => setTimeEdits((m) => ({ ...m, [p.id]: e.target.value }))} className={fieldClass} />
-                        </div>
-                        {edit && edit !== toLocalInput(new Date(whenMs)) && (
-                          <Button size="sm" onClick={() => handleSaveTime(p)} className="cursor-pointer">Save time</Button>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-sm font-semibold">{formatWhen(whenMs)}</span>
-                    )}
-                    {canChange && (
-                      <div className="flex items-center gap-1">
-                        <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Edit</Button>
-                        <Button size="sm" variant="outline" onClick={() => handlePublishNow(p)} className="cursor-pointer">Publish now</Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleCancelSchedule(p)} className="cursor-pointer text-red-600"><X className="h-3.5 w-3.5" /> Cancel</Button>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        )}
       </div>
     </AdminAuthGuard>
   );
