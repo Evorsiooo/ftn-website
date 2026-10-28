@@ -1,4 +1,6 @@
 "use client";
+import { Select } from "@/components/ui/select";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -1227,7 +1229,7 @@ export default function SiteSettingsPage() {
             </div>
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold">Auto-Rotate Frequency</label>
-              <select
+              <Select
                 value={radioSecure.rotationFrequencyHours}
                 onChange={(e) => setRadioSecure({ ...radioSecure, rotationFrequencyHours: Number(e.target.value) })}
                 className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
@@ -1237,11 +1239,11 @@ export default function SiteSettingsPage() {
                 <option value={24}>Every 24 hours</option>
                 <option value={48}>Every 48 hours</option>
                 <option value={72}>Every 72 hours</option>
-              </select>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold">Rotation Time (UTC, 24h+ only)</label>
-              <input
+              <DateTimeInput
                 type="time"
                 value={radioSecure.rotationTimeUtc}
                 onChange={(e) => setRadioSecure({ ...radioSecure, rotationTimeUtc: e.target.value })}
@@ -1272,7 +1274,7 @@ export default function SiteSettingsPage() {
             {[0, 1, 2].map((i) => (
               <div key={i} className="space-y-1.5">
                 <label className="block text-sm font-semibold">Lookup Priority {i + 1}</label>
-                <select
+                <Select
                   value={radioSecure.artPriority[i] || ""}
                   onChange={(e) => {
                     const next = [...radioSecure.artPriority];
@@ -1284,7 +1286,7 @@ export default function SiteSettingsPage() {
                   <option value="lastfm">Last.fm</option>
                   <option value="itunes">iTunes</option>
                   <option value="fanart">Fanart.tv</option>
-                </select>
+                </Select>
               </div>
             ))}
           </div>
@@ -1724,7 +1726,7 @@ export default function SiteSettingsPage() {
           <form onSubmit={handleMuteUser} className="space-y-4">
             
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <select
+              <Select
                 value={selectedUserToMute}
                 onChange={(e) => setSelectedUserToMute(e.target.value)}
                 className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
@@ -1736,9 +1738,9 @@ export default function SiteSettingsPage() {
                     {u.displayName} (@{u.robloxUsername})
                   </option>
                 ))}
-              </select>
+              </Select>
 
-              <select
+              <Select
                 value={muteDuration}
                 onChange={(e) => setMuteDuration(e.target.value as any)}
                 className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
@@ -1747,7 +1749,7 @@ export default function SiteSettingsPage() {
                 <option value="1w">Mute for 1 Week</option>
                 <option value="1m">Mute for 1 Month</option>
                 <option value="indefinite">Mute Indefinitely</option>
-              </select>
+              </Select>
 
               <Input
                 value={muteReason}
@@ -1832,7 +1834,7 @@ export default function SiteSettingsPage() {
 
                 <div className="space-y-1">
                   <label className="text-xs font-semibold">Auto-Mute Penalty Duration</label>
-                  <select
+                  <Select
                     value={autoModMuteDuration}
                     onChange={(e) => setAutoModMuteDuration(e.target.value as any)}
                     className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
@@ -1841,7 +1843,7 @@ export default function SiteSettingsPage() {
                     <option value="1w">1 Week</option>
                     <option value="1m">1 Month</option>
                     <option value="indefinite">Indefinite</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
             )}
@@ -2297,7 +2299,7 @@ export default function SiteSettingsPage() {
                     className="text-xs"
                     required
                   />
-                  <select
+                  <Select
                     value={editingSwimlane.sortBy}
                     onChange={(e) =>
                       setEditingSwimlane({ ...editingSwimlane, sortBy: e.target.value as any })
@@ -2307,7 +2309,7 @@ export default function SiteSettingsPage() {
                     <option value="curated">Sort: Curated Order (As Added)</option>
                     <option value="recent">Sort: Most Recent</option>
                     <option value="trending">Sort: 7-Day Trending</option>
-                  </select>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -2401,14 +2403,14 @@ export default function SiteSettingsPage() {
                     className="font-mono text-xs"
                   />
                   <div className="flex gap-2">
-                    <select
+                    <Select
                       value={editingSwimlane.sortBy}
                       onChange={(e) => setEditingSwimlane({ ...editingSwimlane, sortBy: e.target.value as any })}
                       className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                     >
                       <option value="recent">Sort: Most Recent</option>
                       <option value="trending">Sort: 7-Day Trending</option>
-                    </select>
+                    </Select>
                     <Button type="submit" size="sm" className="bg-brand hover:bg-brand-hover text-brand-ink font-bold text-xs shrink-0 cursor-pointer shadow-sm">
                       Save
                     </Button>
@@ -2452,7 +2454,7 @@ export default function SiteSettingsPage() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold">Sort Order</label>
-                    <select
+                    <Select
                       value={newSwimlaneSort}
                       onChange={(e) => setNewSwimlaneSort(e.target.value as any)}
                       className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
@@ -2460,7 +2462,7 @@ export default function SiteSettingsPage() {
                       <option value="curated">Curated Order (As Added)</option>
                       <option value="recent">Most Recent</option>
                       <option value="trending">7-Day Trending</option>
-                    </select>
+                    </Select>
                   </div>
                 </div>
 
@@ -2569,14 +2571,14 @@ export default function SiteSettingsPage() {
                     className="font-mono text-xs"
                   />
                   <div className="flex gap-2">
-                    <select
+                    <Select
                       value={newSwimlaneSort}
                       onChange={(e) => setNewSwimlaneSort(e.target.value as any)}
                       className="h-10 w-full rounded-lg border border-neutral-300 bg-white px-3 text-sm text-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand dark:border-neutral-700 dark:bg-neutral-900 dark:text-white"
                     >
                       <option value="recent">Sort: Most Recent</option>
                       <option value="trending">Sort: 7-Day Trending</option>
-                    </select>
+                    </Select>
                     <Button
                       type="submit"
                       size="sm"

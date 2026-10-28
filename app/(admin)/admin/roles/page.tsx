@@ -1,4 +1,5 @@
 "use client";
+import { Select } from "@/components/ui/select";
 import { toast } from "@/components/gs/dialogs";
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -139,9 +140,9 @@ export default function AdminRolesConsole() {
             {picked.length > 0 && (
               <div className="flex flex-wrap items-center gap-3 rounded-2xl bg-[#16110a] p-3 pl-5 text-sm font-semibold text-[#fff8e6]">
                 <span>{picked.length} selected</span>
-                <select value={bulkRole} onChange={(e) => setBulkRole(e.target.value)} className="h-9 rounded-full bg-[#fff8e6] px-3 text-sm text-[#16110a]">
+                <Select value={bulkRole} onChange={(e) => setBulkRole(e.target.value)} className="h-9 rounded-full bg-[#fff8e6] px-3 text-sm text-[#16110a]">
                   {ALL_ROLES.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-                </select>
+                </Select>
                 <Button size="sm" onClick={() => bulk(true)} className="cursor-pointer bg-brand font-bold text-brand-ink hover:bg-brand-hover">Give role</Button>
                 <Button size="sm" variant="outline" onClick={() => bulk(false)} className="cursor-pointer border-[#fff8e6]/40 bg-transparent text-[#fff8e6] hover:bg-white/10">Remove role</Button>
                 <button type="button" onClick={() => setPicked([])} className="ml-auto cursor-pointer pr-3 text-[#fff8e6]/70 hover:text-[#fff8e6]">Clear</button>
