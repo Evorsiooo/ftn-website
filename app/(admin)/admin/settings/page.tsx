@@ -1019,7 +1019,7 @@ export default function SiteSettingsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
-      <div className="mx-auto max-w-5xl space-y-8 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-8 text-neutral-900 dark:text-white">
       <AdminPageHeader
         title={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.title ?? "Settings"}
         description={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.description}
@@ -1047,7 +1047,7 @@ export default function SiteSettingsPage() {
       </div>
 
       {activeTab === "site" && (
-        <div className="space-y-8">
+        <div className="grid items-start gap-8 2xl:grid-cols-2 2xl:[&>section]:grid-cols-1">
           <AdminSection title="Donation banner" description="The &quot;FTN needs your help!&quot; appeal at the top of the homepage.">
             <AdminRow label="Show on homepage" hint={donationBannerEnabled ? "Visitors see the appeal." : "Hidden from visitors."}>
               <AdminSwitch checked={donationBannerEnabled} onChange={setDonationBannerEnabled} label="Show donation banner" />
@@ -1128,7 +1128,7 @@ export default function SiteSettingsPage() {
   )}
 
       {(activeTab === "radio" || activeTab === "connections") && (
-        <div className="space-y-8">
+        <div className="grid items-start gap-8 2xl:grid-cols-2 2xl:[&>section]:grid-cols-1">
           {/* 1. Webradio Stream Settings */}
           {activeTab === "radio" && (<>
           <AdminSection title="Webradio stream" description="Where the live audio and its now-playing data come from.">
@@ -1300,7 +1300,7 @@ export default function SiteSettingsPage() {
 
   {/* 2. AUTHENTICATION & ACCESS CONTROL TAB */}
   {activeTab === "access" && (
-    <div className="space-y-8">
+    <div className="grid items-start gap-8 2xl:grid-cols-2 2xl:[&>section]:grid-cols-1">
       {/* 2. Access Control, Authentication Mode & User Management */}
       <AdminSection title="Sign-in" description="How visitors and staff create accounts and log in.">
         
@@ -1719,7 +1719,7 @@ export default function SiteSettingsPage() {
 
   {/* 3. MODERATION & SAFETY TAB */}
   {activeTab === "moderation" && (
-    <div className="space-y-8">
+    <div className="grid items-start gap-8 2xl:grid-cols-2 2xl:[&>section]:grid-cols-1">
       {/* 4. User Moderation & Auto-Mod */}
       <AdminSection title="Mute a user" description="Stop a registered user from commenting, for a set time.">
         <div className="space-y-6">

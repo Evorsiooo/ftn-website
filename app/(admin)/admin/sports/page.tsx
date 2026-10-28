@@ -152,7 +152,7 @@ export default function AdminSportsConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageSports} featureTitle="Sports Division Console">
-      <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-8 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Sports"
           description="Manage league rosters and record match or race scores."
@@ -402,7 +402,7 @@ function VenuesTab({ venues, busy, run }: { venues: SportsVenue[]; busy: boolean
       {venues.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center text-sm text-neutral-500 dark:border-neutral-700">No venues yet.</div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {venues.map((v) => (
             <Card key={v.id} className="overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <div className="h-32 bg-neutral-200 dark:bg-neutral-800">{v.photoUrl && <img src={v.photoUrl} alt="" className="h-full w-full object-cover" />}</div>

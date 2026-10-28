@@ -164,7 +164,7 @@ export default function AdminTipsConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={(roles) => canPublishArticles(roles) || canConfigureSite(roles)} featureTitle="Investigative Tipline">
-      <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-8 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Tipline"
           description="Review anonymous leads. Keys: j / k to move, i to investigate, d to dismiss."

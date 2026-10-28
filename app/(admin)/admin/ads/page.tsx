@@ -322,7 +322,7 @@ export default function AdminAdsConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Commercial & Advertisements Console">
-      <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-8 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Advertisements"
           description="What is running, how much is left, and how it performs."
@@ -458,7 +458,7 @@ export default function AdminAdsConsole() {
                 No ads yet. Create the first one on the left.
               </div>
             ) : (
-              <>
+              <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
                 {groups.map(({ organizer, ads }) => (
                   <Card key={organizer.id} className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
                     <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
@@ -473,7 +473,7 @@ export default function AdminAdsConsole() {
                     {unassigned.map(renderAd)}
                   </Card>
                 )}
-              </>
+              </div>
             )}
           </div>
         </div>

@@ -59,7 +59,7 @@ export default function AdminToday() {
   const hasAds = !!summary?.adsLow;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="w-full space-y-8">
       <AdminPageHeader title="Today" description="What needs you right now. You only see what your role can act on." />
 
       {!roles || (roles.length > 0 && !summary) ? (

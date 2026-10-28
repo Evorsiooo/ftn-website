@@ -542,7 +542,7 @@ export default function AdminPostsPage() {
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
-              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full max-w-[clamp(520px,calc(100vh_-_16rem),900px)]" style={CHECKERBOARD} />
+              <canvas ref={canvasRef} width={1024} height={1024} className={`mx-auto w-full ${mode === "video" ? "max-w-[clamp(280px,calc(100vh_-_29rem),900px)]" : "max-w-[clamp(520px,calc(100vh_-_16rem),900px)]"}`} style={CHECKERBOARD} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />

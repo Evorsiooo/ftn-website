@@ -45,17 +45,18 @@ export const TEMPLATE = {
 
 export const LOGOS: { key: string; label: string; src: string }[] = [
   { key: "whcn", label: "WHCN (Harrison County)", src: "/post-template/logos/whcn.png" },
+  { key: "ch4", label: "Channel 4", src: "/post-template/logos/ch4.png" },
 ];
 
 // The logo each Ro-State's posts use. Add a logo to LOGOS and point its Ro-State here.
-const DEFAULT_LOGO = "whcn";
+const DEFAULT_LOGO = "ch4";
 export const RO_STATE_LOGOS: Record<string, string> = {
   harrison: "whcn",
-  ridgeway: "whcn",
-  madison: "whcn",
-  clark: "whcn",
-  firestone: "whcn",
-  international: "whcn",
+  ridgeway: "ch4",
+  madison: "ch4",
+  clark: "ch4",
+  firestone: "ch4",
+  international: "ch4",
 };
 
 export function logoForRoState(roState: string): string {
