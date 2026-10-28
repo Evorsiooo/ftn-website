@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { adCampaigns, posts } from "@/db/schema";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
-import { deletePostMessages, refreshPostMessages } from "@/lib/discord-posts";
+import { deletePostMessages, refreshPostMessages, sendPostToDiscord } from "@/lib/discord-posts";
 import { PostInput, consumeAdImpression, releaseAdImpression, resolveMessageLink, validatePostInput } from "@/lib/posts";
 
 export const runtime = "edge";
@@ -60,8 +60,17 @@ export async function PATCH(
     if (!canChange(auth.user, existing.createdBy)) {
       return NextResponse.json({ error: "Only the creator or leadership can edit this post" }, { status: 403 });
     }
-    if (existing.status !== "pending") {
-      return NextResponse.json({ error: "Only posts waiting for approval can be edited" }, { status: 409 });
+    const isDraft = existing.status === "draft";
+    if (existing.status !== "pending" && !isDraft) {
+      return NextResponse.json({ error: "Only drafts and posts waiting for approval can be edited" }, { status: 409 });
+    }
+    const publish = isDraft && body.publish === true;
+    let publishAt: Date | null = null;
+    if (publish && body.scheduledAt !== undefined && body.scheduledAt !== null) {
+      publishAt = new Date(Number(body.scheduledAt));
+      if (Number.isNaN(publishAt.getTime()) || publishAt.getTime() < Date.now() + 60_000) {
+        return NextResponse.json({ error: "The publish time must be in the future" }, { status: 400 });
+      }
     }
 
     const values = { ...parsed.values, updatedAt: new Date() } as Record<string, unknown>;
@@ -73,7 +82,7 @@ export async function PATCH(
         if (ad.length === 0 || ad[0].adFormat !== "1024x180") {
           return NextResponse.json({ error: "Ad not found" }, { status: 400 });
         }
-        if (!(await consumeAdImpression(db, newAdId))) {
+        if (!isDraft && !(await consumeAdImpression(db, newAdId))) {
           return NextResponse.json({ error: "This ad has no post impressions left or is not active" }, { status: 409 });
         }
         values.organizationName = ad[0].advertiserName;
@@ -82,11 +91,28 @@ export async function PATCH(
         values.organizationName = null;
         values.messageLink = null;
       }
-      await releaseAdImpression(db, existing.adId);
+      if (!isDraft) await releaseAdImpression(db, existing.adId);
       values.adId = newAdId;
     }
 
+    if (publish) {
+      // Generating a draft is when it takes its ad impression and goes to Discord.
+      const finalAdId = (values.adId !== undefined ? values.adId : existing.adId) as string | null;
+      if (finalAdId && !(await consumeAdImpression(db, finalAdId))) {
+        return NextResponse.json({ error: "This ad has no post impressions left or is not active" }, { status: 409 });
+      }
+      values.status = "pending";
+      values.createdAt = new Date();
+      values.scheduledAt = publishAt;
+    }
+
     await db.update(posts).set(values).where(eq(posts.id, id));
+    if (isDraft && !publish) return NextResponse.json({ success: true });
+    if (publish) {
+      if (publishAt) return NextResponse.json({ success: true });
+      const sent = await sendPostToDiscord(db, id);
+      return NextResponse.json({ success: true, discordWarning: sent.ok ? undefined : sent.error });
+    }
     // Keep the Discord messages in step with the edit.
     const discord = await refreshPostMessages(db, id, { ftnPlus: true, leadership: true, image: body.imageUrl !== undefined || body.videoUrl !== undefined });
     return NextResponse.json({ success: true, discordWarning: discord.ok ? undefined : discord.error });
@@ -123,7 +149,7 @@ export async function DELETE(
     }
 
     // Deleting gives the impression back, except for a denied post, which already gave it back.
-    if (rows[0].status !== "denied") await releaseAdImpression(db, rows[0].adId);
+    if (rows[0].status !== "denied" && rows[0].status !== "draft") await releaseAdImpression(db, rows[0].adId);
     await db.delete(posts).where(eq(posts.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {

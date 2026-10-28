@@ -1,13 +1,13 @@
 "use client";
 import { Select } from "@/components/ui/select";
+import { DateTimeInput } from "@/components/ui/date-time-input";
 import { toast, confirmDialog, promptDialog } from "@/components/gs/dialogs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Download, Loader2, MessageSquarePlus, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, Check, Clock, Download, Loader2, MessageSquarePlus, Newspaper, Pencil, Shuffle, Trash2, Upload, X } from "lucide-react";
 import { AdminRow, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
@@ -54,6 +54,15 @@ function parseNotes(raw: string | null): string[] {
   }
 }
 
+const pad2 = (n: number) => String(n).padStart(2, "0");
+// Local wall-clock value for the date/time picker ("2026-10-28T14:30").
+function toLocalInput(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+const fromLocalInput = (v: string) => new Date(v).getTime();
+const formatWhen = (ms: number) =>
+  new Date(ms).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+
 // Dropdown value for "No ad" (an empty value is the placeholder).
 const NO_AD = "none";
 
@@ -86,6 +95,9 @@ export default function AdminPostsPage() {
   // The video timeline is drawn here, below the form and preview, at full page width.
   const [timelineHost, setTimelineHost] = useState<HTMLDivElement | null>(null);
   const [saving, setSaving] = useState(false);
+  // Empty = send to Discord right away; otherwise the local time the post should be sent.
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [timeEdits, setTimeEdits] = useState<Record<string, string>>({});
   const [layout, setLayout] = useState<PostLayout | null>(null);
   const [previewError, setPreviewError] = useState("");
 
@@ -106,7 +118,7 @@ export default function AdminPostsPage() {
       if (postsRes.ok) {
         const list = ((await postsRes.json()) as any).posts || [];
         setPosts(list);
-        if (!filterTouched.current && list.some((p: any) => p.status === "pending")) setStatusFilter("pending");
+        if (!filterTouched.current && list.some((p: any) => p.status === "pending" && !p.scheduledAt)) setStatusFilter("pending");
       }
       if (optionsRes.ok) {
         const data = (await optionsRes.json()) as any;
@@ -209,6 +221,7 @@ export default function AdminPostsPage() {
     setBody("");
     setRoState("");
     setAdId("");
+    setScheduleAt("");
     setBackgroundUrl(null);
     setPhoto(null);
     setZoom(1);
@@ -275,7 +288,7 @@ export default function AdminPostsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (asDraft = false) => {
     if (!headline.trim()) return toast("Please write a headline.");
     if (!roState) return toast("Please choose a Ro-State.");
     if (mode === "image" && !photo) return toast("Please upload a background photo.");
@@ -284,6 +297,9 @@ export default function AdminPostsPage() {
     if (layout?.headlineOverflow) return toast("The headline is longer than 3 lines. Please shorten it.");
     if (layout?.bodyTooLong) return toast("The body text is too long for the post. Please shorten it.");
     if (previewError || !canvasRef.current) return toast(previewError || "Preview is not ready.");
+    if (!asDraft && (!editingId || editingDraft) && scheduleAt && !(fromLocalInput(scheduleAt) > Date.now() + 60_000)) {
+      return toast("Choose a publish time in the future, or clear it to send now.");
+    }
 
     setSaving(true);
     try {
@@ -301,6 +317,9 @@ export default function AdminPostsPage() {
         const imageUrl = await uploadToPosts(blob, "post.png");
         payload = { headline, body, logo, roState, adId: noAd ? null : adId || null, noAd, backgroundUrl, imageUrl, mediaType: "image" };
       }
+      if (!editingId && asDraft) payload.draft = true;
+      if (editingDraft && !asDraft) payload.publish = true;
+      if (!asDraft && (!editingId || editingDraft) && scheduleAt) payload.scheduledAt = fromLocalInput(scheduleAt);
       const res = await fetch(editingId ? `/api/admin/posts/${editingId}` : "/api/admin/posts", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -310,6 +329,7 @@ export default function AdminPostsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to save post");
       resetForm();
       await loadAll();
+      if (asDraft) toast("Draft saved.");
       if (data.discordWarning) {
         toast(`The post was saved, but sending it to Discord failed:\n${data.discordWarning}\nUse Resend on the post to try again.`);
       }
@@ -321,7 +341,7 @@ export default function AdminPostsPage() {
   };
 
   const handleDelete = async (post: any) => {
-    if (!await confirmDialog("Delete this post?")) return;
+    if (!post.skipConfirm && !await confirmDialog("Delete this post?")) return;
     const res = await fetch(`/api/admin/posts/${post.id}`, { method: "DELETE" });
     if (res.ok) {
       if (editingId === post.id) resetForm();
@@ -342,6 +362,39 @@ export default function AdminPostsPage() {
     const data = (await res.json().catch(() => ({}))) as any;
     if (!res.ok) toast(data.error || "Failed to add the edit note");
     else if (data.discordWarning) toast(`The note was saved, but updating Discord failed:\n${data.discordWarning}`);
+    await loadAll();
+  };
+
+  const handleCancelSchedule = async (post: any) => {
+    if (!await confirmDialog("Cancel this scheduled post? It will be deleted and never sent.")) return;
+    await handleDelete({ ...post, skipConfirm: true });
+  };
+
+  const handlePublishNow = async (post: any) => {
+    const res = await fetch(`/api/admin/posts/${post.id}/schedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ now: true }),
+    });
+    if (!res.ok) toast(((await res.json().catch(() => ({}))) as any).error || "Failed to send the post");
+    await loadAll();
+  };
+
+  const handleSaveTime = async (post: any) => {
+    const value = timeEdits[post.id];
+    if (!value) return;
+    const at = fromLocalInput(value);
+    if (!(at > Date.now() + 60_000)) return toast("Choose a publish time in the future.");
+    const res = await fetch(`/api/admin/posts/${post.id}/schedule`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scheduledAt: at }),
+    });
+    if (!res.ok) return toast(((await res.json().catch(() => ({}))) as any).error || "Failed to change the time");
+    setTimeEdits((m) => {
+      const { [post.id]: _, ...rest } = m;
+      return rest;
+    });
     await loadAll();
   };
 
@@ -371,9 +424,15 @@ export default function AdminPostsPage() {
   const adOptionLabel = (a: any) =>
     `${a.organizerName}: ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
 
-  const visiblePosts = posts.filter((p) => statusFilter === "all" || p.status === statusFilter);
+  const drafts = posts.filter((p) => p.status === "draft");
+  const scheduledPosts = posts
+    .filter((p) => p.scheduledAt && p.status !== "draft")
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  const sentPosts = posts.filter((p) => !p.scheduledAt && p.status !== "draft");
+  const visiblePosts = sentPosts.filter((p) => statusFilter === "all" || p.status === statusFilter);
+  const editingDraft = !!editingId && posts.find((p) => p.id === editingId)?.status === "draft";
   const current = editingId ? posts.find((p) => p.id === editingId) : viewing;
-  const canDecide = !!current && current.status === "pending" && isLeadership;
+  const canDecide = !!current && current.status === "pending" && !current.scheduledAt && isLeadership;
 
   const queueEl = (
     <>
@@ -385,7 +444,7 @@ export default function AdminPostsPage() {
                   onClick={() => { filterTouched.current = true; setStatusFilter(f); }}
                   className={`cursor-pointer whitespace-nowrap rounded-full border px-3 py-1 text-xs font-bold ${statusFilter === f ? "border-brand bg-brand text-brand-ink" : "border-neutral-300 text-neutral-600 hover:border-neutral-500 dark:border-neutral-700 dark:text-neutral-400"}`}
                 >
-                  {f[0].toUpperCase() + f.slice(1)} {f === "all" ? posts.length : posts.filter((p) => p.status === f).length}
+                  {f[0].toUpperCase() + f.slice(1)} {f === "all" ? sentPosts.length : sentPosts.filter((p) => p.status === f).length}
                 </button>
               ))}
             </div>
@@ -445,14 +504,17 @@ export default function AdminPostsPage() {
           <section className="min-w-0 space-y-3">
             {current && (
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
-                <span className={`h-2.5 w-2.5 rounded-full ${current.status === "pending" ? "bg-amber-500" : current.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
+                <span className={`h-2.5 w-2.5 rounded-full ${current.status === "draft" ? "bg-neutral-400" : current.status === "pending" ? "bg-amber-500" : current.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
                 <span className="text-sm font-bold capitalize">{current.status}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-neutral-500">
                   {RO_STATES.find((st) => st.key === current.roState)?.label} · {current.organizationName || "No ad"}
                   {current.decidedByLabel ? ` · by ${current.decidedByLabel}` : ""}
                   {current.status === "denied" && current.denyReason ? ` · ${current.denyReason}` : ""}
                 </span>
-                {current.status === "pending" && (me?.id === current.createdBy || isLeadership) && (!current.ftnPlusMessageId || !current.leadershipMessageId) && (
+                {current.scheduledAt && (
+                  <span className="flex items-center gap-1 text-xs font-semibold text-sky-600 dark:text-sky-400"><Clock className="h-3.5 w-3.5" /> Sends {formatWhen(new Date(current.scheduledAt).getTime())}</span>
+                )}
+                {!current.scheduledAt && current.status === "pending" && (me?.id === current.createdBy || isLeadership) && (!current.ftnPlusMessageId || !current.leadershipMessageId) && (
                   <Button size="sm" variant="outline" onClick={() => handleResend(current)} className="cursor-pointer">Resend to Discord</Button>
                 )}
                 {canDecide && (
@@ -461,7 +523,7 @@ export default function AdminPostsPage() {
                     <Button size="sm" variant="destructive" onClick={() => handleDecision(current, "deny")} className="cursor-pointer"><X className="h-3.5 w-3.5" /> Deny</Button>
                   </>
                 )}
-                {current.status !== "denied" && (me?.id === current.createdBy || isLeadership) && (
+                {current.status !== "denied" && current.status !== "draft" && (me?.id === current.createdBy || isLeadership) && (
                   <Button size="sm" variant="outline" onClick={() => handleAmend(current)} className="cursor-pointer"><MessageSquarePlus className="h-3.5 w-3.5" /> Edit note</Button>
                 )}
                 {(me?.id === current.createdBy || isLeadership) && (
@@ -488,13 +550,13 @@ export default function AdminPostsPage() {
 
           <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[max(40rem,calc(100vh_-_17rem))] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
           <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="text-lg font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
+            <h2 className="text-lg font-extrabold">{editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</h2>
 
             <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">1</span>Write it</h3>
 
             <div>
               <label className={labelClass}>Headline (max 3 lines)</label>
-              <Input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" />
+              <textarea value={headline} onChange={(e) => setHeadline(e.target.value.replace(/\s*\n+\s*/g, " "))} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} rows={2} className={`${fieldClass} field-sizing-content resize-none`} placeholder="Headline" />
               {layout?.headlineOverflow && <p className="mt-1 text-[11px] text-red-600">Too long: only 3 lines fit.</p>}
             </div>
 
@@ -521,7 +583,7 @@ export default function AdminPostsPage() {
             <div>
               <label className={labelClass}>Ad</label>
               <div className="flex gap-2">
-                <Select value={adId} onChange={(e) => setAdId(e.target.value)} className={fieldClass}>
+                <Select value={adId} onChange={(e) => setAdId(e.target.value)} className={`${fieldClass} min-w-0 flex-1`}>
                   <option value="">Placeholder (&quot;your advertisement here&quot;)</option>
                   <option value={NO_AD}>No ad (image cropped to the box)</option>
                   {ads.map((a) => (
@@ -588,10 +650,32 @@ export default function AdminPostsPage() {
             </div>
             )}
 
+            {(!editingId || editingDraft) && (
+              <div>
+                <label className={labelClass}>Publish time (optional)</label>
+                <div className="flex gap-2">
+                  <DateTimeInput type="datetime-local" value={scheduleAt} min={toLocalInput(new Date())} onChange={(e) => setScheduleAt(e.target.value)} className={fieldClass} placeholder="Send right away" />
+                  {scheduleAt && (
+                    <Button type="button" variant="outline" onClick={() => setScheduleAt("")} className="cursor-pointer shrink-0">Send now</Button>
+                  )}
+                </div>
+                <p className="mt-1 text-[11px] text-neutral-500">
+                  {scheduleAt
+                    ? "The post is sent to #ftn-plus and #leadership at this time (your local time), then waits for approval as usual."
+                    : "Leave empty to send to Discord as soon as the post is generated."}
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-2">
-              <Button type="button" onClick={handleSave} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
-                {saving ? "Saving..." : editingId ? "Save Changes" : "Generate Post"}
+              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
+                {saving ? "Saving..." : editingId && !editingDraft ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
               </Button>
+              {(!editingId || editingDraft) && (
+                <Button type="button" variant="outline" onClick={() => handleSave(true)} disabled={saving || uploadingBg || openingVideo} className="cursor-pointer">
+                  Save draft
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={handleExport} className="cursor-pointer">
                 <Download className="h-4 w-4 mr-1.5" /> {mode === "video" ? "Export video" : "Export post"}
               </Button>
@@ -602,6 +686,74 @@ export default function AdminPostsPage() {
           </div>
           </section>
         </div>
+
+        {drafts.length > 0 && (
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold"><Pencil className="h-5 w-5" /> Drafts <span className="text-sm font-semibold text-neutral-500">{drafts.length}</span></h2>
+            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+              {drafts.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
+                  <div className="min-w-0 flex-1 basis-56">
+                    <p className="line-clamp-1 text-sm font-bold">{p.headline}</p>
+                    <p className="truncate text-xs text-neutral-500">
+                      {RO_STATES.find((st) => st.key === p.roState)?.label} · {p.organizationName || "No organizer"} · {p.creatorName || "unknown"} · saved {formatWhen(new Date(p.updatedAt).getTime())}
+                    </p>
+                  </div>
+                  {(me?.id === p.createdBy || isLeadership) && (
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Open</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} className="cursor-pointer text-red-600"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {scheduledPosts.length > 0 && (
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold"><Clock className="h-5 w-5" /> Scheduled posts <span className="text-sm font-semibold text-neutral-500">{scheduledPosts.length}</span></h2>
+            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+              {scheduledPosts.map((p) => {
+                const canChange = me?.id === p.createdBy || isLeadership;
+                const whenMs = new Date(p.scheduledAt).getTime();
+                const edit = timeEdits[p.id];
+                return (
+                  <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
+                    <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
+                    <div className="min-w-0 flex-1 basis-56">
+                      <p className="line-clamp-1 text-sm font-bold">{p.headline}</p>
+                      <p className="truncate text-xs text-neutral-500">
+                        {RO_STATES.find((st) => st.key === p.roState)?.label} · {p.organizationName || "No organizer"} · {p.creatorName || "unknown"}
+                      </p>
+                    </div>
+                    {canChange ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-52">
+                          <DateTimeInput type="datetime-local" value={edit ?? toLocalInput(new Date(whenMs))} min={toLocalInput(new Date())} onChange={(e) => setTimeEdits((m) => ({ ...m, [p.id]: e.target.value }))} className={fieldClass} />
+                        </div>
+                        {edit && edit !== toLocalInput(new Date(whenMs)) && (
+                          <Button size="sm" onClick={() => handleSaveTime(p)} className="cursor-pointer">Save time</Button>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm font-semibold">{formatWhen(whenMs)}</span>
+                    )}
+                    {canChange && (
+                      <div className="flex items-center gap-1">
+                        <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                        <Button size="sm" variant="outline" onClick={() => handlePublishNow(p)} className="cursor-pointer">Publish now</Button>
+                        <Button size="sm" variant="ghost" onClick={() => handleCancelSchedule(p)} className="cursor-pointer text-red-600"><X className="h-3.5 w-3.5" /> Cancel</Button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
       </div>
     </AdminAuthGuard>
   );

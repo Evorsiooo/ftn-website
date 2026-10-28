@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { DbClient } from "@/db";
 import { posts, users } from "@/db/schema";
 import {
@@ -250,4 +250,22 @@ export async function deletePostMessages(post: Post): Promise<{ ok: boolean; err
     }
   }
   return error ? { ok: false, error } : { ok: true };
+}
+
+// Sends a scheduled post to Discord now. Claiming the post first (clearing scheduledAt) makes
+// sure two runs never send it twice; if Discord fails the post is put back on the schedule
+// so the next run tries again. The timed-exclusive clock starts from this moment.
+export async function dispatchScheduledPost(db: DbClient, postId: string): Promise<{ ok: boolean; error?: string }> {
+  const claimed = await db
+    .update(posts)
+    .set({ scheduledAt: null, createdAt: new Date(), updatedAt: new Date() })
+    .where(and(eq(posts.id, postId), isNotNull(posts.scheduledAt), eq(posts.status, "pending")))
+    .returning({ id: posts.id, scheduledAt: posts.scheduledAt });
+  if (claimed.length === 0) return { ok: false, error: "This post is not scheduled" };
+  const result = await sendPostToDiscord(db, postId);
+  if (!result.ok) {
+    // Partial sends are fine: sendPostToDiscord only creates the messages that are missing.
+    await db.update(posts).set({ scheduledAt: new Date() }).where(eq(posts.id, postId));
+  }
+  return result;
 }

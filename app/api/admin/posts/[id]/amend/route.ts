@@ -37,6 +37,9 @@ export async function POST(
     if (auth.user.id !== post.createdBy && !isPostsLeadership(auth.user.roles)) {
       return NextResponse.json({ error: "Only the creator or leadership can add an edit note" }, { status: 403 });
     }
+    if (post.status === "draft") {
+      return NextResponse.json({ error: "Generate the draft before adding edit notes" }, { status: 409 });
+    }
     if (post.status === "denied") {
       return NextResponse.json({ error: "A denied post cannot be amended" }, { status: 409 });
     }

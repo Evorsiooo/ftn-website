@@ -23,6 +23,11 @@ export async function decidePost(
   reason: string,
   actor: DecisionActor
 ): Promise<DecisionResult> {
+  // A post that is still waiting for its publish time has no leadership message yet.
+  const waiting = await db.select({ scheduledAt: posts.scheduledAt }).from(posts).where(eq(posts.id, postId)).limit(1);
+  if (waiting[0]?.scheduledAt) {
+    return { ok: false, status: 409, error: "This post is scheduled and can be decided once it has been sent to Discord" };
+  }
   // Only a pending post can be decided, and only once.
   const claimed = await db
     .update(posts)

@@ -32,6 +32,10 @@ export async function POST(
       return NextResponse.json({ error: "Only posts waiting for approval can be resent" }, { status: 409 });
     }
 
+    if (rows[0].scheduledAt) {
+      return NextResponse.json({ error: "This post is scheduled. Use Publish now instead" }, { status: 409 });
+    }
+
     const result = await sendPostToDiscord(db, id);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
     return NextResponse.json({ success: true });
