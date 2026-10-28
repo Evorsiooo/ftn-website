@@ -49,13 +49,15 @@ interface Props {
   animatedWebp?: boolean;
   /** Where the timeline and clip controls go (full page width). Without it they stay in place. */
   timelineHost?: HTMLElement | null;
+  /** Where the selected clip / song controls go (beside the preview). Without it they stay under the timeline. */
+  selectedHost?: HTMLElement | null;
 }
 
 type UploadState = { progress: number; error?: string };
 
 const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
 
-export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEditor({ canvasRef, layers, uploadPoster, animatedWebp = false, timelineHost }, ref) {
+export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEditor({ canvasRef, layers, uploadPoster, animatedWebp = false, timelineHost, selectedHost }, ref) {
   const [sources, setSources] = useState<Map<string, LoadedSource>>(new Map());
   const [project, setProject] = useState<Project>(emptyProject());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -467,6 +469,42 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
     </label>
   );
 
+  const selectedPanels = (
+    <>
+      {selectedClip && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+          <p className={labelClass}>Selected clip</p>
+          <div className="grid grid-cols-2 gap-3">
+            {sliderRow("Volume", selectedClip.volume, 0, 1, 0.05, (v) => setClip({ volume: v }, "volume"), `${Math.round(selectedClip.volume * 100)}%`)}
+            {sliderRow("Zoom", selectedClip.zoom, 1, 3, 0.05, (v) => setClip({ zoom: v }, "zoom"), `${selectedClip.zoom.toFixed(2)}x`)}
+            {sliderRow("Left / right", selectedClip.focusX, 0, 1, 0.01, (v) => setClip({ focusX: v }, "fx"))}
+            {sliderRow("Up / down", selectedClip.focusY, 0, 1, 0.01, (v) => setClip({ focusY: v }, "fy"))}
+          </div>
+          {project.clips.length > 1 && (
+            <button
+              type="button"
+              className="text-[11px] text-blue-600 dark:text-blue-400 underline cursor-pointer"
+              onClick={() => setClip({ zoom: selectedClip.zoom, focusX: selectedClip.focusX, focusY: selectedClip.focusY }, "", true)}
+            >
+              Use this framing for every clip
+            </button>
+          )}
+        </div>
+      )}
+
+      {selectedMusic && (
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+          <p className={labelClass}>Selected song</p>
+          <div className="grid grid-cols-2 gap-3">
+            {sliderRow("Volume", selectedMusic.volume, 0, 1, 0.05, (v) => setSong({ volume: v }, "volume"), `${Math.round(selectedMusic.volume * 100)}%`)}
+            {sliderRow("Fade in", selectedMusic.fadeIn, 0, 5, 0.1, (v) => setSong({ fadeIn: v }, "fadeIn"), `${selectedMusic.fadeIn.toFixed(1)}s`)}
+            {sliderRow("Fade out", selectedMusic.fadeOut, 0, 5, 0.1, (v) => setSong({ fadeOut: v }, "fadeOut"), `${selectedMusic.fadeOut.toFixed(1)}s`)}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const timeline = (
     <>
       <input ref={videoInput} type="file" accept="video/*" multiple onChange={(e) => addVideos(e.target.files)} className="hidden" />
@@ -520,38 +558,6 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
         onChange={update}
       />
 
-      {selectedClip && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
-          <p className={labelClass}>Selected clip</p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-6 gap-3">
-            {sliderRow("Volume", selectedClip.volume, 0, 1, 0.05, (v) => setClip({ volume: v }, "volume"), `${Math.round(selectedClip.volume * 100)}%`)}
-            {sliderRow("Zoom", selectedClip.zoom, 1, 3, 0.05, (v) => setClip({ zoom: v }, "zoom"), `${selectedClip.zoom.toFixed(2)}x`)}
-            {sliderRow("Left / right", selectedClip.focusX, 0, 1, 0.01, (v) => setClip({ focusX: v }, "fx"))}
-            {sliderRow("Up / down", selectedClip.focusY, 0, 1, 0.01, (v) => setClip({ focusY: v }, "fy"))}
-          </div>
-          {project.clips.length > 1 && (
-            <button
-              type="button"
-              className="text-[11px] text-blue-600 dark:text-blue-400 underline cursor-pointer"
-              onClick={() => setClip({ zoom: selectedClip.zoom, focusX: selectedClip.focusX, focusY: selectedClip.focusY }, "", true)}
-            >
-              Use this framing for every clip
-            </button>
-          )}
-        </div>
-      )}
-
-      {selectedMusic && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
-          <p className={labelClass}>Selected song</p>
-          <div className="grid grid-cols-3 gap-3">
-            {sliderRow("Volume", selectedMusic.volume, 0, 1, 0.05, (v) => setSong({ volume: v }, "volume"), `${Math.round(selectedMusic.volume * 100)}%`)}
-            {sliderRow("Fade in", selectedMusic.fadeIn, 0, 5, 0.1, (v) => setSong({ fadeIn: v }, "fadeIn"), `${selectedMusic.fadeIn.toFixed(1)}s`)}
-            {sliderRow("Fade out", selectedMusic.fadeOut, 0, 5, 0.1, (v) => setSong({ fadeOut: v }, "fadeOut"), `${selectedMusic.fadeOut.toFixed(1)}s`)}
-          </div>
-        </div>
-      )}
-
       {failed.map((f) => (
         <p key={f} className="text-[11px] text-red-600">{f}</p>
       ))}
@@ -577,6 +583,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
   return (
     <div className="space-y-3 outline-none" tabIndex={0} onKeyDown={timelineHost ? undefined : onKeyDown}>
       {timelineHost ? createPortal(<div className="space-y-3 outline-none" tabIndex={0} onKeyDown={onKeyDown}>{timeline}</div>, timelineHost) : timeline}
+      {selectedHost ? createPortal(<div className="space-y-3">{selectedPanels}</div>, selectedHost) : selectedPanels}
     </div>
   );
 });
