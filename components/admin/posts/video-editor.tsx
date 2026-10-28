@@ -472,7 +472,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
   const selectedPanels = (
     <>
       {selectedClip && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+        <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
           <p className={labelClass}>Selected clip</p>
           <div className="grid grid-cols-2 gap-3">
             {sliderRow("Volume", selectedClip.volume, 0, 1, 0.05, (v) => setClip({ volume: v }, "volume"), `${Math.round(selectedClip.volume * 100)}%`)}
@@ -493,7 +493,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       )}
 
       {selectedMusic && (
-        <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 space-y-2">
+        <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
           <p className={labelClass}>Selected song</p>
           <div className="grid grid-cols-2 gap-3">
             {sliderRow("Volume", selectedMusic.volume, 0, 1, 0.05, (v) => setSong({ volume: v }, "volume"), `${Math.round(selectedMusic.volume * 100)}%`)}
