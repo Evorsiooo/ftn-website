@@ -94,6 +94,8 @@ export default function AdminPostsPage() {
   const videoEditor = useRef<VideoEditorHandle>(null);
   // The video timeline is drawn here, below the form and preview, at full page width.
   const [timelineHost, setTimelineHost] = useState<HTMLDivElement | null>(null);
+  // The selected clip controls sit in the free column left of the preview.
+  const [selectedHost, setSelectedHost] = useState<HTMLDivElement | null>(null);
   const [saving, setSaving] = useState(false);
   // Empty = send to Discord right away; otherwise the local time the post should be sent.
   const [scheduleAt, setScheduleAt] = useState("");
@@ -496,10 +498,12 @@ export default function AdminPostsPage() {
           }
         />
 
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(26rem,32rem)] 2xl:gap-10">
+        <div className={`grid grid-cols-1 items-start gap-6 2xl:gap-10 ${mode === "video" && !viewing ? "xl:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)_minmax(26rem,32rem)]" : "xl:grid-cols-[minmax(0,1fr)_minmax(26rem,32rem)]"}`}>
           <section className="min-w-0 xl:hidden">
             {queueEl}
           </section>
+
+          <div ref={setSelectedHost} className={mode === "video" && !viewing ? "min-w-0 space-y-3 xl:pt-4" : "hidden"} />
 
           <section className="min-w-0 space-y-3">
             {current && (
@@ -534,21 +538,21 @@ export default function AdminPostsPage() {
             {viewing && !editingId && (
               <div className="space-y-2">
                 {viewing.mediaType === "video" && viewing.videoUrl && !viewing.videoUrl.endsWith(".webp") ? (
-                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full max-w-[clamp(520px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-900" />
+                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full max-w-[clamp(300px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-900" />
                 ) : (
-                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full max-w-[clamp(520px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full max-w-[clamp(300px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
                 )}
                 {parseNotes(viewing.amendments).map((n, i) => <p key={i} className="text-xs italic text-neutral-500">edit: {n}</p>)}
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
-              <canvas ref={canvasRef} width={1024} height={1024} className={`mx-auto w-full ${mode === "video" ? "max-w-[clamp(280px,calc(100vh_-_29rem),900px)]" : "max-w-[clamp(520px,calc(100vh_-_16rem),900px)]"}`} style={CHECKERBOARD} />
+              <canvas ref={canvasRef} width={1024} height={1024} className={`mx-auto w-full ${mode === "video" ? "max-w-[clamp(200px,calc(100vh_-_32.5rem),900px)]" : "max-w-[clamp(300px,calc(100vh_-_16rem),900px)]"}`} style={CHECKERBOARD} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
           </section>
 
-          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100vh_-_6rem)] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
+          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100vh_-_16rem)] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
           <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="text-lg font-extrabold">{editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</h2>
 
@@ -627,7 +631,7 @@ export default function AdminPostsPage() {
                     <AdminSwitch checked={transparent} onChange={setTransparent} label="Transparent animated WebP" />
                   </AdminRow>
                 </div>
-                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
+                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} selectedHost={selectedHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
               </div>
             ) : (
             <div>
