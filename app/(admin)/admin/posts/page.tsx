@@ -484,7 +484,7 @@ export default function AdminPostsPage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="mx-auto w-full max-w-[1600px] space-y-6 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-6 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Posts"
           description="Preview, details and approval for each post."
@@ -496,7 +496,7 @@ export default function AdminPostsPage() {
           }
         />
 
-        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(26rem,32rem)] 2xl:gap-10">
           <section className="min-w-0 xl:hidden">
             {queueEl}
           </section>
@@ -534,21 +534,21 @@ export default function AdminPostsPage() {
             {viewing && !editingId && (
               <div className="space-y-2">
                 {viewing.mediaType === "video" && viewing.videoUrl && !viewing.videoUrl.endsWith(".webp") ? (
-                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full max-w-[clamp(460px,calc(100vh_-_630px),720px)] rounded-lg bg-neutral-900" />
+                  <video src={viewing.videoUrl} poster={viewing.imageUrl} controls playsInline className="mx-auto w-full max-w-[clamp(520px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-900" />
                 ) : (
-                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full max-w-[clamp(460px,calc(100vh_-_630px),720px)] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
+                  <img src={viewing.mediaType === "video" && viewing.videoUrl ? viewing.videoUrl : viewing.imageUrl} alt={viewing.headline} className="mx-auto w-full max-w-[clamp(520px,calc(100vh_-_16rem),900px)] rounded-lg bg-neutral-200 dark:bg-neutral-800" />
                 )}
                 {parseNotes(viewing.amendments).map((n, i) => <p key={i} className="text-xs italic text-neutral-500">edit: {n}</p>)}
               </div>
             )}
             <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
-              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full max-w-[clamp(460px,calc(100vh_-_630px),720px)]" style={CHECKERBOARD} />
+              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full max-w-[clamp(520px,calc(100vh_-_16rem),900px)]" style={CHECKERBOARD} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
             <div ref={setTimelineHost} className={mode === "video" && !viewing ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
           </section>
 
-          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[max(40rem,calc(100vh_-_17rem))] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
+          <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[calc(100vh_-_6rem)] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
           <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
             <h2 className="text-lg font-extrabold">{editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</h2>
 
@@ -653,7 +653,7 @@ export default function AdminPostsPage() {
             {(!editingId || editingDraft) && (
               <div>
                 <label className={labelClass}>Publish time (optional)</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <DateTimeInput type="datetime-local" value={scheduleAt} min={toLocalInput(new Date())} onChange={(e) => setScheduleAt(e.target.value)} className={fieldClass} placeholder="Send right away" />
                   {scheduleAt && (
                     <Button type="button" variant="outline" onClick={() => setScheduleAt("")} className="cursor-pointer shrink-0">Send now</Button>
@@ -667,8 +667,8 @@ export default function AdminPostsPage() {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="min-w-[10rem] flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
                 {saving ? "Saving..." : editingId && !editingDraft ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
               </Button>
               {(!editingId || editingDraft) && (

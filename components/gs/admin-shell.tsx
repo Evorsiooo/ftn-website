@@ -61,7 +61,7 @@ export function GsAdminShell({ children }: { children: React.ReactNode }) {
     );
 
   return (
-    <div className="mx-auto flex w-full max-w-[96rem] flex-1 flex-col gap-0 lg:flex-row">
+    <div className={cn("mx-auto flex w-full flex-1 flex-col gap-0 lg:flex-row", pathname?.startsWith("/admin/posts") ? "max-w-none" : "max-w-[96rem]")}>
       <aside className="border-b border-neutral-200 dark:border-neutral-800 lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
         <nav aria-label="Admin" className="flex gap-1 overflow-x-auto overflow-y-hidden px-4 py-3 lg:sticky lg:top-16 lg:flex-col lg:overflow-visible lg:px-4 lg:py-6">
           <button
