@@ -89,6 +89,15 @@ export default function FTNPlusSchedulePage() {
     return Array.from({ length: DAYS_SHOWN }, (_, i) => addDays(today, i));
   }, []);
 
+  // Deep link: ?date=YYYY-MM-DD opens that day.
+  useEffect(() => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(new URLSearchParams(window.location.search).get("date") || "");
+    if (!m) return;
+    const target = new Date(+m[1], +m[2] - 1, +m[3]).getTime();
+    const i = days.findIndex((d) => d.getTime() === target);
+    if (i >= 0) setDayIndex(i);
+  }, [days]);
+
   const visible = useMemo(
     () =>
       (entries || []).filter((e) => (medium === "radio" ? e.onRadio : medium === "stream" ? e.onStream : true)),
