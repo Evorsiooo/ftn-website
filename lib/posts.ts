@@ -6,7 +6,7 @@ import { RO_STATES, type RoState } from "@/lib/ro-states";
 
 export { RO_STATES, type RoState };
 
-const LOGO_KEYS = ["", "whcn"];
+const LOGO_KEYS = ["", "whcn", "ch4"];
 
 export interface PostInput {
   headline?: string;
