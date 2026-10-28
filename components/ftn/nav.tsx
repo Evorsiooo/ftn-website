@@ -1,4 +1,5 @@
 "use client";
+import { originOfElement } from "@/lib/theme-transition";
 import { leaveFtnPlus, originOf } from "@/lib/site-transition";
 import React from "react";
 import Link from "next/link";
@@ -19,11 +20,11 @@ export type NavLink = {
 const glass = "bg-ftn-glass backdrop-blur-xl backdrop-saturate-150 border border-ftn-line ftn-shadow";
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
 
-function ThemeToggle({ theme, onToggle, className }: { theme: "dark" | "light"; onToggle: () => void; className?: string }) {
+function ThemeToggle({ theme, onToggle, className }: { theme: "dark" | "light"; onToggle: (origin?: { x: number; y: number }) => void; className?: string }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
+      onClick={(e) => onToggle(originOfElement(e.currentTarget))}
       aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
       title={theme === "dark" ? "Light theme" : "Dark theme"}
       className={cn("h-10 w-10 inline-flex items-center justify-center rounded-full text-ftn-text-2 hover:text-ftn-text transition cursor-pointer", focus, className)}
@@ -72,7 +73,7 @@ export function FtnLogo({ theme, className }: { theme: "dark" | "light"; classNa
 }
 
 /** Floating pill at the top on desktop, icon dock at the bottom on phones. */
-export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; theme: "dark" | "light"; onToggleTheme: () => void }) {
+export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; theme: "dark" | "light"; onToggleTheme: (origin?: { x: number; y: number }) => void }) {
   return (
     <>
       <nav aria-label="FTN+" className={cn("fixed top-5 left-1/2 -translate-x-1/2 z-40 hidden md:flex items-center gap-1 rounded-full p-1.5", glass)}>

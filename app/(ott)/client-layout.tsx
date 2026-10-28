@@ -1,4 +1,5 @@
 "use client";
+import { withThemeTransition } from "@/lib/theme-transition";
 import { fetchSession } from "@/lib/session-client";
 import React, { useState, useEffect } from "react";
 import { FtnNav, type NavLink } from "@/components/ftn/nav";
@@ -47,14 +48,13 @@ function OTTShell({ children }: { children: React.ReactNode }) {
       if (localStorage.getItem("ftnplus_theme") === "light") setTheme("light");
     } catch {}
   }, []);
-  const toggleTheme = () =>
-    setTheme((t) => {
-      const next = t === "dark" ? "light" : "dark";
-      try {
-        localStorage.setItem("ftnplus_theme", next);
-      } catch {}
-      return next;
-    });
+  const toggleTheme = (origin?: { x: number; y: number }) => {
+    const next = theme === "dark" ? "light" : "dark";
+    try {
+      localStorage.setItem("ftnplus_theme", next);
+    } catch {}
+    withThemeTransition(() => setTheme(next), origin);
+  };
 
   // Favicon synchronization (page titles come from each route's metadata)
   useEffect(() => {

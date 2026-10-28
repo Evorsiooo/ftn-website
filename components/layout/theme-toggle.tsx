@@ -2,6 +2,7 @@
 import React from "react";
 import { useTheme } from "@/lib/theme-context";
 import { IconSun, IconMoon } from "@tabler/icons-react";
+import { originOfElement } from "@/lib/theme-transition";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className, isMobile = false }: { className?: string; isMobile?: boolean }) {
@@ -25,7 +26,7 @@ export function ThemeToggle({ className, isMobile = false }: { className?: strin
   return (
     <button
       type="button"
-      onClick={toggleTheme}
+      onClick={(e) => toggleTheme(originOfElement(e.currentTarget))}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
       className={cn(
