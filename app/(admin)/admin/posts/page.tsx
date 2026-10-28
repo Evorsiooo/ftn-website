@@ -45,6 +45,29 @@ async function uploadToPosts(file: Blob, name: string): Promise<string> {
   return data.url as string;
 }
 
+const MAX_BACKGROUND_EDGE = 2048;
+const BACKGROUND_SKIP_BYTES = 2 * 1024 * 1024;
+
+// Downscale and re-encode big photos in the browser so they stay well under the upload limit.
+async function shrinkImage(file: File, img: HTMLImageElement): Promise<File> {
+  if (file.type === "image/gif") return file;
+  const edge = Math.max(img.naturalWidth, img.naturalHeight);
+  if (edge <= MAX_BACKGROUND_EDGE && file.size <= BACKGROUND_SKIP_BYTES) return file;
+  const scale = Math.min(1, MAX_BACKGROUND_EDGE / edge);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  // WebP keeps transparency; browsers without WebP encoding fall back to PNG, so retry as JPEG.
+  let blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/webp", 0.9));
+  if (!blob || blob.type !== "image/webp") blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, "image/jpeg", 0.9));
+  if (!blob || blob.size >= file.size) return file;
+  const ext = blob.type === "image/webp" ? "webp" : "jpg";
+  return new File([blob], file.name.replace(/\.[^.]+$/, "") + "." + ext, { type: blob.type });
+}
+
 function parseNotes(raw: string | null): string[] {
   try {
     const list = JSON.parse(raw || "[]");
@@ -237,8 +260,10 @@ export default function AdminPostsPage() {
     if (!file) return;
     // Show it straight away from the local file, and upload to R2 in the background.
     const localUrl = URL.createObjectURL(file);
+    let img: HTMLImageElement;
     try {
-      setPhoto(await loadImage(localUrl));
+      img = await loadImage(localUrl);
+      setPhoto(img);
     } catch {
       toast("Could not read this image.");
       return;
@@ -246,7 +271,8 @@ export default function AdminPostsPage() {
     setBackgroundUrl(null);
     setUploadingBg(true);
     try {
-      setBackgroundUrl(await uploadToPosts(file, file.name));
+      const upload = await shrinkImage(file, img);
+      setBackgroundUrl(await uploadToPosts(upload, upload.name));
     } catch (err: any) {
       toast(err.message || "Background upload failed");
     } finally {
