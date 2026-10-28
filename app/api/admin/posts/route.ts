@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, or, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { adCampaigns, posts, users } from "@/db/schema";
-import { canManagePosts } from "@/lib/rbac";
+import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
 import { sendPostToDiscord } from "@/lib/discord-posts";
 import { PostInput, consumeAdImpression, releaseAdImpression, resolveMessageLink, validatePostInput } from "@/lib/posts";
@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
       .select({ post: posts, creatorName: users.displayName })
       .from(posts)
       .leftJoin(users, eq(users.id, posts.createdBy))
+      // Drafts are only visible to their creator and leadership.
+      .where(isPostsLeadership(auth.user.roles) ? undefined : or(ne(posts.status, "draft"), eq(posts.createdBy, auth.user.id)))
       .orderBy(desc(posts.createdAt))
       .limit(200);
     return NextResponse.json({
@@ -51,8 +53,9 @@ export async function POST(request: NextRequest) {
 
     let organizationName: string | null = null;
     let messageLink: string | null = null;
+    const draft = body.draft === true;
     let scheduledAt: Date | null = null;
-    if (body.scheduledAt !== undefined && body.scheduledAt !== null) {
+    if (!draft && body.scheduledAt !== undefined && body.scheduledAt !== null) {
       scheduledAt = new Date(Number(body.scheduledAt));
       if (Number.isNaN(scheduledAt.getTime()) || scheduledAt.getTime() < Date.now() + 60_000) {
         return NextResponse.json({ error: "The publish time must be in the future" }, { status: 400 });
@@ -65,7 +68,8 @@ export async function POST(request: NextRequest) {
       if (ad.length === 0 || ad[0].adFormat !== "1024x180") {
         return NextResponse.json({ error: "Ad not found" }, { status: 400 });
       }
-      if (!(await consumeAdImpression(db, adId))) {
+      // A draft takes its impression only when it is generated.
+      if (!draft && !(await consumeAdImpression(db, adId))) {
         return NextResponse.json({ error: "This ad has no post impressions left or is not active" }, { status: 409 });
       }
       organizationName = ad[0].advertiserName;
@@ -85,7 +89,7 @@ export async function POST(request: NextRequest) {
       noAd,
       organizationName,
       messageLink,
-      status: "pending" as const,
+      status: (draft ? "draft" : "pending") as "draft" | "pending",
       scheduledAt,
       createdBy: auth.user.id,
       createdAt: new Date(),
@@ -94,13 +98,13 @@ export async function POST(request: NextRequest) {
     try {
       await db.insert(posts).values(post);
     } catch (err) {
-      await releaseAdImpression(db, adId);
+      if (!draft) await releaseAdImpression(db, adId);
       throw err;
     }
     // Send it to #ftn-plus and #leadership. The post is saved either way; if Discord fails
     // the page offers a Resend button.
     // A scheduled post is sent by the cron endpoint at its time.
-    if (scheduledAt) return NextResponse.json({ post }, { status: 201 });
+    if (draft || scheduledAt) return NextResponse.json({ post }, { status: 201 });
     const discord = await sendPostToDiscord(db, post.id);
     return NextResponse.json({ post, discordWarning: discord.ok ? undefined : discord.error }, { status: 201 });
   } catch (error) {

@@ -288,7 +288,7 @@ export default function AdminPostsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (asDraft = false) => {
     if (!headline.trim()) return toast("Please write a headline.");
     if (!roState) return toast("Please choose a Ro-State.");
     if (mode === "image" && !photo) return toast("Please upload a background photo.");
@@ -297,7 +297,7 @@ export default function AdminPostsPage() {
     if (layout?.headlineOverflow) return toast("The headline is longer than 3 lines. Please shorten it.");
     if (layout?.bodyTooLong) return toast("The body text is too long for the post. Please shorten it.");
     if (previewError || !canvasRef.current) return toast(previewError || "Preview is not ready.");
-    if (!editingId && scheduleAt && !(fromLocalInput(scheduleAt) > Date.now() + 60_000)) {
+    if (!asDraft && (!editingId || editingDraft) && scheduleAt && !(fromLocalInput(scheduleAt) > Date.now() + 60_000)) {
       return toast("Choose a publish time in the future, or clear it to send now.");
     }
 
@@ -317,7 +317,9 @@ export default function AdminPostsPage() {
         const imageUrl = await uploadToPosts(blob, "post.png");
         payload = { headline, body, logo, roState, adId: noAd ? null : adId || null, noAd, backgroundUrl, imageUrl, mediaType: "image" };
       }
-      if (!editingId && scheduleAt) payload.scheduledAt = fromLocalInput(scheduleAt);
+      if (!editingId && asDraft) payload.draft = true;
+      if (editingDraft && !asDraft) payload.publish = true;
+      if (!asDraft && (!editingId || editingDraft) && scheduleAt) payload.scheduledAt = fromLocalInput(scheduleAt);
       const res = await fetch(editingId ? `/api/admin/posts/${editingId}` : "/api/admin/posts", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -327,6 +329,7 @@ export default function AdminPostsPage() {
       if (!res.ok) throw new Error(data.error || "Failed to save post");
       resetForm();
       await loadAll();
+      if (asDraft) toast("Draft saved.");
       if (data.discordWarning) {
         toast(`The post was saved, but sending it to Discord failed:\n${data.discordWarning}\nUse Resend on the post to try again.`);
       }
@@ -421,11 +424,13 @@ export default function AdminPostsPage() {
   const adOptionLabel = (a: any) =>
     `${a.organizerName}: ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
 
+  const drafts = posts.filter((p) => p.status === "draft");
   const scheduledPosts = posts
-    .filter((p) => p.scheduledAt)
+    .filter((p) => p.scheduledAt && p.status !== "draft")
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
-  const sentPosts = posts.filter((p) => !p.scheduledAt);
+  const sentPosts = posts.filter((p) => !p.scheduledAt && p.status !== "draft");
   const visiblePosts = sentPosts.filter((p) => statusFilter === "all" || p.status === statusFilter);
+  const editingDraft = !!editingId && posts.find((p) => p.id === editingId)?.status === "draft";
   const current = editingId ? posts.find((p) => p.id === editingId) : viewing;
   const canDecide = !!current && current.status === "pending" && !current.scheduledAt && isLeadership;
 
@@ -499,7 +504,7 @@ export default function AdminPostsPage() {
           <section className="min-w-0 space-y-3">
             {current && (
               <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
-                <span className={`h-2.5 w-2.5 rounded-full ${current.status === "pending" ? "bg-amber-500" : current.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
+                <span className={`h-2.5 w-2.5 rounded-full ${current.status === "draft" ? "bg-neutral-400" : current.status === "pending" ? "bg-amber-500" : current.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
                 <span className="text-sm font-bold capitalize">{current.status}</span>
                 <span className="min-w-0 flex-1 truncate text-xs text-neutral-500">
                   {RO_STATES.find((st) => st.key === current.roState)?.label} · {current.organizationName || "No ad"}
@@ -518,7 +523,7 @@ export default function AdminPostsPage() {
                     <Button size="sm" variant="destructive" onClick={() => handleDecision(current, "deny")} className="cursor-pointer"><X className="h-3.5 w-3.5" /> Deny</Button>
                   </>
                 )}
-                {current.status !== "denied" && (me?.id === current.createdBy || isLeadership) && (
+                {current.status !== "denied" && current.status !== "draft" && (me?.id === current.createdBy || isLeadership) && (
                   <Button size="sm" variant="outline" onClick={() => handleAmend(current)} className="cursor-pointer"><MessageSquarePlus className="h-3.5 w-3.5" /> Edit note</Button>
                 )}
                 {(me?.id === current.createdBy || isLeadership) && (
@@ -545,7 +550,7 @@ export default function AdminPostsPage() {
 
           <section className={`min-w-0 xl:sticky xl:top-20 xl:max-h-[max(40rem,calc(100vh_-_17rem))] xl:overflow-y-auto xl:rounded-2xl ${viewing && !editingId ? "opacity-60" : ""}`}>
           <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <h2 className="text-lg font-extrabold">{editingId ? "Edit post" : "New post"}</h2>
+            <h2 className="text-lg font-extrabold">{editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</h2>
 
             <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">1</span>Write it</h3>
 
@@ -645,7 +650,7 @@ export default function AdminPostsPage() {
             </div>
             )}
 
-            {!editingId && (
+            {(!editingId || editingDraft) && (
               <div>
                 <label className={labelClass}>Publish time (optional)</label>
                 <div className="flex gap-2">
@@ -663,9 +668,14 @@ export default function AdminPostsPage() {
             )}
 
             <div className="flex gap-2">
-              <Button type="button" onClick={handleSave} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
-                {saving ? "Saving..." : editingId ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
+              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
+                {saving ? "Saving..." : editingId && !editingDraft ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
               </Button>
+              {(!editingId || editingDraft) && (
+                <Button type="button" variant="outline" onClick={() => handleSave(true)} disabled={saving || uploadingBg || openingVideo} className="cursor-pointer">
+                  Save draft
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={handleExport} className="cursor-pointer">
                 <Download className="h-4 w-4 mr-1.5" /> {mode === "video" ? "Export video" : "Export post"}
               </Button>
@@ -676,6 +686,31 @@ export default function AdminPostsPage() {
           </div>
           </section>
         </div>
+
+        {drafts.length > 0 && (
+          <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="mb-3 flex items-center gap-2 text-lg font-extrabold"><Pencil className="h-5 w-5" /> Drafts <span className="text-sm font-semibold text-neutral-500">{drafts.length}</span></h2>
+            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
+              {drafts.map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center gap-3 py-3">
+                  <img src={p.imageUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
+                  <div className="min-w-0 flex-1 basis-56">
+                    <p className="line-clamp-1 text-sm font-bold">{p.headline}</p>
+                    <p className="truncate text-xs text-neutral-500">
+                      {RO_STATES.find((st) => st.key === p.roState)?.label} · {p.organizationName || "No organizer"} · {p.creatorName || "unknown"} · saved {formatWhen(new Date(p.updatedAt).getTime())}
+                    </p>
+                  </div>
+                  {(me?.id === p.createdBy || isLeadership) && (
+                    <div className="flex items-center gap-1">
+                      <Button size="sm" variant="outline" onClick={() => startEditing(p)} className="cursor-pointer"><Pencil className="h-3.5 w-3.5" /> Open</Button>
+                      <Button size="sm" variant="ghost" onClick={() => handleDelete(p)} className="cursor-pointer text-red-600"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {scheduledPosts.length > 0 && (
           <section className="rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">

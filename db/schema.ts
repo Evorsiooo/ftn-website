@@ -348,7 +348,8 @@ export const posts = sqliteTable("posts", {
   // JSON of the edit (sources and clips) so a video post can be opened in the editor again.
   videoEdit: text("video_edit"),
   status: text("status", {
-    enum: ["pending", "approved", "denied"],
+    // "draft" = saved by staff but not generated yet: nothing in Discord, no ad impression used.
+    enum: ["draft", "pending", "approved", "denied"],
   }).notNull().default("pending"),
   denyReason: text("deny_reason"),
   // Set while the post waits to be sent to Discord; cleared once it has been sent.

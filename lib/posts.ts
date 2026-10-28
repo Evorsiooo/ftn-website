@@ -22,6 +22,9 @@ export interface PostInput {
   videoEdit?: string | null;
   /** Epoch milliseconds the post should be sent to Discord, or null/absent to send now. */
   scheduledAt?: number | null;
+  /** Create: save as a draft. Update of a draft: publish it (send now, or at scheduledAt). */
+  draft?: boolean;
+  publish?: boolean;
 }
 
 const MAX_VIDEO_EDIT_LENGTH = 100_000;
