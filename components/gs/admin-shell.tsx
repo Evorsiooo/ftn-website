@@ -118,7 +118,7 @@ export function GsAdminShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </aside>
-      <div className={cn("min-w-0 flex-1", !pathname?.startsWith("/admin/posts") && "mx-auto max-w-[80rem]")}>{children}</div>
+      <div className={cn("min-w-0 flex-1")}>{children}</div>
       {jumpOpen && <JumpBar modules={modules} onClose={() => setJumpOpen(false)} />}
     </div>
   );

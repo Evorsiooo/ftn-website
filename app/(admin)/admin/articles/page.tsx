@@ -222,7 +222,7 @@ function AdminArticlesContent() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 text-neutral-900 dark:text-white">
+    <div className="w-full space-y-8 text-neutral-900 dark:text-white">
       <AdminPageHeader
         title="Articles"
         description="Create, edit, and publish stories and news investigations."

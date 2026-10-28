@@ -38,7 +38,7 @@ export default function AdminSchedulePage() {
 
   return (
     <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Broadcast Schedule">
-      <div className="mx-auto max-w-7xl space-y-6 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-6 text-neutral-900 dark:text-white">
         <AdminPageHeader
           title="Schedule"
           description="Click an empty slot to add a broadcast. Click a block to edit it."

@@ -111,7 +111,7 @@ export default function AdminRolesConsole() {
 
   return (
     <AdminAuthGuard requiredPermission={canAssignRoles} featureTitle="Staff Roles Management">
-      <div className="mx-auto max-w-6xl space-y-6 text-neutral-900 dark:text-white">
+      <div className="w-full space-y-6 text-neutral-900 dark:text-white">
         <AdminPageHeader title="Staff roles" description="Who can do what. Tick a box to grant a role, untick to take it away; it applies immediately." />
 
         <form onSubmit={handleSearch} className="flex max-w-lg gap-2">
