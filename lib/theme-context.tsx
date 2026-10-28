@@ -1,4 +1,5 @@
 "use client";
+import { withThemeTransition } from "@/lib/theme-transition";
 import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "light" | "dark";
@@ -6,7 +7,7 @@ type Theme = "light" | "dark";
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  toggleTheme: () => void;
+  toggleTheme: (origin?: { x: number; y: number }) => void;
   mounted: boolean;
 }
 
@@ -55,9 +56,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyTheme(newTheme);
   };
 
-  const toggleTheme = () => {
+  const toggleTheme = (origin?: { x: number; y: number }) => {
     const nextTheme = theme === "light" ? "dark" : "light";
-    setTheme(nextTheme);
+    withThemeTransition(() => setTheme(nextTheme), origin);
   };
 
   return (
