@@ -8,7 +8,6 @@ import { exportPostVideo } from "@/lib/post-video/export";
 import { exportAnimatedWebp } from "@/lib/post-video/webp";
 import {
   MAX_DURATION,
-  MAX_VIDEO_BYTES,
   MIN_CLIP,
   clipAt,
   clipLength,
@@ -470,15 +469,15 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
 
   const timeline = (
     <>
+      <input ref={videoInput} type="file" accept="video/*" multiple onChange={(e) => addVideos(e.target.files)} className="hidden" />
+      <input ref={songInput} type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" onChange={(e) => addSong(e.target.files)} className="hidden" />
       <div className="flex flex-wrap items-center gap-2">
-        <input ref={videoInput} type="file" accept="video/*" multiple onChange={(e) => addVideos(e.target.files)} className="hidden" />
-        <input ref={songInput} type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" onChange={(e) => addSong(e.target.files)} className="hidden" />
-        <Button type="button" variant="outline" size="sm" onClick={() => videoInput.current?.click()} className="cursor-pointer">
-          <Video className="h-4 w-4 mr-1.5" /> Add video
+        <Button type="button" size="sm" onClick={togglePlay} disabled={total <= 0} className="cursor-pointer" aria-label={playing ? "Pause" : "Play"}>
+          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => songInput.current?.click()} className="cursor-pointer">
-          <Music className="h-4 w-4 mr-1.5" /> Add song
-        </Button>
+        <span className="text-xs tabular-nums text-neutral-600 dark:text-neutral-400">
+          {fmt(time)} / {fmt(total)} <span className="text-neutral-400">(max {MAX_DURATION}s)</span>
+        </span>
         {loading && (
           <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> {loading}
@@ -489,16 +488,13 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
             <Upload className="h-3.5 w-3.5" /> Uploading files in the background...
           </span>
         )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" onClick={togglePlay} disabled={total <= 0} className="cursor-pointer" aria-label={playing ? "Pause" : "Play"}>
-          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
-        <span className="text-xs tabular-nums text-neutral-600 dark:text-neutral-400">
-          {fmt(time)} / {fmt(total)} <span className="text-neutral-400">(max {MAX_DURATION}s)</span>
-        </span>
         <div className="ml-auto flex flex-wrap gap-1.5">
+          <Button type="button" size="sm" variant="outline" onClick={() => videoInput.current?.click()} className="cursor-pointer">
+            <Video className="h-4 w-4 mr-1" /> Add video
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => songInput.current?.click()} className="cursor-pointer">
+            <Music className="h-4 w-4 mr-1" /> Add song
+          </Button>
           <Button type="button" size="sm" variant="outline" onClick={split} disabled={total <= 0} className="cursor-pointer" title="Split at the playhead (S)">
             <Scissors className="h-4 w-4 mr-1" /> Split
           </Button>
@@ -555,10 +551,6 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
           </div>
         </div>
       )}
-
-      <p className="text-[11px] text-neutral-500">
-        Drag the edges of a clip to trim it, drag a clip to reorder it, click the ruler to move the playhead. The video is saved at up to {Math.round(MAX_VIDEO_BYTES / 1048576)} MB, the most Discord accepts.
-      </p>
 
       {failed.map((f) => (
         <p key={f} className="text-[11px] text-red-600">{f}</p>

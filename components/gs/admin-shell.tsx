@@ -61,7 +61,7 @@ export function GsAdminShell({ children }: { children: React.ReactNode }) {
     );
 
   return (
-    <div className={cn("mx-auto flex w-full flex-1 flex-col gap-0 lg:flex-row", pathname?.startsWith("/admin/posts") ? "max-w-none" : "max-w-[96rem]")}>
+    <div className="flex w-full flex-1 flex-col gap-0 lg:flex-row">
       <aside className="border-b border-neutral-200 dark:border-neutral-800 lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
         <nav aria-label="Admin" className="flex gap-1 overflow-x-auto overflow-y-hidden px-4 py-3 lg:sticky lg:top-16 lg:flex-col lg:overflow-visible lg:px-4 lg:py-6">
           <button
@@ -118,7 +118,7 @@ export function GsAdminShell({ children }: { children: React.ReactNode }) {
           })}
         </nav>
       </aside>
-      <div className="min-w-0 flex-1">{children}</div>
+      <div className={cn("min-w-0 flex-1", !pathname?.startsWith("/admin/posts") && "mx-auto max-w-[80rem]")}>{children}</div>
       {jumpOpen && <JumpBar modules={modules} onClose={() => setJumpOpen(false)} />}
     </div>
   );
