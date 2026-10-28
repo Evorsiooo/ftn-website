@@ -579,7 +579,7 @@ export default function AdminPostsPage() {
             <div>
               <label className={labelClass}>Ad</label>
               <div className="flex gap-2">
-                <Select value={adId} onChange={(e) => setAdId(e.target.value)} className={fieldClass}>
+                <Select value={adId} onChange={(e) => setAdId(e.target.value)} className={`${fieldClass} min-w-0 flex-1`}>
                   <option value="">Placeholder (&quot;your advertisement here&quot;)</option>
                   <option value={NO_AD}>No ad (image cropped to the box)</option>
                   {ads.map((a) => (
