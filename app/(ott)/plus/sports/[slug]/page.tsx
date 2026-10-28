@@ -112,41 +112,29 @@ export default function LeaguePage() {
 
   return (
     <PageShell>
-      <PageHeader
-        back={
-          <Link href="/plus/sports" className="inline-flex items-center gap-1 text-xs font-semibold text-ftn-text-3 hover:text-ftn-text transition">
-            <IconArrowLeft className="h-3.5 w-3.5" /> Sports
-          </Link>
-        }
-        eyebrow={league.sport}
-        title={
-          <span className="flex items-center gap-4">
-            <LeagueMark league={league} size={52} />
-            <span>{league.name}</span>
-          </span>
-        }
-        subtitle={`Season ${league.season}${total > 0 ? ` · ${racing ? "Round" : "Played"} ${finals.length} of ${total}` : ""}`}
-      />
+      <LeagueHero league={league} racing={racing} played={finals.length} total={total} teamCount={leagueTeams.length} driverCount={leagueDrivers.length} />
 
-      <div role="tablist" className={cn("flex gap-7 border-b border-ftn-line overflow-x-auto", GUTTER)}>
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
-            className={cn(
-              "py-3.5 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition cursor-pointer focus-visible:outline-2 focus-visible:outline-brand",
-              tab === t.id ? "text-ftn-text border-brand" : "text-ftn-text-3 border-transparent hover:text-ftn-text"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className={cn("sticky top-0 z-20 -mt-6 pb-2 pt-2 md:pt-3 bg-gradient-to-b from-ftn-bg via-ftn-bg/90 to-transparent", GUTTER)}>
+        <div role="tablist" className="inline-flex max-w-full gap-1 p-1 rounded-full bg-ftn-surface border border-ftn-line overflow-x-auto ftn-shadow">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                "h-9 px-4 sm:px-5 rounded-full text-sm font-semibold whitespace-nowrap transition cursor-pointer focus-visible:outline-2 focus-visible:outline-brand",
+                tab === t.id ? "bg-ftn-text text-ftn-bg" : "text-ftn-text-2 hover:text-ftn-text"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className={cn("pt-7 max-w-6xl", GUTTER)}>
-        {tab === "overview" && <Overview {...shared} upcoming={upcoming} finals={finals} driverCount={leagueDrivers.length} teamCount={leagueTeams.length} onTab={setTab} />}
+      <div className={cn("pt-6", GUTTER)}>
+        {tab === "overview" && <Overview {...shared} upcoming={upcoming} finals={finals} leagueTeams={leagueTeams} leagueDrivers={leagueDrivers} rules={rules} onTab={setTab} />}
         {tab === "calendar" && <Calendar {...shared} />}
         {tab === "results" && <Results {...shared} finals={[...finals].reverse()} rules={rules} />}
         {tab === "standings" && <Standings {...shared} finals={finals} leagueTeams={leagueTeams} leagueDrivers={leagueDrivers} rules={rules} />}
@@ -271,81 +259,173 @@ function Podium({ event, s, count = 3 }: { event: SportsEvent; s: Shared; count?
   );
 }
 
+/* -------------------------------------------------------------------- hero */
+
+function LeagueHero({ league, racing, played, total, teamCount, driverCount }: { league: SportsLeague; racing: boolean; played: number; total: number; teamCount: number; driverCount: number }) {
+  const pct = total > 0 ? Math.round((played / total) * 100) : 0;
+  const facts = [
+    total > 0 ? [`${played}/${total}`, racing ? "Rounds" : "Played"] : null,
+    racing && driverCount > 0 ? [String(driverCount), "Drivers"] : null,
+    teamCount > 0 ? [String(teamCount), "Teams"] : null,
+  ].filter(Boolean) as string[][];
+  return (
+    <header className="relative isolate overflow-hidden text-white">
+      {league.bannerUrl ? (
+        <img src={league.bannerUrl} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+      ) : (
+        <div className="absolute inset-0 -z-10" style={{ backgroundImage: `linear-gradient(135deg, ${league.color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 85%)` }} />
+      )}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-ftn-bg via-black/40 to-black/55" />
+      <div className={cn("pt-24 md:pt-36 pb-16 flex flex-col gap-8 md:flex-row md:items-end md:justify-between", GUTTER)}>
+        <div className="space-y-4 min-w-0">
+          <Link href="/plus/sports" className="inline-flex items-center gap-1 text-xs font-semibold text-white/75 hover:text-white transition">
+            <IconArrowLeft className="h-3.5 w-3.5" /> All sports
+          </Link>
+          <div className="flex items-center gap-4 sm:gap-5">
+            <LeagueMark league={league} size={72} />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white/80">
+                {league.sport} · Season {league.season}
+              </p>
+              <h1 className="ftn-display text-4xl sm:text-5xl md:text-6xl [text-wrap:balance]">{league.name}</h1>
+            </div>
+          </div>
+        </div>
+        {facts.length > 0 && (
+          <div className="md:w-72 flex-shrink-0 space-y-3">
+            <div className="flex gap-6">
+              {facts.map(([v, l]) => (
+                <div key={l}>
+                  <div className="ftn-display text-3xl leading-none">{v}</div>
+                  <div className="ftn-eyebrow text-white/70 mt-1">{l}</div>
+                </div>
+              ))}
+            </div>
+            {total > 0 && (
+              <div className="h-1.5 rounded-full bg-white/20 overflow-hidden" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Season progress">
+                <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </header>
+  );
+}
+
 /* ---------------------------------------------------------------- overview */
 
-function Overview(props: Shared & { upcoming: SportsEvent[]; finals: SportsEvent[]; driverCount: number; teamCount: number; onTab: (t: Tab) => void }) {
-  const { league, upcoming, finals, venues, teams, driverCount, teamCount, onTab, now } = props;
+function Overview(props: Shared & { upcoming: SportsEvent[]; finals: SportsEvent[]; leagueTeams: SportsTeam[]; leagueDrivers: SportsDriver[]; rules: RacingRules | TeamRules; onTab: (t: Tab) => void }) {
+  const { league, upcoming, finals, venues, teams, onTab, now, leagueTeams, leagueDrivers, rules } = props;
   const next = upcoming[0];
   const last = finals[finals.length - 1];
   const racing = league.kind === "racing";
-  const winners = new Set(
-    finals.map((e) => parseRaceResults(e.resultsJson).find((r) => r.position === 1 && r.status === "finished")?.driverId).filter(Boolean)
-  );
-  const stats = racing
-    ? [
-        ["Rounds", `${finals.length} / ${props.events.filter((e) => e.status !== "cancelled").length}`],
-        ["Different winners", String(winners.size)],
-        ["Drivers", String(driverCount)],
-        ["Teams", String(teamCount)],
-      ]
-    : [
-        ["Played", String(finals.length)],
-        ["To play", String(upcoming.length)],
-        ["Teams", String(teamCount)],
-      ];
+  const photo = next ? eventPhoto(next, venues) : null;
+
+  const top = useMemo(() => {
+    if (racing) {
+      const t = computeRacingStandings(leagueDrivers, leagueTeams.map((x) => x.id), finals, rules as RacingRules, league.scoring);
+      const pts = league.scoring === "points";
+      return t.drivers.slice(0, 5).map((r) => ({ key: r.driverId, name: props.drivers.get(r.driverId)?.name ?? "Unknown", team: r.teamId ? teams.get(r.teamId) : undefined, value: pts ? r.points : r.wins, unit: pts ? "pts" : r.wins === 1 ? "win" : "wins" }));
+    }
+    return computeTeamStandings(leagueTeams.map((x) => x.id), finals, rules as TeamRules)
+      .slice(0, 5)
+      .map((r) => ({ key: r.teamId, name: teams.get(r.teamId)?.name ?? "Unknown", team: teams.get(r.teamId), value: r.points, unit: "pts" }));
+  }, [racing, leagueDrivers, leagueTeams, finals, rules, league.scoring, props.drivers, teams]);
+
+  const recent = [...finals].reverse().slice(0, 4);
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
-        <div className={cn(card, "overflow-hidden")}>
+    <div className="space-y-6">
+      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+        {/* Next up: a full-bleed tile with the countdown, not a card with a picture on top. */}
+        <div className="relative isolate overflow-hidden rounded-3xl ftn-shadow min-h-80 flex flex-col justify-end p-6 sm:p-8 text-white">
+          {photo ? (
+            <img src={photo} alt="" className="absolute inset-0 -z-10 h-full w-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 -z-10" style={{ backgroundImage: `linear-gradient(135deg, ${league.color || "var(--color-ftn-slate)"}, var(--color-ftn-night) 90%)` }} />
+          )}
+          <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/35 to-black/20" />
           {next ? (
-            <>
-              <div className="h-52 relative" style={eventPhoto(next, venues) ? undefined : { backgroundImage: `linear-gradient(135deg, ${league.color || "var(--color-ftn-surface-2)"}, var(--color-ftn-bg) 85%)` }}>
-                {eventPhoto(next, venues) && <img src={eventPhoto(next, venues)!} alt="" className="h-full w-full object-cover" />}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-semibold text-white/80">Next up{next.round && !isMatch(next) ? ` · Round ${next.round}` : ""}</span>
+                <span className="ftn-display text-xl sm:text-2xl text-brand">{countdown(next.startsAt, now)}</span>
               </div>
-              <div className="p-5 space-y-2">
-                <div className="ftn-eyebrow text-sports">Next{next.round && !isMatch(next) ? ` · Round ${next.round}` : ""}</div>
-                <h2 className="ftn-display text-2xl">{isMatch(next) ? roundTitle(next, teams) : next.name || "Race"}</h2>
-                <p className="text-sm text-ftn-text-2">
-                  {fmtDay(next.startsAt)} · {fmtTime(next.startsAt)}
-                  {venueName(next, venues) ? ` · ${venueName(next, venues)}` : ""} · {countdown(next.startsAt, now)}
-                </p>
-                {broadcastLabel(next.id, props.broadcasts) && <p className="text-sm text-ftn-text-2">{broadcastLabel(next.id, props.broadcasts)}</p>}
+              <h2 className="ftn-display text-3xl sm:text-4xl [text-wrap:balance]">{isMatch(next) ? roundTitle(next, teams) : next.name || "Race"}</h2>
+              <p className="text-sm sm:text-base text-white/85">
+                {fmtDay(next.startsAt)} · {fmtTime(next.startsAt)}
+                {venueName(next, venues) ? ` · ${venueName(next, venues)}` : ""}
+                {broadcastLabel(next.id, props.broadcasts) ? ` · ${broadcastLabel(next.id, props.broadcasts)}` : ""}
+              </p>
+              <div className="pt-2">
+                <Button size="sm" onClick={() => onTab("calendar")}>
+                  Full calendar
+                </Button>
               </div>
-            </>
+            </div>
           ) : (
-            <div className="p-6 text-sm text-ftn-text-2">Nothing scheduled right now.</div>
+            <p className="ftn-display text-2xl">Nothing scheduled right now</p>
           )}
         </div>
 
-        <div className={cn(card, "p-5 space-y-3")}>
-          {last ? (
-            <>
-              <div className="flex items-start justify-between gap-3">
-                <div className="ftn-eyebrow text-ftn-text-3">
-                  Latest{last.round && !isMatch(last) ? ` · Round ${last.round}` : ""} · {isMatch(last) ? roundTitle(last, teams) : last.name || "Race"}
-                </div>
-                <ReportLink event={last} s={props} />
-              </div>
-              <Podium event={last} s={props} />
-              <button onClick={() => onTab("results")} className="text-xs font-semibold text-ftn-text-2 hover:text-ftn-text transition cursor-pointer">
-                Full results
-              </button>
-            </>
-          ) : (
-            <p className="text-sm text-ftn-text-2">No results yet.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        {stats.map(([label, value]) => (
-          <div key={label} className={cn(card, "px-4 py-4")}>
-            <div className="ftn-eyebrow text-ftn-text-3">{label}</div>
-            <div className="ftn-display text-3xl mt-1">{value}</div>
+        {/* The table in one glance. */}
+        <div className={cn(card, "p-5 sm:p-6 flex flex-col")}>
+          <div className="flex items-baseline justify-between gap-3 pb-3">
+            <h2 className="ftn-title text-xl">{racing ? "Championship" : "Table"}</h2>
+            <button onClick={() => onTab("standings")} className="text-sm font-semibold text-ftn-text-2 hover:text-ftn-text transition cursor-pointer">
+              Full standings
+            </button>
           </div>
-        ))}
+          {top.length === 0 ? (
+            <p className="text-sm text-ftn-text-2">Standings appear after the first result.</p>
+          ) : (
+            <ol className="flex-1 flex flex-col justify-between">
+              {top.map((r, i) => (
+                <li key={r.key} className={cn("flex items-center gap-3 py-2.5 border-t border-ftn-line first:border-0", i === 0 && "")}>
+                  <span className={cn("w-6 ftn-display text-lg", i === 0 ? "text-brand-text" : "text-ftn-text-3")}>{i + 1}</span>
+                  <span className="w-1 h-7 rounded-full flex-shrink-0" style={{ backgroundColor: r.team?.color || "var(--color-ftn-line-strong)" }} />
+                  <span className={cn("flex-1 truncate", i === 0 ? "font-bold" : "font-semibold")}>{r.name}</span>
+                  <span className="ftn-mono text-sm text-ftn-text-2">
+                    <b className="text-ftn-text">{r.value}</b> {r.unit}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
       </div>
+
+      {/* Latest results as a strip of podiums. */}
+      <section>
+        <div className="flex items-baseline justify-between gap-3 mb-3">
+          <h2 className="ftn-title text-xl">Latest results</h2>
+          {recent.length > 0 && (
+            <button onClick={() => onTab("results")} className="text-sm font-semibold text-ftn-text-2 hover:text-ftn-text transition cursor-pointer">
+              All results
+            </button>
+          )}
+        </div>
+        {recent.length === 0 ? (
+          <p className="text-sm text-ftn-text-2">No results yet.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {recent.map((e) => (
+              <div key={e.id} className={cn(card, "p-5 space-y-4")}>
+                <div>
+                  <div className="ftn-eyebrow text-ftn-text-3">
+                    {e.round && !isMatch(e) ? `Round ${e.round} · ` : ""}
+                    {fmtDay(e.startsAt)}
+                  </div>
+                  <div className="ftn-title text-base mt-1 truncate">{isMatch(e) ? roundTitle(e, teams) : e.name || "Race"}</div>
+                </div>
+                <Podium event={e} s={props} />
+                <ReportLink event={e} s={props} />
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
@@ -355,35 +435,62 @@ function Overview(props: Shared & { upcoming: SportsEvent[]; finals: SportsEvent
 function Calendar(s: Shared) {
   if (s.events.length === 0) return <p className="text-sm text-ftn-text-2">No events scheduled yet.</p>;
   const next = s.events.find((e) => e.status === "scheduled" && new Date(e.startsAt).getTime() >= s.now - 3 * 3600_000);
+  const monthFmt = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
+  const dayNum = new Intl.DateTimeFormat(undefined, { day: "numeric" });
+  const mon = new Intl.DateTimeFormat(undefined, { month: "short" });
+  const groups: { label: string; items: SportsEvent[] }[] = [];
+  for (const e of s.events) {
+    const label = monthFmt.format(new Date(e.startsAt));
+    const g = groups[groups.length - 1];
+    if (g && g.label === label) g.items.push(e);
+    else groups.push({ label, items: [e] });
+  }
   return (
-    <div className={cn(card, "overflow-hidden")}>
-      {s.events.map((e) => {
-        const photo = eventPhoto(e, s.venues);
-        const win = e.status === "final" && !isMatch(e) ? parseRaceResults(e.resultsJson).find((r) => r.position === 1 && r.status === "finished") : undefined;
-        const b = e.status === "scheduled" ? broadcastLabel(e.id, s.broadcasts) : null;
-        return (
-          <div key={e.id} className={cn("flex items-center gap-4 px-4 py-3 border-b border-ftn-line last:border-0", next?.id === e.id && "bg-sports/5")}>
-            <span className="w-8 ftn-mono text-sm text-ftn-text-3">{e.round ? `R${e.round}` : ""}</span>
-            <div className="hidden sm:block w-28 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-ftn-surface-2">
-              {photo && <img src={photo} alt="" loading="lazy" className="h-full w-full object-cover" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold truncate">{isMatch(e) ? roundTitle(e, s.teams) : e.name || "Race"}</div>
-              <div className="text-xs text-ftn-text-3 truncate">
-                {fmtDay(e.startsAt)} · {fmtTime(e.startsAt)}
-                {venueName(e, s.venues) ? ` · ${venueName(e, s.venues)}` : ""}
-                {win ? ` · Won by ${s.drivers.get(win.driverId)?.name ?? "Unknown"}` : ""}
-                {e.status === "final" && isMatch(e) ? ` · ${e.homeScore}–${e.awayScore}${e.overtime ? " OT" : ""}` : ""}
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {b && <span className="hidden sm:inline text-xs text-ftn-text-3">{b}</span>}
-              <ReportLink event={e} s={s} />
-              {e.status !== "final" && e.status !== "scheduled" && <span className="text-xs font-semibold text-ftn-text-3 capitalize">{e.status}</span>}
-            </div>
+    <div className="space-y-8">
+      {groups.map((g) => (
+        <section key={g.label}>
+          <h3 className="ftn-eyebrow text-ftn-text-3 mb-3">{g.label}</h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {g.items.map((e) => {
+              const photo = eventPhoto(e, s.venues);
+              const win = e.status === "final" && !isMatch(e) ? parseRaceResults(e.resultsJson).find((r) => r.position === 1 && r.status === "finished") : undefined;
+              const b = e.status === "scheduled" ? broadcastLabel(e.id, s.broadcasts) : null;
+              const isNext = next?.id === e.id;
+              const d = new Date(e.startsAt);
+              return (
+                <article key={e.id} className={cn(card, "flex overflow-hidden", isNext && "ring-2 ring-brand", e.status === "final" && "opacity-90")}>
+                  <div className="relative w-24 sm:w-28 flex-shrink-0 flex flex-col items-center justify-center text-center bg-ftn-surface-2 overflow-hidden">
+                    {photo && <img src={photo} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover opacity-40" />}
+                    <div className="relative">
+                      <div className="ftn-display text-3xl leading-none">{dayNum.format(d)}</div>
+                      <div className="ftn-eyebrow text-ftn-text-2 mt-1">{mon.format(d)}</div>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0 p-4 space-y-1">
+                    <div className="flex items-center gap-2 ftn-eyebrow text-ftn-text-3">
+                      {e.round ? <span>Round {e.round}</span> : null}
+                      {isNext && <span className="text-brand-text">Next</span>}
+                      {e.status !== "final" && e.status !== "scheduled" && <span className="capitalize text-live-ink">{e.status}</span>}
+                    </div>
+                    <div className="ftn-title text-base truncate">{isMatch(e) ? roundTitle(e, s.teams) : e.name || "Race"}</div>
+                    <div className="text-xs text-ftn-text-3 truncate">
+                      {fmtTime(e.startsAt)}
+                      {venueName(e, s.venues) ? ` · ${venueName(e, s.venues)}` : ""}
+                      {b ? ` · ${b}` : ""}
+                    </div>
+                    {(win || (e.status === "final" && isMatch(e))) && (
+                      <div className="text-sm font-semibold text-ftn-text pt-1">
+                        {win ? `Won by ${s.drivers.get(win.driverId)?.name ?? "Unknown"}` : `${e.homeScore}–${e.awayScore}${e.overtime ? " OT" : ""}`}
+                      </div>
+                    )}
+                    <ReportLink event={e} s={s} />
+                  </div>
+                </article>
+              );
+            })}
           </div>
-        );
-      })}
+        </section>
+      ))}
     </div>
   );
 }
@@ -540,6 +647,28 @@ function Standings(s: Shared & { finals: SportsEvent[]; leagueTeams: SportsTeam[
         )}
         <span className="text-xs text-ftn-text-3">{note}</span>
       </div>
+
+      {(view === "drivers" || !league.constructors) && racingTable.drivers.length >= 3 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {racingTable.drivers.slice(0, 3).map((r, i) => {
+            const d = s.drivers.get(r.driverId);
+            const team = r.teamId ? s.teams.get(r.teamId) : undefined;
+            return (
+              <div key={r.driverId} className={cn(card, "relative overflow-hidden p-5 flex items-center gap-4", i === 0 && "ring-2 ring-brand")}>
+                <span className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: team?.color || "var(--color-ftn-line-strong)" }} />
+                <Avatar name={d?.name ?? "?"} src={headshotFor(d, s.headshots)} color={team?.color} size={56} />
+                <div className="min-w-0">
+                  <div className="ftn-eyebrow text-ftn-text-3">P{i + 1}</div>
+                  <div className="font-bold truncate">{d?.name ?? "Unknown"}</div>
+                  <div className="ftn-mono text-sm text-ftn-text-2">
+                    {points ? `${r.points} pts` : `${r.wins} ${r.wins === 1 ? "win" : "wins"}`}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {view === "drivers" || !league.constructors ? (
         racingTable.drivers.length === 0 ? (

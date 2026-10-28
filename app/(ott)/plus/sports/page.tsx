@@ -57,7 +57,7 @@ export default function SportsHubPage() {
   if (loading) {
     return (
       <PageShell>
-        <PageHeader eyebrow="FTN Sports" title="Sports" />
+        <PageHeader title="Sports" />
         <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", GUTTER)}>
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-32" />
@@ -109,30 +109,18 @@ export default function SportsHubPage() {
         </Billboard>
       ) : (
         <PageHeader
-          eyebrow={
-            <>
-              <IconTrophy className="h-4 w-4" /> FTN Sports
-            </>
-          }
           title="Sports"
           subtitle={error ? "Sports could not be loaded right now." : "Nothing scheduled right now. Latest results are below."}
         />
       )}
 
       <div className={cn("space-y-12", next && "-mt-12 relative z-10")}>
-        {results.length > 0 && (
+        {data.leagues.length > 0 && (
           <section className={GUTTER}>
-            <SectionHead title="Latest results" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {results.slice(0, 4).map((e) => (
-                <ResultCard
-                  key={e.id}
-                  event={e}
-                  league={leagues.get(e.leagueId)}
-                  teams={teams}
-                  drivers={drivers}
-                  art={eventArt(e, venues, leagues.get(e.leagueId))}
-                />
+            <SectionHead title="Leagues and series" />
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              {data.leagues.map((l) => (
+                <LeagueCard key={l.id} league={l} meta={leagueMeta(l.id)} />
               ))}
             </div>
           </section>
@@ -156,21 +144,27 @@ export default function SportsHubPage() {
           </section>
         )}
 
-        {data.leagues.length > 0 && (
-          <section className={cn("grid gap-8 lg:grid-cols-[3fr_2fr] lg:items-start", GUTTER)}>
-            {tableLeague && results.length > 0 && (
-              <div className="min-w-0">
-                <StandingsPreview league={tableLeague} data={data} teams={teams} drivers={drivers} />
-              </div>
-            )}
-            <div className={cn("min-w-0", !(tableLeague && results.length > 0) && "lg:col-span-2")}>
-              <SectionHead title="Leagues and series" />
-              <div className={cn("grid gap-4 grid-cols-1 sm:grid-cols-2", !(tableLeague && results.length > 0) && "lg:grid-cols-4")}>
-                {data.leagues.map((l) => (
-                  <LeagueCard key={l.id} league={l} meta={leagueMeta(l.id)} />
-                ))}
-              </div>
+        {results.length > 0 && (
+          <section className={GUTTER}>
+            <SectionHead title="Latest results" />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {results.slice(0, 4).map((e) => (
+                <ResultCard
+                  key={e.id}
+                  event={e}
+                  league={leagues.get(e.leagueId)}
+                  teams={teams}
+                  drivers={drivers}
+                  art={eventArt(e, venues, leagues.get(e.leagueId))}
+                />
+              ))}
             </div>
+          </section>
+        )}
+
+        {tableLeague && results.length > 0 && (
+          <section className={GUTTER}>
+            <StandingsPreview league={tableLeague} data={data} teams={teams} drivers={drivers} />
           </section>
         )}
 
