@@ -653,7 +653,7 @@ export default function AdminPostsPage() {
             {(!editingId || editingDraft) && (
               <div>
                 <label className={labelClass}>Publish time (optional)</label>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <DateTimeInput type="datetime-local" value={scheduleAt} min={toLocalInput(new Date())} onChange={(e) => setScheduleAt(e.target.value)} className={fieldClass} placeholder="Send right away" />
                   {scheduleAt && (
                     <Button type="button" variant="outline" onClick={() => setScheduleAt("")} className="cursor-pointer shrink-0">Send now</Button>
@@ -667,8 +667,8 @@ export default function AdminPostsPage() {
               </div>
             )}
 
-            <div className="flex gap-2">
-              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="min-w-[10rem] flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
                 {saving ? "Saving..." : editingId && !editingDraft ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
               </Button>
               {(!editingId || editingDraft) && (
