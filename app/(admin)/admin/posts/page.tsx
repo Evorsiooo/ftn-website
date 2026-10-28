@@ -8,7 +8,6 @@ import { ArrowLeft, Check, Clock, Download, Loader2, MessageSquarePlus, Newspape
 import { AdminRow, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
