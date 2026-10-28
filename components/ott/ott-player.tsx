@@ -52,9 +52,24 @@ export function OTTPlayer({
   }, []);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [about, setAbout] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // null until the resume position is known, so the iframe loads once with the right start time.
   const [startAt, setStartAt] = useState<number | null>(null);
+
+  // The player fills the window exactly: no scroll, and no reserved scrollbar gutter painted grey beside it.
+  useEffect(() => {
+    const html = document.documentElement;
+    const prev = { gutter: html.style.scrollbarGutter, overflow: html.style.overflow, bg: html.style.backgroundColor };
+    html.style.scrollbarGutter = "auto";
+    html.style.overflow = "hidden";
+    html.style.backgroundColor = "#000";
+    return () => {
+      html.style.scrollbarGutter = prev.gutter;
+      html.style.overflow = prev.overflow;
+      html.style.backgroundColor = prev.bg;
+    };
+  }, []);
 
   // Resume position: the newest of this device's and the server's record.
   useEffect(() => {
@@ -269,141 +284,137 @@ export function OTTPlayer({
       })
     : null;
 
+  const cleanDesc =
+    description && !description.startsWith("Official high-definition stream broadcast from FTN Media Network")
+      ? description.trim()
+      : "";
+  const sourceName = twitchLogin ? "Twitch" : "YouTube";
+  const sourceHref = twitchLogin ? `https://www.twitch.tv/${twitchLogin}` : `https://www.youtube.com/watch?v=${youtubeId}`;
+  const SourceIcon = twitchLogin ? IconBrandTwitch : IconBrandYoutube;
+  const hasMore = Boolean(cleanDesc);
+
+  // The stage fits a 16:9 frame inside whatever room is left (container units), so the player
+  // rescales with the window instead of overflowing it.
+  const frameStyle: React.CSSProperties = { width: "min(100cqw, calc(100cqh * 16 / 9))", aspectRatio: "16 / 9" };
+  const frameClass = "overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl [@media(max-height:26rem)]:rounded-none [@media(max-height:26rem)]:border-0";
+
   return (
-    <div className="ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text select-none">
-      {/* 1. INITIAL FULL SCREEN VIEWPORT */}
-      <div className="relative w-full h-screen bg-ftn-bg overflow-hidden">
-        {/* Full-bleed YouTube Embed */}
-        {startAt !== null && twitchLogin && twitchParent && (
-        <iframe
-          src={`https://player.twitch.tv/?channel=${encodeURIComponent(twitchLogin)}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
-          title={title}
-          allow="autoplay; fullscreen; picture-in-picture"
-          allowFullScreen
-          className="w-full h-full border-0 absolute inset-0 z-0"
+    <div className="ftn-page-enter relative flex h-screen flex-col overflow-hidden bg-black text-white select-none">
+      {/* Blurred backdrop so the letterbox around the frame is part of the design, not a void. */}
+      {!twitchLogin && (
+        <img
+          src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
+          alt=""
+          aria-hidden
+          className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-25 blur-3xl"
         />
-        )}
-        {startAt !== null && !twitchLogin && (
-        <iframe
-          ref={iframeRef}
-          src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${startAt > 0 ? `&start=${Math.floor(startAt)}` : ""}`}
-          title={title}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-          className="w-full h-full border-0 absolute inset-0 z-0"
-        />
-        )}
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80" />
 
-        {/* Top Header Overlay: Back button positioned with isolated footprint */}
-        <div className="absolute top-6 left-6 sm:top-8 sm:left-8 z-20 pointer-events-auto">
-          <Link
-            href="/plus"
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/70 backdrop-blur-md border border-ftn-line-strong text-white hover:bg-black/90 transition shadow-lg cursor-pointer"
-            title="Back to FTN+ Browse"
-          >
-            <IconArrowLeft className="h-5 w-5" />
-          </Link>
-        </div>
-
-        {/* Bottom Static Indicator Arrow */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-          <div className="flex flex-col items-center gap-1 text-ftn-text-3 bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">
-            <IconChevronDown className="h-4 w-4 text-white" />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. SCROLL DOWN DETAILS SECTION */}
-      <div className="max-w-4xl mx-auto px-6 sm:px-10 py-12 space-y-6">
-        <div className="space-y-3">
-          {/* Live chip / Category indicator */}
-          <div className="flex flex-wrap items-center gap-2">
-            {isLive ? (
-              <LivePill>Live</LivePill>
-            ) : null}
-
-            {formattedDate && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-ftn-text-3 font-medium">
-                <IconCalendar className="h-3.5 w-3.5" />
-                {isLive ? "Started" : "Posted"} {formattedDate}
-              </span>
-            )}
-          </div>
-
-          <h1 className="ftn-display text-3xl sm:text-5xl text-ftn-text leading-[1.05]">
-            {title}
-          </h1>
-
-          {/* Channel Info Bar */}
+      {/* Top bar */}
+      <header className="relative z-10 flex flex-none items-center gap-3 px-3 pt-3 sm:px-5 sm:pt-4 [@media(max-height:26rem)]:hidden">
+        <Link
+          href="/plus"
+          className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+          title="Back to FTN+"
+          aria-label="Back to FTN+"
+        >
+          <IconArrowLeft className="h-5 w-5" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="ftn-display truncate text-base leading-tight sm:text-xl">{title}</h1>
           {channelTitle && (
-            <div className="flex items-center gap-3 pt-1">
-              <a
-                href={channelLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2.5 group"
-              >
-                {channelLogoUrl ? (
-                  <img
-                    src={channelLogoUrl}
-                    alt={channelTitle}
-                    className="h-8 w-8 rounded-full object-cover border border-ftn-line-strong group-hover:ring-2 group-hover:ring-brand transition"
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-ftn-surface-2 border border-ftn-line-strong text-xs font-bold text-ftn-text-2 flex items-center justify-center">
-                    {channelTitle.slice(0, 1).toUpperCase()}
-                  </div>
-                )}
-                <span className="text-sm font-semibold text-ftn-text-2 group-hover:text-ftn-text transition underline-offset-4 group-hover:underline">
-                  {channelTitle}
-                </span>
-              </a>
-            </div>
+            <a
+              href={channelLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-0.5 inline-flex max-w-full items-center gap-2 text-xs font-semibold text-white/70 transition hover:text-white"
+            >
+              {channelLogoUrl ? (
+                <img src={channelLogoUrl} alt="" className="h-4 w-4 flex-none rounded-full object-cover" />
+              ) : null}
+              <span className="truncate">{channelTitle}</span>
+            </a>
           )}
         </div>
+        {isLive ? <LivePill>Live</LivePill> : null}
+      </header>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3 pt-1">
-          <Button onClick={toggleSave} variant={saved ? "primary" : "secondary"}>
-            {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
-            {saved ? "Saved" : "Save to watchlist"}
-          </Button>
-
-          <Button href={twitchLogin ? `https://www.twitch.tv/${twitchLogin}` : `https://www.youtube.com/watch?v=${youtubeId}`} external variant="secondary">
-            {twitchLogin ? <IconBrandTwitch className="h-4 w-4 text-purple-400" /> : <IconBrandYoutube className="h-4 w-4 text-red-500" />}
-            {twitchLogin ? "Watch on Twitch" : "Watch on YouTube"}
-          </Button>
-
-          <Button onClick={handleShare} variant="secondary">
-            {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconShare className="h-4 w-4" />}
-            {copied ? "Link copied" : "Share"}
-          </Button>
+      {/* Stage: the frame is centred and as large as the space allows */}
+      <main className="relative z-10 flex min-h-0 flex-1 items-center justify-center p-3 sm:p-5 [@media(max-height:26rem)]:p-0">
+        <div className="flex h-full w-full items-center justify-center" style={{ containerType: "size" }}>
+          <div className={frameClass} style={frameStyle}>
+            {startAt !== null && twitchLogin && twitchParent && (
+              <iframe
+                src={`https://player.twitch.tv/?channel=${encodeURIComponent(twitchLogin)}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
+                title={title}
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                className="h-full w-full border-0"
+              />
+            )}
+            {startAt !== null && !twitchLogin && (
+              <iframe
+                ref={iframeRef}
+                src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${startAt > 0 ? `&start=${Math.floor(startAt)}` : ""}`}
+                title={title}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="h-full w-full border-0"
+              />
+            )}
+          </div>
         </div>
+      </main>
 
-        {/* Description Structured Text */}
-        {(() => {
-          const cleanDesc =
-            description &&
-            !description.startsWith("Official high-definition stream broadcast from FTN Media Network")
-              ? description.trim()
-              : "";
-          if (!formattedDate && !cleanDesc) return null;
-          return (
-            <div className="pt-4 border-t border-ftn-line space-y-2">
-              {formattedDate && (
-                <p className="ftn-eyebrow text-ftn-text-3">
-                  {isLive ? "Broadcast Started" : "Published"}: {formattedDate}
-                </p>
-              )}
-              {cleanDesc ? (
-                <p className="text-sm sm:text-base text-ftn-text-2 leading-relaxed whitespace-pre-line">
-                  {cleanDesc}
-                </p>
-              ) : null}
-            </div>
-          );
-        })()}
-      </div>
+      {/* Action bar: wraps on narrow windows and disappears when the window is too short to spare it */}
+      <footer className="relative z-10 flex-none px-3 pb-3 sm:px-5 sm:pb-4 [@media(max-height:26rem)]:hidden">
+        {about && hasMore && (
+          <div className="mb-3 max-h-[28vh] overflow-y-auto rounded-2xl border border-white/10 bg-black/60 p-4 text-sm leading-relaxed text-white/80 backdrop-blur-md">
+            {formattedDate && (
+              <p className="ftn-eyebrow mb-2 text-white/50">
+                {isLive ? "Broadcast started" : "Published"} {formattedDate}
+              </p>
+            )}
+            <p className="whitespace-pre-line">{cleanDesc}</p>
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={toggleSave} variant={saved ? "primary" : "glass"} size="sm">
+            {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
+            <span className="[@media(max-width:26rem)]:hidden">{saved ? "Saved" : "Save"}</span>
+          </Button>
+          <Button onClick={handleShare} variant="glass" size="sm">
+            {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconShare className="h-4 w-4" />}
+            <span className="[@media(max-width:26rem)]:hidden">{copied ? "Link copied" : "Share"}</span>
+          </Button>
+          <Button href={sourceHref} external variant="glass" size="sm">
+            <SourceIcon className={twitchLogin ? "h-4 w-4 text-purple-400" : "h-4 w-4 text-red-500"} />
+            <span className="[@media(max-width:26rem)]:hidden">Watch on {sourceName}</span>
+          </Button>
+          {hasMore && (
+            <Button onClick={() => setAbout((v) => !v)} variant="glass" size="sm" className="ml-auto" aria-expanded={about}>
+              About
+              <IconChevronDown className={`h-4 w-4 transition-transform ${about ? "rotate-180" : ""}`} />
+            </Button>
+          )}
+          {!hasMore && formattedDate && (
+            <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-white/60">
+              <IconCalendar className="h-3.5 w-3.5" />
+              {isLive ? "Started" : "Posted"} {formattedDate}
+            </span>
+          )}
+        </div>
+      </footer>
+
+      {/* Very short windows (minimised player): keep only a back button over the video */}
+      <Link
+        href="/plus"
+        aria-label="Back to FTN+"
+        className="absolute left-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md [@media(max-height:26rem)]:inline-flex"
+      >
+        <IconArrowLeft className="h-4 w-4" />
+      </Link>
     </div>
   );
 }
