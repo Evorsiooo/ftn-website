@@ -549,12 +549,11 @@ export default function AdminPostsPage() {
           }
         />
 
-        <div className={`grid grid-cols-1 items-start gap-6 2xl:gap-10 ${mode === "video" && !viewing ? "xl:grid-cols-[minmax(12rem,15rem)_minmax(0,1fr)_minmax(26rem,32rem)]" : "xl:grid-cols-[minmax(0,1fr)_minmax(26rem,32rem)]"}`}>
+        <div className={`grid grid-cols-1 items-start gap-6 2xl:gap-10 ${mode === "video" && !viewing ? "xl:grid-cols-[minmax(0,1fr)_minmax(26rem,32rem)]" : "xl:grid-cols-[minmax(0,1fr)_minmax(26rem,32rem)]"}`}>
           <section className="min-w-0 xl:hidden">
             {queueEl}
           </section>
 
-          <div ref={setSelectedHost} className={mode === "video" && !viewing ? "min-w-0 space-y-3 xl:pt-4" : "hidden"} />
 
           <section className="min-w-0 space-y-3">
             {current && (
@@ -613,7 +612,8 @@ export default function AdminPostsPage() {
                 {parseNotes(viewing.amendments).map((n, i) => <p key={i} className="text-xs italic text-neutral-500">edit: {n}</p>)}
               </div>
             )}
-            <div className={viewing && !editingId ? "hidden" : "space-y-2"}>
+            <div className={viewing && !editingId ? "hidden" : "relative space-y-2"}>
+              <div ref={setSelectedHost} className={mode === "video" ? "mb-2 space-y-3 xl:absolute xl:bottom-0 xl:left-0 xl:z-10 xl:mb-0 xl:w-60" : "hidden"} />
               <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full" style={{ ...CHECKERBOARD, ...previewStyle }} />
               {previewError && <p className="text-xs text-red-600">{previewError}</p>}
             </div>
