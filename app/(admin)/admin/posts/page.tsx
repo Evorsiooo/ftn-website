@@ -552,7 +552,7 @@ export default function AdminPostsPage() {
 
             <div>
               <label className={labelClass}>Headline (max 3 lines)</label>
-              <Input value={headline} onChange={(e) => setHeadline(e.target.value)} placeholder="Headline" />
+              <textarea value={headline} onChange={(e) => setHeadline(e.target.value.replace(/\s*\n+\s*/g, " "))} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} rows={2} className={`${fieldClass} field-sizing-content resize-none`} placeholder="Headline" />
               {layout?.headlineOverflow && <p className="mt-1 text-[11px] text-red-600">Too long: only 3 lines fit.</p>}
             </div>
 
