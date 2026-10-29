@@ -35,7 +35,7 @@ export default function OTTClientLayout({
 }
 
 function OTTShell({ children }: { children: React.ReactNode }) {
-  const { loadingLibrary } = useFTNPlus();
+  const { loadingLibrary, allVideos } = useFTNPlus();
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
@@ -92,7 +92,7 @@ function OTTShell({ children }: { children: React.ReactNode }) {
   const icon = "h-[18px] w-[18px] flex-shrink-0";
   const links: NavLink[] = [
     { label: "Home", href: "/plus", icon: <IconHome className={icon} />, active: isActive("/plus") },
-    { label: "Library", href: "/plus/library", icon: <IconVideo className={icon} />, active: isActive("/plus/library") },
+    { label: "Library", href: "/plus/library", icon: <IconVideo className={icon} />, active: isActive("/plus/library"), live: allVideos.some((v: any) => v.isLive) },
     { label: "Schedule", href: "/plus/schedule", icon: <IconCalendar className={icon} />, active: isActive("/plus/schedule") },
     {
       label: "Webradio",

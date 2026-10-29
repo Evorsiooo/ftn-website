@@ -9,10 +9,9 @@ import {
   IconBrandYoutube,
   IconShare,
   IconCheck,
-  IconChevronDown,
-  IconCalendar,
 } from "@tabler/icons-react";
-import { Button, LivePill } from "@/components/ftn/ui";
+import { Button, LiveLabel } from "@/components/ftn/ui";
+import { FtnLogo } from "@/components/ftn/nav";
 import { isTwitchId, twitchLoginFromId } from "@/lib/twitch-id";
 import {
   fetchServerProgress,
@@ -32,6 +31,8 @@ export function OTTPlayer({
   channelLogoUrl,
   publishedAt,
   isLive = false,
+  twitchVodId,
+  broadcastEnded = false,
 }: {
   youtubeId: string;
   title?: string;
@@ -42,6 +43,10 @@ export function OTTPlayer({
   channelLogoUrl?: string;
   publishedAt?: string | Date;
   isLive?: boolean;
+  /** A finished Twitch broadcast: plays its recording instead of the channel. */
+  twitchVodId?: string;
+  /** A finished Twitch broadcast; without a recording the video area says so. */
+  broadcastEnded?: boolean;
 }) {
   const youtubeId = (rawYoutubeId || "").replace(/[^a-zA-Z0-9_\-]/g, "");
   const twitchLogin = isTwitchId(youtubeId) ? twitchLoginFromId(youtubeId) : null;
@@ -52,7 +57,6 @@ export function OTTPlayer({
   }, []);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [about, setAbout] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   // null until the resume position is known, so the iframe loads once with the right start time.
   const [startAt, setStartAt] = useState<number | null>(null);
@@ -63,7 +67,7 @@ export function OTTPlayer({
     const prev = { gutter: html.style.scrollbarGutter, overflow: html.style.overflow, bg: html.style.backgroundColor };
     html.style.scrollbarGutter = "auto";
     html.style.overflow = "hidden";
-    html.style.backgroundColor = "#000";
+    html.style.backgroundColor = "var(--ftn-bg)";
     return () => {
       html.style.scrollbarGutter = prev.gutter;
       html.style.overflow = prev.overflow;
@@ -291,130 +295,110 @@ export function OTTPlayer({
   const sourceName = twitchLogin ? "Twitch" : "YouTube";
   const sourceHref = twitchLogin ? `https://www.twitch.tv/${twitchLogin}` : `https://www.youtube.com/watch?v=${youtubeId}`;
   const SourceIcon = twitchLogin ? IconBrandTwitch : IconBrandYoutube;
-  const hasMore = Boolean(cleanDesc);
 
-  // The stage fits a 16:9 frame inside whatever room is left (container units), so the player
-  // rescales with the window instead of overflowing it.
-  const frameStyle: React.CSSProperties = { width: "min(100cqw, calc(100cqh * 16 / 9))", aspectRatio: "16 / 9" };
-  const frameClass = "overflow-hidden rounded-xl border border-white/10 bg-black shadow-2xl [@media(max-height:26rem)]:rounded-none [@media(max-height:26rem)]:border-0";
+  // The page scrolls: the 16:9 video takes the full width, capped so it never grows taller than the window
+  // below the header. The details below line up with the video's edges.
+  const columnStyle: React.CSSProperties = { maxWidth: "calc((100svh - 3.5rem) * 16 / 9 + 3rem)" };
 
   return (
-    <div className="ftn-page-enter relative flex h-screen flex-col overflow-hidden bg-black text-white select-none">
-      {/* Blurred backdrop so the letterbox around the frame is part of the design, not a void. */}
-      {!twitchLogin && (
-        <img
-          src={`https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`}
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover opacity-25 blur-3xl"
-        />
-      )}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80" />
-
-      {/* Top bar */}
-      <header className="relative z-10 flex flex-none items-center gap-3 px-3 pt-3 sm:px-5 sm:pt-4 [@media(max-height:26rem)]:hidden">
+    <div className="ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text">
+      <header className="flex h-14 items-center gap-3 px-4 md:px-6">
         <Link
           href="/plus"
-          className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full border border-white/20 bg-white/10 text-white backdrop-blur-md transition hover:bg-white/20"
+          className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full border border-ftn-line-strong text-ftn-text-2 transition hover:text-ftn-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           title="Back to FTN+"
           aria-label="Back to FTN+"
         >
           <IconArrowLeft className="h-5 w-5" />
         </Link>
-        <div className="min-w-0 flex-1">
-          <h1 className="ftn-display truncate text-base leading-tight sm:text-xl">{title}</h1>
-          {channelTitle && (
-            <a
-              href={channelLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-0.5 inline-flex max-w-full items-center gap-2 text-xs font-semibold text-white/70 transition hover:text-white"
-            >
-              {channelLogoUrl ? (
-                <img src={channelLogoUrl} alt="" className="h-4 w-4 flex-none rounded-full object-cover" />
-              ) : null}
-              <span className="truncate">{channelTitle}</span>
-            </a>
-          )}
-        </div>
-        {isLive ? <LivePill>Live</LivePill> : null}
+        <Link href="/plus" aria-label="FTN+ home" className="inline-flex items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+          <FtnLogo theme="dark" className="h-6" />
+        </Link>
       </header>
 
-      {/* Stage: the frame is centred and as large as the space allows */}
-      <main className="relative z-10 flex min-h-0 flex-1 items-center justify-center p-3 sm:p-5 [@media(max-height:26rem)]:p-0">
-        <div className="flex h-full w-full items-center justify-center" style={{ containerType: "size" }}>
-          <div className={frameClass} style={frameStyle}>
-            {startAt !== null && twitchLogin && twitchParent && (
-              <iframe
-                src={`https://player.twitch.tv/?channel=${encodeURIComponent(twitchLogin)}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
-                title={title}
-                allow="autoplay; fullscreen; picture-in-picture"
-                allowFullScreen
-                className="h-full w-full border-0"
-              />
-            )}
-            {startAt !== null && !twitchLogin && (
-              <iframe
-                ref={iframeRef}
-                src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${startAt > 0 ? `&start=${Math.floor(startAt)}` : ""}`}
-                title={title}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-                className="h-full w-full border-0"
-              />
-            )}
-          </div>
+      <div className="mx-auto w-full md:px-6" style={columnStyle}>
+        <div className="aspect-video w-full overflow-hidden bg-ftn-bg md:rounded-2xl">
+          {broadcastEnded && !twitchVodId && twitchLogin && (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-ftn-surface px-6 text-center">
+              <p className="ftn-title text-xl text-ftn-text sm:text-2xl">This broadcast has ended</p>
+              <p className="max-w-md text-sm text-ftn-text-2">Twitch no longer has a recording of it. Newer streams from {twitchLogin} are on their Twitch channel.</p>
+            </div>
+          )}
+          {startAt !== null && twitchLogin && twitchParent && !(broadcastEnded && !twitchVodId) && (
+            <iframe
+              src={`https://player.twitch.tv/?${twitchVodId ? `video=v${encodeURIComponent(twitchVodId)}` : `channel=${encodeURIComponent(twitchLogin)}`}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
+              title={title}
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              className="h-full w-full border-0"
+            />
+          )}
+          {startAt !== null && !twitchLogin && (
+            <iframe
+              ref={iframeRef}
+              src={`https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1${startAt > 0 ? `&start=${Math.floor(startAt)}` : ""}`}
+              title={title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="h-full w-full border-0"
+            />
+          )}
         </div>
-      </main>
 
-      {/* Action bar: wraps on narrow windows and disappears when the window is too short to spare it */}
-      <footer className="relative z-10 flex-none px-3 pb-3 sm:px-5 sm:pb-4 [@media(max-height:26rem)]:hidden">
-        {about && hasMore && (
-          <div className="mb-3 max-h-[28vh] overflow-y-auto rounded-2xl border border-white/10 bg-black/60 p-4 text-sm leading-relaxed text-white/80 backdrop-blur-md">
+        <main className="space-y-5 px-4 pb-24 pt-5 md:px-0">
+          <div className="space-y-2">
+            {isLive && <LiveLabel className="text-sm" />}
+            <h1 className="ftn-display text-2xl text-ftn-text sm:text-3xl">{title}</h1>
             {formattedDate && (
-              <p className="ftn-eyebrow mb-2 text-white/50">
-                {isLive ? "Broadcast started" : "Published"} {formattedDate}
+              <p className="text-sm text-ftn-text-3">
+                {isLive ? "Started" : "Published"} {formattedDate}
               </p>
             )}
-            <p className="whitespace-pre-line">{cleanDesc}</p>
           </div>
-        )}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={toggleSave} variant={saved ? "primary" : "glass"} size="sm">
-            {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
-            <span className="[@media(max-width:26rem)]:hidden">{saved ? "Saved" : "Save"}</span>
-          </Button>
-          <Button onClick={handleShare} variant="glass" size="sm">
-            {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconShare className="h-4 w-4" />}
-            <span className="[@media(max-width:26rem)]:hidden">{copied ? "Link copied" : "Share"}</span>
-          </Button>
-          <Button href={sourceHref} external variant="glass" size="sm">
-            <SourceIcon className={twitchLogin ? "h-4 w-4 text-purple-400" : "h-4 w-4 text-red-500"} />
-            <span className="[@media(max-width:26rem)]:hidden">Watch on {sourceName}</span>
-          </Button>
-          {hasMore && (
-            <Button onClick={() => setAbout((v) => !v)} variant="glass" size="sm" className="ml-auto" aria-expanded={about}>
-              About
-              <IconChevronDown className={`h-4 w-4 transition-transform ${about ? "rotate-180" : ""}`} />
-            </Button>
-          )}
-          {!hasMore && formattedDate && (
-            <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-white/60">
-              <IconCalendar className="h-3.5 w-3.5" />
-              {isLive ? "Started" : "Posted"} {formattedDate}
-            </span>
-          )}
-        </div>
-      </footer>
 
-      {/* Very short windows (minimised player): keep only a back button over the video */}
-      <Link
-        href="/plus"
-        aria-label="Back to FTN+"
-        className="absolute left-2 top-2 z-20 hidden h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md [@media(max-height:26rem)]:inline-flex"
-      >
-        <IconArrowLeft className="h-4 w-4" />
-      </Link>
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+            {channelTitle ? (
+              <a
+                href={channelLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex min-w-0 items-center gap-2.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+              >
+                {channelLogoUrl ? (
+                  <img src={channelLogoUrl} alt="" className="h-9 w-9 flex-none rounded-full border border-ftn-line-strong object-cover" />
+                ) : (
+                  <span className="flex h-9 w-9 flex-none items-center justify-center rounded-full border border-ftn-line-strong bg-ftn-surface-2 text-sm font-bold text-ftn-text-2">
+                    {channelTitle.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+                <span className="truncate text-sm font-semibold text-ftn-text group-hover:underline underline-offset-4">{channelTitle}</span>
+              </a>
+            ) : (
+              <span />
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {!(broadcastEnded && !twitchVodId) && (
+                <Button onClick={toggleSave} variant={saved ? "primary" : "secondary"} size="sm">
+                  {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
+                  {saved ? "Saved" : "Save"}
+                </Button>
+              )}
+              <Button onClick={handleShare} variant="secondary" size="sm">
+                {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconShare className="h-4 w-4" />}
+                {copied ? "Link copied" : "Share"}
+              </Button>
+              <Button href={sourceHref} external variant="secondary" size="sm">
+                <SourceIcon className={twitchLogin ? "h-4 w-4 text-purple-400" : "h-4 w-4 text-red-500"} />
+                Watch on {sourceName}
+              </Button>
+            </div>
+          </div>
+
+          {cleanDesc && (
+            <p className="max-w-3xl whitespace-pre-line border-t border-ftn-line pt-5 text-sm leading-relaxed text-ftn-text-2 sm:text-base">{cleanDesc}</p>
+          )}
+        </main>
+      </div>
     </div>
   );
 }
