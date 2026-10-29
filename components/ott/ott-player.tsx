@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   IconArrowLeft,
+  IconChevronDown,
   IconBookmark,
   IconBookmarkFilled,
   IconBrandTwitch,
@@ -338,6 +339,7 @@ export function OTTPlayer({
             />
           )}
         </div>
+        <IconChevronDown aria-hidden className="pointer-events-none absolute bottom-3 left-1/2 z-10 h-6 w-6 -translate-x-1/2 text-white/60 drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" />
       </div>
 
       <div className="mx-auto w-full max-w-6xl md:px-6">
