@@ -9,7 +9,7 @@ import { sendPostToDiscord } from "@/lib/discord-posts";
 export const runtime = "edge";
 
 // Retries sending a post to Discord when the first attempt failed. Only messages that were
-// not created yet are sent.
+// not created yet are sent (for a scheduled post, only the review message).
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,11 +32,8 @@ export async function POST(
       return NextResponse.json({ error: "Only posts waiting for approval can be resent" }, { status: 409 });
     }
 
-    if (rows[0].scheduledAt) {
-      return NextResponse.json({ error: "This post is scheduled. Use Publish now instead" }, { status: 409 });
-    }
-
-    const result = await sendPostToDiscord(db, id);
+    // A scheduled post only has its #leadership review message so far.
+    const result = await sendPostToDiscord(db, id, { leadershipOnly: !!rows[0].scheduledAt });
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: 502 });
     return NextResponse.json({ success: true });
   } catch (error) {

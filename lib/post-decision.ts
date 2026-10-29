@@ -23,16 +23,13 @@ export async function decidePost(
   reason: string,
   actor: DecisionActor
 ): Promise<DecisionResult> {
-  // A post that is still waiting for its publish time has no leadership message yet.
-  const waiting = await db.select({ scheduledAt: posts.scheduledAt }).from(posts).where(eq(posts.id, postId)).limit(1);
-  if (waiting[0]?.scheduledAt) {
-    return { ok: false, status: 409, error: "This post is scheduled and can be decided once it has been sent to Discord" };
-  }
   // Only a pending post can be decided, and only once.
   const claimed = await db
     .update(posts)
     .set({
       status: decision === "approve" ? "approved" : "denied",
+      // A denied post never goes out, so it leaves the schedule.
+      ...(decision === "deny" ? { scheduledAt: null } : {}),
       denyReason: decision === "deny" ? reason : null,
       decidedBy: actor.userId ?? null,
       decidedByLabel: actor.label,
@@ -49,6 +46,8 @@ export async function decidePost(
   if (decision === "deny") {
     // A denied post is never published, so its ad impression is given back.
     await releaseAdImpression(db, post.adId);
+  } else if (post.scheduledAt) {
+    // Approved ahead of its publish time: the cron run publishes it when the time comes.
   } else {
     try {
       await publishToFeed(db, post);

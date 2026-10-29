@@ -476,7 +476,7 @@ export default function AdminPostsPage() {
       ? `clamp(200px, calc(100vh - ${30.25 + (current ? 5 : 0)}rem), 900px)`
       : `clamp(300px, calc(100vh - ${18 + (current ? 5 : 0)}rem), 900px)`,
   };
-  const canDecide = !!current && current.status === "pending" && !current.scheduledAt && isLeadership;
+  const canDecide = !!current && current.status === "pending" && isLeadership;
 
   const queueEl = (
     <>
@@ -585,7 +585,7 @@ export default function AdminPostsPage() {
                     </>
                   );
                 })()}
-                {!current.scheduledAt && current.status === "pending" && (me?.id === current.createdBy || isLeadership) && (!current.ftnPlusMessageId || !current.leadershipMessageId) && (
+                {current.status === "pending" && (me?.id === current.createdBy || isLeadership) && (current.scheduledAt ? !current.leadershipMessageId : !current.ftnPlusMessageId || !current.leadershipMessageId) && (
                   <Button size="sm" variant="outline" onClick={() => handleResend(current)} className="cursor-pointer">Resend to Discord</Button>
                 )}
                 {canDecide && (
