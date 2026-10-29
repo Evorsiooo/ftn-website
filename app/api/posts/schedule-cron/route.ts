@@ -1,31 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb } from "@/db";
-import { posts } from "@/db/schema";
-import { dispatchScheduledPost } from "@/lib/discord-posts";
+import { dispatchDuePosts } from "@/lib/discord-posts";
 
 export const runtime = "edge";
 
 // Called every few minutes by the scheduled GitHub workflow. Sends every scheduled post whose
 // time has come to #ftn-plus and #leadership, where it then waits for approval as usual.
-// Uses the same shared secret as the other scheduled workflow (RADIO_CRON_SECRET).
+// Secrets: see the check below.
 export async function POST(request: NextRequest) {
-  const expected = process.env.RADIO_CRON_SECRET;
+  // Called by the Cloudflare cron Worker (SCHEDULE_CRON_SECRET) and the GitHub workflow (RADIO_CRON_SECRET).
+  const accepted = [process.env.SCHEDULE_CRON_SECRET, process.env.RADIO_CRON_SECRET].filter(Boolean);
   const provided = request.headers.get("x-cron-secret");
-  if (!expected || !provided || provided !== expected) {
+  if (!provided || !accepted.includes(provided)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const d1 = (process.env as any).DB as D1Database;
   if (!d1) return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
   const db = getDb(d1);
 
-  const due = await db
-    .select({ id: posts.id })
-    .from(posts)
-    .where(and(isNotNull(posts.scheduledAt), lte(posts.scheduledAt, new Date()), eq(posts.status, "pending")))
-    .limit(20);
-
-  const results: { id: string; ok: boolean; error?: string }[] = [];
-  for (const { id } of due) results.push({ id, ...(await dispatchScheduledPost(db, id)) });
+  const results = await dispatchDuePosts(db);
   return NextResponse.json({ sent: results.filter((r) => r.ok).length, results });
 }

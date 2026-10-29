@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { adCampaigns, posts, users } from "@/db/schema";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
-import { sendPostToDiscord } from "@/lib/discord-posts";
+import { dispatchDuePosts, sendLeadershipForScheduled, sendPostToDiscord } from "@/lib/discord-posts";
 import { PostInput, consumeAdImpression, releaseAdImpression, resolveMessageLink, validatePostInput } from "@/lib/posts";
 
 export const runtime = "edge";
@@ -18,6 +18,13 @@ export async function GET(request: NextRequest) {
 
     const d1 = (process.env as any).DB as D1Database;
     if (!d1) return NextResponse.json({ posts: [] });
+
+    // Safety net for the scheduled job: whoever opens the Posts page sends what is already due.
+    try {
+      await dispatchDuePosts(getDb(d1), 3);
+    } catch (err) {
+      console.error("Dispatching due posts failed:", err);
+    }
 
     const rows = await getDb(d1)
       .select({ post: posts, creatorName: users.displayName })
@@ -103,8 +110,13 @@ export async function POST(request: NextRequest) {
     }
     // Send it to #ftn-plus and #leadership. The post is saved either way; if Discord fails
     // the page offers a Resend button.
-    // A scheduled post is sent by the cron endpoint at its time.
-    if (draft || scheduledAt) return NextResponse.json({ post }, { status: 201 });
+    if (draft) return NextResponse.json({ post }, { status: 201 });
+    // A scheduled post goes to #leadership now so it can be approved ahead of time; the public
+    // posts follow at its time.
+    if (scheduledAt) {
+      const lead = await sendLeadershipForScheduled(db, post.id);
+      return NextResponse.json({ post, discordWarning: lead.ok ? undefined : lead.error }, { status: 201 });
+    }
     const discord = await sendPostToDiscord(db, post.id);
     return NextResponse.json({ post, discordWarning: discord.ok ? undefined : discord.error }, { status: 201 });
   } catch (error) {
