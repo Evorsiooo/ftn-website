@@ -103,9 +103,10 @@ export async function POST(request: NextRequest) {
     }
     // Send it to #ftn-plus and #leadership. The post is saved either way; if Discord fails
     // the page offers a Resend button.
-    // A scheduled post is sent by the cron endpoint at its time.
-    if (draft || scheduledAt) return NextResponse.json({ post }, { status: 201 });
-    const discord = await sendPostToDiscord(db, post.id);
+    // A scheduled post goes to #leadership for review right away; the cron endpoint sends it to
+    // #ftn-plus (and its feed, once approved) at its time.
+    if (draft) return NextResponse.json({ post }, { status: 201 });
+    const discord = await sendPostToDiscord(db, post.id, { leadershipOnly: !!scheduledAt });
     return NextResponse.json({ post, discordWarning: discord.ok ? undefined : discord.error }, { status: 201 });
   } catch (error) {
     console.error("Create post error:", error);

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
+import { and, inArray, isNotNull, lte } from "drizzle-orm";
 import { getDb } from "@/db";
 import { posts } from "@/db/schema";
 import { dispatchScheduledPost } from "@/lib/discord-posts";
 
 export const runtime = "edge";
 
-// Called every few minutes by the scheduled GitHub workflow. Sends every scheduled post whose
-// time has come to #ftn-plus and #leadership, where it then waits for approval as usual.
+// Called every few minutes by the scheduled GitHub workflow. Publishes every scheduled post whose
+// time has come: it goes to #ftn-plus (the #leadership review message was sent when the post was
+// scheduled), and to its feed at once if leadership already approved it, otherwise on approval.
 // Uses the same shared secret as the other scheduled workflow (RADIO_CRON_SECRET).
 export async function POST(request: NextRequest) {
   const expected = process.env.RADIO_CRON_SECRET;
@@ -22,7 +23,7 @@ export async function POST(request: NextRequest) {
   const due = await db
     .select({ id: posts.id })
     .from(posts)
-    .where(and(isNotNull(posts.scheduledAt), lte(posts.scheduledAt, new Date()), eq(posts.status, "pending")))
+    .where(and(isNotNull(posts.scheduledAt), lte(posts.scheduledAt, new Date()), inArray(posts.status, ["pending", "approved"])))
     .limit(20);
 
   const results: { id: string; ok: boolean; error?: string }[] = [];

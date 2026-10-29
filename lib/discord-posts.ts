@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { DbClient } from "@/db";
 import { posts, users } from "@/db/schema";
 import {
@@ -91,6 +91,14 @@ export function buildLeadershipMessage(post: Post, creatorName: string | null, p
     `**${post.headline}**`,
     post.organizationName ? `Ad: ${post.organizationName}` : post.noAd ? "No ad" : "No ad (boilerplate)",
   ];
+  if (post.scheduledAt) {
+    const unix = Math.floor(post.scheduledAt.getTime() / 1000);
+    lines.push(
+      post.status === "approved"
+        ? `🕒 Scheduled for <t:${unix}:F> (<t:${unix}:R>). It goes out then.`
+        : `🕒 Scheduled for <t:${unix}:F> (<t:${unix}:R>). It goes out then if approved.`
+    );
+  }
   if (post.status === "approved") lines.push("", `✅ Approved by ${post.decidedByLabel || "leadership"}`);
   if (post.status === "denied") lines.push("", `❌ Denied by ${post.decidedByLabel || "leadership"}: ${post.denyReason || "no reason given"}`);
 
@@ -123,11 +131,17 @@ async function reload(db: DbClient, id: string): Promise<Post> {
   return rows[0];
 }
 
-// Sends whichever of the FTN+ and #leadership messages do not exist yet.
-export async function sendPostToDiscord(db: DbClient, postId: string): Promise<{ ok: boolean; error?: string }> {
+// Sends whichever of the FTN+ and #leadership messages do not exist yet. With `leadershipOnly`
+// (a post that was just scheduled), only the review message is sent; the FTN+ message follows
+// when the post is due.
+export async function sendPostToDiscord(
+  db: DbClient,
+  postId: string,
+  opts: { leadershipOnly?: boolean } = {}
+): Promise<{ ok: boolean; error?: string }> {
   let post = await reload(db, postId);
   try {
-    if (!post.ftnPlusMessageId) {
+    if (!post.ftnPlusMessageId && !opts.leadershipOnly) {
       const image = await loadPostMedia(post);
       const msg = await discordApi(
         "POST",
@@ -255,17 +269,32 @@ export async function deletePostMessages(post: Post): Promise<{ ok: boolean; err
 // Sends a scheduled post to Discord now. Claiming the post first (clearing scheduledAt) makes
 // sure two runs never send it twice; if Discord fails the post is put back on the schedule
 // so the next run tries again. The timed-exclusive clock starts from this moment.
+// The #leadership review message normally exists already (it is sent when the post is
+// scheduled), so only the FTN+ message is created here. A post that leadership approved in the
+// meantime goes to its feed right away, as the approval was waiting for this moment.
 export async function dispatchScheduledPost(db: DbClient, postId: string): Promise<{ ok: boolean; error?: string }> {
   const claimed = await db
     .update(posts)
     .set({ scheduledAt: null, createdAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(posts.id, postId), isNotNull(posts.scheduledAt), eq(posts.status, "pending")))
-    .returning({ id: posts.id, scheduledAt: posts.scheduledAt });
+    .where(and(eq(posts.id, postId), isNotNull(posts.scheduledAt), inArray(posts.status, ["pending", "approved"])))
+    .returning();
   if (claimed.length === 0) return { ok: false, error: "This post is not scheduled" };
-  const result = await sendPostToDiscord(db, postId);
-  if (!result.ok) {
-    // Partial sends are fine: sendPostToDiscord only creates the messages that are missing.
-    await db.update(posts).set({ scheduledAt: new Date() }).where(eq(posts.id, postId));
+  const hadReviewMessage = !!claimed[0].leadershipMessageId;
+  let result = await sendPostToDiscord(db, postId);
+  if (result.ok && claimed[0].status === "approved" && !claimed[0].feedMessageId) {
+    try {
+      await publishToFeed(db, await reload(db, postId));
+    } catch (err: any) {
+      console.error("Publishing approved scheduled post failed:", err);
+      result = { ok: false, error: `Could not post to the feed: ${err?.message || "Discord error"}` };
+    }
   }
+  if (!result.ok) {
+    // Partial sends are fine: only the messages that are missing are created on the next run.
+    await db.update(posts).set({ scheduledAt: new Date() }).where(eq(posts.id, postId));
+    return result;
+  }
+  // Drop the "Scheduled for" line from the review message.
+  if (hadReviewMessage) await refreshPostMessages(db, postId, { leadership: true });
   return result;
 }

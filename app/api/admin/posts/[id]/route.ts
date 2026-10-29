@@ -109,8 +109,7 @@ export async function PATCH(
     await db.update(posts).set(values).where(eq(posts.id, id));
     if (isDraft && !publish) return NextResponse.json({ success: true });
     if (publish) {
-      if (publishAt) return NextResponse.json({ success: true });
-      const sent = await sendPostToDiscord(db, id);
+      const sent = await sendPostToDiscord(db, id, { leadershipOnly: !!publishAt });
       return NextResponse.json({ success: true, discordWarning: sent.ok ? undefined : sent.error });
     }
     // Keep the Discord messages in step with the edit.
