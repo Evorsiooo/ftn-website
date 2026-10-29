@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Lane, MediaCard, ChannelAvatar } from "@/components/ftn/media";
+import { watchPath } from "@/lib/plus-links";
 
 export interface SwimlaneVideo {
   id: string;
@@ -31,7 +32,7 @@ export function OTTSwimlane({
         {videos.map((video) => (
           <MediaCard
             key={video.id}
-            href={`/plus/watch/${video.id}`}
+            href={watchPath(video.id)}
             art={video.thumbnailUrl}
             title={video.title}
             live={video.isLive}

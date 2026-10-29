@@ -61,16 +61,14 @@ export function OTTPlayer({
   // null until the resume position is known, so the iframe loads once with the right start time.
   const [startAt, setStartAt] = useState<number | null>(null);
 
-  // The player fills the window exactly: no scroll, and no reserved scrollbar gutter painted grey beside it.
+  // No reserved scrollbar gutter painted grey beside the video.
   useEffect(() => {
     const html = document.documentElement;
-    const prev = { gutter: html.style.scrollbarGutter, overflow: html.style.overflow, bg: html.style.backgroundColor };
+    const prev = { gutter: html.style.scrollbarGutter, bg: html.style.backgroundColor };
     html.style.scrollbarGutter = "auto";
-    html.style.overflow = "hidden";
     html.style.backgroundColor = "var(--ftn-bg)";
     return () => {
       html.style.scrollbarGutter = prev.gutter;
-      html.style.overflow = prev.overflow;
       html.style.backgroundColor = prev.bg;
     };
   }, []);
@@ -296,28 +294,24 @@ export function OTTPlayer({
   const sourceHref = twitchLogin ? `https://www.twitch.tv/${twitchLogin}` : `https://www.youtube.com/watch?v=${youtubeId}`;
   const SourceIcon = twitchLogin ? IconBrandTwitch : IconBrandYoutube;
 
-  // The page scrolls: the 16:9 video takes the full width, capped so it never grows taller than the window
-  // below the header. The details below line up with the video's edges.
-  const columnStyle: React.CSSProperties = { maxWidth: "calc((100svh - 3.5rem) * 16 / 9 + 3rem)" };
-
+  // The video fills the whole window; the back button floats over its corner. The details sit below it, one scroll down.
   return (
     <div className="ftn-page-enter min-h-screen bg-ftn-bg text-ftn-text">
-      <header className="flex h-14 items-center gap-3 px-4 md:px-6">
-        <Link
-          href="/plus"
-          className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-full border border-ftn-line-strong text-ftn-text-2 transition hover:text-ftn-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          title="Back to FTN+"
-          aria-label="Back to FTN+"
-        >
-          <IconArrowLeft className="h-5 w-5" />
-        </Link>
-        <Link href="/plus" aria-label="FTN+ home" className="inline-flex items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
-          <FtnLogo theme="dark" className="h-6" />
-        </Link>
-      </header>
-
-      <div className="mx-auto w-full md:px-6" style={columnStyle}>
-        <div className="aspect-video w-full overflow-hidden bg-ftn-bg md:rounded-2xl">
+      <div className="relative h-svh w-full overflow-hidden bg-black">
+        <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-full bg-black/55 p-1 pr-3 backdrop-blur-md">
+          <Link
+            href="/plus"
+            className="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full text-white/85 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            title="Back to FTN+"
+            aria-label="Back to FTN+"
+          >
+            <IconArrowLeft className="h-5 w-5" />
+          </Link>
+          <Link href="/plus" aria-label="FTN+ home" className="inline-flex items-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">
+            <FtnLogo theme="dark" className="h-5" />
+          </Link>
+        </div>
+        <div className="h-full w-full">
           {broadcastEnded && !twitchVodId && twitchLogin && (
             <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-ftn-surface px-6 text-center">
               <p className="ftn-title text-xl text-ftn-text sm:text-2xl">This broadcast has ended</p>
@@ -344,7 +338,9 @@ export function OTTPlayer({
             />
           )}
         </div>
+      </div>
 
+      <div className="mx-auto w-full max-w-6xl md:px-6">
         <main className="space-y-5 px-4 pb-24 pt-5 md:px-0">
           <div className="space-y-2">
             {isLive && <LiveLabel className="text-sm" />}

@@ -2,18 +2,40 @@ export const runtime = "edge";
 import React from "react";
 import type { Metadata } from "next";
 import { getDb } from "@/db";
-import { videos } from "@/db/schema";
+import { siteSettings, videos } from "@/db/schema";
 import { and, eq, like, or } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { OTTPlayer } from "@/components/ott/ott-player";
-import { findTwitchBroadcast, parseTwitchId } from "@/lib/twitch";
+import { findTwitchBroadcast, parseTwitchId, twitchBroadcastId } from "@/lib/twitch";
+import { publicVideoId, resolvePublicTwitchId } from "@/lib/twitch-id";
+
+// Watch URLs use one public id format for every video. A Twitch broadcast's public id is turned back into
+// its internal id here, unless a video row already uses that id (a YouTube video).
+async function resolveWatchId(id: string): Promise<string> {
+  if (parseTwitchId(id) || !/^[A-Za-z0-9_-]{11}$/.test(id)) return id;
+  try {
+    const d1 = (process.env as any).DB as D1Database;
+    if (!d1) return id;
+    const db = getDb(d1);
+    const known = await db.select({ id: videos.id }).from(videos).where(or(eq(videos.youtubeId, id), eq(videos.id, id))).limit(1);
+    if (known.length > 0) return id;
+    const rows = await db.select().from(siteSettings).where(eq(siteSettings.key, "main_config")).limit(1);
+    const list = rows.length ? JSON.parse(rows[0].valueJson).twitchChannels : [];
+    const logins = Array.isArray(list) ? list.filter((c: unknown): c is string => typeof c === "string") : [];
+    const t = resolvePublicTwitchId(id, logins.map((l) => l.replace(/^@/, "").toLowerCase()));
+    return t ? twitchBroadcastId(t.login, t.streamId) : id;
+  } catch {
+    return id;
+  }
+}
 
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = await resolveWatchId(rawId);
   let targetYoutubeId = id || "";
   let videoTitle = "FTN Broadcast Stream";
   let videoDescription = "";
@@ -103,7 +125,8 @@ export default async function OTTWatchPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = await resolveWatchId(rawId);
   let targetYoutubeId = id || "";
   let videoTitle = "FTN Broadcast Stream";
   let videoDescription = "";
@@ -181,7 +204,7 @@ export default async function OTTWatchPage({
             .from(videos)
             .where(and(like(videos.id, `twitch_${twitch.login}-%`), eq(videos.isLive, true)))
             .limit(1);
-          if (live.length > 0) redirectTo = `/plus/watch/${live[0].id}`;
+          if (live.length > 0) redirectTo = `/plus/watch/${publicVideoId(live[0].id)}`;
         }
       } catch {}
     } else {
@@ -204,6 +227,8 @@ export default async function OTTWatchPage({
     }
   }
 
+  // The old `twitch_<login>-<stream id>` link: same page, shared URL format.
+  if (!redirectTo && twitch?.streamId && rawId === id && publicVideoId(id) !== id) redirectTo = `/plus/watch/${publicVideoId(id)}`;
   if (redirectTo) redirect(redirectTo);
 
   // Fallback metadata resolution for external/curated videos

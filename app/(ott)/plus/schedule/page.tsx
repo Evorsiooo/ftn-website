@@ -8,6 +8,7 @@ import { Button, EmptyState, GUTTER, LiveLabel, Segmented, Skeleton } from "@/co
 import { ArtTile } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
 import { addDays, fmtRange, fmtTime, localZone, youtubeThumb } from "@/lib/schedule-client";
+import { watchPath } from "@/lib/plus-links";
 
 interface Entry {
   id: string;
@@ -44,7 +45,7 @@ function Actions({ entry, radioEnabled, onArt }: { entry: Entry; radioEnabled: b
   return (
     <div className="flex flex-wrap gap-2">
       {entry.onStream && entry.youtubeId && (
-        <Button href={`/plus/watch/${entry.youtubeId}`} size="sm">
+        <Button href={watchPath(entry.youtubeId)} size="sm">
           <IconPlayerPlay className="h-3.5 w-3.5 fill-current" /> Watch
         </Button>
       )}

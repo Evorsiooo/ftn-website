@@ -5,6 +5,7 @@ import { IconTrash, IconBookmark } from "@tabler/icons-react";
 import { PageShell, PageHeader } from "@/components/ftn/page";
 import { Button, EmptyState, GUTTER, Skeleton } from "@/components/ftn/ui";
 import { MediaCard, ChannelAvatar } from "@/components/ftn/media";
+import { watchPath } from "@/lib/plus-links";
 
 export default function WatchlistPage() {
   const [items, setItems] = useState<any[]>([]);
@@ -96,7 +97,7 @@ export default function WatchlistPage() {
               return (
                 <MediaCard
                   key={item.id}
-                  href={`/plus/watch/${vidId}`}
+                  href={watchPath(vidId)}
                   art={item.thumbnailUrl || `https://img.youtube.com/vi/${vidId}/hqdefault.jpg`}
                   title={item.title}
                   live={item.isLive}
