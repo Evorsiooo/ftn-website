@@ -10,6 +10,7 @@ import { ContinueWatching } from "@/components/ftn/continue-watching";
 import { ChannelAvatar, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { useFTNPlus } from "@/lib/ftnplus-context";
 import { cn } from "@/lib/utils";
+import { watchPath } from "@/lib/plus-links";
 
 const PAGE_SIZE = 24;
 
@@ -157,7 +158,7 @@ export default function LibraryPage() {
                   {filtered.slice(0, shown).map((v) => (
                     <MediaCard
                       key={v.id}
-                      href={`/plus/watch/${v.youtubeId || v.id}`}
+                      href={watchPath(v.youtubeId || v.id)}
                       art={v.thumbnailUrl}
                       title={v.title}
                       live={v.isLive}

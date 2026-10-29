@@ -13,6 +13,7 @@ import { useSchedule, type ScheduleEntry } from "@/components/ftn/use-schedule";
 import { useFTNPlus } from "@/lib/ftnplus-context";
 import { useSportsData } from "@/lib/use-sports-data";
 import { hhmm, localZone } from "@/lib/schedule-client";
+import { watchPath } from "@/lib/plus-links";
 
 const FALLBACK_BACKDROP = "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1600&auto=format&fit=crop&q=80";
 
@@ -40,7 +41,7 @@ function scheduleHref(start: string) {
 }
 
 function entryHref(e: ScheduleEntry) {
-  if (e.onStream && e.youtubeId) return `/plus/watch/${e.youtubeId}`;
+  if (e.onStream && e.youtubeId) return watchPath(e.youtubeId);
   if (e.onRadio) return "/plus/radio";
   return scheduleHref(e.start);
 }
@@ -103,7 +104,8 @@ export default function FTNPlusHomePage() {
 
   // The hero already is the live stream when it is live, so it is not repeated as an "on air" card.
   const heroLiveId = billboardItem?.isLive ? billboardItem.id : null;
-  const onAir = live.filter((e) => !(heroLiveId && e.youtubeId === heroLiveId));
+  // A live hero stands alone: no on-air card repeating it.
+  const onAir = heroLiveId ? [] : live;
 
   return (
     <PageShell>

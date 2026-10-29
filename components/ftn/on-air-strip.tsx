@@ -6,6 +6,7 @@ import type { ScheduleEntry } from "./use-schedule";
 import { Button, GUTTER, LiveLabel, ProgressBar } from "./ui";
 import { ArtTile } from "./media";
 import { cn } from "@/lib/utils";
+import { watchPath } from "@/lib/plus-links";
 
 function OnAirCard({ e, now, glass }: { e: ScheduleEntry; now: number; glass?: boolean }) {
   const { webradioEnabled } = useSiteConfig();
@@ -30,7 +31,7 @@ function OnAirCard({ e, now, glass }: { e: ScheduleEntry; now: number; glass?: b
         <ProgressBar value={Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100))} className={glass ? "bg-white/25" : undefined} />
       </div>
       {watch ? (
-        <Button href={`/plus/watch/${e.youtubeId}`} size="sm" aria-label={`Watch ${e.title}`}>
+        <Button href={watchPath(e.youtubeId as string)} size="sm" aria-label={`Watch ${e.title}`}>
           <IconPlayerPlay className="h-3.5 w-3.5 fill-current" /> Watch
         </Button>
       ) : (

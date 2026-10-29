@@ -1,6 +1,7 @@
 "use client";
 import { Lane, MediaCard, ChannelAvatar } from "./media";
 import { useContinueWatching } from "@/lib/watch-progress";
+import { watchPath } from "@/lib/plus-links";
 
 /** "Continue watching" lane; renders nothing until there is something to resume. */
 export function ContinueWatching() {
@@ -13,7 +14,7 @@ export function ContinueWatching() {
         return (
           <MediaCard
             key={p.youtubeId}
-            href={`/plus/watch/${p.youtubeId}`}
+            href={watchPath(p.youtubeId)}
             art={p.thumbnailUrl}
             title={p.title}
             showPlay

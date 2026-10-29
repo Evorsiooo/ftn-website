@@ -3,6 +3,7 @@ import React from "react";
 import { IconPlayerPlay } from "@tabler/icons-react";
 import { Button, GUTTER, LivePill } from "@/components/ftn/ui";
 import { cn } from "@/lib/utils";
+import { watchPath } from "@/lib/plus-links";
 
 export interface BillboardItem {
   id: string;
@@ -24,7 +25,7 @@ export interface BillboardItem {
  */
 export function OTTBillboard({ item, aside, compact }: { item: BillboardItem; aside?: React.ReactNode; compact?: boolean }) {
   const cta = (
-    <Button href={item.href ?? `/plus/watch/${item.id}`} size="lg">
+    <Button href={item.href ?? watchPath(item.id)} size="lg">
       <IconPlayerPlay className="h-5 w-5 fill-current" />
       {item.ctaLabel ?? (item.isLive ? "Watch live" : "Watch now")}
     </Button>
@@ -45,10 +46,7 @@ export function OTTBillboard({ item, aside, compact }: { item: BillboardItem; as
       <div className={cn("relative z-10 h-full flex items-end justify-between gap-10", compact ? "pb-20 md:pb-16" : "pb-28 md:pb-24", compact && "flex-col items-start md:flex-row md:items-end", GUTTER)}>
         <div className="max-w-3xl space-y-4">
           {item.isLive ? (
-            <div className="flex items-center gap-3">
-              <LivePill />
-              <p className="text-sm font-semibold text-white/80">{item.category}</p>
-            </div>
+            <LivePill />
           ) : (
             <p className="text-sm font-semibold text-white/80">{item.kicker ?? item.category}</p>
           )}
