@@ -476,7 +476,7 @@ export default function AdminPostsPage() {
       ? `clamp(200px, calc(100vh - ${30.25 + (current ? 5 : 0)}rem), 900px)`
       : `clamp(300px, calc(100vh - ${18 + (current ? 5 : 0)}rem), 900px)`,
   };
-  const canDecide = !!current && current.status === "pending" && !current.scheduledAt && isLeadership;
+  const canDecide = !!current && current.status === "pending" && isLeadership;
 
   const queueEl = (
     <>
@@ -511,18 +511,15 @@ export default function AdminPostsPage() {
                         <img src={p.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-lg bg-neutral-200 object-cover dark:bg-neutral-800" />
                         <span className="min-w-0">
                           <span className="line-clamp-2 text-sm font-bold leading-snug">{p.headline}</span>
-                          <span className="mt-0.5 flex items-center gap-1.5 text-xs text-neutral-500">
-                            {p.scheduledAt ? (
-                              <>
-                                <Clock className="h-3 w-3 text-sky-600 dark:text-sky-400" />
-                                <span className="font-semibold text-sky-600 dark:text-sky-400">{formatWhen(new Date(p.scheduledAt).getTime())}</span>
-                              </>
-                            ) : (
-                              <>
-                                <span className={`h-2 w-2 rounded-full ${p.status === "draft" ? "bg-neutral-400" : p.status === "pending" ? "bg-amber-500" : p.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
-                                <span className={`font-semibold capitalize ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
-                              </>
-                            )}
+                          {p.scheduledAt && (
+                            <span className="mt-0.5 flex items-center gap-1.5 whitespace-nowrap text-xs">
+                              <Clock className="h-3 w-3 shrink-0 text-sky-600 dark:text-sky-400" />
+                              <span className="font-semibold text-sky-600 dark:text-sky-400">{formatWhen(new Date(p.scheduledAt).getTime())}</span>
+                            </span>
+                          )}
+                          <span className="mt-0.5 flex items-center gap-1.5 whitespace-nowrap text-xs text-neutral-500">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${p.status === "draft" ? "bg-neutral-400" : p.status === "pending" ? "bg-amber-500" : p.status === "approved" ? "bg-emerald-500" : "bg-red-500"}`} />
+                            <span className={`font-semibold capitalize ${STATUS_STYLES[p.status] || ""}`}>{p.status}</span>
                             <span className="truncate">· {p.creatorName || "unknown"}</span>
                           </span>
                         </span>

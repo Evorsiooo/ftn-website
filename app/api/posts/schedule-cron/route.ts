@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, isNotNull, lte } from "drizzle-orm";
 import { getDb } from "@/db";
-import { posts } from "@/db/schema";
-import { dispatchScheduledPost } from "@/lib/discord-posts";
+import { dispatchDuePosts } from "@/lib/discord-posts";
 
 export const runtime = "edge";
 
@@ -19,13 +17,6 @@ export async function POST(request: NextRequest) {
   if (!d1) return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
   const db = getDb(d1);
 
-  const due = await db
-    .select({ id: posts.id })
-    .from(posts)
-    .where(and(isNotNull(posts.scheduledAt), lte(posts.scheduledAt, new Date()), eq(posts.status, "pending")))
-    .limit(20);
-
-  const results: { id: string; ok: boolean; error?: string }[] = [];
-  for (const { id } of due) results.push({ id, ...(await dispatchScheduledPost(db, id)) });
+  const results = await dispatchDuePosts(db);
   return NextResponse.json({ sent: results.filter((r) => r.ok).length, results });
 }
