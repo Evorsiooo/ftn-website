@@ -1,15 +1,17 @@
 "use client";
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { usePlusNow } from "@/components/plus-promo/plus-now-context";
 import { plusHref, watchPath } from "@/lib/plus-links";
 
-/** One line under the masthead saying what is live on FTN+ right now. Renders nothing when nothing is. */
+/** One line under the masthead saying what is live on FTN+ right now. Renders nothing when nothing is, and never on the homepage (its hero says it). */
 export function GsOnAir() {
+  const pathname = usePathname();
   const { data } = usePlusNow();
   const live = data.live[0];
   const radio = data.radio;
-  if (!live && !radio) return null;
+  if (pathname === "/" || (!live && !radio)) return null;
 
   const text = live ? live.title : `${radio!.show}${radio!.presenter ? ` with ${radio!.presenter}` : ""}`;
   const href = live ? plusHref(watchPath(live.id), "strip") : plusHref("/plus/radio", "strip");

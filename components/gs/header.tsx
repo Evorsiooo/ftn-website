@@ -7,6 +7,7 @@ import { PlusLink } from "@/components/gs/plus-link";
 import { AuthButton } from "@/components/layout/auth-button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSiteConfig } from "@/lib/site-config-context";
+import { usePlusNow } from "@/components/plus-promo/plus-now-context";
 import { plusHref } from "@/lib/plus-links";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,8 @@ function isActive(pathname: string, link: string) {
 export function GsHeader({ section }: { section?: string }) {
   const pathname = usePathname();
   const { discordUrl } = useSiteConfig();
+  const { data: plusNow } = usePlusNow();
+  const plusLive = plusNow.live.length > 0;
   const [open, setOpen] = useState(false);
 
   useEffect(() => setOpen(false), [pathname]);
@@ -70,9 +73,10 @@ export function GsHeader({ section }: { section?: string }) {
           </a>
           <PlusLink
             href={plusHref("/plus", "nav")}
-            title="FTN+"
+            title={plusLive ? "Live now on FTN+" : "FTN+"}
             className="inline-flex h-9 items-center gap-2 rounded-full bg-[#16110a] px-4 transition hover:bg-black"
           >
+            {plusLive && <span aria-hidden className="h-2 w-2 flex-none animate-pulse rounded-full bg-[#ff5a4d]" />}
             <img src="/logos/ftnplus_textwhite_transparent.png" alt="FTN+" className="h-4 w-auto object-contain" />
           </PlusLink>
           <AuthButton />
@@ -105,7 +109,7 @@ export function GsHeader({ section }: { section?: string }) {
               </Link>
             ))}
             <PlusLink href={plusHref("/plus", "nav")} className="gs-display border-b border-brand-ink/15 py-3 text-2xl font-extrabold">
-              FTN+
+              FTN+ {plusLive && <span className="text-base font-bold">· Live now</span>}
             </PlusLink>
             <a href={discordUrl} target="_blank" rel="noopener noreferrer" className="gs-display py-3 text-2xl font-extrabold">
               Discord
