@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
 import { DbClient } from "@/db";
 import { posts, users } from "@/db/schema";
 import {
@@ -85,12 +85,14 @@ function stateLabel(post: Post): string {
 // The review message in #leadership. While pending it carries the Approve and Deny buttons.
 // `ping` is only set on the first send, so later edits never ping the role again.
 export function buildLeadershipMessage(post: Post, creatorName: string | null, ping = false) {
+  const when = post.scheduledAt ? Math.floor(post.scheduledAt.getTime() / 1000) : null;
   const lines = [
     ping ? `<@&${LEADERSHIP_ROLE_ID}>` : "",
-    `**New post for review** · ${stateLabel(post)} · by ${creatorName || "unknown"}`,
+    `**New ${when ? "scheduled post" : "post"} for review** · ${stateLabel(post)} · by ${creatorName || "unknown"}`,
     `**${post.headline}**`,
     post.organizationName ? `Ad: ${post.organizationName}` : post.noAd ? "No ad" : "No ad (boilerplate)",
   ];
+  if (when) lines.push(`🕒 Posts <t:${when}:F> (<t:${when}:R>)`);
   if (post.status === "approved") lines.push("", `✅ Approved by ${post.decidedByLabel || "leadership"}`);
   if (post.status === "denied") lines.push("", `❌ Denied by ${post.decidedByLabel || "leadership"}: ${post.denyReason || "no reason given"}`);
 
@@ -124,10 +126,15 @@ async function reload(db: DbClient, id: string): Promise<Post> {
 }
 
 // Sends whichever of the FTN+ and #leadership messages do not exist yet.
-export async function sendPostToDiscord(db: DbClient, postId: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendPostToDiscord(
+  db: DbClient,
+  postId: string,
+  which: { ftnPlus?: boolean; leadership?: boolean } = {}
+): Promise<{ ok: boolean; error?: string }> {
+  const { ftnPlus = true, leadership = true } = which;
   let post = await reload(db, postId);
   try {
-    if (!post.ftnPlusMessageId) {
+    if (ftnPlus && !post.ftnPlusMessageId) {
       const image = await loadPostMedia(post);
       const msg = await discordApi(
         "POST",
@@ -138,7 +145,7 @@ export async function sendPostToDiscord(db: DbClient, postId: string): Promise<{
       await db.update(posts).set({ ftnPlusMessageId: msg.id }).where(eq(posts.id, postId));
     }
     post = await reload(db, postId);
-    if (!post.leadershipMessageId) {
+    if (leadership && !post.leadershipMessageId) {
       const image = await loadPostMedia(post);
       const msg = await discordApi(
         "POST",
@@ -280,13 +287,33 @@ export async function dispatchScheduledPost(db: DbClient, postId: string): Promi
   if (!result.ok) {
     // Partial sends are fine: only the messages that are missing are created on the next run.
     await db.update(posts).set({ scheduledAt: new Date() }).where(eq(posts.id, postId));
+  } else {
+    // The #leadership message already existed since scheduling: drop its "posts at" line.
+    await refreshPostMessages(db, postId, { leadership: true });
   }
   return result;
+}
+
+// A scheduled post goes to #leadership as soon as it is scheduled, so leadership can approve or
+// deny it ahead of time. Only the public posting waits for the send time.
+export async function sendLeadershipForScheduled(db: DbClient, postId: string): Promise<{ ok: boolean; error?: string }> {
+  return sendPostToDiscord(db, postId, { ftnPlus: false });
+}
+
+// Posts that were scheduled without a #leadership message yet (older ones, or Discord was down).
+async function backfillScheduledLeadership(db: DbClient, limit: number) {
+  const missing = await db
+    .select({ id: posts.id })
+    .from(posts)
+    .where(and(isNotNull(posts.scheduledAt), isNull(posts.leadershipMessageId), inArray(posts.status, ["pending", "approved"])))
+    .limit(limit);
+  for (const { id } of missing) await sendLeadershipForScheduled(db, id);
 }
 
 // Sends every scheduled post whose time has come. Called by the scheduled job and, as a safety
 // net, whenever staff load the Posts page (GitHub's scheduler can run hours apart).
 export async function dispatchDuePosts(db: DbClient, limit = 20): Promise<{ id: string; ok: boolean; error?: string }[]> {
+  await backfillScheduledLeadership(db, 3);
   const due = await db
     .select({ id: posts.id })
     .from(posts)

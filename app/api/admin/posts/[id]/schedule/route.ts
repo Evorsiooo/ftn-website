@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { posts } from "@/db/schema";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
-import { dispatchScheduledPost } from "@/lib/discord-posts";
+import { dispatchScheduledPost, refreshPostMessages } from "@/lib/discord-posts";
 
 export const runtime = "edge";
 
@@ -44,7 +44,9 @@ export async function POST(
       return NextResponse.json({ error: "The publish time must be in the future" }, { status: 400 });
     }
     await db.update(posts).set({ scheduledAt: when, updatedAt: new Date() }).where(eq(posts.id, id));
-    return NextResponse.json({ success: true });
+    // Keep the "posts at" time on the #leadership message up to date.
+    const refreshed = await refreshPostMessages(db, id, { leadership: true });
+    return NextResponse.json({ success: true, discordWarning: refreshed.ok ? undefined : refreshed.error });
   } catch (error) {
     console.error("Schedule post error:", error);
     return NextResponse.json({ error: "Failed to change the schedule" }, { status: 500 });

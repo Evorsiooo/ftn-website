@@ -60,8 +60,9 @@ export async function decidePost(
     if (scheduledAt.getTime() <= Date.now()) {
       const sent = await dispatchScheduledPost(db, postId);
       if (!sent.ok) return { ok: true, warning: `Approved, but it could not be sent yet: ${sent.error}` };
+      return { ok: true };
     }
-    return { ok: true };
+    // Not due yet: the #leadership message below just shows the decision.
   } else {
     try {
       await publishToFeed(db, post);

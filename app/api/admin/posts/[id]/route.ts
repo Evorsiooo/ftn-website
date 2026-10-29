@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { adCampaigns, posts } from "@/db/schema";
 import { canManagePosts, isPostsLeadership } from "@/lib/rbac";
 import { requireStaff } from "@/lib/admin-auth";
-import { deletePostMessages, refreshPostMessages, sendPostToDiscord } from "@/lib/discord-posts";
+import { deletePostMessages, refreshPostMessages, sendLeadershipForScheduled, sendPostToDiscord } from "@/lib/discord-posts";
 import { PostInput, consumeAdImpression, releaseAdImpression, resolveMessageLink, validatePostInput } from "@/lib/posts";
 
 export const runtime = "edge";
@@ -109,7 +109,10 @@ export async function PATCH(
     await db.update(posts).set(values).where(eq(posts.id, id));
     if (isDraft && !publish) return NextResponse.json({ success: true });
     if (publish) {
-      if (publishAt) return NextResponse.json({ success: true });
+      if (publishAt) {
+        const lead = await sendLeadershipForScheduled(db, id);
+        return NextResponse.json({ success: true, discordWarning: lead.ok ? undefined : lead.error });
+      }
       const sent = await sendPostToDiscord(db, id);
       return NextResponse.json({ success: true, discordWarning: sent.ok ? undefined : sent.error });
     }
