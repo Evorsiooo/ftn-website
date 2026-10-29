@@ -6,11 +6,12 @@ export const runtime = "edge";
 
 // Called every few minutes by the scheduled GitHub workflow. Sends every scheduled post whose
 // time has come to #ftn-plus and #leadership, where it then waits for approval as usual.
-// Uses the same shared secret as the other scheduled workflow (RADIO_CRON_SECRET).
+// Secrets: see the check below.
 export async function POST(request: NextRequest) {
-  const expected = process.env.RADIO_CRON_SECRET;
+  // Called by the Cloudflare cron Worker (SCHEDULE_CRON_SECRET) and the GitHub workflow (RADIO_CRON_SECRET).
+  const accepted = [process.env.SCHEDULE_CRON_SECRET, process.env.RADIO_CRON_SECRET].filter(Boolean);
   const provided = request.headers.get("x-cron-secret");
-  if (!expected || !provided || provided !== expected) {
+  if (!provided || !accepted.includes(provided)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const d1 = (process.env as any).DB as D1Database;

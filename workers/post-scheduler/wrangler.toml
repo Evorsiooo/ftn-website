@@ -1,0 +1,7 @@
+name = "ftn-post-scheduler"
+main = "index.js"
+compatibility_date = "2024-12-01"
+
+# Every minute: asks the site to send the scheduled posts whose time has come.
+[triggers]
+crons = ["* * * * *"]
