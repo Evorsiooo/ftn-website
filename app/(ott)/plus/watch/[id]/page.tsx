@@ -192,43 +192,41 @@ export default async function OTTWatchPage({
     }
   } catch {}
 
-  if (twitch && !foundRow) {
-    if (!twitch.streamId) {
-      // An old per-channel link: send it to the channel's current broadcast if it is live.
-      try {
-        const d1 = (process.env as any).DB as D1Database;
-        if (d1) {
-          const db = getDb(d1);
-          const live = await db
-            .select({ id: videos.id })
-            .from(videos)
-            .where(and(like(videos.id, `twitch_${twitch.login}-%`), eq(videos.isLive, true)))
-            .limit(1);
-          if (live.length > 0) redirectTo = `/plus/watch/${publicVideoId(live[0].id)}`;
-        }
-      } catch {}
-    } else {
-      // A finished broadcast: its row is gone, so its recording is looked up on Twitch.
-      broadcastEnded = true;
-      const found = await findTwitchBroadcast(twitch.login, twitch.streamId);
-      if (found) {
-        twitchVodId = found.vodId;
+  if (twitch && !twitch.streamId && !foundRow) {
+    // An old per-channel link: send it to the channel's current broadcast if it is live.
+    try {
+      const d1 = (process.env as any).DB as D1Database;
+      if (d1) {
+        const db = getDb(d1);
+        const live = await db
+          .select({ id: videos.id })
+          .from(videos)
+          .where(and(like(videos.id, `twitch_${twitch.login}-%`), eq(videos.isLive, true)))
+          .limit(1);
+        if (live.length > 0) redirectTo = `/plus/watch/${publicVideoId(live[0].id)}`;
+      }
+    } catch {}
+  } else if (twitch && twitch.streamId && !isLive) {
+    // A finished broadcast: its recording is looked up on Twitch. The library row (if any) keeps the title.
+    broadcastEnded = true;
+    const found = await findTwitchBroadcast(twitch.login, twitch.streamId);
+    if (found) {
+      twitchVodId = found.vodId;
+      if (!foundRow) {
         videoTitle = found.title;
         channelTitle = found.channelTitle;
         channelId = twitch.login;
         channelLogoUrl = found.channelLogoUrl || "";
         videoCategory = found.channelTitle;
         if (found.startedAt) publishedAt = new Date(found.startedAt).toISOString();
-      } else {
-        videoTitle = `${twitch.login} broadcast`;
-        channelTitle = twitch.login;
-        channelId = twitch.login;
       }
+    } else if (!foundRow) {
+      videoTitle = `${twitch.login} broadcast`;
+      channelTitle = twitch.login;
+      channelId = twitch.login;
     }
   }
 
-  // The old `twitch_<login>-<stream id>` link: same page, shared URL format.
-  if (!redirectTo && twitch?.streamId && rawId === id && publicVideoId(id) !== id) redirectTo = `/plus/watch/${publicVideoId(id)}`;
   if (redirectTo) redirect(redirectTo);
 
   // Fallback metadata resolution for external/curated videos

@@ -4,7 +4,7 @@ import { videos, videoViews, siteSettings } from "@/db/schema";
 import { desc, eq, gte, sql } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { syncAllConfiguredChannels, verifyActiveLives, isChannelMatching } from "@/lib/youtube";
-import { isTwitchId, syncTwitchLives } from "@/lib/twitch";
+import { isPendingTwitchRecording, isTwitchId, syncTwitchLives } from "@/lib/twitch";
 
 export const runtime = "edge";
 
@@ -123,6 +123,8 @@ async function buildResponse(): Promise<Response> {
         .select()
         .from(videos)
         .orderBy(desc(videos.publishedAt));
+      // A Twitch broadcast still waiting for its recording is not a video yet.
+      rawVideos = rawVideos.filter((v) => !isPendingTwitchRecording(v));
     } catch (vidErr) {
       console.error("Failed to query videos table:", vidErr);
     }
@@ -389,7 +391,7 @@ async function buildResponse(): Promise<Response> {
       const d1 = (process.env as any).DB as D1Database;
       if (d1) {
         const db = getDb(d1);
-        const fallbackVideos = await db.select().from(videos).orderBy(desc(videos.publishedAt)).limit(40);
+        const fallbackVideos = (await db.select().from(videos).orderBy(desc(videos.publishedAt)).limit(40)).filter((v) => !isPendingTwitchRecording(v));
         return NextResponse.json({
           videos: fallbackVideos,
           featuredVideo: fallbackVideos[0] || null,
