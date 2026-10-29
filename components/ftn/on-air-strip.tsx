@@ -3,7 +3,7 @@ import React from "react";
 import { IconHeadphones, IconPlayerPlay } from "@tabler/icons-react";
 import { useSiteConfig } from "@/lib/site-config-context";
 import type { ScheduleEntry } from "./use-schedule";
-import { Button, GUTTER, ProgressBar } from "./ui";
+import { Button, GUTTER, LiveLabel, ProgressBar } from "./ui";
 import { ArtTile } from "./media";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +21,10 @@ function OnAirCard({ e, now, glass }: { e: ScheduleEntry; now: number; glass?: b
     >
       <ArtTile src={e.artUrl} className="h-16 w-16 flex-shrink-0 rounded-2xl" />
       <div className="min-w-0 flex-1 space-y-1">
-        <div className={cn("text-xs font-semibold", glass ? "text-white/70" : "text-ftn-text-3")}>{watch ? "Livestream" : "FTN Radio"}</div>
+        <div className="flex items-center gap-2">
+          <LiveLabel className={glass ? "text-white" : undefined} />
+          <span className={cn("text-xs font-semibold", glass ? "text-white/70" : "text-ftn-text-3")}>{watch ? "Livestream" : "FTN Radio"}</span>
+        </div>
         <div className="ftn-title text-base truncate">{e.title}</div>
         {e.presenter && <div className={cn("text-xs truncate", glass ? "text-white/70" : "text-ftn-text-2")}>with {e.presenter}</div>}
         <ProgressBar value={Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100))} className={glass ? "bg-white/25" : undefined} />

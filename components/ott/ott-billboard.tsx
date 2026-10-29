@@ -1,7 +1,7 @@
 "use client";
 import React from "react";
 import { IconPlayerPlay } from "@tabler/icons-react";
-import { Button, GUTTER } from "@/components/ftn/ui";
+import { Button, GUTTER, LivePill } from "@/components/ftn/ui";
 import { cn } from "@/lib/utils";
 
 export interface BillboardItem {
@@ -19,8 +19,8 @@ export interface BillboardItem {
 }
 
 /**
- * Full-bleed hero. The headline sits on the image; the one line above it is plain text,
- * not chips ("Watch live" already says it is live). `aside` is an optional right-hand slot on wide screens.
+ * Full-bleed hero. The headline sits on the image. A live stream gets the red LIVE badge (the hero is artwork);
+ * otherwise the one line above the headline is plain text. `aside` is an optional right-hand slot on wide screens.
  */
 export function OTTBillboard({ item, aside, compact }: { item: BillboardItem; aside?: React.ReactNode; compact?: boolean }) {
   const cta = (
@@ -44,7 +44,14 @@ export function OTTBillboard({ item, aside, compact }: { item: BillboardItem; as
 
       <div className={cn("relative z-10 h-full flex items-end justify-between gap-10", compact ? "pb-20 md:pb-16" : "pb-28 md:pb-24", compact && "flex-col items-start md:flex-row md:items-end", GUTTER)}>
         <div className="max-w-3xl space-y-4">
-          <p className="text-sm font-semibold text-white/80">{item.kicker ?? item.category}</p>
+          {item.isLive ? (
+            <div className="flex items-center gap-3">
+              <LivePill />
+              <p className="text-sm font-semibold text-white/80">{item.category}</p>
+            </div>
+          ) : (
+            <p className="text-sm font-semibold text-white/80">{item.kicker ?? item.category}</p>
+          )}
           <h1 className="ftn-display text-4xl sm:text-6xl md:text-7xl line-clamp-3 pb-1 [text-wrap:balance]">{item.title}</h1>
           {!compact && item.description && <p className="text-sm sm:text-lg text-white/85 line-clamp-3 leading-relaxed max-w-2xl">{item.description}</p>}
           {!compact && <div className="pt-3">{cta}</div>}

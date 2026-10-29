@@ -15,6 +15,8 @@ export type NavLink = {
   disabled?: boolean;
   /** Desktop: show the icon only (still labelled for assistive tech). */
   iconOnly?: boolean;
+  /** Something on this page is live right now: a small red dot on the item. */
+  live?: boolean;
 };
 
 const glass = "bg-ftn-glass backdrop-blur-xl backdrop-saturate-150 border border-ftn-line ftn-shadow";
@@ -55,6 +57,10 @@ function ExitLink({ className }: { className?: string }) {
   );
 }
 
+function LiveDot({ className }: { className?: string }) {
+  return <span role="img" aria-label="Live now" className={cn("ftn-live-dot h-2 w-2 flex-none rounded-full bg-live animate-[ftn-pulse-dot_2s_ease-in-out_infinite]", className)} />;
+}
+
 /**
  * The FTN+ wordmark: white on the dark theme, navy on the light one. The "ftn" letters fill only the top
  * ~64% of the image (the plus hangs below), so it is nudged down by 18% of its height to put the letters on the nav's centre line.
@@ -92,6 +98,7 @@ export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; them
             <Link key={l.label} href={l.href} aria-label={l.label} aria-current={l.active ? "page" : undefined} className={cls}>
               {l.icon}
               {!l.iconOnly && <span>{l.label}</span>}
+              {l.live && <LiveDot />}
             </Link>
           );
         })}
@@ -132,7 +139,10 @@ export function FtnNav({ links, theme, onToggleTheme }: { links: NavLink[]; them
               focus
             )}
           >
-            {l.icon}
+            <span className="relative inline-flex">
+              {l.icon}
+              {l.live && <LiveDot className="absolute -right-1.5 -top-1" />}
+            </span>
           </Link>
         ))}
       </nav>
