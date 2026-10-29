@@ -31,6 +31,8 @@ export function OTTPlayer({
   channelLogoUrl,
   publishedAt,
   isLive = false,
+  twitchVodId,
+  broadcastEnded = false,
 }: {
   youtubeId: string;
   title?: string;
@@ -41,6 +43,10 @@ export function OTTPlayer({
   channelLogoUrl?: string;
   publishedAt?: string | Date;
   isLive?: boolean;
+  /** A finished Twitch broadcast: plays its recording instead of the channel. */
+  twitchVodId?: string;
+  /** A finished Twitch broadcast; without a recording the video area says so. */
+  broadcastEnded?: boolean;
 }) {
   const youtubeId = (rawYoutubeId || "").replace(/[^a-zA-Z0-9_\-]/g, "");
   const twitchLogin = isTwitchId(youtubeId) ? twitchLoginFromId(youtubeId) : null;
@@ -312,9 +318,15 @@ export function OTTPlayer({
 
       <div className="mx-auto w-full md:px-6" style={columnStyle}>
         <div className="aspect-video w-full overflow-hidden bg-ftn-bg md:rounded-2xl">
-          {startAt !== null && twitchLogin && twitchParent && (
+          {broadcastEnded && !twitchVodId && twitchLogin && (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-4 bg-ftn-surface px-6 text-center">
+              <p className="ftn-title text-xl text-ftn-text sm:text-2xl">This broadcast has ended</p>
+              <p className="max-w-md text-sm text-ftn-text-2">Twitch no longer has a recording of it. Newer streams from {twitchLogin} are on their Twitch channel.</p>
+            </div>
+          )}
+          {startAt !== null && twitchLogin && twitchParent && !(broadcastEnded && !twitchVodId) && (
             <iframe
-              src={`https://player.twitch.tv/?channel=${encodeURIComponent(twitchLogin)}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
+              src={`https://player.twitch.tv/?${twitchVodId ? `video=v${encodeURIComponent(twitchVodId)}` : `channel=${encodeURIComponent(twitchLogin)}`}&parent=${encodeURIComponent(twitchParent)}&autoplay=true&muted=false`}
               title={title}
               allow="autoplay; fullscreen; picture-in-picture"
               allowFullScreen
@@ -365,10 +377,12 @@ export function OTTPlayer({
               <span />
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={toggleSave} variant={saved ? "primary" : "secondary"} size="sm">
-                {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
-                {saved ? "Saved" : "Save"}
-              </Button>
+              {!(broadcastEnded && !twitchVodId) && (
+                <Button onClick={toggleSave} variant={saved ? "primary" : "secondary"} size="sm">
+                  {saved ? <IconBookmarkFilled className="h-4 w-4" /> : <IconBookmark className="h-4 w-4" />}
+                  {saved ? "Saved" : "Save"}
+                </Button>
+              )}
               <Button onClick={handleShare} variant="secondary" size="sm">
                 {copied ? <IconCheck className="h-4 w-4 text-emerald-400" /> : <IconShare className="h-4 w-4" />}
                 {copied ? "Link copied" : "Share"}

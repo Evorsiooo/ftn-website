@@ -1,11 +1,12 @@
 import { like, eq, inArray } from "drizzle-orm";
 import type { DbClient } from "@/db";
 import { siteSettings, videos } from "@/db/schema";
-import { TWITCH_ID_PREFIX, isTwitchId, twitchLoginFromId, normalizeTwitchLogin } from "@/lib/twitch-id";
+import { TWITCH_ID_PREFIX, isTwitchId, twitchLoginFromId, normalizeTwitchLogin, twitchBroadcastId, parseTwitchId } from "@/lib/twitch-id";
 
-// Twitch lives are stored as rows in `videos` (id and youtubeId `twitch_<login>`) only while
-// the channel is live, so the rest of FTN+ treats them like any other live stream.
-export { TWITCH_ID_PREFIX, isTwitchId, twitchLoginFromId, normalizeTwitchLogin };
+// Twitch lives are stored as rows in `videos` (id and youtubeId `twitch_<login>-<stream id>`, one per
+// broadcast) only while the channel is live, so the rest of FTN+ treats them like any other live stream.
+// A finished broadcast keeps its URL: the watch page looks the recording up on Twitch (see findTwitchBroadcast).
+export { TWITCH_ID_PREFIX, isTwitchId, twitchLoginFromId, normalizeTwitchLogin, twitchBroadcastId, parseTwitchId };
 
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
@@ -82,7 +83,7 @@ export async function syncTwitchLives(
     const liveIds: string[] = [];
     for (const s of liveStreams) {
       const login = String(s.user_login).toLowerCase();
-      const id = `${TWITCH_ID_PREFIX}${login}`;
+      const id = twitchBroadcastId(login, String(s.id));
       liveIds.push(id);
       const row = {
         channelId: login,
@@ -127,4 +128,44 @@ export async function syncConfiguredTwitchLives(db: DbClient): Promise<number> {
     if (Array.isArray(list)) channels = list.filter((c: unknown): c is string => typeof c === "string");
   } catch {}
   return syncTwitchLives(db, channels);
+}
+
+export interface TwitchBroadcast {
+  /** Twitch video id of the recording, without the leading "v". */
+  vodId: string;
+  title: string;
+  startedAt: string | null;
+  thumbnailUrl: string | null;
+  channelTitle: string;
+  channelLogoUrl: string | null;
+}
+
+/**
+ * Finds the recording of a finished broadcast, by the stream id in its FTN+ id.
+ * Returns null without Twitch credentials, when Twitch cannot be reached, or when no recording exists
+ * (Twitch only keeps recordings for a limited time, and streamers can turn them off).
+ */
+export async function findTwitchBroadcast(login: string, streamId: string): Promise<TwitchBroadcast | null> {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret || !/^[a-z0-9_]{1,25}$/.test(login) || !/^\d+$/.test(streamId)) return null;
+  try {
+    const users = await helix(`users?login=${encodeURIComponent(login)}`, clientId, clientSecret);
+    const user = users?.data?.[0];
+    if (!user) return null;
+    const vods = await helix(`videos?user_id=${encodeURIComponent(user.id)}&type=archive&first=100`, clientId, clientSecret);
+    const vod = (vods?.data ?? []).find((v: any) => String(v.stream_id) === streamId);
+    if (!vod) return null;
+    return {
+      vodId: String(vod.id),
+      title: vod.title || `${user.display_name || login} broadcast`,
+      startedAt: vod.created_at ?? null,
+      thumbnailUrl: vod.thumbnail_url ? String(vod.thumbnail_url).replace("%{width}", "1280").replace("%{height}", "720") : null,
+      channelTitle: user.display_name || login,
+      channelLogoUrl: user.profile_image_url ?? null,
+    };
+  } catch (err) {
+    console.warn("Twitch broadcast lookup error:", err);
+    return null;
+  }
 }
