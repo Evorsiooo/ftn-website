@@ -10,6 +10,16 @@ import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign, Trash2, Load
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { canManageAds } from "@/lib/rbac";
+import { RO_STATES } from "@/lib/ro-states";
+
+function parseLinks(raw: unknown): Record<string, string> {
+  try {
+    const o = JSON.parse(typeof raw === "string" ? raw : "{}");
+    return o && typeof o === "object" ? o : {};
+  } catch {
+    return {};
+  }
+}
 
 type AdFormat = "1024x180" | "512x180";
 
@@ -63,7 +73,7 @@ export default function AdminAdsConsole() {
   const [newOrganizer, setNewOrganizer] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [targetUrl, setTargetUrl] = useState("");
-  const [messageLink, setMessageLink] = useState("");
+  const [messageLinks, setMessageLinks] = useState<Record<string, string>>({});
   const [impressions, setImpressions] = useState("");
   const [format, setFormat] = useState<AdFormat>("1024x180");
   const [zone, setZone] = useState("homepage_top");
@@ -101,7 +111,7 @@ export default function AdminAdsConsole() {
     setNewOrganizer("");
     setImageUrl("");
     setTargetUrl("");
-    setMessageLink("");
+    setMessageLinks({});
     setImpressions("");
     setFormat("1024x180");
     setZone("homepage_top");
@@ -186,7 +196,7 @@ export default function AdminAdsConsole() {
         organizerId: orgId,
         imageUrl: imageUrl.trim(),
         targetUrl: targetUrl.trim(),
-        messageLink: messageLink.trim(),
+        messageLinks,
         postImpressionsPurchased: purchased,
         format,
         zone,
@@ -219,7 +229,7 @@ export default function AdminAdsConsole() {
     setNewOrganizer("");
     setImageUrl(c.imageUrl);
     setTargetUrl(c.targetUrl);
-    setMessageLink(c.messageLink || "");
+    setMessageLinks(parseLinks(c.messageLinks));
     setImpressions(c.postImpressionsPurchased === null || c.postImpressionsPurchased === undefined ? "" : String(c.postImpressionsPurchased));
     setFormat((c.adFormat || "1024x180") as AdFormat);
     setZone(ZONE_FORM_VALUES[c.zone] || "homepage_top");
@@ -297,7 +307,7 @@ export default function AdminAdsConsole() {
             </div>
           ) : null}
           <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Destination: {c.targetUrl}</p>
-          <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Message link: {c.messageLink || "same as destination"}</p>
+          <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Message links: {(() => { const l = parseLinks(c.messageLinks); const n = RO_STATES.filter((r) => l[r.key]).length; return n ? `${n} of ${RO_STATES.length} Ro-States` : "same as destination"; })()}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
             <span>Zone: {ZONE_LABELS[c.zone] || c.zone}</span>
             <span>
@@ -421,9 +431,18 @@ export default function AdminAdsConsole() {
                 <Input value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)} placeholder="https://..." />
               </div>
 
-              <div>
-                <label className={labelClass}>Message link (used in Discord posts, optional)</label>
-                <Input value={messageLink} onChange={(e) => setMessageLink(e.target.value)} placeholder="Leave empty to use the destination URL" />
+              <div className="space-y-2">
+                <label className={labelClass}>Message links (used in Discord posts, one per Ro-State, all optional)</label>
+                {RO_STATES.map((r) => (
+                  <div key={r.key} className="grid grid-cols-[6.5rem_1fr] items-center gap-2">
+                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{r.label}</span>
+                    <Input
+                      value={messageLinks[r.key] || ""}
+                      onChange={(e) => setMessageLinks((prev) => ({ ...prev, [r.key]: e.target.value }))}
+                      placeholder="Empty = destination URL"
+                    />
+                  </div>
+                ))}
               </div>
 
               <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Delivery</h3>

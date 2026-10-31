@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "This ad has no post impressions left or is not active" }, { status: 409 });
       }
       organizationName = ad[0].advertiserName;
-      messageLink = resolveMessageLink(ad[0]);
+      messageLink = resolveMessageLink(ad[0], (parsed.values as any).roState);
     }
 
     const post = {
