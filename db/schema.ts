@@ -285,6 +285,8 @@ export const adCampaigns = sqliteTable("ad_campaigns", {
   organizerId: text("organizer_id").references(() => organizers.id, { onDelete: "set null" }),
   // Used in Discord posts; falls back to targetUrl when empty.
   messageLink: text("message_link"),
+  // Per-Ro-State message links as JSON ({"harrison": "...", ...}); replaces messageLink.
+  messageLinks: text("message_links"),
   // Post impressions bought for this ad (null = unlimited) and how many posts have used.
   postImpressionsPurchased: integer("post_impressions_purchased"),
   postImpressionsUsed: integer("post_impressions_used").notNull().default(0),

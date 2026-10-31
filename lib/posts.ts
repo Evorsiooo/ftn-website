@@ -98,8 +98,19 @@ export function validatePostInput(
 }
 
 // Link used in the Discord message: the ad's message link, else its destination URL.
-export function resolveMessageLink(ad: { messageLink: string | null; targetUrl: string }): string | null {
-  const link = ad.messageLink || ad.targetUrl;
+export function parseMessageLinks(raw: string | null | undefined): Record<string, string> {
+  try {
+    const obj = JSON.parse(raw || "{}");
+    return obj && typeof obj === "object" ? obj : {};
+  } catch {
+    return {};
+  }
+}
+
+// Link used in the Discord message: the ad's message link for the post's Ro-State,
+// else its destination URL.
+export function resolveMessageLink(ad: { messageLinks: string | null; targetUrl: string }, roState: string): string | null {
+  const link = parseMessageLinks(ad.messageLinks)[roState] || ad.targetUrl;
   return link && isSafeUrl(link) ? link : null;
 }
 
