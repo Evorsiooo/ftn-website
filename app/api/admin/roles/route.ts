@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { userRoles, users } from "@/db/schema";
@@ -79,8 +80,7 @@ export async function POST(request: NextRequest) {
         .limit(1);
 
       if (targetUser.length > 0) {
-        const normName = targetUser[0].robloxUsername.toLowerCase();
-        if (normName === "alphaze1" || normName === "evorsio") {
+        if (isRootAdmin(targetUser[0].robloxId)) {
           return NextResponse.json(
             { error: `Root Administrator permissions for @${targetUser[0].robloxUsername} are protected and cannot be revoked.` },
             { status: 403 }

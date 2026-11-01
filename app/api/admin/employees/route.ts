@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { users, userRoles } from "@/db/schema";
@@ -146,9 +147,6 @@ export async function POST(request: NextRequest) {
       if (named) {
         const byName = await db.select({ id: users.id }).from(users).where(sql`lower(${users.robloxUsername}) = ${named}`).limit(1);
         if (byName.length > 0) targetIds.push(byName[0].id);
-        if (named === "alphaze1" || named === "evorsio") {
-          return NextResponse.json({ error: "Only a Site Administrator can manage this account." }, { status: 403 });
-        }
       }
       for (const id of targetIds) {
         const admin = await db.select({ id: userRoles.id }).from(userRoles).where(and(eq(userRoles.userId, id), eq(userRoles.role, "site_admin"))).limit(1);
@@ -223,8 +221,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Root superuser check for alphaze1 or evorsio
-      if (normalized === "alphaze1" || normalized === "evorsio") {
+      // Root administrator (by Roblox id)
+      if (isRootAdmin(profile.robloxId)) {
         const adminRole = await db
           .select()
           .from(userRoles)
@@ -347,8 +345,7 @@ export async function POST(request: NextRequest) {
 
       const target = await db.select().from(users).where(eq(users.id, body.userId)).limit(1);
       if (target.length > 0) {
-        const norm = target[0].robloxUsername.toLowerCase();
-        if (norm === "alphaze1" || norm === "evorsio") {
+        if (isRootAdmin(target[0].robloxId)) {
           return NextResponse.json(
             { error: `Root Administrator @${target[0].robloxUsername} is protected and cannot be deleted.` },
             { status: 403 }

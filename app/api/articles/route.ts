@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category") || undefined;
     const author = searchParams.get("author") || undefined;
-    const search = searchParams.get("search") || undefined;
+    const search = searchParams.get("search")?.slice(0, 100) || undefined;
     const adminMode = searchParams.get("admin") === "true";
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "50", 10)));
     const offset = Math.max(0, parseInt(searchParams.get("offset") || "0", 10));

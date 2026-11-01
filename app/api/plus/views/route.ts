@@ -12,9 +12,13 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as { videoId?: string; youtubeId?: string };
     const rawId = (body.videoId || body.youtubeId)?.trim();
 
-    if (!rawId) {
+    if (!rawId || !/^[A-Za-z0-9_-]{1,64}$/.test(rawId)) {
       return NextResponse.json({ error: "Missing video ID" }, { status: 400 });
     }
+
+    // Overall cap per IP, so rotating video ids cannot be used to flood the table.
+    const overall = await checkRateLimit(`view-all:${clientIp}`, 60, 60);
+    if (!overall.allowed) return NextResponse.json({ success: true, message: "View rate limited" });
 
     // Rate Limiting: Max 10 view pings per minute per IP for the same video
     const targetKey = `view:${clientIp}:${rawId}`;
@@ -37,7 +41,9 @@ export async function POST(request: NextRequest) {
       .where(or(eq(videos.id, rawId), eq(videos.youtubeId, rawId)))
       .limit(1);
 
-    const actualVideoId = match.length > 0 ? match[0].id : rawId;
+    // Only count views of videos that exist.
+    if (match.length === 0) return NextResponse.json({ success: true });
+    const actualVideoId = match[0].id;
 
     await db.insert(videoViews).values({
       id: crypto.randomUUID(),

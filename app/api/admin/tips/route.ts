@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { tips, users, userModeration } from "@/db/schema";
@@ -101,8 +102,7 @@ export async function PUT(request: NextRequest) {
 
       if (mutedUser) {
         // Protect root admins alphaze1 and evorsio from blacklist/mute
-        const normName = mutedUser.robloxUsername.toLowerCase();
-        if (normName === "alphaze1" || normName === "evorsio") {
+        if (isRootAdmin(mutedUser.robloxId)) {
           return NextResponse.json(
             { error: `Root Administrator @${mutedUser.robloxUsername} is protected and cannot be blacklisted.` },
             { status: 403 }
