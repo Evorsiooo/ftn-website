@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeEqual } from "@/lib/crypto";
 import { getDb } from "@/db";
 import { syncAllConfiguredChannels } from "@/lib/youtube";
 
@@ -73,7 +74,7 @@ export async function GET(request: NextRequest) {
 
     let forceSync = false;
 
-    if (cronSecret && providedCron === cronSecret) {
+    if (cronSecret && safeEqual(providedCron || "", cronSecret)) {
       forceSync = true;
     } else if (token) {
       const { verifySessionToken } = await import("@/lib/auth");

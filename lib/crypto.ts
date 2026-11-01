@@ -67,6 +67,16 @@ export async function verifyPassword(
   }
 }
 
+// Compares two secrets without exiting at the first different character.
+export function safeEqual(a: string, b: string): boolean {
+  const ea = new TextEncoder().encode(a);
+  const eb = new TextEncoder().encode(b);
+  let diff = ea.length ^ eb.length;
+  const len = Math.max(ea.length, eb.length);
+  for (let i = 0; i < len; i++) diff |= (ea[i] ?? 0) ^ (eb[i] ?? 0);
+  return diff === 0;
+}
+
 export function generateSecurePassword(): string {
   const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   const getChunk = (len: number) => {

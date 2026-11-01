@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeEqual } from "@/lib/crypto";
 import { getDb } from "@/db";
 import { getSecureRadioSettings, isRotationDue, rotateBroadcastPassword } from "@/lib/radio";
 
@@ -9,7 +10,7 @@ export const runtime = "edge";
 export async function POST(request: NextRequest) {
   const expected = process.env.RADIO_CRON_SECRET;
   const provided = request.headers.get("x-cron-secret");
-  if (!expected || !provided || provided !== expected) {
+  if (!expected || !provided || !safeEqual(provided, expected)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const d1 = (process.env as any).DB as D1Database;
