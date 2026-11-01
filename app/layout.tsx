@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
+import { RadioProvider } from "@/components/radio/radio-provider";
 
 const geistSans = localFont({
   src: "../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
@@ -29,6 +30,13 @@ const gsBody = localFont({
   src: "../node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2",
   variable: "--font-gs-body",
   weight: "100 900",
+  display: "swap",
+});
+
+const manrope = localFont({
+  src: "../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
+  variable: "--font-manrope",
+  weight: "200 800",
   display: "swap",
 });
 
@@ -84,10 +92,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${gsDisplay.variable} ${gsBody.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${gsDisplay.variable} ${gsBody.variable} ${manrope.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
         <ThemeProvider>
           <SiteConfigProvider>
-            {children}
+            <RadioProvider>{children}</RadioProvider>
           </SiteConfigProvider>
         </ThemeProvider>
       </body>

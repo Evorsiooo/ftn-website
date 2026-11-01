@@ -31,7 +31,7 @@ const clean = (info: NowPlaying): NowPlaying =>
 
 // Polls what is on air. The shown value only changes once new art has loaded, so the title
 // and the cover switch together instead of the art lagging behind the text.
-export function useNowPlaying(intervalMs = 10000) {
+export function useNowPlaying(intervalMs = 10000, enabled = true) {
   const [latest, setLatest] = useState<NowPlaying | null>(null);
   const [info, setInfo] = useState<NowPlaying | null>(null);
 
@@ -43,10 +43,11 @@ export function useNowPlaying(intervalMs = 10000) {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     refresh();
     const timer = setInterval(refresh, intervalMs);
     return () => clearInterval(timer);
-  }, [refresh, intervalMs]);
+  }, [refresh, intervalMs, enabled]);
 
   useEffect(() => {
     if (!latest) return;

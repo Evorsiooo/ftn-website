@@ -1,21 +1,23 @@
 "use client";
 export const runtime = "edge";
 import React, { useEffect, useState } from "react";
-import { IconLoader2, IconPlayerPause, IconPlayerPlay, IconVolume } from "@tabler/icons-react";
-import { useSiteConfig } from "@/lib/site-config-context";
+import { IconLoader2, IconPlayerPause, IconPlayerPlay, IconVolume, IconVolume3 } from "@tabler/icons-react";
 import { Button } from "@/components/ftn/ui";
 import { ArtTile } from "@/components/ftn/media";
 import { Crossfade } from "@/components/radio/crossfade";
-import { COUNTDOWN_MS, useRadioPlayer } from "@/components/radio/use-radio-player";
+import { COUNTDOWN_MS } from "@/components/radio/use-radio-player";
+import { useRadio } from "@/components/radio/radio-provider";
 import { useNowPlaying } from "@/components/radio/use-now-playing";
 import { useMediaSession } from "@/components/radio/use-media-session";
 
 // Compact player for a small popup window. It owns its own audio and keeps playing when the
 // main FTN+ tab is closed; starting it silences the main page player (see use-radio-player).
 export default function RadioPopoutPage() {
-  const { streamUrl } = useSiteConfig();
   const { info, refresh } = useNowPlaying(8000);
-  const { status, pendingSince, volume, setVolume, play, stop } = useRadioPlayer(streamUrl, () => refresh());
+  const { streamUrl, status, pendingSince, volume, muted, setVolume, toggleMute, play, stop } = useRadio();
+  useEffect(() => {
+    if (status === "playing") refresh();
+  }, [status, refresh]);
   const [artFailed, setArtFailed] = useState(false);
   const [wantedAutoplay, setWantedAutoplay] = useState(false);
   const [pendingNow, setPendingNow] = useState(() => Date.now());
@@ -25,13 +27,15 @@ export default function RadioPopoutPage() {
   const toggle = () => (isPlaying ? stop() : play());
 
   useMediaSession(info, { onToggle: toggle });
+  const shownVolume = muted ? 0 : volume;
 
-  // The main page opens us with ?autoplay=1 when it was playing, handing playback over.
+  // The main page opens us with ?autoplay=1 when it was playing. We start our own stream and
+  // the main page fades out once we are really playing, so the music carries on.
   useEffect(() => {
     if (!streamUrl) return;
     if (new URLSearchParams(window.location.search).get("autoplay") === "1") {
       setWantedAutoplay(true);
-      play();
+      play({ handoff: true });
     }
   }, [streamUrl]);
 
@@ -86,36 +90,47 @@ export default function RadioPopoutPage() {
         : "Listen live";
 
   return (
-    <div className="relative flex h-screen flex-col overflow-hidden bg-ftn-bg text-ftn-text select-none">
+    <div className="relative flex h-dvh min-h-0 flex-col overflow-hidden bg-ftn-bg text-ftn-text select-none">
       <Crossfade id={artUrl || "no-art"} duration={1.4} className="pointer-events-none absolute inset-0">
         {artUrl ? <img src={artUrl} alt="" className="h-full w-full scale-125 object-cover opacity-30 blur-3xl" /> : <div className="h-full w-full" />}
       </Crossfade>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ftn-bg via-ftn-bg/60 to-ftn-bg/30" />
 
-      <div className="relative z-10 flex min-h-full flex-1 flex-col items-center justify-center gap-3 p-4 sm:gap-4 sm:p-5 [@media(max-height:20rem)]:gap-1.5 [@media(max-height:20rem)]:p-2">
-        {info && !info.online && <span className="text-xs font-semibold text-ftn-text-3">Offline</span>}
-
-        {/* Art scales with the window (width and height) and never disappears. */}
-        <div
-          className="aspect-square shrink-0"
-          style={{ width: "clamp(4.5rem, min(18rem, calc(100vw - 2rem), calc(100vh - 19rem)), 18rem)" }}
-        >
+      {/*
+        Shrinks in a fixed order as the window gets shorter: the art scales down and is the first
+        thing to go, then the subtitle, then the controls fold into one row. The play button and
+        the volume are always there.
+      */}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-4 [@media(max-height:19rem)]:gap-2 [@media(max-height:19rem)]:p-3 [@media(max-height:10rem)]:gap-1 [@media(max-height:10rem)]:p-2">
+        {/* Art: takes whatever height is left, square, and disappears first. */}
+        <div className="flex min-h-0 w-full flex-1 items-center justify-center [@media(max-height:19rem)]:hidden">
           <Crossfade
             id={artUrl || "no-art"}
             zoom
-            className="h-full w-full rounded-2xl border border-ftn-line-strong shadow-2xl sm:rounded-3xl"
+            className="aspect-square max-h-full max-w-[18rem] min-h-0 min-w-0 flex-1 basis-0 rounded-3xl border border-ftn-line-strong shadow-2xl [@media(max-height:26rem)]:rounded-2xl"
           >
             <ArtTile src={artUrl} onError={() => setArtFailed(true)} className="h-full w-full" />
           </Crossfade>
         </div>
 
-        <div className="w-full min-w-0 space-y-1 text-center [@media(max-height:20rem)]:space-y-0">
-          <h1 className="ftn-display text-xl leading-tight line-clamp-2 sm:text-2xl [@media(max-height:20rem)]:line-clamp-1 [@media(max-height:20rem)]:text-base">{title}</h1>
-          <p className="text-sm text-ftn-text-2 line-clamp-1 [@media(max-height:16rem)]:hidden">{subtitle}</p>
+        <div className="w-full min-w-0 flex-none space-y-1 text-center [@media(max-height:10rem)]:space-y-0 [@media(max-height:6.5rem)]:hidden">
+          {info && !info.online && <span className="block text-[11px] font-semibold text-ftn-text-3">Offline</span>}
+          <h1 className="ftn-display line-clamp-2 text-xl leading-tight [@media(max-height:19rem)]:line-clamp-1 [@media(max-height:19rem)]:text-base [@media(max-height:10rem)]:text-sm">
+            {title}
+          </h1>
+          <p className="line-clamp-1 text-sm text-ftn-text-2 [@media(max-height:14.5rem)]:hidden">{subtitle}</p>
         </div>
 
-        <div className="flex flex-col items-center gap-3">
-          <Button onClick={toggle} disabled={!streamUrl} size="lg" aria-busy={isBusy} className="w-full max-w-[18rem] [@media(max-height:30rem)]:h-11">
+        {/* Controls: stacked while there is room, one row once the window is short. */}
+        <div className="flex w-full max-w-[18rem] flex-none flex-col items-stretch gap-3 [@media(max-height:14.5rem)]:max-w-none [@media(max-height:14.5rem)]:flex-row [@media(max-height:14.5rem)]:items-center [@media(max-height:14.5rem)]:gap-2">
+          <Button
+            onClick={toggle}
+            disabled={!streamUrl}
+            size="lg"
+            aria-busy={isBusy}
+            aria-label={label}
+            className="w-full [@media(max-height:14.5rem)]:h-10 [@media(max-height:14.5rem)]:w-10 [@media(max-height:14.5rem)]:flex-none [@media(max-height:14.5rem)]:px-0 [@media(max-height:30rem)]:h-11"
+          >
             {isBusy ? (
               <IconLoader2 className="h-5 w-5 animate-spin" />
             ) : isPlaying ? (
@@ -123,27 +138,34 @@ export default function RadioPopoutPage() {
             ) : (
               <IconPlayerPlay className="h-5 w-5 fill-current" />
             )}
-            <span className="tabular-nums">{label}</span>
+            <span className="tabular-nums [@media(max-height:14.5rem)]:hidden">{label}</span>
           </Button>
-          <div className="flex w-full max-w-[18rem] items-center gap-3 rounded-full [@media(max-height:22rem)]:hidden border border-ftn-line-strong bg-ftn-surface-2 px-5 h-11">
-            <IconVolume className="h-4 w-4 text-ftn-text-2" />
+          <div className="flex h-11 min-w-0 flex-none items-center [@media(max-height:14.5rem)]:flex-1 gap-2 rounded-full border border-ftn-line-strong bg-ftn-surface-2 pl-3 pr-4 [@media(max-height:14.5rem)]:h-10">
+            <button
+              type="button"
+              onClick={toggleMute}
+              aria-label={muted ? "Unmute" : "Mute"}
+              className="grid h-6 w-6 flex-none cursor-pointer place-items-center text-ftn-text-2 transition hover:text-ftn-text"
+            >
+              {shownVolume === 0 ? <IconVolume3 className="h-4 w-4" /> : <IconVolume className="h-4 w-4" />}
+            </button>
             <input
               type="range"
               min={0}
               max={1}
               step={0.05}
-              value={volume}
+              value={shownVolume}
               onChange={(e) => setVolume(Number(e.target.value))}
               aria-label="Volume"
-              style={{ "--fill": `${volume * 100}%` } as React.CSSProperties}
-              className="ftn-range w-full"
+              style={{ "--fill": `${shownVolume * 100}%` } as React.CSSProperties}
+              className="ftn-range min-w-0 flex-1"
             />
           </div>
-          {wantedAutoplay && status === "idle" && (
-            <p className="text-xs text-ftn-text-3 text-center">Your browser blocked autoplay. Press Listen live to continue.</p>
-          )}
-          {status === "error" && <p className="text-xs text-red-400 text-center">The stream stopped responding.</p>}
         </div>
+        {wantedAutoplay && status === "idle" && (
+          <p className="text-center text-xs text-ftn-text-3 [@media(max-height:19rem)]:hidden">Your browser blocked autoplay. Press Listen live to continue.</p>
+        )}
+        {status === "error" && <p className="text-center text-xs text-red-400 [@media(max-height:19rem)]:hidden">The stream stopped responding.</p>}
       </div>
     </div>
   );

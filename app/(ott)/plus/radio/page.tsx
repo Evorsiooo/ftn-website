@@ -23,7 +23,8 @@ import { ArtTile, Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
 import { cn } from "@/lib/utils";
 import { useNowPlaying } from "@/components/radio/use-now-playing";
 import { useMediaSession } from "@/components/radio/use-media-session";
-import { COUNTDOWN_MS, useRadioPlayer } from "@/components/radio/use-radio-player";
+import { COUNTDOWN_MS } from "@/components/radio/use-radio-player";
+import { useRadio } from "@/components/radio/radio-provider";
 import { Crossfade } from "@/components/radio/crossfade";
 import { SongVote } from "@/components/radio/song-vote";
 
@@ -47,14 +48,18 @@ function untilLabel(ms: number): string {
 }
 
 export default function FTNPlusRadioPage() {
-  const { streamUrl, webradioEnabled } = useSiteConfig();
+  const { webradioEnabled } = useSiteConfig();
   const [schedule, setSchedule] = useState<ScheduleEntry[] | null>(null);
   const [copied, setCopied] = useState(false);
   const [artFailed, setArtFailed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   const { info, refresh } = useNowPlaying();
-  const { status, pendingSince, volume, setVolume, play, stop } = useRadioPlayer(streamUrl, () => refresh());
+  const { streamUrl, status, pendingSince, volume, muted, setVolume, play, stop } = useRadio();
+  // A new song starts when the stream connects: refresh what is on air.
+  useEffect(() => {
+    if (status === "playing") refresh();
+  }, [status, refresh]);
   const [pendingNow, setPendingNow] = useState(() => Date.now());
   useEffect(() => {
     if (pendingSince === null) return;
@@ -86,15 +91,14 @@ export default function FTNPlusRadioPage() {
   const togglePlay = () => (isPlaying ? stop() : play());
   useMediaSession(info, { onToggle: togglePlay });
 
-  // Hand playback to the pop-out window: stop here, and the pop-out starts itself.
+  // Hand playback to the pop-out window. This page keeps playing until the pop-out is really
+  // playing, then fades out (see use-radio-player), so the music never drops.
   const openPopout = () => {
-    const wasPlaying = isPlaying;
-    const win = window.open(
-      `/plus/radio/popout${wasPlaying ? "?autoplay=1" : ""}`,
+    window.open(
+      `/plus/radio/popout${isPlaying ? "?autoplay=1" : ""}`,
       "ftn-radio-popout",
       "popup=yes,width=380,height=640"
     );
-    if (win && wasPlaying) stop();
   };
   const changeVolume = (value: number) => setVolume(value);
 
@@ -295,10 +299,10 @@ export default function FTNPlusRadioPage() {
                   min={0}
                   max={1}
                   step={0.05}
-                  value={volume}
+                  value={muted ? 0 : volume}
                   onChange={(e) => changeVolume(Number(e.target.value))}
                   aria-label="Volume"
-                  style={{ "--fill": `${volume * 100}%` } as React.CSSProperties}
+                  style={{ "--fill": `${(muted ? 0 : volume) * 100}%` } as React.CSSProperties}
                   className="ftn-range w-28"
                 />
               </div>
