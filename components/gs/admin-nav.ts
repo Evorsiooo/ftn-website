@@ -6,6 +6,7 @@ import {
   canManagePosts,
   canAssignRoles,
   canConfigureSite,
+  canModerateUsers,
 } from "@/lib/rbac";
 
 export type AdminBadge = "tips" | "posts" | "drafts";
@@ -28,6 +29,8 @@ export const ADMIN_MODULES: AdminModule[] = [
   { title: "Advertisements", group: "Revenue", description: "Ad placements and click metrics.", href: "/admin/ads", allowed: canManageAds },
   { title: "Posts", group: "Newsroom", badge: "posts", description: "Design posts with an ad and send them for approval.", href: "/admin/posts", allowed: canManagePosts },
   { title: "Settings", group: "Site", description: "Site, radio, sign-in, moderation and FTN+.", href: "/admin/settings", allowed: canConfigureSite },
+  // Managers do not get Settings, but they moderate users; this opens just that page.
+  { title: "Moderation", group: "Site", description: "Mute and unmute users.", href: "/admin/settings/moderation", allowed: (r) => canModerateUsers(r) && !canConfigureSite(r) },
   { title: "Staff roles", group: "Site", description: "Who can do what.", href: "/admin/roles", allowed: canAssignRoles },
 ];
 

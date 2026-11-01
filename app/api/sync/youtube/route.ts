@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { safeEqual } from "@/lib/crypto";
+import { canConfigureSite } from "@/lib/rbac";
 import { getDb } from "@/db";
 import { syncAllConfiguredChannels } from "@/lib/youtube";
 
@@ -23,8 +24,8 @@ export async function POST(request: NextRequest) {
     if (token) {
       const { verifySessionToken } = await import("@/lib/auth");
       const user = await verifySessionToken(token);
-      if (!user || (!user.roles.includes("site_admin") && !user.roles.includes("manager"))) {
-        return NextResponse.json({ error: "Forbidden: Administrator role required" }, { status: 403 });
+      if (!user || !canConfigureSite(user.roles)) {
+        return NextResponse.json({ error: "Forbidden: Site Administrator role required" }, { status: 403 });
       }
     } else {
       return NextResponse.json({ error: "Unauthorized: Admin session required" }, { status: 401 });
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
     } else if (token) {
       const { verifySessionToken } = await import("@/lib/auth");
       const user = await verifySessionToken(token);
-      if (user && (user.roles.includes("site_admin") || user.roles.includes("manager"))) {
+      if (user && canConfigureSite(user.roles)) {
         forceSync = true;
       }
     }

@@ -56,8 +56,10 @@ export function canAssignRoles(roles: string[] = []): boolean {
   return roles.includes("site_admin") || roles.includes("manager");
 }
 
+// Site settings (sign-in, radio/stream, banned words, FTN+ and tipline access, staff accounts,
+// video catalogue and sync) are for Site Administrators only. Managers keep everything else.
 export function canConfigureSite(roles: string[] = []): boolean {
-  return roles.includes("site_admin") || roles.includes("manager");
+  return roles.includes("site_admin");
 }
 
 export function canModerateUsers(roles: string[] = []): boolean {
