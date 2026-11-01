@@ -10,7 +10,9 @@ import { videos, siteSettings } from "@/db/schema";
 import { getPublishedArticles } from "@/lib/articles";
 import { syncAllConfiguredChannels, isChannelMatching } from "@/lib/youtube";
 import { desc, eq } from "drizzle-orm";
+import { getRequestContext } from "@cloudflare/next-on-pages";
 import { plusHref, watchPath } from "@/lib/plus-links";
+import { isPendingTwitchRecording } from "@/lib/twitch-id";
 
 export default async function HomePage() {
   let articleList: any[] = [];
@@ -22,28 +24,39 @@ export default async function HomePage() {
     if (d1) {
       const db = getDb(d1);
 
-      // Automatically sync configured YouTube channels if cooldown has passed
+      // Refresh the YouTube channels after the response is sent, so YouTube latency never blocks the page.
+      const sync = syncAllConfiguredChannels(db, { cooldownMs: 60 * 1000 }).catch(() => {});
       try {
-        await syncAllConfiguredChannels(db, { cooldownMs: 60 * 1000 });
+        getRequestContext().ctx.waitUntil(sync);
       } catch {}
 
-      // 1. Fetch published articles from D1 joined with author info
-      articleList = await getPublishedArticles(db, { limit: 50 });
-
-      // 2. Fetch videos for hero banner
-      const rawVideos = await db
-        .select()
-        .from(videos)
-        .orderBy(desc(videos.publishedAt));
+      // Stories, the video candidates for the hero and the site settings are independent, so fetch them together.
+      // Only the columns the hero uses are read, and only the live streams plus the latest uploads.
+      const heroCols = {
+        id: videos.id,
+        youtubeId: videos.youtubeId,
+        channelId: videos.channelId,
+        channelTitle: videos.channelTitle,
+        channelHandle: videos.channelHandle,
+        title: videos.title,
+        description: videos.description,
+        thumbnailUrl: videos.thumbnailUrl,
+        publishedAt: videos.publishedAt,
+        isLive: videos.isLive,
+      };
+      const [stories, liveVideos, latestVideos, settingsRows] = await Promise.all([
+        getPublishedArticles(db, { limit: 50 }),
+        db.select(heroCols).from(videos).where(eq(videos.isLive, true)).orderBy(desc(videos.publishedAt)),
+        db.select(heroCols).from(videos).orderBy(desc(videos.publishedAt)).limit(200),
+        db.select().from(siteSettings).where(eq(siteSettings.key, "main_config")).limit(1),
+      ]);
+      articleList = stories;
+      const seenVideoIds = new Set<string>();
+      const rawVideos = [...liveVideos, ...latestVideos].filter((v) => !seenVideoIds.has(v.id) && !!seenVideoIds.add(v.id));
 
       // Filter hidden video IDs and hidden featured channels
       let hiddenVideoIds: string[] = [];
       let hiddenFeaturedChannels: string[] = [];
-      const settingsRows = await db
-        .select()
-        .from(siteSettings)
-        .where(eq(siteSettings.key, "main_config"))
-        .limit(1);
 
       if (settingsRows.length > 0) {
         try {
@@ -57,7 +70,7 @@ export default async function HomePage() {
       const hiddenSet = new Set(hiddenVideoIds);
       const visibleVideos = rawVideos.filter((v) => {
         const ytid = v.youtubeId || v.id;
-        return ytid && !hiddenSet.has(ytid) && !hiddenSet.has(v.id);
+        return ytid && !isPendingTwitchRecording(v) && !hiddenSet.has(ytid) && !hiddenSet.has(v.id);
       });
 
       // Enforce strict timestamp sorting
@@ -129,7 +142,7 @@ export default async function HomePage() {
           {featuredVideo ? (
             <PlusLink href={watchHref} className="group relative block overflow-hidden rounded-t-[2rem] bg-[#16110a]" aria-label={`Watch ${featuredVideo.title}`}>
               {featuredVideo.thumbnailUrl && (
-                <img src={featuredVideo.thumbnailUrl} alt="" className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
+                <img src={featuredVideo.thumbnailUrl} alt="" fetchPriority="high" decoding="async" className="aspect-[16/10] w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
               )}
               {!featuredVideo.thumbnailUrl && <div className="aspect-[16/10] w-full" />}
               <span className="absolute inset-0 flex items-center justify-center bg-black/15">

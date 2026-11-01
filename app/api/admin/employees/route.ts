@@ -137,6 +137,27 @@ export async function POST(request: NextRequest) {
 
     const db = getDb(d1);
 
+    // A Manager must not be able to reset the password of, rename, delete or re-create a Site
+    // Administrator account: that would let them sign in as one.
+    if (!currentUser.roles.includes("site_admin")) {
+      const targetIds: string[] = [];
+      if (body.userId) targetIds.push(body.userId);
+      const named = (body.action === "create" ? body.username : "")?.trim().toLowerCase();
+      if (named) {
+        const byName = await db.select({ id: users.id }).from(users).where(sql`lower(${users.robloxUsername}) = ${named}`).limit(1);
+        if (byName.length > 0) targetIds.push(byName[0].id);
+        if (named === "alphaze1" || named === "evorsio") {
+          return NextResponse.json({ error: "Only a Site Administrator can manage this account." }, { status: 403 });
+        }
+      }
+      for (const id of targetIds) {
+        const admin = await db.select({ id: userRoles.id }).from(userRoles).where(and(eq(userRoles.userId, id), eq(userRoles.role, "site_admin"))).limit(1);
+        if (admin.length > 0) {
+          return NextResponse.json({ error: "Only a Site Administrator can manage a Site Administrator account." }, { status: 403 });
+        }
+      }
+    }
+
     // 1. Preview Roblox Profile
     if (body.action === "fetch_preview") {
       const cleanUsername = body.username?.trim() || "";

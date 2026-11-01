@@ -71,7 +71,8 @@ async function getAesKey(): Promise<CryptoKey> {
   const secret =
     process.env.RADIO_SETTINGS_SECRET ||
     process.env.JWT_SECRET ||
-    "ftn-media-group-internal-jwt-signing-secret";
+    (process.env.NODE_ENV !== "production" ? "ftn-media-group-internal-jwt-signing-secret" : "");
+  if (!secret) throw new Error("JWT_SECRET is not configured");
   const material = await crypto.subtle.digest(
     "SHA-256",
     new TextEncoder().encode(`ftn-radio-settings:${secret}`)

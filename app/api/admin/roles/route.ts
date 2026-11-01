@@ -58,6 +58,18 @@ export async function POST(request: NextRequest) {
 
     const db = getDb(d1);
 
+    // Only a Site Administrator can grant or revoke Site Administrator, or change a Site
+    // Administrator's other roles. Without this a Manager could promote themselves.
+    if (!currentUser.roles.includes("site_admin")) {
+      if (role === "site_admin") {
+        return NextResponse.json({ error: "Only a Site Administrator can grant or revoke that role." }, { status: 403 });
+      }
+      const targetRoles = await db.select({ role: userRoles.role }).from(userRoles).where(eq(userRoles.userId, targetUserId));
+      if (targetRoles.some((r) => r.role === "site_admin")) {
+        return NextResponse.json({ error: "Only a Site Administrator can change a Site Administrator's roles." }, { status: 403 });
+      }
+    }
+
     // Prevent revoking site_admin from alphaze1 or evorsio
     if (action === "revoke" && role === "site_admin") {
       const targetUser = await db
