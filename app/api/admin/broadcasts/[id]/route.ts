@@ -38,7 +38,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     await db
       .update(broadcastsTable)
-      .set({ ...parsed.values, updatedAt: new Date() })
+      .set({
+        ...parsed.values,
+        notifyRoStates: JSON.stringify(parsed.values.notifyRoStates),
+        updatedAt: new Date(),
+      })
       .where(eq(broadcastsTable.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {

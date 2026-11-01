@@ -36,6 +36,9 @@ export interface BroadcastRecord {
   endsAt: Date | null;
   youtubeId: string | null;
   sportsEventId: string | null;
+  notify: boolean;
+  notifyMessage: string | null;
+  notifyRoStates: string[];
 }
 
 export interface Occurrence {
