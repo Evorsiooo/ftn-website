@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { formatTimeAgo, calculateReadingTime } from "@/lib/utils";
+import { formatTimeAgo } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
 export interface GsStory {
@@ -10,7 +10,7 @@ export interface GsStory {
   summary?: string | null;
   category: string;
   coverImageUrl?: string | null;
-  content?: string | null;
+  readingTime?: string | null;
   publishedAt?: any;
   createdAt?: any;
   authorUsername?: string | null;
@@ -30,7 +30,7 @@ export const gsCategory = (c?: string | null) => (c && c.toLowerCase() !== "news
 export const storyAuthor = (s: GsStory) => s.authorUsername || s.authorName || "FTN Editorial";
 export const storyMeta = (s: GsStory) =>
   `${storyAuthor(s)} · ${formatTimeAgo(s.publishedAt || s.createdAt)}`;
-export const storyRead = (s: GsStory) => (s.content ? calculateReadingTime(s.content) : "");
+export const storyRead = (s: GsStory) => (s.readingTime || "");
 
 export function GsSectionHeading({ title, href, label }: { title: string; href?: string; label?: string }) {
   return (
@@ -72,7 +72,8 @@ export function GsStoryTile({
         <img
           src={story.coverImageUrl}
           alt=""
-          loading="lazy"
+          loading={big ? "eager" : "lazy"}
+          fetchPriority={big ? "high" : undefined}
           decoding="async"
           className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
         />

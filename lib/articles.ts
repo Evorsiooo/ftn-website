@@ -1,7 +1,7 @@
 import { eq, and, desc, like, or, sql } from "drizzle-orm";
 import { DbClient } from "@/db";
 import { articles, articleRevisions, comments, users } from "@/db/schema";
-import { slugify } from "./utils";
+import { slugify, calculateReadingTime } from "./utils";
 
 export interface ArticleInput {
   id?: string;
@@ -48,7 +48,7 @@ export async function getPublishedArticles(
     );
   }
 
-  return db
+  const rows = await db
     .select({
       id: articles.id,
       slug: articles.slug,
@@ -72,6 +72,10 @@ export async function getPublishedArticles(
     .orderBy(desc(articles.publishedAt), desc(articles.createdAt))
     .limit(limit)
     .offset(offset);
+
+  // List views only show the reading time, so compute it here and leave the full article body
+  // out of the page payload (it used to be shipped for every story on the list).
+  return rows.map(({ content, ...rest }) => ({ ...rest, readingTime: calculateReadingTime(content) }));
 }
 
 export async function getAllAdminArticles(db: DbClient) {

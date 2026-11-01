@@ -52,7 +52,7 @@ export const articles = sqliteTable("articles", {
   publishedAt: integer("published_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("articles_status_published_idx").on(t.status, t.publishedAt)]);
 
 // 3b. Article Revisions / Version History
 export const articleRevisions = sqliteTable("article_revisions", {
@@ -86,7 +86,7 @@ export const comments = sqliteTable("comments", {
     enum: ["visible", "hidden", "flagged"],
   }).notNull().default("visible"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("comments_article_idx").on(t.articleId, t.createdAt)]);
 
 // 5. OTT Videos & Streams (FTN+ YouTube Data Ingestion)
 export const videos = sqliteTable("videos", {
@@ -106,7 +106,7 @@ export const videos = sqliteTable("videos", {
   isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
   durationSeconds: integer("duration_seconds").default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("videos_published_idx").on(t.publishedAt), index("videos_is_live_idx").on(t.isLive)]);
 
 // 6. User Watchlists (FTN+)
 export const watchlists = sqliteTable("watchlists", {
@@ -121,7 +121,7 @@ export const videoViews = sqliteTable("video_views", {
   id: text("id").primaryKey(),
   videoId: text("video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
   viewedAt: integer("viewed_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("video_views_viewed_idx").on(t.viewedAt, t.videoId)]);
 
 // 7b. Watch progress (FTN+ Continue watching). Keyed by YouTube id so curated external videos work too.
 export const watchProgress = sqliteTable(
