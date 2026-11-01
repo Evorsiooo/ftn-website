@@ -30,7 +30,7 @@ export function PageHeader({
 }) {
   return (
     <header className={cn("relative", className)}>
-      <div className={cn("relative pb-8 space-y-3", flush ? "pt-2" : "pt-16 md:pt-32", GUTTER)}>
+      <div className={cn("relative pb-8 space-y-3", flush ? "pt-2" : "pt-20 md:pt-32", GUTTER)}>
         {back}
         {/* A bare "FTN+" label says nothing the user doesn't know, so it is never shown. */}
         {eyebrow && eyebrow !== "FTN+" && <div className="text-sm font-semibold text-ftn-text-3 flex items-center gap-2">{eyebrow}</div>}

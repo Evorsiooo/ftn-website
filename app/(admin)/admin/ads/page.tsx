@@ -343,18 +343,18 @@ export default function AdminAdsConsole() {
           }
         />
 
-        <dl className="grid grid-cols-3 divide-x divide-neutral-200 rounded-[1.75rem] bg-[#16110a] text-[#fff8e6] dark:divide-neutral-800 dark:bg-black [&>div]:p-5 sm:[&>div]:p-8">
+        <dl className="grid grid-cols-3 divide-x divide-neutral-200 rounded-[1.75rem] bg-[#16110a] text-[#fff8e6] dark:divide-neutral-800 dark:bg-black [&>div]:min-w-0 [&>div]:p-3 min-[420px]:[&>div]:p-5 sm:[&>div]:p-8">
           <div>
             <dt className="text-xs font-bold uppercase tracking-widest opacity-60">Site views</dt>
-            <dd className="gs-display mt-2 text-3xl font-extrabold text-brand sm:text-6xl">{totalImpressions.toLocaleString()}</dd>
+            <dd className="gs-display mt-2 text-2xl font-extrabold text-brand min-[420px]:text-3xl sm:text-4xl lg:text-6xl">{totalImpressions.toLocaleString()}</dd>
           </div>
           <div>
             <dt className="text-xs font-bold uppercase tracking-widest opacity-60">Clicks</dt>
-            <dd className="gs-display mt-2 text-3xl font-extrabold text-brand sm:text-6xl">{totalClicks.toLocaleString()}</dd>
+            <dd className="gs-display mt-2 text-2xl font-extrabold text-brand min-[420px]:text-3xl sm:text-4xl lg:text-6xl">{totalClicks.toLocaleString()}</dd>
           </div>
           <div>
             <dt className="text-xs font-bold uppercase tracking-widest opacity-60">CTR</dt>
-            <dd className="gs-display mt-2 text-3xl font-extrabold text-brand sm:text-6xl">{averageCtr}%</dd>
+            <dd className="gs-display mt-2 text-2xl font-extrabold text-brand min-[420px]:text-3xl sm:text-4xl lg:text-6xl">{averageCtr}%</dd>
           </div>
         </dl>
 
@@ -374,7 +374,7 @@ export default function AdminAdsConsole() {
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Organizer</label>
                   <Select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className={selectClass}>
@@ -392,7 +392,7 @@ export default function AdminAdsConsole() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Format</label>
                   <Select value={format} onChange={(e) => setFormat(e.target.value as AdFormat)} className={selectClass}>
