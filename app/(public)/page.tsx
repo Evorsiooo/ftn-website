@@ -11,6 +11,7 @@ import { getPublishedArticles } from "@/lib/articles";
 import { syncAllConfiguredChannels, isChannelMatching } from "@/lib/youtube";
 import { desc, eq } from "drizzle-orm";
 import { plusHref, watchPath } from "@/lib/plus-links";
+import { isPendingTwitchRecording } from "@/lib/twitch-id";
 
 export default async function HomePage() {
   let articleList: any[] = [];
@@ -57,7 +58,7 @@ export default async function HomePage() {
       const hiddenSet = new Set(hiddenVideoIds);
       const visibleVideos = rawVideos.filter((v) => {
         const ytid = v.youtubeId || v.id;
-        return ytid && !hiddenSet.has(ytid) && !hiddenSet.has(v.id);
+        return ytid && !isPendingTwitchRecording(v) && !hiddenSet.has(ytid) && !hiddenSet.has(v.id);
       });
 
       // Enforce strict timestamp sorting
