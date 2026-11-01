@@ -1,3 +1,4 @@
+import { RO_STATES } from "@/lib/ro-states";
 import { isValidTimezone, type BroadcastTag, type BroadcastStatus } from "@/lib/schedule-core";
 
 export interface BroadcastInput {
@@ -17,6 +18,9 @@ export interface BroadcastInput {
   endsAt?: string; // ISO
   youtubeId?: string | null;
   sportsEventId?: string | null;
+  notify?: boolean;
+  notifyMessage?: string | null;
+  notifyRoStates?: string[];
 }
 
 export interface BroadcastValues {
@@ -36,6 +40,9 @@ export interface BroadcastValues {
   endsAt: Date | null;
   youtubeId: string | null;
   sportsEventId: string | null;
+  notify: boolean;
+  notifyMessage: string | null;
+  notifyRoStates: string[];
 }
 
 const TAGS: BroadcastTag[] = ["live", "simulcast", "rebroadcast"];
@@ -76,7 +83,19 @@ export function validateBroadcastInput(body: BroadcastInput): { values: Broadcas
   const timezone = body.timezone === undefined || body.timezone === "" ? "UTC" : body.timezone;
   if (!isValidTimezone(timezone)) return { error: "Unknown timezone." };
 
-  const common = { timezone, showId, title, description, onRadio, onStream, tag, status, youtubeId, sportsEventId };
+  const notify = body.notify === true;
+  const keys: string[] = RO_STATES.map((s) => s.key);
+  const notifyRoStates = Array.isArray(body.notifyRoStates)
+    ? Array.from(new Set(body.notifyRoStates.filter((k): k is string => typeof k === "string" && keys.includes(k))))
+    : [];
+  if (notify && notifyRoStates.length === 0) return { error: "Choose at least one Ro-State to notify." };
+  const notifyMessage =
+    notify && typeof body.notifyMessage === "string" && body.notifyMessage.trim() ? body.notifyMessage.trim().slice(0, 500) : null;
+
+  const common = {
+    timezone, showId, title, description, onRadio, onStream, tag, status, youtubeId, sportsEventId,
+    notify, notifyMessage, notifyRoStates: notify ? notifyRoStates : [],
+  };
 
   if (body.kind === "once") {
     const startsAt = new Date(body.startsAt || "");

@@ -4,6 +4,15 @@ import type { BroadcastRecord, ShowRecord } from "@/lib/schedule-core";
 
 export * from "@/lib/schedule-core";
 
+export function parseRoStates(raw: string | null | undefined): string[] {
+  try {
+    const v = JSON.parse(raw || "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function loadShowsAndBroadcasts(
   db: DbClient
 ): Promise<{ shows: ShowRecord[]; broadcasts: BroadcastRecord[] }> {
@@ -35,6 +44,9 @@ export async function loadShowsAndBroadcasts(
       endsAt: b.endsAt ?? null,
       youtubeId: b.youtubeId ?? null,
       sportsEventId: b.sportsEventId ?? null,
+      notify: b.notify,
+      notifyMessage: b.notifyMessage ?? null,
+      notifyRoStates: parseRoStates(b.notifyRoStates),
     })),
   };
 }

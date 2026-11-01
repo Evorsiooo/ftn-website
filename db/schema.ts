@@ -249,6 +249,12 @@ export const broadcasts = sqliteTable("broadcasts", {
   endsAt: integer("ends_at", { mode: "timestamp" }),
   youtubeId: text("youtube_id"),
   sportsEventId: text("sports_event_id"),
+  // Go-live Discord notification: custom line, Ro-State keys (JSON array) and the start of the
+  // last airing already announced, so each airing is announced exactly once.
+  notify: integer("notify", { mode: "boolean" }).notNull().default(false),
+  notifyMessage: text("notify_message"),
+  notifyRoStates: text("notify_ro_states"),
+  lastNotifiedAt: integer("last_notified_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
