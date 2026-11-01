@@ -23,6 +23,9 @@ export function recordToInput(b: BroadcastRecord): BroadcastInput {
     endsAt: b.endsAt?.toISOString(),
     youtubeId: b.youtubeId,
     sportsEventId: b.sportsEventId,
+    notify: b.notify,
+    notifyMessage: b.notifyMessage,
+    notifyRoStates: b.notifyRoStates,
   };
 }
 
@@ -48,5 +51,5 @@ export function radioConflictMessage(
 }
 
 export async function insertBroadcast(db: DbClient, id: string, v: BroadcastValues) {
-  await db.insert(broadcasts).values({ id, ...v });
+  await db.insert(broadcasts).values({ id, ...v, notifyRoStates: JSON.stringify(v.notifyRoStates) });
 }

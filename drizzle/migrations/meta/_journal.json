@@ -162,6 +162,13 @@
       "when": 1793133600000,
       "tag": "0021_ad_message_links",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1793144400000,
+      "tag": "0024_song_votes",
+      "breakpoints": true
     }
   ]
 }

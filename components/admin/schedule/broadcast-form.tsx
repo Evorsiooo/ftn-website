@@ -15,6 +15,7 @@ import {
   toWallInput,
   wallInputToUtc,
 } from "@/lib/schedule-client";
+import { RO_STATES } from "@/lib/ro-states";
 import { labelClass, selectClass } from "./styles";
 
 export interface FormPreset {
@@ -54,6 +55,9 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
   const [to, setTo] = useState(toWallInput(broadcast?.endsAt ?? defaultEnd, timezone));
   const [sportsEventId, setSportsEventId] = useState(broadcast?.sportsEventId ?? "");
   const [sportsEvents, setSportsEvents] = useState<{ id: string; label: string }[]>([]);
+  const [notify, setNotify] = useState(broadcast?.notify ?? false);
+  const [notifyMessage, setNotifyMessage] = useState(broadcast?.notifyMessage ?? "");
+  const [notifyRoStates, setNotifyRoStates] = useState<string[]>(broadcast?.notifyRoStates ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,6 +110,9 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       status: cancelled ? "cancelled" : "scheduled",
       youtubeId: onStream ? youtube : null,
       sportsEventId: sportsEventId || null,
+      notify,
+      notifyMessage,
+      notifyRoStates,
     };
     if (kind === "weekly") {
       Object.assign(body, { dayOfWeek: day, startTime: time, durationMinutes: duration });
@@ -279,6 +286,45 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
             ? "Weekly shows keep this local time all year: if the zone changes between summer and winter time, the show stays at the same wall-clock time."
             : "The start and end above are read in this zone."}
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <label className={check}>
+          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Notify users when it goes live
+        </label>
+        {notify && (
+          <div className="space-y-3 pl-6">
+            <div>
+              <label className={labelClass}>Custom message (optional)</label>
+              <Input
+                value={notifyMessage}
+                onChange={(e) => setNotifyMessage(e.target.value)}
+                maxLength={500}
+                placeholder="e.g. Tonight: the season finale!"
+              />
+            </div>
+            <div>
+              <span className={labelClass}>Ro-State feeds to notify</span>
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
+                {RO_STATES.map((s) => (
+                  <label key={s.key} className={check}>
+                    <input
+                      type="checkbox"
+                      checked={notifyRoStates.includes(s.key)}
+                      onChange={(e) =>
+                        setNotifyRoStates((cur) => (e.target.checked ? [...cur, s.key] : cur.filter((k) => k !== s.key)))
+                      }
+                    />{" "}
+                    {s.label}
+                  </label>
+                ))}
+              </div>
+              <p className="text-[11px] text-neutral-500 mt-1">
+                When it starts, the message is posted in each ticked feed and published automatically. Once per airing.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {editing && (
