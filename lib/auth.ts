@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { SignJWT, jwtVerify } from "jose";
 import { eq, sql } from "drizzle-orm";
 import { DbClient, getDb } from "@/db";
@@ -48,8 +49,7 @@ export async function verifySessionToken(token: string, db?: DbClient): Promise<
           .where(eq(userRoles.userId, user.id));
 
         const roleList = assignedRoles.map((r) => r.role);
-        const normalized = (user.robloxUsername || "").toLowerCase();
-        if ((normalized === "alphaze1" || normalized === "evorsio") && !roleList.includes("site_admin")) {
+        if (isRootAdmin(user.robloxId) && !roleList.includes("site_admin")) {
           roleList.push("site_admin");
         }
         liveRoles = roleList;
@@ -88,7 +88,7 @@ export async function syncRobloxUserAndRoles(
   }
 ): Promise<RobloxUser> {
   const normalizedUsername = (robloxProfile.robloxUsername || "").toLowerCase();
-  const isAdmin = normalizedUsername === "alphaze1" || normalizedUsername === "evorsio";
+  const isAdmin = isRootAdmin(robloxProfile.robloxId);
 
   try {
     // Match on the Roblox account id. A username alone only claims an account that staff created
