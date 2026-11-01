@@ -5,12 +5,11 @@ import { cn } from "@/lib/utils";
 
 interface VoteState {
   song: { key: string; artist: string; title: string } | null;
-  up: number;
-  down: number;
   mine: number;
 }
 
-// Small up/down vote for the song on air. No sign-in needed.
+// Small up/down vote for the song on air. No sign-in needed, and no totals: listeners only see
+// their own choice. Counts are admin-only.
 // It polls on its own so it can sit anywhere without touching the player code.
 export function SongVote({ trackKey, className }: { trackKey?: string; className?: string }) {
   const [state, setState] = useState<VoteState | null>(null);
@@ -51,7 +50,7 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
         body: JSON.stringify({ key: song.key, value }),
       });
       const data: any = await res.json().catch(() => ({}));
-      if (res.ok) setState({ ...state, up: data.up, down: data.down, mine: data.mine });
+      if (res.ok) setState({ ...state, mine: data.mine });
       else setHint(res.status === 409 ? "That song just changed" : data?.error || "Could not save your vote");
     } catch {
       setHint("Could not save your vote");
@@ -62,7 +61,7 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
     }
   };
 
-  const btn = (dir: 1 | -1, active: boolean, count: number) => {
+  const btn = (dir: 1 | -1, active: boolean) => {
     const Icon = dir === 1 ? IconThumbUp : IconThumbDown;
     return (
       <button
@@ -72,7 +71,7 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
         aria-pressed={active}
         aria-label={dir === 1 ? "Like this song" : "Dislike this song"}
         className={cn(
-          "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold tabular-nums transition",
+          "inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold transition",
           active
             ? "border-brand bg-brand/15 text-brand-text"
             : "border-ftn-line-strong bg-ftn-surface-2 text-ftn-text-2 hover:text-ftn-text",
@@ -80,15 +79,14 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
         )}
       >
         <Icon className={cn("h-4 w-4", active && "fill-current")} />
-        {count}
       </button>
     );
   };
 
   return (
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
-      {btn(1, state.mine === 1, state.up)}
-      {btn(-1, state.mine === -1, state.down)}
+      {btn(1, state.mine === 1)}
+      {btn(-1, state.mine === -1)}
       {hint && <span className="text-xs text-ftn-text-3" role="status">{hint}</span>}
     </div>
   );
