@@ -81,3 +81,11 @@ export function resolvePublicTwitchId(id: string, logins: string[]): { login: st
   const back = login ? publicTwitchId(login, streamId) : null;
   return login && back === id ? { login: login.toLowerCase(), streamId } : null;
 }
+
+/**
+ * A Twitch broadcast that has ended but whose recording was not found yet. Its row is kept for a few
+ * minutes (its `createdAt` is set to the moment it ended) and stays out of every list until the recording shows up.
+ */
+export function isPendingTwitchRecording(v: { id?: string | null; youtubeId?: string | null; isLive?: boolean | null; durationSeconds?: number | null }): boolean {
+  return isTwitchId(v.youtubeId || v.id) && !v.isLive && !(v.durationSeconds && v.durationSeconds > 0);
+}

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { safeEqual } from "@/lib/crypto";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "edge";
@@ -40,11 +41,12 @@ export async function POST(request: NextRequest) {
 
     // Resilient comparison: checks exact, backtick variation, or stripped quotes
     const stripQuotes = (s: string) => s.replace(/^['"`\s]+|['"`\s]+$/g, "");
-    const isDirectMatch = providedKey === expectedKey;
-    const isStrippedMatch = stripQuotes(providedKey) === stripQuotes(expectedKey);
-    const isBacktickMatch =
-      (providedKey.startsWith("`") ? providedKey : "`" + providedKey) ===
-      (expectedKey.startsWith("`") ? expectedKey : "`" + expectedKey);
+    const isDirectMatch = safeEqual(providedKey, expectedKey);
+    const isStrippedMatch = safeEqual(stripQuotes(providedKey), stripQuotes(expectedKey));
+    const isBacktickMatch = safeEqual(
+      providedKey.startsWith("`") ? providedKey : "`" + providedKey,
+      expectedKey.startsWith("`") ? expectedKey : "`" + expectedKey
+    );
 
     if (!isDirectMatch && !isStrippedMatch && !isBacktickMatch) {
       return NextResponse.json(

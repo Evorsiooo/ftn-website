@@ -20,5 +20,7 @@ export async function requireStaff(
 }
 
 export function isSafeUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
+  if (value.startsWith("http://") || value.startsWith("https://")) return true;
+  // A single-slash path stays on this site; "//host" and "/\\host" would leave it.
+  return value.startsWith("/") && !value.startsWith("//") && !value.startsWith("/\\");
 }

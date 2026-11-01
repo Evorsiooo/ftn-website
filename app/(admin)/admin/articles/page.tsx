@@ -3,7 +3,14 @@ import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { RichTextEditor, ArticleData } from "@/components/editor/rich-text-editor";
+import dynamic from "next/dynamic";
+import type { ArticleData } from "@/components/editor/rich-text-editor";
+
+// The editor (TipTap) is only needed once an article is opened, so keep it out of the list view's bundle.
+const RichTextEditor = dynamic(() => import("@/components/editor/rich-text-editor").then((m) => m.RichTextEditor), {
+  ssr: false,
+  loading: () => <div className="p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading editor...</div>,
+});
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { formatTimeAgo, formatMonthYear, calculateReadingTime } from "@/lib/utils";
+import { formatTimeAgo, formatMonthYear } from "@/lib/utils";
 import { gsCategory } from "@/components/gs/story";
 import { Newspaper, ArrowLeft, User } from "lucide-react";
 
@@ -166,7 +166,7 @@ export function ArticlesClientView({
                           <span>·</span>
                           <span>{formatTimeAgo(art.publishedAt || art.createdAt)}</span>
                           <span>·</span>
-                          <span>{calculateReadingTime(art.content)}</span>
+                          <span>{art.readingTime}</span>
                         </div>
                       </div>
                     </Link>
