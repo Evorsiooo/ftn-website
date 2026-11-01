@@ -346,7 +346,11 @@ export async function diagnoseRadio(
 }
 
 // Per-isolate cache; only an optimisation, results are always re-derivable.
-const artCache = new Map<string, string | null>();
+// Found covers are kept for a day. A lookup that found nothing is only remembered briefly, and one
+// that failed (timeout, provider error) not at all, so a hiccup never leaves a song without art.
+const artCache = new Map<string, { url: string | null; until: number }>();
+const ART_HIT_MS = 24 * 60 * 60 * 1000;
+const ART_MISS_MS = 2 * 60 * 1000;
 
 export async function lookupAlbumArt(
   artist: string,
@@ -355,9 +359,11 @@ export async function lookupAlbumArt(
 ): Promise<string | null> {
   if (!artist || !title) return null;
   const key = `${artist}-${title}`.toLowerCase().trim();
-  if (artCache.has(key)) return artCache.get(key) ?? null;
+  const cached = artCache.get(key);
+  if (cached && cached.until > Date.now()) return cached.url;
 
   let found: string | null = null;
+  let failed = false;
   for (const provider of secure.artPriority) {
     try {
       if (provider === "lastfm" && secure.lastFmApiKey) {
@@ -377,12 +383,14 @@ export async function lookupAlbumArt(
         if (art) found = String(art).replace("100x100", "600x600");
       }
       // fanart.tv needs a MusicBrainz id lookup first and is not wired up yet.
-    } catch {}
+    } catch {
+      failed = true;
+    }
     if (found) break;
   }
 
   if (artCache.size > 500) artCache.clear();
-  artCache.set(key, found);
+  if (found || !failed) artCache.set(key, { url: found, until: Date.now() + (found ? ART_HIT_MS : ART_MISS_MS) });
   return found;
 }
 

@@ -26,7 +26,7 @@ export function useRadio(): RadioContextValue {
 }
 
 // Pages that have their own full player, or where a floating one would be in the way.
-const HIDDEN_ON = ["/plus/radio", "/plus/watch", "/admin", "/api"];
+const HIDDEN_ON = ["/plus/radio", "/plus/watch", "/api"];
 
 /**
  * Owns the one <audio> for the webradio. It lives in the root layout, so playback carries on
@@ -35,7 +35,8 @@ const HIDDEN_ON = ["/plus/radio", "/plus/watch", "/admin", "/api"];
 export function RadioProvider({ children }: { children: React.ReactNode }) {
   const { streamUrl, webradioEnabled } = useSiteConfig();
   const pathname = usePathname() || "/";
-  const player = useRadioPlayer(streamUrl);
+  const isPopout = pathname.startsWith("/plus/radio/popout");
+  const player = useRadioPlayer(streamUrl, undefined, { takeOver: isPopout });
   const [started, setStarted] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 

@@ -1,6 +1,6 @@
 "use client";
 export const runtime = "edge";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { IconLoader2, IconPlayerPause, IconPlayerPlay, IconVolume, IconVolume3 } from "@tabler/icons-react";
 import { Button } from "@/components/ftn/ui";
 import { ArtTile } from "@/components/ftn/media";
@@ -14,7 +14,7 @@ import { useMediaSession } from "@/components/radio/use-media-session";
 // main FTN+ tab is closed; starting it silences the main page player (see use-radio-player).
 export default function RadioPopoutPage() {
   const { info, refresh } = useNowPlaying(8000);
-  const { streamUrl, status, pendingSince, volume, muted, setVolume, toggleMute, play, stop } = useRadio();
+  const { streamUrl, status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop } = useRadio();
   useEffect(() => {
     if (status === "playing") refresh();
   }, [status, refresh]);
@@ -29,14 +29,19 @@ export default function RadioPopoutPage() {
   useMediaSession(info, { onToggle: toggle });
   const shownVolume = muted ? 0 : volume;
 
-  // The main page opens us with ?autoplay=1 when it was playing. We start our own stream and
-  // the main page fades out once we are really playing, so the music carries on.
+  // The main page opens us with ?autoplay=1 while it is playing. Its audio is the only stream,
+  // so we just become its remote control and nothing re-buffers. Only when no window is
+  // playing (say the pop-out was opened from the main site's promo) do we start our own.
+  const remoteRef = useRef(remotePlaying);
+  remoteRef.current = remotePlaying;
   useEffect(() => {
     if (!streamUrl) return;
-    if (new URLSearchParams(window.location.search).get("autoplay") === "1") {
-      setWantedAutoplay(true);
-      play({ handoff: true });
-    }
+    if (new URLSearchParams(window.location.search).get("autoplay") !== "1") return;
+    setWantedAutoplay(true);
+    const t = setTimeout(() => {
+      if (!remoteRef.current) play();
+    }, 700);
+    return () => clearTimeout(t);
   }, [streamUrl]);
 
   useEffect(() => {
