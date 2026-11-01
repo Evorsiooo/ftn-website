@@ -364,7 +364,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
 
   // The preview fills the free height: the top bar, the page padding and, in video mode, the timeline.
   const previewStyle: React.CSSProperties = {
-    maxWidth: mode === "video" ? "clamp(200px, calc(100dvh - 18.25rem), 1024px)" : "clamp(300px, calc(100dvh - 6rem), 1024px)",
+    maxWidth: mode === "video" ? "clamp(200px, calc(100dvh - 22rem), 1024px)" : "clamp(300px, calc(100dvh - 6rem), 1024px)",
   };
 
   return (
