@@ -371,3 +371,17 @@ export const posts = sqliteTable("posts", {
   feedChannelId: text("feed_channel_id"),
   feedMessageId: text("feed_message_id"),
 });
+
+// Radio song ratings: one vote per signed-in user per song. value is 1 (up) or -1 (down).
+export const songVotes = sqliteTable("song_votes", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  songKey: text("song_key").notNull(),
+  artist: text("artist").notNull(),
+  title: text("title").notNull(),
+  value: integer("value").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.songKey] }),
+  index("song_votes_song_idx").on(t.songKey),
+]);
