@@ -50,7 +50,7 @@ export function PlusMiniBar() {
   };
 
   return (
-    <div className="fixed inset-x-2.5 bottom-3 z-50 flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 pl-3 text-neutral-900 shadow-xl md:hidden dark:border-neutral-800 dark:bg-neutral-950 dark:text-white">
+    <div className="ftn-above-radio fixed inset-x-2.5 bottom-3 z-50 flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2.5 pl-3 text-neutral-900 shadow-xl md:hidden dark:border-neutral-800 dark:bg-neutral-950 dark:text-white">
       <img src={live.thumbnailUrl} alt="" className="h-11 w-11 flex-none rounded-lg object-cover" />
       <div className="min-w-0 flex-1">
         <span className="inline-flex items-center gap-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">

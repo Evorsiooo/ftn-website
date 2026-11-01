@@ -870,3 +870,23 @@ html.dark:has(.gs),
 ::view-transition-new(root) {
   z-index: 1;
 }
+
+/* Radio mini player */
+@keyframes ftn-eq {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+.ftn-eq-bar {
+  height: 100%;
+  animation: ftn-eq 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ftn-eq-bar { animation: none; transform: scaleY(0.6); }
+}
+.ftn-mini {
+  animation: ftn-fade-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* Anything pinned to the bottom of the screen on phones moves up while the radio bar is shown. */
+html[data-radio-mini] .ftn-above-radio {
+  bottom: 5.5rem;
+}

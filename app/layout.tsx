@@ -1,12 +1,19 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Bricolage_Grotesque, DM_Sans } from "next/font/google";
+import { Geist, Geist_Mono, Bricolage_Grotesque, DM_Sans, Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
+import { RadioProvider } from "@/components/radio/radio-provider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+});
+
+const manrope = Manrope({
+  variable: "--font-manrope",
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
 });
 
 const geistMono = Geist_Mono({
@@ -78,10 +85,10 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} ${gsDisplay.variable} ${gsBody.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${gsDisplay.variable} ${gsBody.variable} ${manrope.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
         <ThemeProvider>
           <SiteConfigProvider>
-            {children}
+            <RadioProvider>{children}</RadioProvider>
           </SiteConfigProvider>
         </ThemeProvider>
       </body>
