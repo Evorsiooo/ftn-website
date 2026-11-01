@@ -6,6 +6,7 @@ import {
   getStreamConfig,
   fetchTrackInfo,
   lookupAlbumArt,
+  isRealTrack,
 } from "@/lib/radio";
 import { loadShowsAndBroadcasts, resolveCurrentAndNext } from "@/lib/schedule";
 
@@ -42,7 +43,11 @@ export async function GET() {
 
     const { current, next } = resolveCurrentAndNext(data.shows, data.broadcasts);
     const trackInfo = await fetchTrackInfo(secure, stream);
-    const hasTrack = trackInfo.online && (trackInfo.artist || trackInfo.title);
+    // Only a real artist + title counts as a song. A blank, a placeholder, or a fixed label such as the
+    // show or station name (what a live source like OBS often sends) is not shown as a song.
+    const hasTrack =
+      trackInfo.online &&
+      isRealTrack(trackInfo.artist, trackInfo.title, [current?.show?.name, pub.stationName, current?.show?.presenter]);
 
     // Show art wins while a show is scheduled; otherwise fall back to the track's cover art.
     let artUrl: string | null = current?.show?.artUrl || null;

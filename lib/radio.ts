@@ -199,6 +199,27 @@ export interface TrackInfo {
   online: boolean;
 }
 
+const PLACEHOLDER_TITLES = new Set(["", "-", "--", "unknown", "unknown artist", "unknown title", "n/a", "na", "none", "null", "untitled", "no title", "live", "on air", "stream", "audio"]);
+const flat = (v: string) => v.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+// Whether the stream's metadata looks like a real song (an artist and a title) rather than a blank,
+// a placeholder, or a fixed label a live broadcaster set (a show or station name, as OBS-style
+// sources often do). `labels` are the names that would show up as such a label.
+export function isRealTrack(artist: string, title: string, labels: (string | null | undefined)[] = []): boolean {
+  const a = flat(artist || "");
+  const t = flat(title || "");
+  if (!a || !t) return false;
+  if (PLACEHOLDER_TITLES.has(a) && PLACEHOLDER_TITLES.has(t)) return false;
+  if (PLACEHOLDER_TITLES.has(t) || a === "unknown" || a === "unknown artist") return false;
+  const both = `${a} ${t}`;
+  for (const label of labels) {
+    const l = flat(label || "");
+    if (l.length < 3) continue;
+    if (t === l || a === l || both === l || t.includes(l) || a.includes(l)) return false;
+  }
+  return true;
+}
+
 function pickSource(sources: any, mount: string, streamUrl: string): any | null {
   const list = (Array.isArray(sources) ? sources : sources ? [sources] : []).filter(Boolean);
   let wanted = mount;

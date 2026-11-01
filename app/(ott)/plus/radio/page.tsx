@@ -246,7 +246,7 @@ export default function FTNPlusRadioPage() {
               </div>
             )}
 
-            {info?.track && <SongVote trackKey={`${info.track.artist}|${info.track.title}`} />}
+            {!show && info?.track && <SongVote trackKey={`${info.track.artist}|${info.track.title}`} />}
 
             {show && (
               <div className="max-w-md space-y-2">
