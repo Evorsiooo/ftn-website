@@ -28,13 +28,20 @@ function readStored(): { volume: number; muted: boolean } {
 // Owns the <audio> element for a live stream. Icecast drops listeners for a moment when the
 // source switches (AutoDJ <-> broadcaster), so a dropped, ended or frozen stream is
 // reconnected with a cache-busting URL instead of being left silent.
-export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
+// `takeOver` is for the pop-out: it normally only controls the window that owns the audio (so
+// opening it never opens a second stream), but if that window is closed it starts playing itself.
+export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, opts?: { takeOver?: boolean }) {
   const [status, setStatus] = useState<PlayerStatus>("idle");
   const [pendingSince, setPendingSince] = useState<number | null>(null);
   const [volume, setVolumeState] = useState(0.8);
   const [muted, setMutedState] = useState(false);
   // Another window (main page or pop-out) is the one playing right now.
-  const [remotePlaying, setRemotePlaying] = useState(false);
+  const [remotePlaying, setRemotePlayingState] = useState(false);
+  const remotePlayingRef0 = useRef(false);
+  const setRemotePlaying = (v: boolean) => {
+    remotePlayingRef0.current = v;
+    setRemotePlayingState(v);
+  };
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const wantPlaying = useRef(false);
   const retries = useRef(0);
@@ -44,6 +51,8 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
   const fadeIn = useRef(false);
   const fadeTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const remoteOwner = useRef<string | null>(null);
+    const takeOver = useRef(!!opts?.takeOver);
+  takeOver.current = !!opts?.takeOver;
   const claimed = useRef(false);
   const urlRef = useRef(streamUrl);
   const onChangeRef = useRef(onTrackChange);
@@ -304,8 +313,16 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
         }
       } else if (msg.type === "release") {
         if (remoteOwner.current === msg.from) {
+          const wasPlaying = remotePlayingRef0.current;
           remoteOwner.current = null;
           setRemotePlaying(false);
+          // The window that owned the audio was closed: keep the music going from here.
+          if (msg.reason === "closed" && wasPlaying && takeOver.current && !wantPlaying.current) {
+            wantPlaying.current = true;
+            retries.current = 0;
+            fadeIn.current = false;
+            start(false);
+          }
         }
       } else if (msg.type === "hello") {
         if (claimed.current && wantPlaying.current) channel.postMessage({ type: "present", from: me });
@@ -323,7 +340,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void) {
     };
     channel.postMessage({ type: "hello", from: me });
     const onHide = () => {
-      if (claimed.current) channel.postMessage({ type: "release", from: me });
+      if (claimed.current) channel.postMessage({ type: "release", from: me, reason: "closed" });
     };
     window.addEventListener("pagehide", onHide);
     return () => {

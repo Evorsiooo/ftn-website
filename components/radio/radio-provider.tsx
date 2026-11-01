@@ -35,7 +35,8 @@ const HIDDEN_ON = ["/plus/radio", "/plus/watch", "/admin", "/api"];
 export function RadioProvider({ children }: { children: React.ReactNode }) {
   const { streamUrl, webradioEnabled } = useSiteConfig();
   const pathname = usePathname() || "/";
-  const player = useRadioPlayer(streamUrl);
+  const isPopout = pathname.startsWith("/plus/radio/popout");
+  const player = useRadioPlayer(streamUrl, undefined, { takeOver: isPopout });
   const [started, setStarted] = useState(false);
   const [dismissed, setDismissed] = useState(false);
 
