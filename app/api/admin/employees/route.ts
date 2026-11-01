@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { users, userRoles } from "@/db/schema";
 import { eq, sql, and, ne } from "drizzle-orm";
 import { verifySessionToken } from "@/lib/auth";
-import { canAssignRoles } from "@/lib/rbac";
+import { canConfigureSite } from "@/lib/rbac";
 import {
   hashPassword,
   generateSecurePassword,
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     const currentUser = await verifySessionToken(token);
-    if (!currentUser || !canAssignRoles(currentUser.roles)) {
+    if (!currentUser || !canConfigureSite(currentUser.roles)) {
       return NextResponse.json(
         { error: "Forbidden: Administrator role required" },
         { status: 403 }
@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
     }
 
     const currentUser = await verifySessionToken(token);
-    if (!currentUser || !canAssignRoles(currentUser.roles)) {
+    if (!currentUser || !canConfigureSite(currentUser.roles)) {
       return NextResponse.json(
         { error: "Forbidden: Administrator role required" },
         { status: 403 }

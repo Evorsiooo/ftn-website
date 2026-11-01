@@ -14,7 +14,8 @@ import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader } from "@/components/gs/admin-header";
 import { AdminDrawer } from "@/components/gs/admin-drawer";
 import { AdminRow, AdminSaveBar, AdminSection, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
-import { canConfigureSite } from "@/lib/rbac";
+import { canConfigureSite, canModerateUsers } from "@/lib/rbac";
+import { fetchSession } from "@/lib/session-client";
 import {
   Radio,
   Check,
@@ -141,6 +142,12 @@ export default function SiteSettingsPage() {
 
   // Profanity
   const [bannedWordsInput, setBannedWordsInput] = useState("fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy");
+
+  // Managers only get the Moderation page (mutes); everything else here is for Site Administrators.
+  const [isSiteAdmin, setIsSiteAdmin] = useState(false);
+  useEffect(() => {
+    fetchSession().then((d: any) => setIsSiteAdmin(canConfigureSite(d?.user?.roles ?? []))).catch(() => {});
+  }, []);
 
   // Tab Navigation State
   const pathname = usePathname();
@@ -1019,7 +1026,7 @@ export default function SiteSettingsPage() {
   }, [settingQuery, activeTab, videosLoaded]);
 
   return (
-    <AdminAuthGuard requiredPermission={canConfigureSite} featureTitle="Site Settings & Configuration">
+    <AdminAuthGuard requiredPermission={activeTab === "moderation" ? canModerateUsers : canConfigureSite} featureTitle={activeTab === "moderation" ? "Moderation" : "Site Settings & Configuration"}>
       <div className="w-full space-y-8 text-neutral-900 dark:text-white">
       <AdminPageHeader
         title={SETTINGS_PAGES.find((t) => t.href === (activeTab === "site" ? "/admin/settings" : `/admin/settings/${activeTab}`))?.title ?? "Settings"}
@@ -1040,7 +1047,7 @@ export default function SiteSettingsPage() {
       </div>
 
       <div className="flex gap-1 overflow-x-auto overflow-y-hidden border-b border-neutral-200 dark:border-neutral-800 lg:hidden">
-        {SETTINGS_PAGES.map((t) => (
+        {SETTINGS_PAGES.filter((t) => isSiteAdmin || t.href === "/admin/settings/moderation").map((t) => (
           <Link key={t.href} href={t.href} aria-current={pathname === t.href ? "page" : undefined} className={`shrink-0 border-b-4 px-4 py-3 text-sm font-bold ${pathname === t.href ? "border-brand" : "border-transparent text-neutral-500"}`}>
             {t.title}
           </Link>
@@ -1819,6 +1826,7 @@ export default function SiteSettingsPage() {
 
         </div>
       </AdminSection>
+      {isSiteAdmin && <>
       <AdminSection title="Auto-moderation" description="Mute people automatically when they keep tripping the profanity filter.">
         <div className="space-y-4">
           <div>
@@ -1883,6 +1891,7 @@ export default function SiteSettingsPage() {
         </div>
       {sectionFooter("profanity")}
 </AdminSection>
+      </>}
     </div>
   )}
 
