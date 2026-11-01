@@ -372,9 +372,10 @@ export const posts = sqliteTable("posts", {
   feedMessageId: text("feed_message_id"),
 });
 
-// Radio song ratings: one vote per signed-in user per song. value is 1 (up) or -1 (down).
+// Radio song ratings: one vote per listener per song. voter_id is a random id kept in the listener's
+// cookie, so no sign-in is needed. value is 1 (up) or -1 (down).
 export const songVotes = sqliteTable("song_votes", {
-  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  voterId: text("voter_id").notNull(),
   songKey: text("song_key").notNull(),
   artist: text("artist").notNull(),
   title: text("title").notNull(),
@@ -382,6 +383,6 @@ export const songVotes = sqliteTable("song_votes", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (t) => [
-  primaryKey({ columns: [t.userId, t.songKey] }),
+  primaryKey({ columns: [t.voterId, t.songKey] }),
   index("song_votes_song_idx").on(t.songKey),
 ]);

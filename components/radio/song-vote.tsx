@@ -8,10 +8,9 @@ interface VoteState {
   up: number;
   down: number;
   mine: number;
-  signedIn: boolean;
 }
 
-// Small up/down vote for the song on air. Anyone can see the buttons; voting needs a sign-in.
+// Small up/down vote for the song on air. No sign-in needed.
 // It polls on its own so it can sit anywhere without touching the player code.
 export function SongVote({ trackKey, className }: { trackKey?: string; className?: string }) {
   const [state, setState] = useState<VoteState | null>(null);
@@ -41,10 +40,6 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
 
   const vote = async (dir: 1 | -1) => {
     if (busy) return;
-    if (!state.signedIn) {
-      setHint("Sign in to rate songs");
-      return;
-    }
     const value = state.mine === dir ? 0 : dir;
     setBusy(true);
     inFlight.current = true;
@@ -57,7 +52,6 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
       });
       const data: any = await res.json().catch(() => ({}));
       if (res.ok) setState({ ...state, up: data.up, down: data.down, mine: data.mine });
-      else if (res.status === 401) setState({ ...state, signedIn: false });
       else setHint(res.status === 409 ? "That song just changed" : data?.error || "Could not save your vote");
     } catch {
       setHint("Could not save your vote");
@@ -95,14 +89,7 @@ export function SongVote({ trackKey, className }: { trackKey?: string; className
     <div className={cn("flex flex-wrap items-center gap-2", className)}>
       {btn(1, state.mine === 1, state.up)}
       {btn(-1, state.mine === -1, state.down)}
-      {hint &&
-        (state.signedIn ? (
-          <span className="text-xs text-ftn-text-3" role="status">{hint}</span>
-        ) : (
-          <a href={`/api/auth/roblox?returnUrl=${encodeURIComponent("/plus/radio")}`} className="text-xs font-semibold text-brand-text hover:underline" role="status">
-            {hint} →
-          </a>
-        ))}
+      {hint && <span className="text-xs text-ftn-text-3" role="status">{hint}</span>}
     </div>
   );
 }

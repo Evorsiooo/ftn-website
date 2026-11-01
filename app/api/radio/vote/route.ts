@@ -2,19 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { songVotes } from "@/db/schema";
-import { verifySessionToken } from "@/lib/auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getCurrentSong } from "@/lib/radio-votes";
 
 export const runtime = "edge";
 
-async function currentUser(request: NextRequest) {
-  const token =
-    request.cookies.get("ftn_session")?.value || request.headers.get("authorization")?.replace("Bearer ", "");
-  return token ? await verifySessionToken(token) : null;
+// No sign-in: each listener gets a random id in a long-lived cookie, which gives them one
+// changeable vote per song. It is abuse protection, not identity.
+const COOKIE = "ftn_voter";
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function voterIdFrom(request: NextRequest): string | null {
+  const v = request.cookies.get(COOKIE)?.value;
+  return v && UUID.test(v) ? v : null;
 }
 
-async function tally(db: ReturnType<typeof getDb>, key: string, userId: string | null) {
+async function tally(db: ReturnType<typeof getDb>, key: string, voterId: string | null) {
   const [row] = await db
     .select({
       up: sql<number>`coalesce(sum(case when ${songVotes.value} = 1 then 1 else 0 end), 0)`,
@@ -23,18 +26,18 @@ async function tally(db: ReturnType<typeof getDb>, key: string, userId: string |
     .from(songVotes)
     .where(eq(songVotes.songKey, key));
   let mine = 0;
-  if (userId) {
+  if (voterId) {
     const [m] = await db
       .select({ value: songVotes.value })
       .from(songVotes)
-      .where(and(eq(songVotes.songKey, key), eq(songVotes.userId, userId)))
+      .where(and(eq(songVotes.songKey, key), eq(songVotes.voterId, voterId)))
       .limit(1);
     mine = m?.value ?? 0;
   }
   return { up: Number(row?.up ?? 0), down: Number(row?.down ?? 0), mine };
 }
 
-// Public: the current song with its vote counts, plus the caller's own vote when signed in.
+// Public: the current song with its vote counts, plus this listener's own vote.
 export async function GET(request: NextRequest) {
   try {
     const d1 = (process.env as any).DB as D1Database;
@@ -43,24 +46,28 @@ export async function GET(request: NextRequest) {
     if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     const song = await getCurrentSong(d1);
     if (!song) return NextResponse.json({ song: null });
-    const user = await currentUser(request);
-    const counts = await tally(getDb(d1), song.key, user?.id ?? null);
-    return NextResponse.json({ song: { key: song.key, artist: song.artist, title: song.title }, ...counts, signedIn: !!user });
+    const counts = await tally(getDb(d1), song.key, voterIdFrom(request));
+    return NextResponse.json({ song: { key: song.key, artist: song.artist, title: song.title }, ...counts });
   } catch (error) {
     console.error("vote read error:", error);
     return NextResponse.json({ song: null });
   }
 }
 
-// Signed in only. Body: { key, value } with value 1, -1, or 0 to take the vote back.
+// Body: { key, value } with value 1, -1, or 0 to take the vote back.
 export async function POST(request: NextRequest) {
   try {
-    const user = await currentUser(request);
-    if (!user) return NextResponse.json({ error: "Sign in to vote" }, { status: 401 });
+    const existing = voterIdFrom(request);
+    const voterId = existing ?? crypto.randomUUID();
 
-    const rl = await checkRateLimit(`vote:${user.id}`, 30, 60);
-    if (!rl.allowed) {
-      return NextResponse.json({ error: "Slow down a little" }, { status: 429, headers: { "Retry-After": String(rl.resetInSeconds) } });
+    // Limited per address (so clearing cookies doesn't help) and per voter id.
+    const [byIp, byVoter] = await Promise.all([
+      checkRateLimit(`vote-ip:${getClientIp(request)}`, 40, 60),
+      checkRateLimit(`vote:${voterId}`, 20, 60),
+    ]);
+    const limited = !byIp.allowed ? byIp : !byVoter.allowed ? byVoter : null;
+    if (limited) {
+      return NextResponse.json({ error: "Slow down a little" }, { status: 429, headers: { "Retry-After": String(limited.resetInSeconds) } });
     }
 
     const body = (await request.json().catch(() => null)) as { key?: unknown; value?: unknown } | null;
@@ -78,16 +85,20 @@ export async function POST(request: NextRequest) {
 
     const db = getDb(d1);
     if (value === 0) {
-      await db.delete(songVotes).where(and(eq(songVotes.songKey, song.key), eq(songVotes.userId, user.id)));
+      await db.delete(songVotes).where(and(eq(songVotes.songKey, song.key), eq(songVotes.voterId, voterId)));
     } else {
       const now = new Date();
       await db
         .insert(songVotes)
-        .values({ userId: user.id, songKey: song.key, artist: song.artist, title: song.title, value, createdAt: now, updatedAt: now })
-        .onConflictDoUpdate({ target: [songVotes.userId, songVotes.songKey], set: { value, updatedAt: now } });
+        .values({ voterId, songKey: song.key, artist: song.artist, title: song.title, value, createdAt: now, updatedAt: now })
+        .onConflictDoUpdate({ target: [songVotes.voterId, songVotes.songKey], set: { value, updatedAt: now } });
     }
-    const counts = await tally(db, song.key, user.id);
-    return NextResponse.json({ success: true, ...counts });
+    const counts = await tally(db, song.key, voterId);
+    const res = NextResponse.json({ success: true, ...counts });
+    if (!existing) {
+      res.cookies.set(COOKIE, voterId, { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: 60 * 60 * 24 * 365 });
+    }
+    return res;
   } catch (error) {
     console.error("vote error:", error);
     return NextResponse.json({ error: "Failed to save vote" }, { status: 500 });
