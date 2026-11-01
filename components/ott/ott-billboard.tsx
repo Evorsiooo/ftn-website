@@ -43,7 +43,7 @@ export function OTTBillboard({ item, aside, compact }: { item: BillboardItem; as
       <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/25 to-transparent w-full md:w-3/4" />
       <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-ftn-bg to-transparent" />
 
-      <div className={cn("relative z-10 h-full flex items-end justify-between gap-10", compact ? "pb-20 md:pb-16" : "pb-28 md:pb-24", compact && "flex-col items-start md:flex-row md:items-end", GUTTER)}>
+      <div className={cn("relative z-10 h-full flex items-end justify-between gap-10", compact ? "pb-20 md:pb-16" : "pb-28 md:pb-24", compact && "flex-col items-start justify-end pt-24 md:flex-row md:items-end md:justify-between md:pt-0", GUTTER)}>
         <div className="max-w-3xl space-y-4">
           {item.isLive ? (
             <LivePill />

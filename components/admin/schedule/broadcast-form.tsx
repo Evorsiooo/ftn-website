@@ -225,7 +225,7 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       </div>
 
       {kind === "weekly" ? (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 min-[420px]:grid-cols-3">
           <div>
             <label className={labelClass}>Day</label>
             <Select value={day} onChange={(e) => setDay(Number(e.target.value))} className={selectClass}>
