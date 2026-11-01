@@ -29,6 +29,7 @@ export async function getCurrentSong(d1: D1Database): Promise<CurrentSong | null
     getPublicRadioSettings(db),
     loadShowsAndBroadcasts(db).catch(() => ({ shows: [], broadcasts: [] })),
   ]);
+  if (!pub.songDetection) return null;
   const { current } = resolveCurrentAndNext(data.shows, data.broadcasts);
   if (current) return null;
   const info = await fetchTrackInfo(secure, stream);

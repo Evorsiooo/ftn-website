@@ -16,6 +16,8 @@ export interface RadioPublicSettings {
   discordBotCommand: string;
   defaultArtUrl: string;
   stationName: string;
+  // When off, the site ignores the stream's song metadata everywhere: no song line, no song art, no votes.
+  songDetection: boolean;
 }
 
 export type ArtProvider = "lastfm" | "itunes" | "fanart";
@@ -42,6 +44,7 @@ export const DEFAULT_PUBLIC_SETTINGS: RadioPublicSettings = {
   discordBotCommand: "/setup",
   defaultArtUrl: "",
   stationName: "FTN Radio",
+  songDetection: true,
 };
 
 export const DEFAULT_SECURE_SETTINGS: RadioSecureSettings = {

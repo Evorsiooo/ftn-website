@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
       discordBotCommand: str(pubIn.discordBotCommand, pubCur.discordBotCommand, 200),
       defaultArtUrl: url(pubIn.defaultArtUrl, pubCur.defaultArtUrl),
       stationName: str(pubIn.stationName, pubCur.stationName, 80) || pubCur.stationName,
+      songDetection: typeof pubIn.songDetection === "boolean" ? pubIn.songDetection : pubCur.songDetection,
     });
 
     const secIn = body.secure || {};

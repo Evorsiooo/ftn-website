@@ -45,7 +45,9 @@ export async function GET() {
     const trackInfo = await fetchTrackInfo(secure, stream);
     // Only a real artist + title counts as a song. A blank, a placeholder, or a fixed label such as the
     // show or station name (what a live source like OBS often sends) is not shown as a song.
+    // With song detection switched off in site settings the metadata is ignored entirely.
     const hasTrack =
+      pub.songDetection &&
       trackInfo.online &&
       isRealTrack(trackInfo.artist, trackInfo.title, [current?.show?.name, pub.stationName, current?.show?.presenter]);
 

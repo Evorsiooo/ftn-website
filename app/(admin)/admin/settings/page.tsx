@@ -78,6 +78,7 @@ export default function SiteSettingsPage() {
   const [webradioToggle, setWebradioToggle] = useState(true);
   const [radioPublic, setRadioPublic] = useState({
     stationName: "FTN Radio",
+    songDetection: true,
     discordBotLink: "",
     discordBotCommand: "/setup",
     defaultArtUrl: "",
@@ -216,7 +217,7 @@ export default function SiteSettingsPage() {
     donation: { label: "Donation banner", keys: ["donationBannerEnabled"] },
     links: { label: "Links", keys: ["discordUrl", "socialLinks"] },
     stream: { label: "Webradio stream", keys: ["streamUrlInput", "statusJsonInput", "webradioToggle"] },
-    station: { label: "Station & Discord bot", pub: ["stationName", "discordBotLink", "discordBotCommand"] },
+    station: { label: "Station & Discord bot", pub: ["stationName", "songDetection", "discordBotLink", "discordBotCommand"] },
     icecast: { label: "Icecast", sec: ["icecastAdminUrl", "icecastUsername", "icecastPassword", "icecastMount"] },
     rotation: { label: "Password rotation", sec: ["rotationEndpointUrl", "rotationEndpointToken", "rotationFrequencyHours", "rotationTimeUtc", "discordWebhookUrl"] },
     art: { label: "Album art", pub: ["defaultArtUrl"], sec: ["lastFmApiKey", "fanartTvApiKey", "artPriority"] },
@@ -1166,6 +1167,12 @@ export default function SiteSettingsPage() {
         {sectionFooter("stream")}
 </AdminSection>
 <AdminSection title="Station & Discord bot" description="Branding on the radio page and the details for the Discord bot.">
+<AdminRow
+  label="Song detection"
+  hint={radioPublic.songDetection ? "The radio page shows the song the stream reports, and listeners can vote on it." : "Off: only the show and station are shown. No song line, no song art, no votes."}
+>
+  <AdminSwitch checked={radioPublic.songDetection} onChange={(v) => setRadioPublic({ ...radioPublic, songDetection: v })} label="Song detection" />
+</AdminRow>
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="block text-sm font-semibold">Station Name</label>
