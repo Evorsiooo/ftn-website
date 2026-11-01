@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { songVotes } from "@/db/schema";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -17,27 +17,18 @@ function voterIdFrom(request: NextRequest): string | null {
   return v && UUID.test(v) ? v : null;
 }
 
-async function tally(db: ReturnType<typeof getDb>, key: string, voterId: string | null) {
-  const [row] = await db
-    .select({
-      up: sql<number>`coalesce(sum(case when ${songVotes.value} = 1 then 1 else 0 end), 0)`,
-      down: sql<number>`coalesce(sum(case when ${songVotes.value} = -1 then 1 else 0 end), 0)`,
-    })
+// Listeners only ever get their own vote back. Totals are admin-only (/api/admin/radio/ratings).
+async function myVote(db: ReturnType<typeof getDb>, key: string, voterId: string | null): Promise<number> {
+  if (!voterId) return 0;
+  const [m] = await db
+    .select({ value: songVotes.value })
     .from(songVotes)
-    .where(eq(songVotes.songKey, key));
-  let mine = 0;
-  if (voterId) {
-    const [m] = await db
-      .select({ value: songVotes.value })
-      .from(songVotes)
-      .where(and(eq(songVotes.songKey, key), eq(songVotes.voterId, voterId)))
-      .limit(1);
-    mine = m?.value ?? 0;
-  }
-  return { up: Number(row?.up ?? 0), down: Number(row?.down ?? 0), mine };
+    .where(and(eq(songVotes.songKey, key), eq(songVotes.voterId, voterId)))
+    .limit(1);
+  return m?.value ?? 0;
 }
 
-// Public: the current song with its vote counts, plus this listener's own vote.
+// Public: the current song and this listener's own vote. No totals.
 export async function GET(request: NextRequest) {
   try {
     const d1 = (process.env as any).DB as D1Database;
@@ -46,8 +37,8 @@ export async function GET(request: NextRequest) {
     if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     const song = await getCurrentSong(d1);
     if (!song) return NextResponse.json({ song: null });
-    const counts = await tally(getDb(d1), song.key, voterIdFrom(request));
-    return NextResponse.json({ song: { key: song.key, artist: song.artist, title: song.title }, ...counts });
+    const mine = await myVote(getDb(d1), song.key, voterIdFrom(request));
+    return NextResponse.json({ song: { key: song.key, artist: song.artist, title: song.title }, mine });
   } catch (error) {
     console.error("vote read error:", error);
     return NextResponse.json({ song: null });
@@ -93,8 +84,8 @@ export async function POST(request: NextRequest) {
         .values({ voterId, songKey: song.key, artist: song.artist, title: song.title, value, createdAt: now, updatedAt: now })
         .onConflictDoUpdate({ target: [songVotes.voterId, songVotes.songKey], set: { value, updatedAt: now } });
     }
-    const counts = await tally(db, song.key, voterId);
-    const res = NextResponse.json({ success: true, ...counts });
+    const mine = await myVote(db, song.key, voterId);
+    const res = NextResponse.json({ success: true, mine });
     if (!existing) {
       res.cookies.set(COOKIE, voterId, { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: 60 * 60 * 24 * 365 });
     }

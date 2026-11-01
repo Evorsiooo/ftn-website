@@ -132,8 +132,8 @@ export function DateTimeInput({ type, value = "", onChange, name, id, disabled, 
         <Icon className="h-4 w-4 shrink-0 text-neutral-400" aria-hidden />
       </button>
       {name ? <input type="hidden" name={name} value={value} required={required} /> : null}
-      <PopoverPanel anchor={trigger} open={open} onClose={close} minWidth={showDate ? 288 : 160} estimatedHeight={showDate ? 340 : 260} className="p-3">
-        <div role="dialog" aria-label="Date and time picker" className="flex gap-3">
+      <PopoverPanel anchor={trigger} open={open} onClose={close} minWidth={showDate && showTime ? 288 : showDate ? 288 : 160} estimatedHeight={showDate ? 340 : 260} className="p-3">
+        <div role="dialog" aria-label="Date and time picker" className="flex flex-wrap gap-3">
           {showDate ? (
             <div className="w-[264px] shrink-0">
               <div className="mb-2 flex items-center justify-between">
@@ -207,7 +207,12 @@ export function DateTimeInput({ type, value = "", onChange, name, id, disabled, 
             </div>
           ) : null}
           {showTime ? (
-            <div className={cn("flex gap-1", showDate && "border-l border-neutral-200 pl-3 dark:border-white/10")}>
+            <div
+              className={cn(
+                "flex gap-1",
+                showDate && "w-full justify-center border-t border-neutral-200 pt-3 min-[460px]:w-auto min-[460px]:border-l min-[460px]:border-t-0 min-[460px]:pl-3 min-[460px]:pt-0 dark:border-white/10"
+              )}
+            >
               <TimeColumn label="Hours" count={24} step={1} current={time ? h : -1} onPick={(v) => pickTime(v, m)} />
               <TimeColumn label="Minutes" count={60} step={5} current={time ? m : -1} onPick={(v) => pickTime(h, v)} />
             </div>
@@ -250,7 +255,7 @@ function TimeColumn({ label, count, step, current, onPick }: { label: string; co
   return (
     <div className="w-14">
       <div className="mb-1 text-center text-[11px] font-semibold text-neutral-500">{label}</div>
-      <div ref={ref} role="listbox" aria-label={label} className="h-56 space-y-0.5 overflow-y-auto pr-0.5">
+      <div ref={ref} role="listbox" aria-label={label} className="h-36 space-y-0.5 overflow-y-auto pr-0.5 min-[460px]:h-56">
         {values.map((v) => (
           <button
             key={v}

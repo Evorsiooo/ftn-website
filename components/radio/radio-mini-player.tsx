@@ -7,21 +7,6 @@ import { cn } from "@/lib/utils";
 import { ArtTile } from "@/components/ftn/media";
 import { useRadio } from "./radio-provider";
 
-/** Three bars that move while the radio plays. */
-function Bars({ active }: { active: boolean }) {
-  return (
-    <span className="flex h-3.5 items-end gap-[3px]" aria-hidden>
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className={cn("w-[3px] origin-bottom rounded-full bg-brand", active ? "ftn-eq-bar" : "h-1")}
-          style={active ? { animationDelay: `${i * 0.18}s` } : undefined}
-        />
-      ))}
-    </span>
-  );
-}
-
 /**
  * The floating radio player. Always dark (like the FTN+ player), a glass card in the corner on
  * desktop and a full-width bar above the safe area on phones.
@@ -63,11 +48,7 @@ export function RadioMiniPlayer() {
         </Link>
 
         <div className="relative min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <Bars active={playing} />
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-brand">FTN Radio</span>
-          </div>
-          <div className="ftn-title mt-0.5 truncate text-[15px] leading-tight">{title}</div>
+          <div className="ftn-title truncate text-[15px] leading-tight">{title}</div>
           <div className="truncate text-xs text-ftn-text-2">{sub}</div>
         </div>
 

@@ -91,6 +91,15 @@ export function PopoverPanel({
     };
   }, [open, onClose, place, anchor, ref]);
 
+  // The panel can be wider than minWidth (it sizes to its content), so once it is on screen
+  // measure it and pull it back inside the viewport.
+  React.useLayoutEffect(() => {
+    if (!open || !rect || !ref.current) return;
+    const w = ref.current.offsetWidth;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - w - 8));
+    if (Math.abs(left - rect.left) > 0.5) setRect({ ...rect, left });
+  }, [open, rect, ref]);
+
   if (!open || !rect || typeof document === "undefined") return null;
   const host = (anchor.current?.closest("[data-ftn-theme]") as HTMLElement | null) ?? document.body;
 
@@ -102,9 +111,10 @@ export function PopoverPanel({
         left: rect.left,
         top: rect.above ? undefined : rect.top,
         bottom: rect.above ? window.innerHeight - rect.top : undefined,
-        width: matchWidth ? rect.width : undefined,
+        width: matchWidth ? rect.width : "max-content",
         minWidth: matchWidth ? Math.min(rect.width, minWidth ?? rect.width) : minWidth,
         maxHeight: rect.maxHeight,
+        maxWidth: "calc(100vw - 16px)",
         zIndex: 1000,
       }}
       className={cn(

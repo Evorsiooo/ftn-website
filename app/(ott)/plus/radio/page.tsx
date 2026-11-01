@@ -91,8 +91,8 @@ export default function FTNPlusRadioPage() {
   const togglePlay = () => (isPlaying ? stop() : play());
   useMediaSession(info, { onToggle: togglePlay });
 
-  // Hand playback to the pop-out window. This page keeps playing until the pop-out is really
-  // playing, then fades out (see use-radio-player), so the music never drops.
+  // The pop-out is a remote control for this page's audio: this page keeps the one stream going,
+  // so opening or closing the pop-out never interrupts the music.
   const openPopout = () => {
     window.open(
       `/plus/radio/popout${isPlaying ? "?autoplay=1" : ""}`,
@@ -246,7 +246,7 @@ export default function FTNPlusRadioPage() {
               </div>
             )}
 
-            {info?.track && <SongVote trackKey={`${info.track.artist}|${info.track.title}`} />}
+            {!show && info?.track && <SongVote trackKey={`${info.track.artist}|${info.track.title}`} />}
 
             {show && (
               <div className="max-w-md space-y-2">
