@@ -201,7 +201,7 @@ export function Select({ value, defaultValue, onChange, name, id, disabled, clas
                     o.disabled && "cursor-not-allowed opacity-40"
                   )}
                 >
-                  <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                  <span className="min-w-0 flex-1 break-words">{o.label}</span>
                   {o.value === current ? <Check className="h-4 w-4 shrink-0 text-brand-text" aria-hidden /> : null}
                 </div>
               </React.Fragment>

@@ -1,35 +1,42 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono, Bricolage_Grotesque, DM_Sans, Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { RadioProvider } from "@/components/radio/radio-provider";
 
-const geistSans = Geist({
+const geistSans = localFont({
+  src: "../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
   variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const manrope = Manrope({
-  variable: "--font-manrope",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
-const gsDisplay = Bricolage_Grotesque({
-  variable: "--font-gs-display",
-  subsets: ["latin"],
+  weight: "100 900",
   display: "swap",
 });
 
-const gsBody = DM_Sans({
+const geistMono = localFont({
+  src: "../node_modules/@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2",
+  variable: "--font-geist-mono",
+  weight: "100 900",
+  display: "swap",
+});
+
+const gsDisplay = localFont({
+  src: "../node_modules/@fontsource-variable/bricolage-grotesque/files/bricolage-grotesque-latin-wght-normal.woff2",
+  variable: "--font-gs-display",
+  weight: "100 900",
+  display: "swap",
+});
+
+const gsBody = localFont({
+  src: "../node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2",
   variable: "--font-gs-body",
-  subsets: ["latin"],
+  weight: "100 900",
+  display: "swap",
+});
+
+const manrope = localFont({
+  src: "../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
+  variable: "--font-manrope",
+  weight: "200 800",
   display: "swap",
 });
 

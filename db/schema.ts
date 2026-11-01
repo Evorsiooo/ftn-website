@@ -52,7 +52,7 @@ export const articles = sqliteTable("articles", {
   publishedAt: integer("published_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("articles_status_published_idx").on(t.status, t.publishedAt)]);
 
 // 3b. Article Revisions / Version History
 export const articleRevisions = sqliteTable("article_revisions", {
@@ -86,7 +86,7 @@ export const comments = sqliteTable("comments", {
     enum: ["visible", "hidden", "flagged"],
   }).notNull().default("visible"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("comments_article_idx").on(t.articleId, t.createdAt)]);
 
 // 5. OTT Videos & Streams (FTN+ YouTube Data Ingestion)
 export const videos = sqliteTable("videos", {
@@ -106,7 +106,7 @@ export const videos = sqliteTable("videos", {
   isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
   durationSeconds: integer("duration_seconds").default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("videos_published_idx").on(t.publishedAt), index("videos_is_live_idx").on(t.isLive)]);
 
 // 6. User Watchlists (FTN+)
 export const watchlists = sqliteTable("watchlists", {
@@ -121,7 +121,7 @@ export const videoViews = sqliteTable("video_views", {
   id: text("id").primaryKey(),
   videoId: text("video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
   viewedAt: integer("viewed_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("video_views_viewed_idx").on(t.viewedAt, t.videoId)]);
 
 // 7b. Watch progress (FTN+ Continue watching). Keyed by YouTube id so curated external videos work too.
 export const watchProgress = sqliteTable(
@@ -249,6 +249,12 @@ export const broadcasts = sqliteTable("broadcasts", {
   endsAt: integer("ends_at", { mode: "timestamp" }),
   youtubeId: text("youtube_id"),
   sportsEventId: text("sports_event_id"),
+  // Go-live Discord notification: custom line, Ro-State keys (JSON array) and the start of the
+  // last airing already announced, so each airing is announced exactly once.
+  notify: integer("notify", { mode: "boolean" }).notNull().default(false),
+  notifyMessage: text("notify_message"),
+  notifyRoStates: text("notify_ro_states"),
+  lastNotifiedAt: integer("last_notified_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
@@ -285,6 +291,8 @@ export const adCampaigns = sqliteTable("ad_campaigns", {
   organizerId: text("organizer_id").references(() => organizers.id, { onDelete: "set null" }),
   // Used in Discord posts; falls back to targetUrl when empty.
   messageLink: text("message_link"),
+  // Per-Ro-State message links as JSON ({"harrison": "...", ...}); replaces messageLink.
+  messageLinks: text("message_links"),
   // Post impressions bought for this ad (null = unlimited) and how many posts have used.
   postImpressionsPurchased: integer("post_impressions_purchased"),
   postImpressionsUsed: integer("post_impressions_used").notNull().default(0),
@@ -369,3 +377,18 @@ export const posts = sqliteTable("posts", {
   feedChannelId: text("feed_channel_id"),
   feedMessageId: text("feed_message_id"),
 });
+
+// Radio song ratings: one vote per listener per song. voter_id is a random id kept in the listener's
+// cookie, so no sign-in is needed. value is 1 (up) or -1 (down).
+export const songVotes = sqliteTable("song_votes", {
+  voterId: text("voter_id").notNull(),
+  songKey: text("song_key").notNull(),
+  artist: text("artist").notNull(),
+  title: text("title").notNull(),
+  value: integer("value").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.voterId, t.songKey] }),
+  index("song_votes_song_idx").on(t.songKey),
+]);

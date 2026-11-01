@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { watchProgress, videos } from "@/db/schema";
 import { verifySessionToken } from "@/lib/auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { and, desc, eq } from "drizzle-orm";
 
 export const runtime = "edge";
@@ -51,6 +52,8 @@ export async function POST(request: NextRequest) {
   try {
     const user = await currentUser(request);
     if (!user) return NextResponse.json({ success: false }, { status: 401 });
+    const limit = await checkRateLimit(`progress:${user.id}`, 120, 60);
+    if (!limit.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
     const body = (await request.json().catch(() => ({}))) as {
       youtubeId?: string;
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
     const youtubeId = (body.youtubeId || "").replace(/[^a-zA-Z0-9_\-]/g, "");
     const position = Math.floor(Number(body.position));
     const duration = Math.floor(Number(body.duration));
-    if (!youtubeId || !Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0 || position < 0) {
+    if (!youtubeId || !Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0 || position < 0 || duration > 172800 || position > 172800) {
       return NextResponse.json({ error: "Invalid progress" }, { status: 400 });
     }
 

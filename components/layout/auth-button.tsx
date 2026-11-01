@@ -100,7 +100,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
   ];
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="lg:relative" ref={rootRef}>
       <button
         onClick={() => setShowMenu(!showMenu)}
         aria-haspopup="menu"
@@ -117,7 +117,7 @@ export function AuthButton({ allowSignIn = true }: { allowSignIn?: boolean }) {
       {showMenu && (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-3 w-72 overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
+          className="absolute inset-x-4 z-50 mt-3 overflow-hidden sm:inset-x-auto sm:left-8 sm:w-80 lg:left-auto lg:right-0 lg:w-72 rounded-2xl border border-border bg-card text-card-foreground shadow-2xl"
         >
           <div className="flex items-center gap-3 bg-brand p-4 text-brand-ink">
             <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-brand-ink/80 bg-[#16110a] text-lg font-bold text-[#fff8e6]">

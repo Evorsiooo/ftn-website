@@ -1,5 +1,6 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { SignJWT, jwtVerify } from "jose";
-import { eq, or, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { DbClient, getDb } from "@/db";
 import { users, userRoles } from "@/db/schema";
 
@@ -12,8 +13,13 @@ export interface RobloxUser {
   roles: string[];
 }
 
+// The signing secret must come from the environment in production. A source-code fallback would let
+// anyone who reads the repository forge a site_admin session, so without it every token is refused.
 function getJwtSecret(): Uint8Array {
-  const secret = process.env.JWT_SECRET || "ftn-media-group-internal-jwt-signing-secret";
+  const secret =
+    process.env.JWT_SECRET ||
+    (process.env.NODE_ENV !== "production" ? "ftn-local-development-only-jwt-secret" : "");
+  if (!secret) throw new Error("JWT_SECRET is not configured");
   return new TextEncoder().encode(secret);
 }
 
@@ -43,8 +49,7 @@ export async function verifySessionToken(token: string, db?: DbClient): Promise<
           .where(eq(userRoles.userId, user.id));
 
         const roleList = assignedRoles.map((r) => r.role);
-        const normalized = (user.robloxUsername || "").toLowerCase();
-        if ((normalized === "alphaze1" || normalized === "evorsio") && !roleList.includes("site_admin")) {
+        if (isRootAdmin(user.robloxId) && !roleList.includes("site_admin")) {
           roleList.push("site_admin");
         }
         liveRoles = roleList;
@@ -83,19 +88,24 @@ export async function syncRobloxUserAndRoles(
   }
 ): Promise<RobloxUser> {
   const normalizedUsername = (robloxProfile.robloxUsername || "").toLowerCase();
-  const isAdmin = normalizedUsername === "alphaze1" || normalizedUsername === "evorsio";
+  const isAdmin = isRootAdmin(robloxProfile.robloxId);
 
   try {
-    const existingUser = await db
+    // Match on the Roblox account id. A username alone only claims an account that staff created
+    // before its first sign-in (no Roblox id stored yet): Roblox usernames can be changed and
+    // re-used by someone else, so they must never take over an account that is already linked.
+    let existingUser = await db
       .select()
       .from(users)
-      .where(
-        or(
-          eq(users.robloxId, robloxProfile.robloxId),
-          sql`lower(${users.robloxUsername}) = ${normalizedUsername}`
-        )
-      )
+      .where(eq(users.robloxId, robloxProfile.robloxId))
       .limit(1);
+    if (existingUser.length === 0) {
+      existingUser = await db
+        .select()
+        .from(users)
+        .where(sql`lower(${users.robloxUsername}) = ${normalizedUsername} AND ${users.robloxId} IS NULL`)
+        .limit(1);
+    }
 
     let userId: string;
 

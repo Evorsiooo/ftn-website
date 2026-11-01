@@ -1,4 +1,5 @@
 import { isSafeUrl } from "@/lib/admin-auth";
+import { RO_STATES } from "@/lib/ro-states";
 
 export type AdZone = "header_leaderboard" | "sidebar_rectangle" | "in_feed_banner";
 export type AdFormat = "1024x180" | "512x180";
@@ -21,6 +22,7 @@ export interface AdInput {
   imageUrl?: string;
   targetUrl?: string;
   messageLink?: string | null;
+  messageLinks?: Record<string, string | null> | null;
   postImpressionsPurchased?: number | null;
   format?: string;
   zone?: string;
@@ -64,12 +66,17 @@ export function validateAdInput(
     values.targetUrl = targetUrl;
   }
 
-  if (body.messageLink !== undefined) {
-    const link = (body.messageLink || "").trim();
-    if (link && (link.length > 2048 || !isSafeUrl(link))) {
-      return { error: "Message link must start with http://, https://, or / and be under 2048 characters" };
+  if (body.messageLinks !== undefined) {
+    const out: Record<string, string> = {};
+    for (const s of RO_STATES) {
+      const link = String(body.messageLinks?.[s.key] ?? "").trim();
+      if (!link) continue;
+      if (link.length > 2048 || !isSafeUrl(link)) {
+        return { error: `${s.label} message link must start with http://, https://, or / and be under 2048 characters` };
+      }
+      out[s.key] = link;
     }
-    values.messageLink = link || null;
+    values.messageLinks = Object.keys(out).length ? JSON.stringify(out) : null;
   }
 
   if (body.postImpressionsPurchased !== undefined) {

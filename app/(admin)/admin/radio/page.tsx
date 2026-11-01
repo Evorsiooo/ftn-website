@@ -9,6 +9,7 @@ import { canManageRadio } from "@/lib/rbac";
 import { ApiBroadcast, BroadcastRecord, ShowRecord, parseBroadcast } from "@/lib/schedule-client";
 import { ScheduleTab } from "@/components/admin/schedule/schedule-tab";
 import { ShowsTab } from "@/components/admin/schedule/shows-tab";
+import { RadioSetupWizard } from "@/components/admin/schedule/radio-setup-wizard";
 import { OnAirStrip } from "@/components/admin/schedule/on-air-strip";
 
 export default function AdminSchedulePage() {
@@ -16,6 +17,7 @@ export default function AdminSchedulePage() {
   const [broadcasts, setBroadcasts] = useState<BroadcastRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showsOpen, setShowsOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -44,9 +46,15 @@ export default function AdminSchedulePage() {
           description="Click an empty slot to add a broadcast. Click a block to edit it."
           actions={
             <>
+              <Link href="/admin/radio/ratings" className="gs-bar-link pb-0.5 text-sm font-bold">
+                Song ratings →
+              </Link>
               <Link href="/plus/schedule" className="gs-bar-link pb-0.5 text-sm font-bold">
                 View public schedule →
               </Link>
+              <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)} className="h-10 cursor-pointer px-5 text-sm">
+                Broadcast setup guide
+              </Button>
               <Button size="sm" onClick={() => setShowsOpen(true)} className="h-10 cursor-pointer px-5 text-sm">
                 Shows &amp; presenters
               </Button>
@@ -57,6 +65,8 @@ export default function AdminSchedulePage() {
         <OnAirStrip shows={shows} broadcasts={broadcasts} />
         <ScheduleTab shows={shows} broadcasts={broadcasts} reload={load} />
       </div>
+
+      {wizardOpen && <RadioSetupWizard onClose={() => setWizardOpen(false)} />}
 
       {showsOpen && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={() => setShowsOpen(false)}>

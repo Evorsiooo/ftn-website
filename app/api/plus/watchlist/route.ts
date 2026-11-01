@@ -1,3 +1,4 @@
+import { checkRateLimit } from "@/lib/rate-limit";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { watchlists, videos } from "@/db/schema";
@@ -98,6 +99,11 @@ export async function POST(request: NextRequest) {
     const user = await verifySessionToken(token);
     if (!user) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+    }
+
+    const limit = await checkRateLimit(`watchlist:${user.id}`, 60, 60);
+    if (!limit.allowed) {
+      return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
     const body = (await request.json().catch(() => ({}))) as {

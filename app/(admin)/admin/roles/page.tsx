@@ -1,4 +1,5 @@
 "use client";
+import { isRootAdmin } from "@/lib/root-admin";
 import { Select } from "@/components/ui/select";
 import { toast } from "@/components/gs/dialogs";
 import React, { useState, useEffect } from "react";
@@ -107,7 +108,7 @@ export default function AdminRolesConsole() {
     .sort((a, b) => +b.at - +a.at)
     .slice(0, 8);
   const counts = ALL_ROLES.map((r) => usersList.filter((u) => u.roles.includes(r.id)).length);
-  const lockedFor = (u: any, roleId: string) => u.robloxUsername?.toLowerCase() === "alphaze1" && roleId === "site_admin";
+  const lockedFor = (u: any, roleId: string) => isRootAdmin(u.robloxId) && roleId === "site_admin";
 
   return (
     <AdminAuthGuard requiredPermission={canAssignRoles} featureTitle="Staff Roles Management">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { adCampaigns } from "@/db/schema";
 import { eq, sql } from "drizzle-orm";
+import { isSafeUrl } from "@/lib/admin-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "edge";
@@ -31,7 +32,7 @@ export async function GET(
 
         // Validate target URL against open redirect vulnerabilities
         const target = ad[0].targetUrl;
-        if (target && (target.startsWith("http://") || target.startsWith("https://") || target.startsWith("/"))) {
+        if (target && isSafeUrl(target)) {
           return NextResponse.redirect(new URL(target, request.url), 307);
         }
       }

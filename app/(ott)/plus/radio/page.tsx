@@ -26,6 +26,7 @@ import { useMediaSession } from "@/components/radio/use-media-session";
 import { COUNTDOWN_MS } from "@/components/radio/use-radio-player";
 import { useRadio } from "@/components/radio/radio-provider";
 import { Crossfade } from "@/components/radio/crossfade";
+import { SongVote } from "@/components/radio/song-vote";
 
 interface ScheduleEntry {
   slotId: string;
@@ -244,6 +245,8 @@ export default function FTNPlusRadioPage() {
                 </span>
               </div>
             )}
+
+            {info?.track && <SongVote trackKey={`${info.track.artist}|${info.track.title}`} />}
 
             {show && (
               <div className="max-w-md space-y-2">

@@ -75,7 +75,15 @@ export async function PATCH(
 
     const values = { ...parsed.values, updatedAt: new Date() } as Record<string, unknown>;
 
-    if (body.adId !== undefined && (body.noAd === true ? null : body.adId || null) !== existing.adId) {
+    const adChanged = body.adId !== undefined && (body.noAd === true ? null : body.adId || null) !== existing.adId;
+    const newRoState = (values.roState as string | undefined) ?? existing.roState;
+    // Same ad, different Ro-State: the Discord link follows the Ro-State.
+    if (!adChanged && existing.adId && values.roState !== undefined && values.roState !== existing.roState) {
+      const ad = await db.select().from(adCampaigns).where(eq(adCampaigns.id, existing.adId)).limit(1);
+      if (ad.length > 0) values.messageLink = resolveMessageLink(ad[0], newRoState);
+    }
+
+    if (adChanged) {
       const newAdId = body.noAd === true ? null : body.adId || null;
       if (newAdId) {
         const ad = await db.select().from(adCampaigns).where(eq(adCampaigns.id, newAdId)).limit(1);
@@ -86,7 +94,7 @@ export async function PATCH(
           return NextResponse.json({ error: "This ad has no post impressions left or is not active" }, { status: 409 });
         }
         values.organizationName = ad[0].advertiserName;
-        values.messageLink = resolveMessageLink(ad[0]);
+        values.messageLink = resolveMessageLink(ad[0], newRoState);
       } else {
         values.organizationName = null;
         values.messageLink = null;

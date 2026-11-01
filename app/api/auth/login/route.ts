@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { users, userRoles, siteSettings } from "@/db/schema";
@@ -16,8 +17,8 @@ export async function POST(request: NextRequest) {
       password?: string;
     };
 
-    const rawUsername = body?.username?.trim() || "";
-    const password = body?.password || "";
+    const rawUsername = typeof body?.username === "string" ? body.username.trim().slice(0, 64) : "";
+    const password = typeof body?.password === "string" ? body.password.slice(0, 256) : "";
 
     if (!rawUsername || !password) {
       return NextResponse.json(
@@ -42,6 +43,15 @@ export async function POST(request: NextRequest) {
           status: 429,
           headers: { "Retry-After": String(rateLimit.resetInSeconds) },
         }
+      );
+    }
+
+    // Per-username limit across all IPs, so spreading guesses over many addresses does not help.
+    const accountLimit = await checkRateLimit(`login-account:${rawUsername.toLowerCase()}`, 20, 600);
+    if (!accountLimit.allowed) {
+      return NextResponse.json(
+        { error: `Too many login attempts for this account. Please wait ${accountLimit.resetInSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(accountLimit.resetInSeconds) } }
       );
     }
 
@@ -105,8 +115,8 @@ export async function POST(request: NextRequest) {
 
     const roleList = assignedRoles.map((r) => r.role);
 
-    // Superuser root check for alphaze1 or evorsio
-    if ((normalized === "alphaze1" || normalized === "evorsio") && !roleList.includes("site_admin")) {
+    // Root administrator (by Roblox id)
+    if (isRootAdmin(user.robloxId) && !roleList.includes("site_admin")) {
       roleList.push("site_admin");
     }
 

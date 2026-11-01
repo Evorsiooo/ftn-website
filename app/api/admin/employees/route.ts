@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { users, userRoles } from "@/db/schema";
@@ -137,6 +138,24 @@ export async function POST(request: NextRequest) {
 
     const db = getDb(d1);
 
+    // A Manager must not be able to reset the password of, rename, delete or re-create a Site
+    // Administrator account: that would let them sign in as one.
+    if (!currentUser.roles.includes("site_admin")) {
+      const targetIds: string[] = [];
+      if (body.userId) targetIds.push(body.userId);
+      const named = (body.action === "create" ? body.username : "")?.trim().toLowerCase();
+      if (named) {
+        const byName = await db.select({ id: users.id }).from(users).where(sql`lower(${users.robloxUsername}) = ${named}`).limit(1);
+        if (byName.length > 0) targetIds.push(byName[0].id);
+      }
+      for (const id of targetIds) {
+        const admin = await db.select({ id: userRoles.id }).from(userRoles).where(and(eq(userRoles.userId, id), eq(userRoles.role, "site_admin"))).limit(1);
+        if (admin.length > 0) {
+          return NextResponse.json({ error: "Only a Site Administrator can manage a Site Administrator account." }, { status: 403 });
+        }
+      }
+    }
+
     // 1. Preview Roblox Profile
     if (body.action === "fetch_preview") {
       const cleanUsername = body.username?.trim() || "";
@@ -202,8 +221,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Root superuser check for alphaze1 or evorsio
-      if (normalized === "alphaze1" || normalized === "evorsio") {
+      // Root administrator (by Roblox id)
+      if (isRootAdmin(profile.robloxId)) {
         const adminRole = await db
           .select()
           .from(userRoles)
@@ -326,8 +345,7 @@ export async function POST(request: NextRequest) {
 
       const target = await db.select().from(users).where(eq(users.id, body.userId)).limit(1);
       if (target.length > 0) {
-        const norm = target[0].robloxUsername.toLowerCase();
-        if (norm === "alphaze1" || norm === "evorsio") {
+        if (isRootAdmin(target[0].robloxId)) {
           return NextResponse.json(
             { error: `Root Administrator @${target[0].robloxUsername} is protected and cannot be deleted.` },
             { status: 403 }

@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { userModeration, users } from "@/db/schema";
@@ -110,11 +111,10 @@ export async function POST(request: NextRequest) {
 
     const db = getDb(d1);
 
-    // Guard: Prevent muting alphaze1 or evorsio
+    // Guard: Prevent muting the root administrator
     const target = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
     if (target.length > 0) {
-      const normUsername = target[0].robloxUsername.toLowerCase();
-      if (normUsername === "alphaze1" || normUsername === "evorsio") {
+      if (isRootAdmin(target[0].robloxId)) {
         return NextResponse.json({ error: `Root Administrator @${target[0].robloxUsername} cannot be muted.` }, { status: 403 });
       }
     }

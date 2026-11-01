@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       organizerId: organizer[0].id,
       imageUrl: v.imageUrl,
       targetUrl: v.targetUrl,
-      messageLink: v.messageLink ?? null,
+      messageLinks: v.messageLinks ?? null,
       postImpressionsPurchased: v.postImpressionsPurchased ?? null,
       adFormat: v.adFormat ?? "1024x180",
       zone: v.zone ?? "header_leaderboard",

@@ -1,3 +1,4 @@
+import { isRootAdmin } from "@/lib/root-admin";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { users, siteSettings } from "@/db/schema";
@@ -131,8 +132,7 @@ export async function GET(request: NextRequest) {
 
       user = await syncRobloxUserAndRoles(db, robloxProfile);
     } else {
-      const normalized = robloxUsername.toLowerCase();
-      const isAdmin = normalized === "alphaze1" || normalized === "evorsio";
+      const isAdmin = isRootAdmin(robloxId);
       user = {
         id: crypto.randomUUID(),
         robloxId: robloxProfile.robloxId,

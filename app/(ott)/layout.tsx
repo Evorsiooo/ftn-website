@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope } from "next/font/google";
+import localFont from "next/font/local";
 import OTTClientLayout from "./client-layout";
 
-const manrope = Manrope({
+const manrope = localFont({
+  src: "../../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
   variable: "--font-manrope",
-  subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: "100 900",
+  display: "swap",
 });
 
 export const runtime = "edge";
