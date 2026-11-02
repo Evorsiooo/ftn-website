@@ -1,6 +1,6 @@
 import { DbClient } from "@/db";
 import { videos, siteSettings } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, sql } from "drizzle-orm";
 
 export interface YouTubeVideoItem {
   id: string;
@@ -379,8 +379,18 @@ export async function syncYouTubeChannel(
       if (channelLogoUrl) updateData.channelLogoUrl = channelLogoUrl;
       if (channelTitle) updateData.channelTitle = channelTitle;
       if (channelHandle) updateData.channelHandle = channelHandle;
+      // Only rows whose values differ are written (D1 free tier: 100k row writes a day), so an unchanged
+      // channel costs no writes at all.
+      const differs = [
+        updateData.channelLogoUrl !== undefined ? sql`${videos.channelLogoUrl} IS NOT ${updateData.channelLogoUrl}` : undefined,
+        updateData.channelTitle !== undefined ? sql`${videos.channelTitle} IS NOT ${updateData.channelTitle}` : undefined,
+        updateData.channelHandle !== undefined ? sql`${videos.channelHandle} IS NOT ${updateData.channelHandle}` : undefined,
+      ].filter(Boolean);
       try {
-        await db.update(videos).set(updateData).where(eq(videos.channelId, channelId));
+        await db
+          .update(videos)
+          .set(updateData)
+          .where(and(eq(videos.channelId, channelId), or(...(differs as any[]))));
       } catch {}
     }
 
@@ -528,20 +538,30 @@ export async function syncYouTubeChannel(
         });
         syncedCount++;
       } else {
-        await db
-          .update(videos)
-          .set({
-            isLive: item.isLive,
-            title: item.title,
-            description: item.description ?? "",
-            thumbnailUrl: item.thumbnailUrl || existing[0].thumbnailUrl,
-            channelLogoUrl: item.channelLogoUrl || existing[0].channelLogoUrl,
-            channelTitle: item.channelTitle || existing[0].channelTitle,
-            channelHandle: item.channelHandle || existing[0].channelHandle || null,
-            publishedAt: item.publishedAt,
-            videoType: item.videoType,
-          })
-          .where(eq(videos.id, existing[0].id));
+        const prev = existing[0];
+        const next = {
+          isLive: item.isLive,
+          title: item.title,
+          description: item.description ?? "",
+          thumbnailUrl: item.thumbnailUrl || prev.thumbnailUrl,
+          channelLogoUrl: item.channelLogoUrl || prev.channelLogoUrl,
+          channelTitle: item.channelTitle || prev.channelTitle,
+          channelHandle: item.channelHandle || prev.channelHandle || null,
+          publishedAt: item.publishedAt,
+          videoType: item.videoType,
+        };
+        // Skip the write when nothing changed: every written row counts against the D1 daily limit.
+        const changed =
+          next.isLive !== prev.isLive ||
+          next.title !== prev.title ||
+          next.description !== (prev.description ?? "") ||
+          next.thumbnailUrl !== prev.thumbnailUrl ||
+          (next.channelLogoUrl ?? null) !== (prev.channelLogoUrl ?? null) ||
+          next.channelTitle !== prev.channelTitle ||
+          (next.channelHandle ?? null) !== (prev.channelHandle ?? null) ||
+          new Date(next.publishedAt as any).getTime() !== new Date(prev.publishedAt as any).getTime() ||
+          next.videoType !== prev.videoType;
+        if (changed) await db.update(videos).set(next).where(eq(videos.id, prev.id));
       }
     }
 

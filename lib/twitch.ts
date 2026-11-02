@@ -100,8 +100,20 @@ export async function syncTwitchLives(
         isLive: true,
         durationSeconds: 0,
       };
-      const existing = await db.select({ id: videos.id }).from(videos).where(eq(videos.id, id)).limit(1);
-      if (existing.length > 0) await db.update(videos).set(row).where(eq(videos.id, id));
+      const existing = await db.select().from(videos).where(eq(videos.id, id)).limit(1);
+      if (existing.length > 0) {
+        // Write only when something changed (D1 free tier: 100k row writes a day).
+        const prev = existing[0];
+        const changed =
+          !prev.isLive ||
+          prev.title !== row.title ||
+          prev.description !== row.description ||
+          prev.thumbnailUrl !== row.thumbnailUrl ||
+          prev.channelTitle !== row.channelTitle ||
+          (prev.channelLogoUrl ?? null) !== row.channelLogoUrl ||
+          prev.videoType !== row.videoType;
+        if (changed) await db.update(videos).set(row).where(eq(videos.id, id));
+      }
       else await db.insert(videos).values({ id, youtubeId: id, ...row });
     }
 
@@ -164,6 +176,10 @@ async function settleEndedBroadcasts(db: DbClient, logins: string[], liveIds: st
     if (!list) continue; // Twitch unreachable: decide nothing this time
     const vod = list.get(t.streamId);
     if (vod) {
+      const nextThumb = vod.thumbnail_url ? String(vod.thumbnail_url).replace("%{width}", "1280").replace("%{height}", "720") : row.thumbnailUrl;
+      const nextTitle = vod.title || row.title;
+      const nextDuration = Math.max(1, parseTwitchDuration(vod.duration));
+      if (nextThumb === row.thumbnailUrl && nextTitle === row.title && nextDuration === row.durationSeconds && row.videoType === "video" && !row.isLive) continue;
       await db
         .update(videos)
         .set({
