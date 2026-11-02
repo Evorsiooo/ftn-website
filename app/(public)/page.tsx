@@ -25,7 +25,7 @@ export default async function HomePage() {
       const db = getDb(d1);
 
       // Refresh the YouTube channels after the response is sent, so YouTube latency never blocks the page.
-      const sync = syncAllConfiguredChannels(db, { cooldownMs: 10 * 60 * 1000 }).catch(() => {});
+      const sync = syncAllConfiguredChannels(db, { cooldownMs: 60 * 1000 }).catch(() => {});
       try {
         getRequestContext().ctx.waitUntil(sync);
       } catch {}
