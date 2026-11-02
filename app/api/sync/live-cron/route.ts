@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
   if (request.nextUrl.searchParams.get("youtube") === "1") {
     try {
-      const yt = await syncAllConfiguredChannels(db, { cooldownMs: 4 * 60 * 1000 });
+      const yt = await syncAllConfiguredChannels(db, { cooldownMs: 14 * 60 * 1000 });
       out.youtube = { synced: yt.synced, message: yt.message };
     } catch (err: any) {
       out.youtubeError = err?.message || "YouTube sync failed";
