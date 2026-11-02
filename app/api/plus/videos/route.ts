@@ -108,7 +108,7 @@ async function buildResponse(): Promise<Response> {
     // New videos appear on the next cache refresh.
     runInBackground(
       syncAllConfiguredChannels(db, {
-        cooldownMs: 10 * 60 * 1000,
+        cooldownMs: 60 * 1000,
         channelIds: configuredChannels.length > 0 ? configuredChannels : undefined,
       })
     );
