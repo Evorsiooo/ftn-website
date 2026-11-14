@@ -30,12 +30,13 @@ console.log(`mix ${MIX} (${mixAfter(MIX).style}) at +${LEAD_S}s; mix ${MIX + 1} 
 
 const browserArgs = ['--autoplay-policy=no-user-gesture-required'];
 async function listener(name, skew) {
-  const browser = await chromium.launch({ args: browserArgs });
-  const page = await browser.newPage();
+  const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY } : undefined;
+  const browser = await chromium.launch({ args: browserArgs, proxy });
+  const page = await browser.newPage({ ignoreHTTPSErrors: !!proxy });
   const logs = [];
   page.on('console', (m) => logs.push(`${new Date().toISOString().slice(11, 23)} ${m.type()} ${m.text()}`));
   page.on('pageerror', (e) => logs.push(`pageerror ${e.message}`));
-  await page.goto(`${base}/labs/radio-engine/?autostart=1&skew=${skew}&anchorMs=${anchorMs}`);
+  await page.goto(`${base}/labs/radio-engine/index.html?autostart=1&skew=${skew}&anchorMs=${anchorMs}`);
   return { name, browser, page, logs, skew };
 }
 
