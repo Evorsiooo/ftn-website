@@ -18,6 +18,8 @@ const eslintConfig = [
       "build/**",
       ".vercel/**",
       "next-env.d.ts",
+      "labs/**",
+      "public/labs/**",
       "components/ui/**",
     ],
   },
