@@ -1,5 +1,5 @@
 import { paintPost, type PostLayers } from "@/lib/post-template";
-import { clipAt, clipLength, projectDuration, type MusicClip, type Project } from "./model";
+import { clipAt, clipLength, projectDuration, type MusicClip, type Project, type VideoClip } from "./model";
 import type { LoadedSource } from "./sources";
 
 // Plays the edit in the browser: one hidden video element per imported video (and an audio
@@ -23,7 +23,17 @@ export class PreviewPlayer {
   private activeClipId: string | null = null;
   private disposed = false;
   // The last frame that was on screen, shown while a video element is busy seeking.
-  private lastFrame: { canvas: HTMLCanvasElement; image: CanvasImageSource; width: number; height: number } | null = null;
+  // It keeps the zoom and position of the clip it came from, so holding it across a cut does not
+  // flash the next clip's framing over the old picture.
+  private lastFrame: {
+    canvas: HTMLCanvasElement;
+    image: CanvasImageSource;
+    width: number;
+    height: number;
+    zoom: number;
+    focusX: number;
+    focusY: number;
+  } | null = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -214,12 +224,15 @@ export class PreviewPlayer {
     el.volume = Math.min(1, Math.max(0, m.volume * fadeIn * fadeOut));
   }
 
-  private keepFrame(el: HTMLVideoElement) {
+  private keepFrame(el: HTMLVideoElement, clip: VideoClip) {
     let frame = this.lastFrame;
     if (!frame) {
       const canvas = document.createElement("canvas");
-      frame = { canvas, image: canvas, width: 0, height: 0 };
+      frame = { canvas, image: canvas, width: 0, height: 0, zoom: 1, focusX: 0.5, focusY: 0.5 };
     }
+    frame.zoom = clip.zoom;
+    frame.focusX = clip.focusX;
+    frame.focusY = clip.focusY;
     if (frame.width !== el.videoWidth || frame.height !== el.videoHeight) {
       frame.canvas.width = frame.width = el.videoWidth;
       frame.canvas.height = frame.height = el.videoHeight;
@@ -234,19 +247,21 @@ export class PreviewPlayer {
     const el = active ? this.videos.get(active.clip.sourceId) : undefined;
     const ready = !!el && el.readyState >= 2 && el.videoWidth > 0;
     let photo: { image: CanvasImageSource; width: number; height: number } | null = null;
-    if (ready && el) {
+    let zoom = active?.clip.zoom ?? 1;
+    let focusX = active?.clip.focusX ?? 0.5;
+    let focusY = active?.clip.focusY ?? 0.5;
+    if (ready && el && active) {
       photo = { image: el, width: el.videoWidth, height: el.videoHeight };
-      if (!this.playing) this.keepFrame(el);
+      // Also while playing: at a cut the next clip's video is briefly not ready, and the picture
+      // held then must be the one just shown, not an old paused frame.
+      this.keepFrame(el, active.clip);
     } else if (active && this.lastFrame) {
+      // Waiting on a seek: keep showing the last frame with the framing it had.
       photo = this.lastFrame;
+      zoom = this.lastFrame.zoom;
+      focusX = this.lastFrame.focusX;
+      focusY = this.lastFrame.focusY;
     }
-    paintPost(
-      this.ctx,
-      this.layers,
-      photo,
-      active?.clip.zoom ?? 1,
-      active?.clip.focusX ?? 0.5,
-      active?.clip.focusY ?? 0.5
-    );
+    paintPost(this.ctx, this.layers, photo, zoom, focusX, focusY);
   }
 }
