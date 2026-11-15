@@ -8,16 +8,15 @@
 // calls are made against Recorder stand-ins (program.ts), so the result is
 // the exact list of things BitChord would have scheduled, as data.
 import { analyzer } from '../bitchord/automix/analysis/analyzer';
-import { ANALYSIS_VERSION, type TrackAnalysis } from '../bitchord/automix/analysis/types';
+import type { TrackAnalysis } from '../bitchord/automix/analysis/types';
 import type { Deck } from '../bitchord/automix/engine/deck';
 import { asOutgoing } from '../bitchord/automix/engine/grid';
 import type { LoopDeck } from '../bitchord/automix/engine/loopDeck';
 import { IN_REGION_SEC, OUT_REGION_SEC, planLoopMix, scheduleLoopMix } from '../bitchord/automix/engine/loopMix';
 import { MIN_GRID_CONFIDENCE, scheduleTransition } from '../bitchord/automix/engine/transition-scheduler';
 import { songBytes } from './fetchAudio';
-import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from './loudness';
 import { hashProgram, Recorder } from './program';
-import { TIMELINE_VERSION, type RadioTimeline, type TimelineItem, type TimelineMix } from './timeline';
+import type { TimelineMix } from './timeline';
 
 /** AutoDJ.transitionBars: BitChord's default blend length. */
 export const DEFAULT_BARS = 16;
@@ -25,6 +24,8 @@ export const DEFAULT_BARS = 16;
 const LOOP_SETUP_SEC = 15;
 /** autodj.ts: the crossfade fallback lands this long before the outro (or the end). */
 const FALLBACK_SEC = 12;
+/** A mix is recorded from this long before it starts. */
+const LEAD_IN_SEC = 30;
 /** Decoding rate for planning, fixed so every browser measures the same samples. */
 const PLAN_SR = 44100;
 
@@ -80,7 +81,10 @@ export function planMix(
     const plan = planLoopMix(cur, fromBuffer, to, toBuffer, fromPos + LOOP_SETUP_SEC, {});
     if (plan) {
       const rec = new Recorder();
-      const fromDeck = rec.elementDeck('outEl', { output: 0, input: fromPos, rate: 1, active: true });
+      // start the recording a little before the loop (the plan doesn't depend on it), so
+      // the program's times stay short however far ahead the mix is planned
+      const startPos = Math.max(fromPos, plan.out.loop[0] - LEAD_IN_SEC);
+      const fromDeck = rec.elementDeck('outEl', { output: 0, input: startPos, rate: 1, active: true });
       const toDeck = rec.elementDeck('inEl');
       const outLoop = rec.loopDeck('outLoop');
       const inLoop = rec.loopDeck('inLoop');
@@ -141,6 +145,10 @@ export function planMix(
     return { rec, plan, pos };
   };
   let { rec, plan, pos } = attempt(fromPos);
+  if (plan.style !== 'crossfade' && plan.t0 > LEAD_IN_SEC + 5) {
+    // same mix, recorded from a little before it, so the program's times stay short
+    ({ rec, plan, pos } = attempt(fromPos + plan.t0 - LEAD_IN_SEC));
+  }
   if (plan.style === 'crossfade') {
     // AutoDJ.timeToMixOut: with no grid, the crossfade lands 12 s before the outro (or the end)
     const target = (cur.outroStartSec ?? cur.durationSec) - FALLBACK_SEC;
@@ -168,58 +176,3 @@ export function planMix(
 
 const r3 = (x: number) => Math.round(x * 1e3) / 1e3;
 const r6 = (x: number) => Math.round(x * 1e6) / 1e6;
-
-export interface PlanProgress {
-  (message: string): void;
-}
-
-/** Analyses every song (BitChord's analyzer), measures loudness, and plans every mix. */
-export async function planTimeline(
-  songs: SongRef[],
-  opts: { id: string; anchorMs: number; repeat: boolean; bars?: number },
-  progress: PlanProgress = () => {},
-): Promise<RadioTimeline> {
-  const bars = opts.bars ?? DEFAULT_BARS;
-  const analyses: TrackAnalysis[] = [];
-  const items: TimelineItem[] = [];
-  for (const s of songs) {
-    const started = performance.now();
-    progress(`analysing ${s.title}…`);
-    const a = await analyse(s.key, s);
-    const buffer = await decodeForPlan(s.key);
-    const loudnessDb = s.loudnessDb ?? Math.round((integratedLufs(buffer) - YOUTUBE_REFERENCE_LUFS) * 100) / 100;
-    progress(
-      `${s.title}: ${a.bpm?.toFixed(1) ?? '?'} BPM, grid ${a.gridConfidence.toFixed(2)}, ${a.keyName ?? '?'}, loudness ${loudnessDb} dB (${Math.round(performance.now() - started)} ms)`,
-    );
-    analyses.push(a);
-    items.push({ key: s.key, title: s.title, artist: s.artist, durationSec: r6(a.durationSec), loudnessDb });
-  }
-  const n = items.length;
-  const mixes: TimelineMix[] = [];
-  let fromPos = 0;
-  const count = opts.repeat ? n : n - 1;
-  for (let i = 0; i < count; i++) {
-    const j = (i + 1) % n;
-    const [fromBuffer, toBuffer] = await Promise.all([decodeForPlan(items[i]!.key), decodeForPlan(items[j]!.key)]);
-    const mix = planMix(analyses[i]!, analyses[j]!, fromBuffer, toBuffer, fromPos, bars);
-    progress(`mix ${i}: ${items[i]!.title} → ${items[j]!.title}: ${mix.style}${mix.reason ? ` (${mix.reason})` : ''}, out at ${mix.outSec.toFixed(1)} s, ${mix.settleSec.toFixed(1)} s long, hash ${mix.hash}`);
-    mixes.push(mix);
-    fromPos = mix.inEndSec;
-  }
-  // with repeat, the first song's own entry comes from the last mix: check it fits
-  if (opts.repeat && mixes[0] && mixes[n - 1] && mixes[0].outSec < mixes[n - 1]!.inEndSec) {
-    progress('first mix replanned after the wrap-around mix');
-    const [a, b] = await Promise.all([decodeForPlan(items[0]!.key), decodeForPlan(items[1 % n]!.key)]);
-    mixes[0] = planMix(analyses[0]!, analyses[1 % n]!, a, b, mixes[n - 1]!.inEndSec, bars);
-  }
-  return {
-    version: TIMELINE_VERSION,
-    id: opts.id,
-    anchorMs: opts.anchorMs,
-    startSec: 0,
-    repeat: opts.repeat,
-    items,
-    mixes,
-    plannedWith: { bars, analysisVersion: ANALYSIS_VERSION, engine: 'bitchord-automix@acf219a7' },
-  };
-}

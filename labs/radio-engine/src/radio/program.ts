@@ -9,46 +9,9 @@
 import type { LoopChange } from '../bitchord/automix/engine/loopDeck';
 import { Timeline, type TimelinePoint } from '../bitchord/automix/engine/timeline';
 
-export type DeckId = 'outEl' | 'inEl' | 'outLoop' | 'inLoop';
-export type ParamId = 'gain' | 'low' | 'mid' | 'high' | 'hp' | 'lp';
-
-export type ParamOp =
-  | { op: 'set'; v: number; at: number }
-  | { op: 'lin'; v: number; at: number }
-  | { op: 'exp'; v: number; at: number }
-  | { op: 'curve'; values: number[]; at: number; dur: number }
-  | { op: 'target'; v: number; at: number; tc: number }
-  | { op: 'cancel'; at: number };
-
-export interface ParamEvent {
-  deck: DeckId;
-  param: ParamId;
-  e: ParamOp;
-}
-export interface TransportPoint extends TimelinePoint {
-  deck: 'outEl' | 'inEl';
-}
-export interface LoopPoint extends LoopChange {
-  deck: 'outLoop' | 'inLoop';
-}
-export interface LoopRegion {
-  deck: 'outLoop' | 'inLoop';
-  side: 'out' | 'in';
-  startSec: number;
-  endSec: number;
-}
-
-/** Every time is in seconds from the mix's start. */
-export interface MixProgram {
-  /** In call order: cancelScheduledValues only makes sense in that order. */
-  params: ParamEvent[];
-  /** Each element deck's timeline points (AutoMix's Timeline semantics). */
-  transport: TransportPoint[];
-  /** The stretch decks' changes, for a loop mix. */
-  loops: LoopPoint[];
-  /** The stretch of each song the loop decks hold. */
-  regions: LoopRegion[];
-}
+import type { DeckId, LoopPoint, LoopRegion, MixProgram, ParamEvent, ParamId, ParamOp, TransportPoint } from './timeline';
+export { hashProgram } from './timeline';
+export type { DeckId, LoopPoint, LoopRegion, MixProgram, ParamEvent, ParamId, ParamOp, TransportPoint };
 
 /** The value a parameter rests at on a fresh deck. */
 export const PARAM_REST: Record<ParamId, number> = { gain: 1, low: 0, mid: 0, high: 0, hp: 20, lp: 20000 };
@@ -205,17 +168,6 @@ export class Recorder {
       regions: this.regions.map((r) => ({ ...r, startSec: r6(r.startSec), endSec: r6(r.endSec) })),
     };
   }
-}
-
-/** FNV-1a over the program's JSON: equal programs, equal hashes, in every browser. */
-export function hashProgram(p: MixProgram): string {
-  const s = JSON.stringify(p);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h.toString(16).padStart(8, '0');
 }
 
 // ---- Playing back -----------------------------------------------------------------------------

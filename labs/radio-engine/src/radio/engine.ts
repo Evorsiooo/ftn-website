@@ -9,16 +9,17 @@
 // - Mixes: the timeline's recorded BitChord programs, replayed from the
 //   moment this listener is at (program.ts).
 // - Loudness: BitChord's phone formula on each deck's fader (loudness.ts).
+// - AutoDJ: this listener lines up the next song when it's needed (autodj.ts).
 import { ServerClock, monotonicNow } from '../bitchord/party/clock';
 import { Deck } from '../bitchord/automix/engine/deck';
 import { LoopDeck } from '../bitchord/automix/engine/loopDeck';
 import type { TimelinePoint } from '../bitchord/automix/engine/timeline';
-import { fileUrl, TIME_URL } from './config';
+import { AUTODJ_URL, fileUrl, TIME_URL } from './config';
+import { extend, fetchTimeline, needsWork } from './autodj';
 import { songBytes } from './fetchAudio';
 import { loudnessGain } from './loudness';
-import { analyse, decodeForPlan, planMix } from './planner';
 import { LOOP_GAIN_REST, PARAM_REST, loopChangesFrom, replayParam, shiftOp, type AbsOp, type DeckId, type ParamId } from './program';
-import { nowPlaying, slotAt, slotIndexAt, type RadioTimeline, type Slot, type TimelineMix } from './timeline';
+import { nowPlaying, slotAt, slotIndexAt, type LibrarySong, type RadioTimeline, type Slot, type TimelineMix } from './timeline';
 
 /** listenTogether.ts: PING_INTERVAL_MS, and the four quick pings on connect. */
 const PING_INTERVAL_MS = 15_000;
@@ -27,11 +28,15 @@ const TICK_MS = 250;
 const HORIZON_MS = 45_000;
 /** Re-put the decks on the clock when the server-to-context mapping has moved this much. */
 const RETIME_SEC = 0.004;
+/** How often the running order is fetched again (another listener may have added a song). */
+const REFRESH_MS = 10_000;
 
 type Status = Record<string, unknown>;
 
 interface Held {
   k: number;
+  /** The song's mixes as last put on the deck: a new mix after it means doing it again. */
+  sig: string;
   key: string;
   /** Context time this deck's timeline was computed for, and the server ms it stood for. */
   refServerMs: number;
@@ -41,8 +46,8 @@ interface Held {
 export interface EngineOptions {
   /** Test only: this device's clock is off by this much (the sync must hide it). */
   skewMs?: number;
-  /** Analyse the playing and next songs here too and compare the plan (BitChord's way). */
-  analyseHere?: boolean;
+  /** Take part in the AutoDJ: line up songs when needed (default on). */
+  autodj?: boolean;
   log?: (line: string) => void;
 }
 
@@ -59,7 +64,9 @@ export class RadioEngine {
   private timers: ReturnType<typeof setInterval>[] = [];
   private mapping: number[] = [];
   private lastSlotK: number | null = null;
-  private verified = new Map<number, string>();
+  private working = false;
+  private nextWorkAt = 0;
+  private workNote: string | null = null;
   readonly skewMs: number;
   /** For the test page: when the timers ran late (an iPhone with its screen locked). */
   maxTickGapMs = 0;
@@ -67,7 +74,8 @@ export class RadioEngine {
   status: Status = {};
 
   constructor(
-    public timeline: RadioTimeline,
+    public timeline: RadioTimeline | null,
+    private readonly library: LibrarySong[],
     private readonly opts: EngineOptions = {},
   ) {
     this.skewMs = opts.skewMs ?? 0;
@@ -97,12 +105,13 @@ export class RadioEngine {
     await this.ctx.resume();
     // bless both elements for later play() calls made by the decks' timers
     for (const el of this.elements) {
-      el.src = fileUrl(this.timeline.items[0]!.key);
+      el.src = fileUrl(this.timeline?.items[0]?.key ?? this.library[0]!.key);
       void el.play().then(() => el.pause()).catch(() => {});
     }
     for (let i = 0; i < 4; i++) setTimeout(() => void this.ping(), i * 300);
     this.timers.push(setInterval(() => void this.ping(), PING_INTERVAL_MS));
     this.timers.push(setInterval(() => this.tick(), TICK_MS));
+    this.timers.push(setInterval(() => void this.refresh(), REFRESH_MS));
     this.lastTick = performance.now();
   }
 
@@ -165,6 +174,59 @@ export class RadioEngine {
     return sorted[11]! - sorted[3]! < 0.002;
   }
 
+  // ---- The running order ------------------------------------------------------------------
+
+  private adopt(tl: RadioTimeline | null): void {
+    if (tl && (!this.timeline || tl.rev > this.timeline.rev)) {
+      this.timeline = tl;
+      this.log(`running order rev ${tl.rev}: ${tl.items.map((i) => i.title).join(' → ')}`);
+    }
+  }
+
+  private async refresh(): Promise<void> {
+    try {
+      this.adopt(await fetchTimeline());
+    } catch (e) {
+      this.log(`couldn't fetch the running order: ${String(e)}`);
+    }
+  }
+
+  /** The AutoDJ's part: line up a song (or start the radio) when this running order needs it. */
+  private async work(): Promise<void> {
+    if (this.working || this.opts.autodj === false || !this.clock.synced || performance.now() < this.nextWorkAt) return;
+    if (!needsWork(this.timeline, this.clock.serverNowMs()!)) return;
+    this.working = true;
+    try {
+      // a short random wait, then a fresh look: listeners don't all do the same work at once
+      await new Promise((r) => setTimeout(r, Math.random() * 4000));
+      await this.refresh();
+      if (!needsWork(this.timeline, this.clock.serverNowMs()!)) return;
+      this.workNote = this.timeline ? 'lining up the next song' : 'starting the radio';
+      const stored = await extend(
+        this.timeline,
+        this.library,
+        () => this.clock.serverNowMs()!,
+        async (tl) => {
+          const r = await fetch(AUTODJ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timeline: tl }) });
+          return r.ok ? { ok: true } : { ok: false, error: `${r.status} ${await r.text()}` };
+        },
+        (line) => this.log(line),
+      );
+      if (stored) this.adopt(stored);
+      else {
+        // refused or impossible: look again, and don't try again straight away
+        this.nextWorkAt = performance.now() + 15_000;
+        await this.refresh();
+      }
+    } catch (e) {
+      this.nextWorkAt = performance.now() + 15_000;
+      this.log(`AutoDJ step failed: ${String(e)}`);
+    } finally {
+      this.working = false;
+      this.workNote = null;
+    }
+  }
+
   // ---- The loop ---------------------------------------------------------------------------
 
   private tick(): void {
@@ -179,10 +241,15 @@ export class RadioEngine {
     if (base === null) return;
     const ctxAt = (serverMs: number) => base + serverMs / 1000;
     const serverNow = this.clock.serverNowMs()!;
+    void this.work();
     const tl = this.timeline;
+    if (!tl) {
+      this.status = { state: this.workNote ?? 'starting the radio' };
+      return;
+    }
     const k = slotIndexAt(tl, serverNow);
     if (k === null) {
-      this.status = { state: 'before the timeline starts', startsInSec: (tl.anchorMs - serverNow) / 1000 };
+      this.status = { state: this.workNote ?? 'starting the radio', startsInSec: (tl.anchorMs - serverNow) / 1000 };
       return;
     }
     // the songs sounding now or within the horizon: at most two, on alternate decks
@@ -196,13 +263,15 @@ export class RadioEngine {
     for (const kk of [k - 1, k]) {
       const slot = slotAt(tl, kk);
       const out = slot?.mixOut;
+      if (this.loopHeld && this.loopHeld.k !== kk && this.loopHeld.scheduledFor !== null) continue;
       if (!slot || !out || out.mix.style !== 'loop') continue;
       const end = out.t0Ms + out.mix.settleSec * 1000;
       if (serverNow > out.t0Ms - HORIZON_MS && serverNow < end + 500) void this.holdLoop(slot, ctxAt, serverNow);
     }
     if (this.loopHeld && this.loopHeld.scheduledFor !== null) {
       const slot = slotAt(tl, this.loopHeld.k);
-      if (slot?.mixOut && serverNow > slot.mixOut.t0Ms + slot.mixOut.mix.settleSec * 1000 + 500) {
+      if (!slot) this.loopHeld = null;
+      else if (slot.mixOut && serverNow > slot.mixOut.t0Ms + slot.mixOut.mix.settleSec * 1000 + 500) {
         void this.loopDecks?.then((ds) => ds.forEach((d) => d.stop()));
         this.loopHeld = null;
       }
@@ -226,17 +295,19 @@ export class RadioEngine {
       outputLatencyMs: Math.round((((this.ctx as AudioContext & { outputLatency?: number }).outputLatency ?? 0) + this.ctx.baseLatency) * 1000),
       ctxState: this.ctx.state,
       mappingSettled: this.mappingSettled(),
-      verified: this.verified.get(np.slot.k) ?? null,
+      songsLinedUp: tl.firstK + tl.items.length - 1 - np.slot.k,
+      autodj: this.workNote,
+      rev: tl.rev,
       maxTickGapMs: Math.round(this.maxTickGapMs),
     };
-    if (this.opts.analyseHere) void this.verify(np.slot);
   }
 
   /** Puts deck [d] on song slot [slot]: its element timeline and its automation. */
   private hold(d: 0 | 1, slot: Slot, ctxAt: (ms: number) => number, serverNow: number): void {
     const held = this.held[d];
     const deck = this.decks[d];
-    if (held && held.k === slot.k) {
+    const sig = [slot.mixIn?.mix.hash, slot.mixIn && Math.round(slot.mixIn.t0Ms), slot.mixOut?.mix.hash, slot.mixOut && Math.round(slot.mixOut.t0Ms)].join('|');
+    if (held && held.k === slot.k && held.sig === sig) {
       // the same song: only re-put it on the clock if the mapping has moved
       if (Math.abs(ctxAt(held.refServerMs) - held.refCtx) < RETIME_SEC) return;
       deck.follow(this.elementPoints(slot, ctxAt));
@@ -246,6 +317,7 @@ export class RadioEngine {
     const el = this.elements[d];
     const url = fileUrl(slot.item.key);
     if (!el.src.endsWith(url)) {
+      // a new song: start from rest (a song getting a mix added keeps its element going)
       el.src = url;
       el.load();
     }
@@ -257,7 +329,7 @@ export class RadioEngine {
     for (const [param, rest] of Object.entries(PARAM_REST) as [ParamId, number][]) {
       replayParam(elementParam(deck, param), ops.get(param) ?? [], rest, now);
     }
-    this.held[d] = { k: slot.k, key: slot.item.key, refServerMs: serverNow, refCtx: ctxAt(serverNow) };
+    this.held[d] = { k: slot.k, sig, key: slot.item.key, refServerMs: serverNow, refCtx: ctxAt(serverNow) };
     this.log(`deck ${deck.id}: ${slot.item.title} (slot ${slot.k})`);
   }
 
@@ -314,7 +386,7 @@ export class RadioEngine {
           this.loopDecks = Promise.all([LoopDeck.create(this.ctx, a), LoopDeck.create(this.ctx, b)]);
         }
         const [outDeck, inDeck] = await this.loopDecks;
-        const nextSlot = slotAt(this.timeline, slot.k + 1)!;
+        const nextSlot = slotAt(this.timeline!, slot.k + 1)!;
         const [outBuf, inBuf] = await Promise.all([
           songBytes(slot.item.key).then((b) => this.ctx.decodeAudioData(b.slice(0))),
           songBytes(nextSlot.item.key).then((b) => this.ctx.decodeAudioData(b.slice(0))),
@@ -367,30 +439,6 @@ export class RadioEngine {
     if ('mediaSession' in navigator) {
       navigator.mediaSession.metadata = new MediaMetadata({ title: slot.item.title, artist: slot.item.artist, album: 'FTN+ Radio (lab)' });
       navigator.mediaSession.playbackState = 'playing';
-    }
-  }
-
-  // ---- BitChord's way: analyse here and compare -------------------------------------------
-
-  private verifying = new Set<number>();
-
-  private async verify(slot: Slot): Promise<void> {
-    const out = slot.mixOut;
-    if (!out || this.verified.has(slot.k) || this.verifying.has(slot.k)) return;
-    this.verifying.add(slot.k);
-    try {
-      const next = slotAt(this.timeline, slot.k + 1)!;
-      const started = performance.now();
-      const [a, b] = await Promise.all([analyse(slot.item.key, slot.item), analyse(next.item.key, next.item)]);
-      const [ba, bb] = await Promise.all([decodeForPlan(slot.item.key), decodeForPlan(next.item.key)]);
-      const mine = planMix(a, b, ba, bb, slot.soloFromSec, this.timeline.plannedWith.bars);
-      const same = mine.hash === out.mix.hash;
-      this.verified.set(slot.k, same ? `same plan (${mine.hash}), ${Math.round(performance.now() - started)} ms` : `DIFFERENT plan: mine ${mine.hash} (${mine.style}, out ${mine.outSec.toFixed(2)}), timeline ${out.mix.hash}`);
-      this.log(`mix ${slot.k} checked here: ${this.verified.get(slot.k)}`);
-    } catch (e) {
-      this.verified.set(slot.k, `check failed: ${String(e)}`);
-    } finally {
-      this.verifying.delete(slot.k);
     }
   }
 

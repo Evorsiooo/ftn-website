@@ -1,54 +1,57 @@
-// Two headless Chromium listeners on one timeline; measures how far apart
-// they are, by recording what each one outputs and cross-correlating.
+// The AutoDJ from an empty radio, with two headless Chromium listeners.
 //
-//   node tools/sync-test.mjs http://localhost:8787 <timeline.json> <report.json>
+//   node tools/sync-test.mjs <base url> <report.json>
 //
-// Listener A starts well before a loop mix; listener B joins in the middle of
-// it. Each has its clock deliberately put off (A +3.7 s, B -2.1 s) so only
-// the clock sync can line them up. Both pages run on one machine, so the true
-// wall clock is shared and each capture is stamped with it.
-import { readFileSync, writeFileSync } from 'node:fs';
+// Listener A opens the page when nothing is stored: it starts the radio,
+// analyses the songs, shares the analyses and lines up the next songs.
+// Listener B joins JOIN_S seconds into the first mix. Each has its clock
+// deliberately put off (A +3.7 s, B -2.1 s) so only the clock sync can line
+// them up. Both pages run on one machine, so the true wall clock is shared
+// and each capture is stamped with it. MIXES mixes are measured, during
+// each mix and with the song alone after it.
+import { writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
-const [base, timelinePath, reportPath] = process.argv.slice(2);
-const tl = JSON.parse(readFileSync(timelinePath, 'utf8'));
-const MIX = Number(process.env.MIX ?? 0); // the mix B joins in the middle of
-const LEAD_S = Number(process.env.LEAD_S ?? 50); // A starts this long before it
-const JOIN_S = Number(process.env.JOIN_S ?? 8); // B joins this long after it starts
-
-// put mix MIX's start LEAD_S from now: walk the timeline arithmetic (same as timeline.ts)
-const mixAfter = (i) => tl.mixes[i % tl.items.length];
-let t = (mixAfter(0).outSec - tl.startSec) * 1000;
-for (let i = 0; i < MIX; i++) t += (mixAfter(i).settleSec + mixAfter(i + 1).outSec - mixAfter(i).inEndSec) * 1000;
-const now = Date.now();
-const T0 = now + LEAD_S * 1000; // true ms of mix MIX's start
-const anchorMs = Math.round(T0 - t);
-const next = (i) => (mixAfter(i).settleSec + mixAfter(i + 1).outSec - mixAfter(i).inEndSec) * 1000;
-const T1 = T0 + next(MIX); // the following mix
-console.log(`mix ${MIX} (${mixAfter(MIX).style}) at +${LEAD_S}s; mix ${MIX + 1} (${mixAfter(MIX + 1).style}) at +${((T1 - now) / 1000).toFixed(0)}s`);
+const [base, reportPath] = process.argv.slice(2);
+const JOIN_S = Number(process.env.JOIN_S ?? 6);
+const MIXES = Number(process.env.MIXES ?? 2);
+const started = Date.now();
+const at = () => `+${((Date.now() - started) / 1000).toFixed(0)}s`;
 
 const browserArgs = ['--autoplay-policy=no-user-gesture-required'];
 async function listener(name, skew) {
-  const proxy = process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY } : undefined;
+  const proxy = process.env.HTTPS_PROXY && !base.includes('localhost') ? { server: process.env.HTTPS_PROXY } : undefined;
   const browser = await chromium.launch({ args: browserArgs, proxy });
   const page = await browser.newPage({ ignoreHTTPSErrors: !!proxy });
   const logs = [];
-  page.on('console', (m) => logs.push(`${new Date().toISOString().slice(11, 23)} ${m.type()} ${m.text()}`));
+  page.on('console', (m) => {
+    const line = `${new Date().toISOString().slice(11, 23)} ${m.type()} ${m.text()}`;
+    logs.push(line);
+    if (m.text().startsWith('[radio]')) console.log(`${at()} ${name}: ${m.text().slice(8)}`);
+  });
   page.on('pageerror', (e) => logs.push(`pageerror ${e.message}`));
-  await page.goto(`${base}/labs/radio-engine/index.html?autostart=1&skew=${skew}&anchorMs=${anchorMs}`);
+  page.on('crash', () => console.log(`${at()} ${name}: PAGE CRASHED`));
+  page.on('close', () => console.log(`${at()} ${name}: page closed`));
+  browser.on('disconnected', () => console.log(`${at()} ${name}: browser disconnected`));
+  await page.goto(`${base}/labs/radio-engine/index.html?autostart=1&skew=${skew}`);
   return { name, browser, page, logs, skew };
 }
 
 const sleepUntil = (ms) => new Promise((r) => setTimeout(r, Math.max(0, ms - Date.now())));
-const samples = [];
-async function sample(l) {
-  return l.page.evaluate(() => {
-    const r = window.__radio;
-    if (!r) return null;
-    const s = r.status;
-    return { trueMs: performance.timeOrigin + performance.now(), offsetMs: s.offsetMs, rtt: s.roundTripMs, slot: s.slot, pos: s.positionSec, el: r.elements.map((e) => e.currentTime), verified: s.verified, outputLatencyMs: s.outputLatencyMs };
-  });
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const status = (l) => l.page.evaluate(() => window.__radio?.status ?? null);
+
+/** True ms of the next mix's start, once A has one lined up (waits for it). */
+async function nextMix(l, after = 0) {
+  for (;;) {
+    const s = await status(l);
+    if (s?.nextMix) {
+      const t0 = Date.now() + s.nextMix.inSec * 1000;
+      if (t0 > after + 5000) return { t0, ...s.nextMix, slot: s.slot };
+    }
+    await sleep(1000);
+  }
 }
 
 function decimate(pcm, factor) {
@@ -77,24 +80,19 @@ function xcorr(a, b, maxLag) {
   return best;
 }
 
-async function compare(label, A, B, startTrue, seconds, source = 'master') {
+async function compare(label, A, B, startTrue, seconds) {
   const [ca, cb] = await Promise.all([
-    A.page.evaluate(([s, d, src]) => window.__radio.capture(s, d, src), [startTrue, seconds, source]),
-    B.page.evaluate(([s, d, src]) => window.__radio.capture(s, d, src), [startTrue, seconds, source]),
+    A.page.evaluate(([s, d]) => window.__radio.capture(s, d, 'master'), [startTrue, seconds]),
+    B.page.evaluate(([s, d]) => window.__radio.capture(s, d, 'master'), [startTrue, seconds]),
   ]);
   const f = Math.max(1, Math.round(ca.sampleRate / 12000));
   const a = decimate(Float32Array.from(ca.pcm), f);
   const b = decimate(Float32Array.from(cb.pcm), f);
   const sr = ca.sampleRate / f;
-  const rmsA = Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
-  const rmsB = Math.sqrt(b.reduce((s, x) => s + x * x, 0) / b.length);
-  const maxLag = Math.round(0.35 * sr);
-  const { lag, r } = xcorr(a, b, maxLag);
-  // content heard by A at firstA + i/sr is heard by B at firstB + (i + lag)/sr
+  const rms = (x) => Math.sqrt(x.reduce((s, v) => s + v * v, 0) / x.length);
+  const { lag, r } = xcorr(a, b, Math.round(0.35 * sr));
   const driftMs = cb.firstSampleTrueMs - ca.firstSampleTrueMs + (lag / sr) * 1000;
-  // A time-stretched deck (the loop mix) is a phase vocoder: two instances
-  // give the same sound with different phases, so the waveform doesn't
-  // correlate. Its loudness envelope (2.5 ms frames) does, beat for beat.
+  // time-stretched audio (loop mixes) doesn't correlate sample by sample; its loudness envelope does
   const frame = Math.round(sr * 0.0025);
   const env = (x) => {
     const e = new Float32Array(Math.floor(x.length / frame));
@@ -105,40 +103,31 @@ async function compare(label, A, B, startTrue, seconds, source = 'master') {
   const envFrameMs = (frame / sr) * 1000;
   const ec = xcorr(env(a), env(b), Math.round(350 / envFrameMs));
   const envDriftMs = cb.firstSampleTrueMs - ca.firstSampleTrueMs + ec.lag * envFrameMs;
-  const result = { label: source === 'master' ? label : `${label} [${source}]`, driftMs: Math.round(driftMs * 10) / 10, correlation: Math.round(r * 1000) / 1000, envelopeDriftMs: Math.round(envDriftMs * 10) / 10, envelopeCorrelation: Math.round(ec.r * 1000) / 1000, rmsA: +rmsA.toFixed(4), rmsB: +rmsB.toFixed(4), captureStartsMs: Math.round((cb.firstSampleTrueMs - ca.firstSampleTrueMs) * 10) / 10 };
-  console.log(JSON.stringify(result));
+  const result = { label, driftMs: +driftMs.toFixed(1), correlation: +r.toFixed(3), envelopeDriftMs: +envDriftMs.toFixed(1), envelopeCorrelation: +ec.r.toFixed(3), rmsA: +rms(a).toFixed(4), rmsB: +rms(b).toFixed(4) };
+  console.log(`${at()} ${JSON.stringify(result)}`);
   return result;
 }
 
 const A = await listener('A', 3700);
-await sleepUntil(T0 + JOIN_S * 1000);
+const first = await nextMix(A);
+console.log(`${at()} first mix: ${first.style} in ${((first.t0 - Date.now()) / 1000).toFixed(0)} s`);
+await sleepUntil(first.t0 + JOIN_S * 1000);
 const B = await listener('B', -2100);
-const sampler = setInterval(async () => {
-  for (const l of [A, B]) {
-    try { const s = await sample(l); if (s) samples.push({ who: l.name, ...s }); } catch {}
-  }
-}, 1000);
-
 const results = [];
-const mix0 = mixAfter(MIX);
-await sleepUntil(T0 + (JOIN_S + 5) * 1000);
-results.push(await compare(`during ${mix0.style} mix ${MIX} (B joined ${JOIN_S}s into it)`, A, B, Date.now() + 300, 4));
-if (mix0.style === 'loop' && process.env.PER_DECK) {
-  results.push(await compare(`during ${mix0.style} mix ${MIX}`, A, B, Date.now() + 300, 3, 'outLoop'));
-  results.push(await compare(`during ${mix0.style} mix ${MIX}`, A, B, Date.now() + 300, 3, 'inLoop'));
+let mix = first;
+for (let i = 0; i < MIXES; i++) {
+  if (i > 0) mix = await nextMix(A, mix.t0);
+  await sleepUntil(mix.t0 + (i === 0 ? (JOIN_S + 6) * 1000 : 4000));
+  results.push(await compare(`during ${mix.style} mix ${i + 1}${i === 0 ? ` (B joined ${JOIN_S} s into it)` : ''}`, A, B, Date.now() + 300, 4));
+  const after = await nextMix(A, mix.t0);
+  // the song alone: a few seconds after the mix settled, well before the next one
+  const aloneAt = Math.min(after.t0 - 8000, Date.now() + 25_000);
+  await sleepUntil(aloneAt);
+  results.push(await compare(`after mix ${i + 1}, song alone`, A, B, Date.now() + 300, 4));
 }
-if (process.env.ONLY_FIRST) { writeFileSync(reportPath, JSON.stringify({ results, logs: { A: A.logs, B: B.logs } }, null, 1)); process.exit(0); }
-await sleepUntil(T0 + (mix0.settleSec + 8) * 1000);
-results.push(await compare(`after mix ${MIX}, song alone`, A, B, Date.now() + 300, 4));
-const mix1 = mixAfter(MIX + 1);
-await sleepUntil(T1 + Math.min(5, mix1.settleSec / 3) * 1000);
-results.push(await compare(`during ${mix1.style} mix ${MIX + 1}`, A, B, Date.now() + 300, 4));
-await sleepUntil(T1 + (mix1.settleSec + 20) * 1000);
-results.push(await compare(`after mix ${MIX + 1}, song alone`, A, B, Date.now() + 300, 4));
-clearInterval(sampler);
-
-const final = { A: await sample(A), B: await sample(B) };
-writeFileSync(reportPath, JSON.stringify({ anchorMs, T0, T1, results, final, samples, logs: { A: A.logs, B: B.logs } }, null, 1));
+const final = { A: await status(A), B: await status(B) };
+const stored = await (await fetch(`${base}/api/radio/autodj`, { cache: 'no-store' })).json();
+writeFileSync(reportPath, JSON.stringify({ results, final, stored: { rev: stored.rev, firstK: stored.firstK, songs: stored.items.map((i) => i.title), mixes: stored.mixes.map((m) => m.style) }, logs: { A: A.logs, B: B.logs } }, null, 1));
 console.log('final', JSON.stringify(final));
 await A.browser.close();
 await B.browser.close();
