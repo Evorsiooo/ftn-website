@@ -6,7 +6,8 @@ export const runtime = "edge";
  * Lyrics proxy for the radio player: BitChord's lyric providers that a web page can't reach itself
  * (no CORS headers, or headers a page can't set). In BitChord its browser extension does this
  * (web/extension/lib/lyricsFetch.ts); here the website does it, for the same hosts and with the
- * same extra headers. GET only, other hosts refused, redirects only within the list. Answers
+ * same extra headers, except Genius (it refuses Cloudflare, and the VPS only downloads songs, so
+ * there is no fallback). GET only, other hosts refused, redirects only within the list. Answers
  * without an Authorization header are kept in the edge cache for a day.
  *
  * Use: GET /api/radio/lyrics?url=<encoded URL>, optionally with an Authorization header, which is
@@ -17,7 +18,6 @@ const ORIGINS = new Set([
   "https://lyrics.kugou.com",
   "https://apic.musixmatch.com",
   "https://www.musixmatch.com",
-  "https://genius.com",
   "https://music.apple.com",
   "https://amp-api.music.apple.com",
   "https://api.paxsenix.org",
