@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: {
-    absolute: "Webradio | FTN+",
+    absolute: "Radio | FTN+",
   },
-  description: "Listen live to FTN Radio, see the show schedule and take the bot to your Discord.",
+  description: "FTN Radio, around the clock.",
 };
 
 export default function RadioLayout({ children }: { children: React.ReactNode }) {

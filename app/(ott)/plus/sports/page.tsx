@@ -1,179 +1,86 @@
 "use client";
 export const runtime = "edge";
-import React, { useEffect, useMemo, useState } from "react";
-import { IconTrophy } from "@tabler/icons-react";
-import { PageShell, PageHeader } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER, Skeleton } from "@/components/ftn/ui";
-import {
-  Billboard,
-  LeagueCard,
-  ResultCard,
-  SectionHead,
-  SlotCard,
-  StandingsPreview,
-  broadcastLabel,
-  countdown,
-  eventArt,
-  eventPhoto,
-  fmtDay,
-  fmtTime,
-  indexDrivers,
-  indexTeams,
-  indexVenues,
-  roundTitle,
-  venueName,
-} from "@/components/sports/sports-ui";
+// Sports: the leagues as banner cards, then what's coming up (the approved mockup, on the real sports data).
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { broadcastLabel, fmtDay, fmtTime, indexTeams, roundTitle } from "@/components/sports/sports-ui";
 import { useSportsData } from "@/lib/use-sports-data";
-import { cn } from "@/lib/utils";
-
-const WEEK_MS = 7 * 24 * 3600_000;
+import { LeagueArt } from "@/components/plus/sports";
 
 export default function SportsHubPage() {
   const { data, loading, error } = useSportsData();
   const teams = useMemo(() => indexTeams(data), [data]);
-  const drivers = useMemo(() => indexDrivers(data), [data]);
-  const venues = useMemo(() => indexVenues(data), [data]);
   const leagues = useMemo(() => new Map(data.leagues.map((l) => [l.id, l])), [data.leagues]);
-
-  // Keeps the countdown honest on a page that stays open.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(t);
   }, []);
 
-  const { upcoming, results } = useMemo(() => {
-    const upcoming = data.events.filter((e) => e.status === "scheduled" && new Date(e.startsAt).getTime() >= now - 3 * 3600_000);
-    const results = data.events.filter((e) => e.status === "final").sort((a, b) => +new Date(b.startsAt) - +new Date(a.startsAt));
-    return { upcoming, results };
-  }, [data.events, now]);
-
-  const next = upcoming[0];
-  const nextLeague = next ? leagues.get(next.leagueId) : undefined;
-  // The table shown is the league that played most recently.
-  const tableLeague = leagues.get(results[0]?.leagueId ?? "") ?? data.leagues[0];
-  const thisWeek = upcoming.filter((e) => new Date(e.startsAt).getTime() <= now + WEEK_MS).slice(0, 8);
-
-  if (loading) {
-    return (
-      <PageShell>
-        <PageHeader title="Sports" />
-        <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-4", GUTTER)}>
-          {[0, 1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
-        </div>
-      </PageShell>
-    );
-  }
-
-  const leagueMeta = (id: string) => {
-    const l = leagues.get(id);
-    if (!l) return "";
-    const done = data.events.filter((e) => e.leagueId === id && e.status === "final").length;
-    const total = data.events.filter((e) => e.leagueId === id && e.status !== "cancelled").length;
-    const unit = l.kind === "racing" ? "Round" : "Played";
-    return `${l.sport} · ${total > 0 ? `${unit} ${done} of ${total}` : `Season ${l.season}`}`;
-  };
+  const upcoming = useMemo(
+    () => data.events.filter((e) => e.status === "scheduled" && new Date(e.startsAt).getTime() >= now - 3 * 3600_000).slice(0, 5),
+    [data.events, now]
+  );
 
   return (
-    <PageShell>
-      {next ? (
-        <Billboard
-          photo={eventPhoto(next, venues)}
-          color={nextLeague?.color}
-          aside={
-            <div className="ftn-display text-6xl lg:text-7xl whitespace-nowrap">{countdown(next.startsAt, now)}</div>
-          }
-        >
-          <p className="text-sm font-semibold text-white/80">
-            Next up{nextLeague ? ` · ${nextLeague.name}` : ""}
-            {next.round && !(next.homeTeamId && next.awayTeamId) ? ` · Round ${next.round}` : ""}
-          </p>
-          <h1 className="ftn-display text-4xl sm:text-6xl md:text-7xl line-clamp-3 pb-1 [text-wrap:balance]">
-            {next.homeTeamId && next.awayTeamId ? roundTitle(next, teams) : next.name || "Race"}
-          </h1>
-          <p className="text-sm sm:text-lg text-white/85">
-            <span className="md:hidden font-bold">{countdown(next.startsAt, now)} · </span>
-            {fmtDay(next.startsAt)} · {fmtTime(next.startsAt)}
-            {venueName(next, venues) ? ` · ${venueName(next, venues)}` : ""}
-            {broadcastLabel(next.id, data.broadcasts) ? ` · ${broadcastLabel(next.id, data.broadcasts)}` : ""}
-          </p>
-          <div className="pt-3">
-            {nextLeague && (
-              <Button href={`/plus/sports/${nextLeague.slug}?tab=calendar`} size="lg">
-                View round
-              </Button>
-            )}
-          </div>
-        </Billboard>
+    <main className="page">
+      <h1 className="h1" style={{ marginBottom: 24 }}>
+        Sports
+      </h1>
+      {loading ? (
+        <div className="leagues" aria-label="Loading">
+          <div className="league ph-box" />
+          <div className="league ph-box" />
+        </div>
+      ) : data.leagues.length === 0 ? (
+        <div className="empty">{error ? "Sports couldn't load. Check your connection and try again." : "Leagues and fixtures show up here once they're set up."}</div>
       ) : (
-        <PageHeader
-          title="Sports"
-          subtitle={error ? "Sports could not be loaded right now." : "Nothing scheduled right now. Latest results are below."}
-        />
+        <div className="leagues">
+          {data.leagues.map((l) => (
+            <Link key={l.id} href={`/plus/sports/${l.slug}`} className="league">
+              <LeagueArt league={l} />
+              <div className="copy">
+                {l.logoUrl && <img src={l.logoUrl} alt="" />}
+                <div style={{ minWidth: 0 }}>
+                  <div className="n">{l.name}</div>
+                  <div className="s">
+                    {l.sport} · {l.season}
+                  </div>
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
 
-      <div className={cn("space-y-12", next && "-mt-12 relative z-10")}>
-        {data.leagues.length > 0 && (
-          <section className={GUTTER}>
-            <SectionHead title="Leagues and series" />
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-              {data.leagues.map((l) => (
-                <LeagueCard key={l.id} league={l} meta={leagueMeta(l.id)} />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {thisWeek.length > 0 && (
-          <section className={GUTTER}>
-            <SectionHead title="This week" sub="your local time" href="/plus/schedule" hrefLabel="Full schedule" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {thisWeek.map((e) => (
-                <SlotCard
-                  key={e.id}
-                  event={e}
-                  league={leagues.get(e.leagueId)}
-                  teams={teams}
-                  art={eventArt(e, venues, leagues.get(e.leagueId))}
-                  tag={broadcastLabel(e.id, data.broadcasts)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {results.length > 0 && (
-          <section className={GUTTER}>
-            <SectionHead title="Latest results" />
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {results.slice(0, 4).map((e) => (
-                <ResultCard
-                  key={e.id}
-                  event={e}
-                  league={leagues.get(e.leagueId)}
-                  teams={teams}
-                  drivers={drivers}
-                  art={eventArt(e, venues, leagues.get(e.leagueId))}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {tableLeague && results.length > 0 && (
-          <section className={GUTTER}>
-            <StandingsPreview league={tableLeague} data={data} teams={teams} drivers={drivers} />
-          </section>
-        )}
-
-        {data.leagues.length === 0 && !error && (
-          <div className={GUTTER}>
-            <EmptyState icon={<IconTrophy />} title="No leagues yet" description="Leagues and fixtures will appear here once they are set up." />
+      {upcoming.length > 0 && (
+        <>
+          <h2 className="h2" style={{ margin: "40px 0 16px" }}>
+            Coming up
+          </h2>
+          <div className="upnexts">
+            {upcoming.map((e) => {
+              const l = leagues.get(e.leagueId);
+              const tag = broadcastLabel(e.id, data.broadcasts);
+              return (
+                <Link key={e.id} href={l ? `/plus/sports/${l.slug}` : "/plus/sports"} className="upnext">
+                  <div className="num" style={{ font: "600 15px/1.3 var(--body)" }}>
+                    {fmtDay(e.startsAt)}
+                    <br />
+                    <span className="muted">{fmtTime(e.startsAt)}</span>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ font: "700 18px/1.25 var(--body)" }}>{roundTitle(e, teams)}</div>
+                    <div className="muted" style={{ fontSize: 14 }}>
+                      {[l?.name, tag].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
-        )}
-      </div>
-    </PageShell>
+        </>
+      )}
+    </main>
   );
 }

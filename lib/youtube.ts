@@ -2,6 +2,15 @@ import { DbClient } from "@/db";
 import { videos, siteSettings } from "@/db/schema";
 import { eq, and, or, sql } from "drizzle-orm";
 
+/** YouTube's ISO 8601 length ("PT1H2M3S", "P1DT2H") in seconds; 0 when missing. */
+export function isoDurationSeconds(iso: unknown): number {
+  if (typeof iso !== "string") return 0;
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/.exec(iso);
+  if (!m) return 0;
+  const [, d, h, mi, se] = m.map((x) => Number(x) || 0);
+  return d * 86400 + h * 3600 + mi * 60 + se;
+}
+
 export interface YouTubeVideoItem {
   id: string;
   youtubeId: string;
@@ -488,7 +497,8 @@ export async function syncYouTubeChannel(
                   publishedAt,
                   videoType,
                   isLive,
-                  durationSeconds: 0,
+                  // a live stream has no length yet (P0D); it gets one once it has ended
+                  durationSeconds: isoDurationSeconds(item.contentDetails?.duration),
                 });
               });
             }
@@ -549,6 +559,8 @@ export async function syncYouTubeChannel(
           channelHandle: item.channelHandle || prev.channelHandle || null,
           publishedAt: item.publishedAt,
           videoType: item.videoType,
+          // the RSS fallback doesn't know lengths: keep the stored one
+          durationSeconds: item.durationSeconds || prev.durationSeconds || 0,
         };
         // Skip the write when nothing changed: every written row counts against the D1 daily limit.
         const changed =
@@ -560,7 +572,8 @@ export async function syncYouTubeChannel(
           next.channelTitle !== prev.channelTitle ||
           (next.channelHandle ?? null) !== (prev.channelHandle ?? null) ||
           new Date(next.publishedAt as any).getTime() !== new Date(prev.publishedAt as any).getTime() ||
-          next.videoType !== prev.videoType;
+          next.videoType !== prev.videoType ||
+          next.durationSeconds !== (prev.durationSeconds ?? 0);
         if (changed) await db.update(videos).set(next).where(eq(videos.id, prev.id));
       }
     }

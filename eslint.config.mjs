@@ -18,6 +18,8 @@ const eslintConfig = [
       "build/**",
       ".vercel/**",
       "next-env.d.ts",
+      "radio-engine/**",
+      "public/radio-engine/**",
       "components/ui/**",
     ],
   },

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <title>Radio engine lab</title>
+    <script>
+      // local tests (tools/lab-server.mjs): read the bucket from the test server instead of radio-files.euno.cc
+      const files = new URLSearchParams(location.search).get('files');
+      if (files) globalThis.__FTN_RADIO_FILES__ = files;
+    </script>
+    <script type="module" crossorigin src="/radio-engine/assets/lab-C3xxgfiJ.js"></script>
+    <link rel="modulepreload" crossorigin href="/radio-engine/assets/engine-8aomrK9V.js">
+    <link rel="stylesheet" crossorigin href="/radio-engine/assets/lab-BELD5liS.css">
+  </head>
+  <body>
+    <main>
+      <h1>Radio engine lab</h1>
+      <p class="sub">FTN+ radio test page: BitChord's clock sync and Automix, played from a shared timeline. Not linked from the site.</p>
+      <div id="app"></div>
+      <p class="sub" style="margin-top:24px;font-size:13px">Mixing: BitChord's Automix (AutoMix by David Finnegan, AGPL-3.0). Test music: Kevin MacLeod (incompetech.com), licensed under CC BY 4.0.</p>
+    </main>
+  </body>
+</html>

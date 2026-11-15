@@ -11,6 +11,8 @@ export interface CustomSwimlaneData {
 export interface FTNPlusContextType {
   featuredVideo: any | null;
   trendingVideos: SwimlaneVideo[];
+  /** Trending as the API's rows (live streams first, then most viewed this week). */
+  trendingRaw: any[];
   customSwimlanes: CustomSwimlaneData[];
   allVideos: any[];
   loadingLibrary: boolean;
@@ -23,6 +25,7 @@ const FTNPlusContext = createContext<FTNPlusContextType | undefined>(undefined);
 export function FTNPlusProvider({ children }: { children: React.ReactNode }) {
   const [featuredVideo, setFeaturedVideo] = useState<any | null>(null);
   const [trendingVideos, setTrendingVideos] = useState<SwimlaneVideo[]>([]);
+  const [trendingRaw, setTrendingRaw] = useState<any[]>([]);
   const [customSwimlanes, setCustomSwimlanes] = useState<CustomSwimlaneData[]>([]);
   const [allVideos, setAllVideos] = useState<any[]>([]);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
@@ -62,6 +65,7 @@ export function FTNPlusProvider({ children }: { children: React.ReactNode }) {
             isLive: v.isLive,
           }));
           setTrendingVideos(mappedTrending);
+          setTrendingRaw(data.trendingVideos);
         }
 
         if (Array.isArray(data.customSwimlanes)) {
@@ -92,6 +96,7 @@ export function FTNPlusProvider({ children }: { children: React.ReactNode }) {
       value={{
         featuredVideo,
         trendingVideos,
+        trendingRaw,
         customSwimlanes,
         allVideos,
         loadingLibrary,

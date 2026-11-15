@@ -1,7 +1,66 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type PlayerStatus = "idle" | "connecting" | "playing" | "buffering" | "reconnecting" | "error";
+export type PlayerStatus = "idle" | "connecting" | "playing" | "buffering" | "reconnecting" | "error" | "off-air";
+
+/**
+ * Where the sound comes from. "autodj": the 24/7 AutoDJ, played and mixed in
+ * this browser in step with every other listener (radio-engine/, loaded as
+ * /radio-engine/site.js). "icecast": the Icecast stream, used while someone
+ * broadcasts a live show from OBS.
+ */
+export type RadioSource = "autodj" | "icecast";
+
+/** The song on air while the AutoDJ plays here (null on Icecast, or before the first song). */
+export interface StationSong {
+  key: string;
+  title: string;
+  artist: string;
+  durationSec: number;
+}
+
+interface StationStatus {
+  state: "starting" | "playing" | "off-air";
+  song: StationSong | null;
+  positionSec: number | null;
+  listeners: number | null;
+}
+interface Station {
+  status(): StationStatus;
+  setVolume(volume: number): void;
+  setDuck(level: number): void;
+  stop(): void;
+}
+type StationModule = { startStation(opts: { listenerId?: string; volume?: number }): Promise<Station> };
+
+let stationModule: Promise<StationModule> | null = null;
+/** The engine bundle, built separately (radio-engine/) into public/radio-engine/. Fetched once, when first needed. */
+export function loadStationModule(): Promise<StationModule> {
+  // a full URL built at run time, so neither Next's bundler nor next-on-pages tries to bundle the file
+  const url = new URL("/radio-engine/site.js", window.location.origin).href;
+  stationModule ??= import(/* webpackIgnore: true */ url) as Promise<StationModule>;
+  stationModule.catch(() => (stationModule = null));
+  return stationModule;
+}
+
+const LISTENER_KEY = "ftn_radio_listener";
+/** A random id for the listener count, kept per browser. Not identity. */
+function listenerId(): string | undefined {
+  try {
+    let id = localStorage.getItem(LISTENER_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(LISTENER_KEY, id);
+    }
+    return id;
+  } catch {
+    return undefined;
+  }
+}
+
+const STATION_POLL_MS = 500;
+/** How low the radio goes under a video. */
+export const DUCK_LEVEL = 0.18;
 
 // A connection attempt shows a countdown for COUNTDOWN_MS, then plain "Buffering…" for
 // GRACE_MS more, and is retried if audio still hasn't started.
@@ -30,8 +89,17 @@ function readStored(): { volume: number; muted: boolean } {
 // reconnected with a cache-busting URL instead of being left silent.
 // `takeOver` is for the pop-out: it normally only controls the window that owns the audio (so
 // opening it never opens a second stream), but if that window is closed it starts playing itself.
-export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, opts?: { takeOver?: boolean }) {
+export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, opts?: { takeOver?: boolean; source?: RadioSource }) {
   const [status, setStatus] = useState<PlayerStatus>("idle");
+  const [song, setSong] = useState<StationSong | null>(null);
+  const [listeners, setListeners] = useState<number | null>(null);
+  const [ducked, setDucked] = useState(false);
+  const source = opts?.source ?? "icecast";
+  const sourceRef = useRef<RadioSource>(source);
+  const stationRef = useRef<Station | null>(null);
+  const stationPoll = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const startGen = useRef(0);
+  const duckRef = useRef(1);
   const [pendingSince, setPendingSince] = useState<number | null>(null);
   const [volume, setVolumeState] = useState(0.8);
   const [muted, setMutedState] = useState(false);
@@ -74,9 +142,11 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
   };
 
   const applyVolume = (audio: HTMLAudioElement | null = audioRef.current) => {
+    stationRef.current?.setVolume(mutedRef.current ? 0 : volumeRef.current);
+    stationRef.current?.setDuck(duckRef.current);
     if (!audio) return;
     audio.muted = mutedRef.current;
-    audio.volume = volumeRef.current;
+    audio.volume = volumeRef.current * duckRef.current;
   };
 
   // Smoothly moves the element's volume to a level (used for the window handoff).
@@ -101,6 +171,15 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
     fadeTimer.current = undefined;
     claimed.current = false;
     clearTimers();
+    startGen.current += 1;
+    clearInterval(stationPoll.current);
+    stationPoll.current = undefined;
+    const station = stationRef.current;
+    stationRef.current = null;
+    if (station) {
+      station.stop();
+      setSong(null);
+    }
     const audio = audioRef.current;
     audioRef.current = null;
     if (audio) {
@@ -111,9 +190,84 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
     }
   };
 
+  // The AutoDJ: this browser plays and mixes it, in step with everyone else.
+  const startStation = () => {
+    setStatus("connecting");
+    setPendingSince(Date.now());
+    const gen = startGen.current;
+    const fading = fadeIn.current;
+    loadStationModule()
+      .then((mod) => mod.startStation({ listenerId: listenerId(), volume: fading || mutedRef.current ? 0 : volumeRef.current }))
+      .then((station) => {
+        if (gen !== startGen.current || !wantPlaying.current) {
+          station.stop();
+          return;
+        }
+        stationRef.current = station;
+        station.setDuck(duckRef.current);
+        let lastKey: string | null = null;
+        stationPoll.current = setInterval(() => {
+          const s = station.status();
+          setListeners(s.listeners);
+          if (s.state === "off-air") {
+            clearPending();
+            setStatus("off-air");
+            return;
+          }
+          if (s.state !== "playing") return;
+          if (s.song?.key !== lastKey) {
+            lastKey = s.song?.key ?? null;
+            setSong(s.song);
+            onChangeRef.current?.();
+          }
+          setStatus((st) => {
+            if (st === "playing") return st;
+            clearPending();
+            retries.current = 0;
+            // Tell the other windows we are really playing: they fade out and hand over to us.
+            if (!claimed.current) {
+              claimed.current = true;
+              remoteOwner.current = null;
+              setRemotePlaying(false);
+              channelRef.current?.postMessage({ type: "claim", from: instanceId.current });
+              if (fadeIn.current && !mutedRef.current) rampStation(station, 0, volumeRef.current);
+              fadeIn.current = false;
+            }
+            return "playing";
+          });
+        }, STATION_POLL_MS);
+      })
+      .catch((err) => {
+        if (gen !== startGen.current) return;
+        console.error("radio: couldn't start the AutoDJ", err);
+        wantPlaying.current = false;
+        clearPending();
+        setStatus("error");
+        channelRef.current?.postMessage({ type: "release", from: instanceId.current });
+      });
+  };
+
+  const rampStation = (station: Station, from: number, to: number, done?: () => void) => {
+    clearInterval(fadeTimer.current);
+    const steps = 14;
+    let i = 0;
+    station.setVolume(from);
+    fadeTimer.current = setInterval(() => {
+      i += 1;
+      station.setVolume(Math.min(1, Math.max(0, from + ((to - from) * i) / steps)));
+      if (i >= steps) {
+        clearInterval(fadeTimer.current);
+        fadeTimer.current = undefined;
+        done?.();
+      }
+    }, HANDOFF_FADE_MS / steps);
+  };
+
   const start = useCallback((reconnecting: boolean) => {
     teardown();
-    if (!wantPlaying.current || !urlRef.current) return;
+    if (!wantPlaying.current) return;
+    if (sourceRef.current === "autodj") return startStation();
+    if (!urlRef.current) return;
     setStatus(reconnecting ? "reconnecting" : "connecting");
 
     let url = urlRef.current;
@@ -234,7 +388,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
 
   // Stops this window's audio and, if another window is the one playing, asks it to stop.
   const stop = useCallback(() => {
-    if (wantPlaying.current || audioRef.current) {
+    if (wantPlaying.current || audioRef.current || stationRef.current) {
       wantPlaying.current = false;
       teardown();
       setStatus("idle");
@@ -308,7 +462,9 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
             teardown();
             setStatus("idle");
           };
-          if (audio && claimed.current && !audio.paused) ramp(audio, audio.volume, 0, finish);
+          const station = stationRef.current;
+          if (station && claimed.current) rampStation(station, mutedRef.current ? 0 : volumeRef.current, 0, finish);
+          else if (audio && claimed.current && !audio.paused) ramp(audio, audio.volume, 0, finish);
           else finish();
         }
       } else if (msg.type === "release") {
@@ -355,7 +511,27 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
     teardown();
   }, []);
 
+  // Lowers the radio under something else (a video), and back.
+  const duck = useCallback((on: boolean) => {
+    duckRef.current = on ? DUCK_LEVEL : 1;
+    setDucked(on);
+    applyVolume();
+  }, []);
+
+  // A live OBS show starts or ends while this window plays: switch over.
+  useEffect(() => {
+    if (sourceRef.current === source) return;
+    sourceRef.current = source;
+    if (wantPlaying.current) {
+      retries.current = 0;
+      fadeIn.current = false;
+      start(false);
+    }
+  }, [source, start]);
+
   // A window that is only listening to another one shows that as playing.
   const shownStatus: PlayerStatus = status === "idle" && remotePlaying ? "playing" : status;
-  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop };
+  /** Where the song on air is right now in this browser's AutoDJ (for lyrics), or null. */
+  const positionNow = useCallback(() => stationRef.current?.status().positionSec ?? null, []);
+  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow };
 }

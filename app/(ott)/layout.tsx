@@ -11,8 +11,10 @@ const manrope = localFont({
 
 export const runtime = "edge";
 
+// FTN+ is dark only.
 export const viewport: Viewport = {
-  themeColor: "#FFBB14",
+  themeColor: "#16110a",
+  colorScheme: "dark",
 };
 
 export const metadata: Metadata = {
@@ -36,9 +38,7 @@ export const metadata: Metadata = {
     title: "FTN+",
     description: "Stream Roblox livestreams, broadcasts, podcasts, and video on-demand on FTN+.",
   },
-  other: {
-    "theme-color": "#FFBB14",
-  },
+
 };
 
 export default function OTTLayout({

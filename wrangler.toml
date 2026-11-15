@@ -16,3 +16,8 @@ id = "6be09f98d3e749dd9e83d79fab811fd5"
 [[r2_buckets]]
 binding = "ftn_media"
 bucket_name = "ftn-media"
+
+# The radio's songs, running order and analyses (BitChord-based webradio)
+[[r2_buckets]]
+binding = "ftn_radio"
+bucket_name = "ftn-radio"

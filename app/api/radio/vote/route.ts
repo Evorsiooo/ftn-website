@@ -69,10 +69,12 @@ export async function POST(request: NextRequest) {
 
     const d1 = (process.env as any).DB as D1Database;
     if (!d1) return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
-    const song = await getCurrentSong(d1);
+    const now = await getCurrentSong(d1);
+    // A vote cast just as the song changed counts for the song the listener heard.
+    const song = now?.key === body.key ? now : await getCurrentSong(d1, true);
     if (!song) return NextResponse.json({ error: "Nothing is playing" }, { status: 409 });
     // The song moved on while the listener was clicking: refuse rather than rate the wrong one.
-    if (song.key !== body.key) return NextResponse.json({ error: "That song has changed", song }, { status: 409 });
+    if (song.key !== body.key) return NextResponse.json({ error: "That song has changed", song: now }, { status: 409 });
 
     const db = getDb(d1);
     if (value === 0) {
