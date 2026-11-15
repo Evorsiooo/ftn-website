@@ -131,6 +131,20 @@ export default function StudioPage() {
     await act(body);
     if (radio.status === "idle" || radio.status === "error") radio.play();
   };
+  // on air without a microphone here (the page was reloaded, or opened in another tab while on
+  // air): pick it up again. Browsers allow that without a click once the site has the permission;
+  // otherwise the "Connect your microphone" button below asks.
+  const [micAsk, setMicAsk] = useState(false);
+  useEffect(() => {
+    if (!onAir || mic) return setMicAsk(false);
+    let alive = true;
+    getMic()
+      .then((m) => (alive ? setMic(m) : m.getTracks().forEach((t) => t.stop())))
+      .catch(() => alive && setMicAsk(true));
+    return () => {
+      alive = false;
+    };
+  }, [onAir, mic]);
   useEffect(() => {
     if (state && !onAir && mic) {
       mic.getTracks().forEach((t) => t.stop());
@@ -224,8 +238,13 @@ export default function StudioPage() {
                 <div>
                   <h2 className="text-xl font-extrabold">{state.session.title}</h2>
                   <p className="text-sm text-neutral-500">
-                    On air since {timeFmt.format(new Date(state.session.startedAt))} · {voice.connected ? "your microphone is live" : "connecting your microphone…"}
+                    On air since {timeFmt.format(new Date(state.session.startedAt))} · {voice.connected ? "your microphone is live" : micAsk ? "your microphone isn't connected" : "connecting your microphone…"}
                   </p>
+                  {micAsk && (
+                    <Button className="mt-2 h-9 cursor-pointer px-4" onClick={() => void ensureMic().then(() => setMicAsk(false), () => setError("The browser didn't give access to the microphone. Allow it in the address bar, then try again."))}>
+                      <Mic /> Connect your microphone
+                    </Button>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" className="h-10 cursor-pointer px-4" onClick={() => setMuted((m) => !m)} aria-pressed={muted}>
