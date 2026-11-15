@@ -39,7 +39,7 @@
   ],
   "exclude": [
     "node_modules",
-    "labs",
-    "public/labs"
+    "radio-engine",
+    "public/radio-engine"
   ]
 }

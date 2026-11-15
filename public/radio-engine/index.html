@@ -5,8 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex" />
     <title>Radio engine lab</title>
-    <script type="module" crossorigin src="/labs/radio-engine/assets/index-CbNH8e0G.js"></script>
-    <link rel="stylesheet" crossorigin href="/labs/radio-engine/assets/index-BELD5liS.css">
+    <script>
+      // local tests (tools/lab-server.mjs): read the bucket from the test server instead of radio-files.euno.cc
+      const files = new URLSearchParams(location.search).get('files');
+      if (files) globalThis.__FTN_RADIO_FILES__ = files;
+    </script>
+    <script type="module" crossorigin src="/radio-engine/assets/lab-Cx-Q89Ea.js"></script>
+    <link rel="modulepreload" crossorigin href="/radio-engine/assets/engine-DfhpM-RS.js">
+    <link rel="stylesheet" crossorigin href="/radio-engine/assets/lab-BELD5liS.css">
   </head>
   <body>
     <main>

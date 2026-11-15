@@ -3,6 +3,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 import { usePathname } from "next/navigation";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { useRadioPlayer } from "./use-radio-player";
+import { useRadioSource } from "./use-radio-source";
 import { useNowPlaying, type NowPlaying } from "./use-now-playing";
 import { useMediaSession } from "./use-media-session";
 import { RadioMiniPlayer } from "./radio-mini-player";
@@ -36,8 +37,10 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const { streamUrl, webradioEnabled } = useSiteConfig();
   const pathname = usePathname() || "/";
   const isPopout = pathname.startsWith("/plus/radio/popout");
-  const player = useRadioPlayer(streamUrl, undefined, { takeOver: isPopout });
   const [started, setStarted] = useState(false);
+  // checked once the radio has been started here, and on the radio pages
+  const source = useRadioSource(webradioEnabled && (started || pathname.startsWith("/plus/radio")));
+  const player = useRadioPlayer(streamUrl, undefined, { takeOver: isPopout, source });
   const [dismissed, setDismissed] = useState(false);
 
   const live = player.status !== "idle" && player.status !== "error";
@@ -52,7 +55,12 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const sessionActive = webradioEnabled && started && !dismissed;
   const showMini = sessionActive && !hiddenHere;
   // Poll what is on air only while something is shown or playing; the radio page does its own.
-  const { info } = useNowPlaying(10000, showMini);
+  const { info: polled } = useNowPlaying(10000, showMini);
+  // On the AutoDJ the song comes from this browser's own player; the schedule's shows still come from the poll.
+  const info = useMemo<NowPlaying | null>(() => {
+    if (player.source !== "autodj" || !polled) return polled;
+    return { ...polled, online: true, track: player.song ? { artist: player.song.artist, title: player.song.title } : null, listeners: player.listeners };
+  }, [polled, player.source, player.song, player.listeners]);
 
   // Lock-screen and media-key controls follow whichever window is actually playing.
   // (Pages with their own full player register their own handlers.)
@@ -82,7 +90,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, streamUrl, info, sessionActive, live]
+    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, live]
   );
 
   return (

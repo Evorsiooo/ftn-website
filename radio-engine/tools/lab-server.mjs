@@ -10,10 +10,10 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // the website's own checks (Node strips the types)
-import { checkAnalysis, checkTimelineChange } from '../../../lib/radio/autodj.ts';
+import { checkAnalysis, checkTimelineChange } from '../../lib/radio/autodj.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
-const PAGE_DIR = join(here, '../../../public');
+const PAGE_DIR = join(here, '../../public');
 const BUCKET_DIR = process.env.BUCKET_DIR;
 const PORT = Number(process.env.PORT ?? 8787);
 const JITTER_MS = Number(process.env.JITTER_MS ?? 0);
@@ -38,8 +38,9 @@ function sendFile(req, res, path) {
   createReadStream(path).pipe(res);
 }
 
-const AUTODJ_KEY = 'test/autodj.json';
-const analysisKey = (songKey) => `test/analysis/${songKey.split('/').pop()}.json`;
+// keep in step with lib/radio/store.ts
+const AUTODJ_KEY = 'radio/autodj.json';
+const analysisKey = (songKey) => `analysis/${songKey}.json`;
 const readJson = (key) => (existsSync(join(BUCKET_DIR, key)) ? JSON.parse(readFileSync(join(BUCKET_DIR, key), 'utf8')) : null);
 const writeJson = (key, value) => {
   mkdirSync(dirname(join(BUCKET_DIR, key)), { recursive: true });
@@ -63,11 +64,8 @@ const json = (res, status, value) => {
 createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   const path = decodeURIComponent(url.pathname);
+  if (path === '/api/radio/library') return json(res, 200, { songs: [...library().values()] });
   if (path === '/api/radio/autodj') {
-    if (req.method === 'GET') {
-      const tl = readJson(AUTODJ_KEY);
-      return tl ? json(res, 200, tl) : json(res, 404, { error: 'nothing stored' });
-    }
     if (req.method === 'POST') {
       try {
         const { timeline } = JSON.parse(await body(req));
@@ -86,7 +84,6 @@ createServer(async (req, res) => {
     const lib = library();
     if (!lib.has(songKey)) return json(res, 404, { error: 'not in the library' });
     const stored = readJson(analysisKey(songKey));
-    if (req.method === 'GET' || req.method === 'HEAD') return stored ? json(res, 200, stored) : json(res, 404, { error: 'not analysed yet' });
     if (req.method === 'PUT') {
       if (stored) return json(res, 200, { kept: 'first one' });
       try {
@@ -103,23 +100,25 @@ createServer(async (req, res) => {
   if (path === '/api/radio/time') {
     const reply = () => {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ clientMs: Number(url.searchParams.get('c')), serverMs: Date.now() }));
+      res.end(JSON.stringify({ clientMs: Number(url.searchParams.get('c')), serverMs: Date.now(), listeners: null }));
     };
     if (JITTER_MS > 0) setTimeout(reply, Math.random() * JITTER_MS);
     else reply();
     return;
   }
-  if (path.startsWith('/api/radio/file/')) {
-    const key = normalize(path.slice('/api/radio/file/'.length));
+  // the bucket's public domain (radio-files.euno.cc); pages pass ?files=/files
+  if (path.startsWith('/files/')) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const key = normalize(path.slice('/files/'.length));
     if (key.startsWith('..') || !BUCKET_DIR) { res.writeHead(400).end(); return; }
     sendFile(req, res, join(BUCKET_DIR, key));
     return;
   }
-  if (path.startsWith('/labs/radio-engine')) {
+  if (path.startsWith('/radio-engine')) {
     const rel = normalize(path.slice(1));
     if (rel.startsWith('..')) { res.writeHead(400).end(); return; }
     sendFile(req, res, join(PAGE_DIR, rel));
     return;
   }
   res.writeHead(404).end('not found');
-}).listen(PORT, () => console.log(`lab on http://localhost:${PORT}/labs/radio-engine/`));
+}).listen(PORT, () => console.log(`lab on http://localhost:${PORT}/radio-engine/index.html?files=/files`));

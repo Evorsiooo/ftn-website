@@ -14,15 +14,30 @@ import { ServerClock, monotonicNow } from '../bitchord/party/clock';
 import { Deck } from '../bitchord/automix/engine/deck';
 import { LoopDeck } from '../bitchord/automix/engine/loopDeck';
 import type { TimelinePoint } from '../bitchord/automix/engine/timeline';
-import { AUTODJ_URL, fileUrl, TIME_URL } from './config';
-import { extend, fetchTimeline, needsWork } from './autodj';
+import { AUTODJ_WRITE_URL, fileUrl, TIME_URL } from './config';
+import { extend, fetchTimeline, loadLibrary, needsWork } from './autodj';
 import { songBytes } from './fetchAudio';
 import { loudnessGain } from './loudness';
 import { LOOP_GAIN_REST, PARAM_REST, loopChangesFrom, replayParam, shiftOp, type AbsOp, type DeckId, type ParamId } from './program';
-import { nowPlaying, slotAt, slotIndexAt, type LibrarySong, type RadioTimeline, type Slot, type TimelineMix } from './timeline';
+import { endOfTimelineMs, nowPlaying, slotAt, slotIndexAt, type LibrarySong, type RadioTimeline, type Slot, type TimelineMix } from './timeline';
 
 /** listenTogether.ts: PING_INTERVAL_MS, and the four quick pings on connect. */
 const PING_INTERVAL_MS = 15_000;
+/**
+ * After the first two minutes the clock is pinned and device clocks drift a
+ * few ms a minute at most, so pings slow down: each one is a request to the
+ * website, and its free tier allows 100,000 a day.
+ */
+const SLOW_PING_AFTER_MS = 120_000;
+const SLOW_PING_INTERVAL_MS = 60_000;
+/**
+ * Every this many pings, the ping also says "I'm listening" (for the
+ * listener count). That answer is slower (a database call), and the clock
+ * only trusts the quickest round trips, so most pings stay plain.
+ */
+const COUNT_EVERY_PINGS = 5;
+/** The library is fetched again this often (songs added or archived in the admin panel). */
+const LIBRARY_REFRESH_MS = 10 * 60_000;
 const TICK_MS = 250;
 /** Songs and loop decks are made ready this far ahead. */
 const HORIZON_MS = 45_000;
@@ -48,12 +63,22 @@ export interface EngineOptions {
   skewMs?: number;
   /** Take part in the AutoDJ: line up songs when needed (default on). */
   autodj?: boolean;
+  /** Sent with clock pings so the website can count listeners. */
+  listenerId?: string;
+  /** The song on air changed (for the lock screen and the page). */
+  onSong?: (item: Slot['item']) => void;
   log?: (line: string) => void;
 }
 
 export class RadioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
+  private readonly out: GainNode;
+  private volume = 1;
+  private duck = 1;
+  /** Listeners on now, from the last clock ping (null until the website says). */
+  listeners: number | null = null;
+  private startedAt = 0;
   readonly clock: ServerClock;
   readonly elements: [HTMLAudioElement, HTMLAudioElement];
   readonly decks: [Deck, Deck];
@@ -62,6 +87,8 @@ export class RadioEngine {
   private held: [Held | null, Held | null] = [null, null];
   private loopHeld: { k: number; ready: boolean; preparing: boolean; scheduledFor: number | null } | null = null;
   private timers: ReturnType<typeof setInterval>[] = [];
+  private timeouts: ReturnType<typeof setTimeout>[] = [];
+  private stopped = false;
   private mapping: number[] = [];
   private lastSlotK: number | null = null;
   private working = false;
@@ -75,7 +102,7 @@ export class RadioEngine {
 
   constructor(
     public timeline: RadioTimeline | null,
-    private readonly library: LibrarySong[],
+    private library: LibrarySong[],
     private readonly opts: EngineOptions = {},
   ) {
     this.skewMs = opts.skewMs ?? 0;
@@ -83,7 +110,9 @@ export class RadioEngine {
     this.clock = new ServerClock(() => monotonicNow() + skew);
     this.ctx = new AudioContext({ latencyHint: 'playback' });
     this.master = new GainNode(this.ctx, { gain: 1 });
-    this.master.connect(this.ctx.destination);
+    // listener volume and ducking sit after the mix, so they never touch what everyone hears in step
+    this.out = new GainNode(this.ctx, { gain: 1 });
+    this.master.connect(this.out).connect(this.ctx.destination);
     const make = () => {
       const a = new Audio();
       a.preload = 'auto';
@@ -104,32 +133,86 @@ export class RadioEngine {
   async start(): Promise<void> {
     await this.ctx.resume();
     // bless both elements for later play() calls made by the decks' timers
+    const blessKey = this.timeline?.items[0]?.key ?? this.library[0]?.key;
     for (const el of this.elements) {
-      el.src = fileUrl(this.timeline?.items[0]?.key ?? this.library[0]!.key);
+      if (!blessKey) break;
+      el.src = fileUrl(blessKey);
       void el.play().then(() => el.pause()).catch(() => {});
     }
+    this.startedAt = performance.now();
     for (let i = 0; i < 4; i++) setTimeout(() => void this.ping(), i * 300);
-    this.timers.push(setInterval(() => void this.ping(), PING_INTERVAL_MS));
+    const schedulePing = () => {
+      const slow = performance.now() - this.startedAt > SLOW_PING_AFTER_MS;
+      const t = setTimeout(() => {
+        void this.ping();
+        schedulePing();
+      }, slow ? SLOW_PING_INTERVAL_MS : PING_INTERVAL_MS);
+      this.timeouts.push(t);
+      if (this.timeouts.length > 4) this.timeouts.shift();
+    };
+    schedulePing();
+    this.timers.push(setInterval(() => void this.refreshLibrary(), LIBRARY_REFRESH_MS));
     this.timers.push(setInterval(() => this.tick(), TICK_MS));
     this.timers.push(setInterval(() => void this.refresh(), REFRESH_MS));
     this.lastTick = performance.now();
   }
 
   stop(): void {
+    this.stopped = true;
     for (const t of this.timers) clearInterval(t);
+    for (const t of this.timeouts) clearTimeout(t);
     this.timers = [];
-    for (const el of this.elements) el.pause();
+    this.timeouts = [];
+    for (const el of this.elements) {
+      el.pause();
+      el.removeAttribute('src');
+      el.remove();
+    }
+    void this.loopDecks?.then((ds) => ds.forEach((d) => d.stop())).catch(() => {});
     void this.ctx.close();
+  }
+
+  /** The listener's own volume, 0 to 1 (not part of the shared mix). */
+  setVolume(volume: number): void {
+    this.volume = Math.min(1, Math.max(0, volume));
+    this.applyOut();
+  }
+
+  /** Lowers the radio under something else (a video): 1 = full, 0.2 = ducked. */
+  setDuck(level: number): void {
+    this.duck = Math.min(1, Math.max(0, level));
+    this.applyOut();
+  }
+
+  private applyOut(): void {
+    if (this.stopped) return;
+    // linear, like the <audio> volume the site used before
+    const target = this.volume * this.duck;
+    this.out.gain.setTargetAtTime(target, this.ctx.currentTime, 0.08);
+  }
+
+  private async refreshLibrary(): Promise<void> {
+    try {
+      this.library = await loadLibrary();
+    } catch (e) {
+      this.log(`couldn't fetch the library: ${String(e)}`);
+    }
   }
 
   // ---- Clock ----------------------------------------------------------------------------
 
+  private pings = 0;
+
   private async ping(): Promise<void> {
     const sentAt = this.clock.nowMs();
+    // the first count goes with the 5th ping (after the four quick ones), then every 5th
+    const count = this.opts.listenerId && ++this.pings % COUNT_EVERY_PINGS === 0;
     try {
-      const r = await fetch(`${TIME_URL}?c=${Math.round(sentAt)}`, { cache: 'no-store' });
+      const id = count ? `&l=${encodeURIComponent(this.opts.listenerId!)}` : '';
+      const r = await fetch(`${TIME_URL}?c=${Math.round(sentAt)}${id}`, { cache: 'no-store' });
       const received = this.clock.nowMs();
-      const body = (await r.json()) as { serverMs: number };
+      const body = (await r.json()) as { serverMs: number; listeners?: number | null };
+      if (typeof body.listeners === 'number') this.listeners = body.listeners;
       if (!Number.isFinite(body.serverMs)) return;
       this.clock.record(sentAt, body.serverMs, received);
     } catch (e) {
@@ -193,7 +276,7 @@ export class RadioEngine {
 
   /** The AutoDJ's part: line up a song (or start the radio) when this running order needs it. */
   private async work(): Promise<void> {
-    if (this.working || this.opts.autodj === false || !this.clock.synced || performance.now() < this.nextWorkAt) return;
+    if (this.working || this.opts.autodj === false || !this.library.length || !this.clock.synced || performance.now() < this.nextWorkAt) return;
     if (!needsWork(this.timeline, this.clock.serverNowMs()!)) return;
     this.working = true;
     try {
@@ -207,7 +290,7 @@ export class RadioEngine {
         this.library,
         () => this.clock.serverNowMs()!,
         async (tl) => {
-          const r = await fetch(AUTODJ_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timeline: tl }) });
+          const r = await fetch(AUTODJ_WRITE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timeline: tl }) });
           return r.ok ? { ok: true } : { ok: false, error: `${r.status} ${await r.text()}` };
         },
         (line) => this.log(line),
@@ -243,8 +326,8 @@ export class RadioEngine {
     const serverNow = this.clock.serverNowMs()!;
     void this.work();
     const tl = this.timeline;
-    if (!tl) {
-      this.status = { state: this.workNote ?? 'starting the radio' };
+    if (!tl || (!this.library.length && endOfTimelineMs(tl) < serverNow)) {
+      this.status = { state: this.library.length ? (this.workNote ?? 'starting the radio') : 'off air' };
       return;
     }
     const k = slotIndexAt(tl, serverNow);
@@ -436,10 +519,7 @@ export class RadioEngine {
 
   private onNowPlaying(slot: Slot): void {
     this.log(`now playing: ${slot.item.title}`);
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: slot.item.title, artist: slot.item.artist, album: 'FTN+ Radio (lab)' });
-      navigator.mediaSession.playbackState = 'playing';
-    }
+    this.opts.onSong?.(slot.item);
   }
 
   // ---- Measuring (test harness) ---------------------------------------------------------------

@@ -1,28 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkTimelineChange, type RadioTimeline } from "@/lib/radio/autodj";
-import { AUTODJ_KEY, loadLibrary, noStore, radioBucket } from "@/lib/radio/store";
+import { songsByKeys } from "@/lib/radio/library";
+import { AUTODJ_KEY, noStore, radioBucket, radioDb } from "@/lib/radio/store";
 
 export const runtime = "edge";
 
 /**
- * The AutoDJ's running order (radio engine lab). Listeners' browsers read it,
- * and when it runs short one of them sends a longer one. The website only
- * checks and stores: songs must be in the library, nothing already playing
- * or about to play may change, every mix must stay within safe volume,
- * filter and speed bounds, and the change must build on the stored revision
- * (the first listener to send one wins; the others re-read it).
+ * The AutoDJ's running order. Listeners read it from the bucket's public
+ * domain; when it runs short one of them POSTs a longer one here. The website
+ * only checks and stores: new songs must be in the library, nothing already
+ * playing or about to play may change, every mix must stay within safe
+ * volume, filter and speed bounds, and the change must build on the stored
+ * revision (the first listener to send one wins; the others re-read it).
  */
-export async function GET() {
-  const bucket = radioBucket();
-  if (!bucket) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
-  const obj = await bucket.get(AUTODJ_KEY);
-  if (!obj) return NextResponse.json({ error: "nothing stored" }, { status: 404, headers: noStore });
-  return new Response(obj.body as ReadableStream, { headers: { "Content-Type": "application/json", ...noStore } });
-}
-
 export async function POST(request: NextRequest) {
   const bucket = radioBucket();
-  if (!bucket) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
+  const db = radioDb();
+  if (!bucket || !db) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
   const raw = await request.text();
   if (raw.length > 1_000_000) return NextResponse.json({ error: "too big" }, { status: 413 });
   let next: unknown;
@@ -33,7 +27,9 @@ export async function POST(request: NextRequest) {
   }
   const stored = await bucket.get(AUTODJ_KEY);
   const current = stored ? ((await stored.json()) as RadioTimeline) : null;
-  const error = checkTimelineChange(current, next, Date.now(), await loadLibrary(bucket));
+  const items = (next as { items?: unknown })?.items;
+  const keys = Array.isArray(items) ? items.map((i) => String((i as { key?: unknown })?.key)) : [];
+  const error = checkTimelineChange(current, next, Date.now(), await songsByKeys(db, keys));
   if (error) {
     const stale = current !== null && (next as { rev?: unknown })?.rev !== current.rev + 1;
     return NextResponse.json({ error }, { status: stale ? 409 : 422, headers: noStore });

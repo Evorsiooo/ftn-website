@@ -342,6 +342,8 @@ export interface LibrarySong {
   /** From the downloader when known. */
   durationSec?: number | null;
   loudnessDb?: number | null;
+  /** Cover art URL, when the library has one. */
+  thumbnail?: string | null;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -361,14 +363,20 @@ export function checkTimelineChange(current: RadioTimeline | null, next: unknown
   if (tl.mixes.length !== tl.items.length - 1) return 'there must be one mix between each two songs';
   if (!within(tl.firstK, 0, Number.MAX_SAFE_INTEGER) || !within(tl.anchorMs, 0, 1e14) || !within(tl.startSec, 0, 1200)) return 'bad anchor';
   if (!isObj(tl.plannedWith) || tl.plannedWith.analysisVersion !== ANALYSIS_VERSION) return 'planned with another analysis version';
-  for (const item of tl.items) {
+  // Songs already lined up were checked when they were added (and must stay
+  // identical, below); only new ones are compared with the library, so a song
+  // renamed or archived in the admin panel since doesn't block the next write.
+  const fresh = !current || endOfTimelineMs(current) < nowMs;
+  const newFrom = fresh ? 0 : Math.max(0, current!.items.length - ((tl.firstK as number) - current!.firstK));
+  for (const [i, item] of tl.items.entries()) {
     if (!isObj(item)) return 'bad item';
+    if (!within(item.durationSec, 1, 1200)) return 'bad duration';
+    if (item.loudnessDb !== null && !within(item.loudnessDb, -40, 40)) return 'bad loudness';
+    if (i < newFrom) continue;
     const song = library.get(item.key);
     if (!song) return `not in the library: ${String(item.key)}`;
     if (item.title !== song.title || item.artist !== song.artist) return 'title or artist differs from the library';
-    if (!within(item.durationSec, 1, 1200)) return 'bad duration';
     if (finite(song.durationSec) && Math.abs(item.durationSec - song.durationSec) > 1.5) return 'duration differs from the library';
-    if (item.loudnessDb !== null && !within(item.loudnessDb, -40, 40)) return 'bad loudness';
     if (finite(song.loudnessDb) && item.loudnessDb !== song.loudnessDb) return 'loudness differs from the library';
   }
   for (let i = 0; i < tl.mixes.length; i++) {
@@ -378,7 +386,6 @@ export function checkTimelineChange(current: RadioTimeline | null, next: unknown
   }
   if (tl.mixes[0] && tl.mixes[0].outSec < tl.startSec) return 'first mix starts before the anchor position';
 
-  const fresh = !current || endOfTimelineMs(current) < nowMs;
   if (fresh) {
     if (tl.rev !== (current?.rev ?? 0) + 1) return 'stale revision';
     if (current && tl.firstK <= current.firstK + current.items.length) return 'a fresh start must number its songs after the old ones';

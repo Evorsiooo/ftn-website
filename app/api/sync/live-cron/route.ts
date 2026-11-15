@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { syncConfiguredTwitchLives } from "@/lib/twitch";
 import { syncAllConfiguredChannels } from "@/lib/youtube";
+import { syncRadioLive } from "@/lib/radio/live";
 
 export const runtime = "edge";
 
 // Called every minute by the Cloudflare cron Worker (workers/post-scheduler), so live streams and
 // new videos show up without anyone having to load a page first. Twitch is checked on every call;
 // YouTube only when ?youtube=1 is passed (the Worker does this every 5 minutes) and, as always,
-// no more often than the sync's own cooldown.
+// no more often than the sync's own cooldown. It also notes whether an OBS show is live on Icecast.
 export async function POST(request: NextRequest) {
   const accepted = [process.env.SCHEDULE_CRON_SECRET, process.env.RADIO_CRON_SECRET].filter(Boolean);
   const provided = request.headers.get("x-cron-secret");
@@ -24,6 +25,12 @@ export async function POST(request: NextRequest) {
     out.twitch = await syncConfiguredTwitchLives(db);
   } catch (err: any) {
     out.twitchError = err?.message || "Twitch sync failed";
+  }
+  try {
+    // a live OBS show on Icecast: players switch to it (lib/radio/live.ts)
+    out.radioLive = await syncRadioLive(db);
+  } catch (err: any) {
+    out.radioLiveError = err?.message || "Icecast check failed";
   }
   if (request.nextUrl.searchParams.get("youtube") === "1") {
     try {

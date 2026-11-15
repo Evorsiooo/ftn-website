@@ -10,7 +10,7 @@
 // - Nobody listening: nothing runs. The first listener back starts a fresh
 //   running order from "now".
 import type { TrackAnalysis } from '../bitchord/automix/analysis/types';
-import { AUTODJ_URL, SONGS_KEY, analysisUrl, fileUrl } from './config';
+import { AUTODJ_KEY, AUTODJ_WRITE_URL, LIBRARY_URL, analysisKey, analysisWriteUrl, fileUrl } from './config';
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from './loudness';
 import { analyse, decodeForPlan, DEFAULT_BARS, planMix } from './planner';
 import {
@@ -35,14 +35,19 @@ const FALLBACK_DEADLINE_MS = 45_000;
 /** Songs not repeated within this many places. */
 const NO_REPEAT = 3;
 
+/** The songs the AutoDJ may play. Empty: the radio is off air. */
 export async function loadLibrary(): Promise<LibrarySong[]> {
-  const r = await fetch(fileUrl(SONGS_KEY), { cache: 'no-store' });
+  const r = await fetch(LIBRARY_URL, { cache: 'no-cache' });
   if (!r.ok) throw new Error(`library: HTTP ${r.status}`);
-  return (await r.json()) as LibrarySong[];
+  const body = (await r.json()) as LibrarySong[] | { songs: LibrarySong[] };
+  return Array.isArray(body) ? body : body.songs;
 }
 
+/** No-store fetch of a bucket object; the query keeps any cache in between out of it. */
+const fresh = (key: string, init?: RequestInit) => fetch(`${fileUrl(key)}?t=${Date.now()}`, { cache: 'no-store', ...init });
+
 export async function fetchTimeline(): Promise<RadioTimeline | null> {
-  const r = await fetch(AUTODJ_URL, { cache: 'no-store' });
+  const r = await fresh(AUTODJ_KEY);
   if (r.status === 404) return null;
   if (!r.ok) throw new Error(`running order: HTTP ${r.status}`);
   return (await r.json()) as RadioTimeline;
@@ -50,7 +55,7 @@ export async function fetchTimeline(): Promise<RadioTimeline | null> {
 
 /** The song's analysis if a listener has shared it, else null. */
 async function storedAnalysis(song: LibrarySong): Promise<TrackAnalysis | null> {
-  const r = await fetch(analysisUrl(song.key), { cache: 'no-store' });
+  const r = await fresh(analysisKey(song.key));
   if (!r.ok) return null;
   const a = (await r.json()) as TrackAnalysis;
   return a.analysisVersion === ANALYSIS_VERSION ? a : null;
@@ -72,7 +77,7 @@ function notAnalysed(song: LibrarySong, durationSec: number): TrackAnalysis {
 
 /** The song's analysis: shared by another listener, else made here (BitChord's analyzer) and shared. */
 export async function sharedAnalysis(song: LibrarySong, log: (s: string) => void): Promise<TrackAnalysis> {
-  const r = await fetch(analysisUrl(song.key), { cache: 'no-store' });
+  const r = await fresh(analysisKey(song.key));
   if (r.ok) {
     const a = (await r.json()) as TrackAnalysis;
     if (a.analysisVersion === ANALYSIS_VERSION) return a;
@@ -81,7 +86,7 @@ export async function sharedAnalysis(song: LibrarySong, log: (s: string) => void
   log(`analysing ${song.title} here (nobody has yet)…`);
   const a = await analyse(song.key, song);
   log(`analysed ${song.title} in ${((performance.now() - started) / 1000).toFixed(0)} s; sharing it`);
-  const put = await fetch(analysisUrl(song.key), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a) });
+  const put = await fetch(analysisWriteUrl(song.key), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a) });
   if (!put.ok) log(`sharing the analysis was refused: ${await put.text()}`);
   return a;
 }
@@ -122,8 +127,10 @@ export async function extend(
 ): Promise<RadioTimeline | null> {
   if (!current || endOfTimelineMs(current) < serverNow() + 5_000) {
     // nobody was listening: start now, with a song someone has analysed if there is one
+    // (a sample of up to 16 songs, so a big library doesn't mean hundreds of requests)
     const analysed = new Set<string>();
-    await Promise.all(library.map(async (s) => (await fetch(analysisUrl(s.key), { method: 'HEAD', cache: 'no-store' })).ok && analysed.add(s.key)));
+    const sample = [...library].sort(() => Math.random() - 0.5).slice(0, 16);
+    await Promise.all(sample.map(async (s) => (await fresh(analysisKey(s.key), { method: 'HEAD' })).ok && analysed.add(s.key)));
     const song = pick(library, [], analysed);
     const item = await makeItem(song, await decodeForPlan(song.key));
     const tl: RadioTimeline = {

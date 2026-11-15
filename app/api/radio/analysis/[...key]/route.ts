@@ -1,41 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAnalysis } from "@/lib/radio/autodj";
-import { analysisKey, loadLibrary, noStore, radioBucket } from "@/lib/radio/store";
+import { songsByKeys } from "@/lib/radio/library";
+import { analysisKey, noStore, radioBucket, radioDb } from "@/lib/radio/store";
 
 export const runtime = "edge";
 
 /**
- * A song's shared analysis (radio engine lab): BitChord's TrackAnalysis, made
- * in the browser of the first listener who needed it. Checked before it's
- * stored (this song, this analysis version, bounded plain data), and the
- * first one stored is kept.
+ * Shares a song's analysis: BitChord's TrackAnalysis, made in the browser of
+ * the first listener who needed it. Listeners read it from the bucket's
+ * public domain. Checked before it's stored (this song, this analysis
+ * version, bounded plain data), and the first one stored is kept.
  */
-async function songOf(params: Promise<{ key: string[] }>) {
-  const { key } = await params;
-  return key?.join("/") ?? "";
-}
-
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ key: string[] }> }) {
-  const bucket = radioBucket();
-  if (!bucket) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
-  const song = await songOf(params);
-  const library = await loadLibrary(bucket);
-  if (!library.has(song)) return NextResponse.json({ error: "not in the library" }, { status: 404 });
-  const obj = await bucket.get(analysisKey(song));
-  if (!obj) return NextResponse.json({ error: "not analysed yet" }, { status: 404, headers: noStore });
-  return new Response(obj.body as ReadableStream, { headers: { "Content-Type": "application/json", ...noStore } });
-}
-
-export async function HEAD(request: NextRequest, ctx: { params: Promise<{ key: string[] }> }) {
-  const res = await GET(request, ctx);
-  return new Response(null, { status: res.status, headers: res.headers });
-}
-
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ key: string[] }> }) {
   const bucket = radioBucket();
-  if (!bucket) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
-  const song = await songOf(params);
-  const library = await loadLibrary(bucket);
+  const db = radioDb();
+  if (!bucket || !db) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
+  const song = (await params).key?.join("/") ?? "";
+  const library = await songsByKeys(db, [song]);
+  if (!library.has(song)) return NextResponse.json({ error: "not in the library" }, { status: 404, headers: noStore });
   if (await bucket.head(analysisKey(song))) return NextResponse.json({ kept: "first one" }, { headers: noStore });
   const raw = await request.text();
   if (raw.length > 1_500_000) return NextResponse.json({ error: "too big" }, { status: 413 });

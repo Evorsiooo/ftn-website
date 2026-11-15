@@ -34,7 +34,7 @@ async function listener(name, skew) {
   page.on('crash', () => console.log(`${at()} ${name}: PAGE CRASHED`));
   page.on('close', () => console.log(`${at()} ${name}: page closed`));
   browser.on('disconnected', () => console.log(`${at()} ${name}: browser disconnected`));
-  await page.goto(`${base}/labs/radio-engine/index.html?autostart=1&skew=${skew}`);
+  await page.goto(`${base}/radio-engine/index.html?autostart=1&skew=${skew}${process.env.FILES ? `&files=${process.env.FILES}` : ''}`);
   return { name, browser, page, logs, skew };
 }
 
