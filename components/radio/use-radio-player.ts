@@ -39,7 +39,7 @@ let stationModule: Promise<StationModule> | null = null;
 /** The engine bundle, built separately (radio-engine/) into public/radio-engine/. Fetched once, when first needed. */
 export function loadStationModule(): Promise<StationModule> {
   // a full URL built at run time, so neither Next's bundler nor next-on-pages tries to bundle the file
-  const url = new URL("/radio-engine/site.js", window.location.origin).href;
+  const url = new URL(`/radio-engine/site.js?v=${process.env.RADIO_ENGINE_VERSION ?? ""}`, window.location.origin).href;
   stationModule ??= import(/* webpackIgnore: true */ url) as Promise<StationModule>;
   stationModule.catch(() => (stationModule = null));
   return stationModule;

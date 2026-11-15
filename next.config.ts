@@ -1,4 +1,17 @@
 import type { NextConfig } from "next";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+
+// The radio engine's entry file (public/radio-engine/site.js) keeps the same name on every build, and
+// static files are cached for hours, so browsers kept an old engine after a deploy. The page loads it
+// as site.js?v=<hash of the file>: a new engine is a new URL.
+const radioEngineVersion = (() => {
+  try {
+    return createHash("sha256").update(readFileSync("public/radio-engine/site.js")).digest("hex").slice(0, 12);
+  } catch {
+    return String(Date.now());
+  }
+})();
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -12,6 +25,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  env: { RADIO_ENGINE_VERSION: radioEngineVersion },
   // FTN+'s old page names (renamed in the 2026 redesign)
   async redirects() {
     return [
