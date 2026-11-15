@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // 1. Users (Roblox OAuth & Password Authenticated)
 export const users = sqliteTable("users", {
@@ -392,3 +392,83 @@ export const songVotes = sqliteTable("song_votes", {
   primaryKey({ columns: [t.voterId, t.songKey] }),
   index("song_votes_song_idx").on(t.songKey),
 ]);
+
+// Radio song library (BitChord-based webradio). Each song is one audio file in the ftn-radio R2
+// bucket, put there by the VPS downloader (euno-radio) or uploaded from the admin. metaKey is the
+// downloader's JSON next to the file (deleted with it, or a re-import would think it is still there).
+// The AutoDJ plays every song that is not archived. Spec: plans/radio/schema.md.
+export const radioSongs = sqliteTable("radio_songs", {
+  id: text("id").primaryKey(),
+  r2Key: text("r2_key").notNull(),
+  metaKey: text("meta_key"),
+  source: text("source", { enum: ["youtube", "soundcloud", "upload"] }).notNull(),
+  sourceId: text("source_id"),
+  sourceUrl: text("source_url"),
+  title: text("title").notNull(),
+  artist: text("artist").notNull(),
+  album: text("album"),
+  releaseYear: integer("release_year"),
+  durationSec: real("duration_sec").notNull(),
+  loudnessDb: real("loudness_db"),
+  thumbnailUrl: text("thumbnail_url"),
+  spotifyId: text("spotify_id"),
+  bytes: integer("bytes"),
+  contentType: text("content_type"),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  uniqueIndex("radio_songs_r2_key_idx").on(t.r2Key),
+  index("radio_songs_archived_idx").on(t.archived),
+]);
+
+// Playlists made by hand, or linked to a YouTube / SoundCloud / Spotify source (sourceUrl) that
+// can be re-synced to pick up songs added there since.
+export const radioPlaylists = sqliteTable("radio_playlists", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  sourceUrl: text("source_url"),
+  source: text("source", { enum: ["youtube", "soundcloud", "spotify"] }),
+  lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
+export const radioPlaylistSongs = sqliteTable("radio_playlist_songs", {
+  playlistId: text("playlist_id").notNull().references(() => radioPlaylists.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => radioSongs.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.playlistId, t.songId] }),
+  index("radio_playlist_songs_order_idx").on(t.playlistId, t.position),
+]);
+
+// One row per downloader job, so an import finishes even if nobody keeps the Library page open
+// (the every-minute cron follows unfinished ones). position: where a single song picked in review
+// goes in its playlist. review: JSON of the job's needs_review items until each is picked or skipped.
+export const radioImports = sqliteTable("radio_imports", {
+  id: text("id").primaryKey(),
+  url: text("url").notNull(),
+  playlistId: text("playlist_id").references(() => radioPlaylists.id, { onDelete: "set null" }),
+  position: integer("position"),
+  state: text("state").notNull(),
+  title: text("title"),
+  total: integer("total"),
+  done: integer("done").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  review: text("review"),
+  error: text("error"),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (t) => [index("radio_imports_state_idx").on(t.state)]);
+
+// Radio listeners: each listener's random id, upserted about every 10 minutes from the player.
+// The listener count is the rows seen in the last 11 minutes (shown only above 2).
+export const radioListeners = sqliteTable("radio_listeners", {
+  id: text("id").primaryKey(),
+  seenAt: integer("seen_at", { mode: "timestamp" }).notNull(),
+}, (t) => [index("radio_listeners_seen_idx").on(t.seenAt)]);

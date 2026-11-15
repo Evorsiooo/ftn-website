@@ -2,6 +2,7 @@
   "name": "ftn-website",
   "version": "0.1.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "registries": {
     "@aceternity": "https://ui.aceternity.com/registry/{name}.json"
   },

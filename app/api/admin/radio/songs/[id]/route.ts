@@ -1,0 +1,67 @@
+import { NextRequest, NextResponse } from "next/server";
+import { eq } from "drizzle-orm";
+import { radioSongs } from "@/db/schema";
+import { failure, radioAdmin } from "@/lib/radio/admin-route";
+import { isLinedUp, radioBucket } from "@/lib/radio/library";
+
+export const runtime = "edge";
+
+type Params = { params: Promise<{ id: string }> };
+
+// Edit a song's title and artist, or archive it (hidden from the AutoDJ and the library list) and back.
+export async function PATCH(request: NextRequest, { params }: Params) {
+  const ctx = await radioAdmin(request);
+  if ("error" in ctx) return ctx.error;
+  const { id } = await params;
+  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; archived?: unknown } | null;
+  if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+
+  const set: Partial<typeof radioSongs.$inferInsert> = {};
+  if (body.title !== undefined) {
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    if (!title || title.length > 300) return NextResponse.json({ error: "A title is required (300 characters at most)." }, { status: 400 });
+    set.title = title;
+  }
+  if (body.artist !== undefined) {
+    const artist = typeof body.artist === "string" ? body.artist.trim() : "";
+    if (!artist || artist.length > 300) return NextResponse.json({ error: "An artist is required (300 characters at most)." }, { status: 400 });
+    set.artist = artist;
+  }
+  if (body.archived !== undefined) {
+    if (typeof body.archived !== "boolean") return NextResponse.json({ error: "archived must be true or false" }, { status: 400 });
+    set.archived = body.archived;
+  }
+  if (!Object.keys(set).length) return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
+  set.updatedAt = new Date();
+  try {
+    const [song] = await ctx.db.update(radioSongs).set(set).where(eq(radioSongs.id, id)).returning();
+    if (!song) return NextResponse.json({ error: "Song not found" }, { status: 404 });
+    return NextResponse.json({ song });
+  } catch (err) {
+    return failure(err, "Could not update the song");
+  }
+}
+
+// Delete for real: the library row, its playlist entries, and its files in R2.
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const ctx = await radioAdmin(request);
+  if ("error" in ctx) return ctx.error;
+  const { id } = await params;
+  const bucket = radioBucket();
+  if (!bucket) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
+  try {
+    const [song] = await ctx.db.select().from(radioSongs).where(eq(radioSongs.id, id));
+    if (!song) return NextResponse.json({ error: "Song not found" }, { status: 404 });
+    if (await isLinedUp(bucket, song.r2Key)) {
+      return NextResponse.json(
+        { error: "This song is playing or lined up on the radio. Archive it now and delete it once it has played." },
+        { status: 409 }
+      );
+    }
+    await bucket.delete([song.r2Key, ...(song.metaKey ? [song.metaKey] : [])]);
+    await ctx.db.delete(radioSongs).where(eq(radioSongs.id, id));
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return failure(err, "Could not delete the song");
+  }
+}
