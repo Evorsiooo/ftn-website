@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/admin-auth";
 import { loadShowsAndBroadcasts } from "@/lib/schedule";
 import { validateBroadcastInput, BroadcastInput } from "@/lib/schedule-validation";
 import { insertBroadcast, radioConflictMessage, serializeBroadcast, valuesToRecord } from "@/lib/broadcast-admin";
+import { republish } from "@/lib/radio/program";
 
 export const runtime = "edge";
 
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
     if (conflict) return NextResponse.json({ error: conflict }, { status: 409 });
 
     await insertBroadcast(db, id, parsed.values);
+    await republish(getDb(d1));
     return NextResponse.json({ success: true, id }, { status: 201 });
   } catch (error) {
     console.error("Create broadcast error:", error);

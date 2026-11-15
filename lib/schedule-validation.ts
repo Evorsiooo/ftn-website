@@ -1,5 +1,5 @@
 import { RO_STATES } from "@/lib/ro-states";
-import { isValidTimezone, type BroadcastTag, type BroadcastStatus } from "@/lib/schedule-core";
+import { isValidTimezone, type BroadcastPlays, type BroadcastTag, type BroadcastStatus } from "@/lib/schedule-core";
 
 export interface BroadcastInput {
   showId?: string | null;
@@ -21,6 +21,9 @@ export interface BroadcastInput {
   notify?: boolean;
   notifyMessage?: string | null;
   notifyRoStates?: string[];
+  plays?: string;
+  playlistId?: string | null;
+  streamUrl?: string | null;
 }
 
 export interface BroadcastValues {
@@ -43,6 +46,9 @@ export interface BroadcastValues {
   notify: boolean;
   notifyMessage: string | null;
   notifyRoStates: string[];
+  plays: BroadcastPlays;
+  playlistId: string | null;
+  streamUrl: string | null;
 }
 
 const TAGS: BroadcastTag[] = ["live", "simulcast", "rebroadcast"];
@@ -92,9 +98,25 @@ export function validateBroadcastInput(body: BroadcastInput): { values: Broadcas
   const notifyMessage =
     notify && typeof body.notifyMessage === "string" && body.notifyMessage.trim() ? body.notifyMessage.trim().slice(0, 500) : null;
 
+  // What the radio plays during the airing (radio airings only)
+  const plays: BroadcastPlays = onRadio && (body.plays === "playlist" || body.plays === "stream") ? body.plays : "hosted";
+  const playlistId = plays === "playlist" && typeof body.playlistId === "string" && body.playlistId ? body.playlistId : null;
+  if (plays === "playlist" && !playlistId) return { error: "Choose the playlist this show plays." };
+  let streamUrl: string | null = null;
+  if (plays === "stream") {
+    const raw = typeof body.streamUrl === "string" ? body.streamUrl.trim() : "";
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "https:" || raw.length > 1000) throw new Error();
+      streamUrl = u.toString();
+    } catch {
+      return { error: "The stream link must be an https:// address (browsers block http streams on this site)." };
+    }
+  }
+
   const common = {
     timezone, showId, title, description, onRadio, onStream, tag, status, youtubeId, sportsEventId,
-    notify, notifyMessage, notifyRoStates: notify ? notifyRoStates : [],
+    notify, notifyMessage, notifyRoStates: notify ? notifyRoStates : [], plays, playlistId, streamUrl,
   };
 
   if (body.kind === "once") {

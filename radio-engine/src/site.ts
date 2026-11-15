@@ -3,7 +3,7 @@
 // the lab proved; the page only sees this small surface.
 import { fetchTimeline, loadLibrary } from './radio/autodj';
 import { RadioEngine } from './radio/engine';
-import type { TimelineItem } from './radio/timeline';
+import type { RadioTimeline, TimelineItem } from './radio/timeline';
 
 export type StationState = 'starting' | 'playing' | 'off-air';
 
@@ -20,6 +20,8 @@ export interface Station {
   status(): StationStatus;
   setVolume(volume: number): void;
   setDuck(level: number): void;
+  /** Lowers the music while someone on air talks (1 = full). */
+  setVoiceDuck(level: number): void;
   stop(): void;
 }
 
@@ -55,6 +57,45 @@ export async function startStation(opts: StationOptions = {}): Promise<Station> 
     },
     setVolume: (v) => engine.setVolume(v),
     setDuck: (l) => engine.setDuck(l),
+    setVoiceDuck: (l) => engine.setVoiceDuck(l),
+    stop: () => engine.stop(),
+  };
+}
+
+export interface ReplayOptions {
+  /** The running orders that played during the show (the replay's saved copies). */
+  timelines: RadioTimeline[];
+  pauses: { start: number; end: number }[];
+  /** Server ms of the show to start at. */
+  fromMs: number;
+  volume?: number;
+  log?: (line: string) => void;
+}
+
+export interface ReplayStation extends Station {
+  /** Server ms of the show being heard now. */
+  nowMs(): number;
+}
+
+/**
+ * Plays a show back: the same engine and the same mixes, on a clock of its own that starts at
+ * [fromMs]. Call from a click. Seeking = stop, then start again from the new place.
+ */
+export async function startReplay(opts: ReplayOptions): Promise<ReplayStation> {
+  const t0 = performance.now() + 600;
+  const clock = (perfMs: number) => opts.fromMs + (perfMs - t0);
+  const engine = new RadioEngine(null, [], { autodj: false, log: opts.log, replay: { clock, timelines: opts.timelines, pauses: opts.pauses } });
+  engine.setVolume(opts.volume ?? 1);
+  await engine.start();
+  return {
+    nowMs: () => clock(performance.now()),
+    status(): StationStatus {
+      const s = engine.status as Record<string, unknown>;
+      return { state: s.state === 'playing' ? 'playing' : 'starting', song: null, positionSec: typeof s.positionSec === 'number' ? s.positionSec : null, listeners: null };
+    },
+    setVolume: (v) => engine.setVolume(v),
+    setDuck: (l) => engine.setDuck(l),
+    setVoiceDuck: (l) => engine.setVoiceDuck(l),
     stop: () => engine.stop(),
   };
 }

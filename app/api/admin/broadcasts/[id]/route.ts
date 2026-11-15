@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/admin-auth";
 import { loadShowsAndBroadcasts } from "@/lib/schedule";
 import { validateBroadcastInput, BroadcastInput } from "@/lib/schedule-validation";
 import { radioConflictMessage, recordToInput, valuesToRecord } from "@/lib/broadcast-admin";
+import { republish } from "@/lib/radio/program";
 
 export const runtime = "edge";
 
@@ -44,6 +45,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         updatedAt: new Date(),
       })
       .where(eq(broadcastsTable.id, id));
+    await republish(getDb(d1));
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Update broadcast error:", error);
@@ -59,6 +61,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     const d1 = (process.env as any).DB as D1Database;
     if (!d1) return NextResponse.json({ error: "Database unavailable" }, { status: 500 });
     await getDb(d1).delete(broadcastsTable).where(eq(broadcastsTable.id, id));
+    await republish(getDb(d1));
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Delete broadcast error:", error);

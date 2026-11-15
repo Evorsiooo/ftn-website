@@ -26,6 +26,9 @@ export function recordToInput(b: BroadcastRecord): BroadcastInput {
     notify: b.notify,
     notifyMessage: b.notifyMessage,
     notifyRoStates: b.notifyRoStates,
+    plays: b.plays,
+    playlistId: b.playlistId,
+    streamUrl: b.streamUrl,
   };
 }
 

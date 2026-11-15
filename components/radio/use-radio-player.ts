@@ -7,9 +7,10 @@ export type PlayerStatus = "idle" | "connecting" | "playing" | "buffering" | "re
  * Where the sound comes from. "autodj": the 24/7 AutoDJ, played and mixed in
  * this browser in step with every other listener (radio-engine/, loaded as
  * /radio-engine/site.js). "icecast": the Icecast stream, used while someone
- * broadcasts a live show from OBS.
+ * broadcasts a live show from OBS. "stream": another station's stream, during a scheduled
+ * stream show (the URL is passed as streamUrl).
  */
-export type RadioSource = "autodj" | "icecast";
+export type RadioSource = "autodj" | "icecast" | "stream";
 
 /** The song on air while the AutoDJ plays here (null on Icecast, or before the first song). */
 export interface StationSong {
@@ -29,6 +30,7 @@ interface Station {
   status(): StationStatus;
   setVolume(volume: number): void;
   setDuck(level: number): void;
+  setVoiceDuck(level: number): void;
   stop(): void;
 }
 type StationModule = { startStation(opts: { listenerId?: string; volume?: number }): Promise<Station> };
@@ -100,6 +102,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
   const stationPoll = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const startGen = useRef(0);
   const duckRef = useRef(1);
+  const voiceDuckRef = useRef(1);
   const [pendingSince, setPendingSince] = useState<number | null>(null);
   const [volume, setVolumeState] = useState(0.8);
   const [muted, setMutedState] = useState(false);
@@ -205,6 +208,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
         }
         stationRef.current = station;
         station.setDuck(duckRef.current);
+        station.setVoiceDuck(voiceDuckRef.current);
         let lastKey: string | null = null;
         stationPoll.current = setInterval(() => {
           const s = station.status();
@@ -518,20 +522,28 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
     applyVolume();
   }, []);
 
-  // A live OBS show starts or ends while this window plays: switch over.
+  // A live OBS show or a stream show starts or ends while this window plays: switch over.
+  const lastSwitch = useRef(`${source}|${source === "stream" ? streamUrl : ""}`);
   useEffect(() => {
-    if (sourceRef.current === source) return;
+    const id = `${source}|${source === "stream" ? streamUrl : ""}`;
     sourceRef.current = source;
+    if (lastSwitch.current === id) return;
+    lastSwitch.current = id;
     if (wantPlaying.current) {
       retries.current = 0;
       fadeIn.current = false;
       start(false);
     }
-  }, [source, start]);
+  }, [source, streamUrl, start]);
 
   // A window that is only listening to another one shows that as playing.
   const shownStatus: PlayerStatus = status === "idle" && remotePlaying ? "playing" : status;
   /** Where the song on air is right now in this browser's AutoDJ (for lyrics), or null. */
   const positionNow = useCallback(() => stationRef.current?.status().positionSec ?? null, []);
-  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow };
+  /** Lowers the music while someone on air talks (Studio shows); 1 = full. */
+  const voiceDuck = useCallback((level: number) => {
+    voiceDuckRef.current = level;
+    stationRef.current?.setVoiceDuck(level);
+  }, []);
+  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow, voiceDuck };
 }

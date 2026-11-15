@@ -47,6 +47,9 @@ export async function loadShowsAndBroadcasts(
       notify: b.notify,
       notifyMessage: b.notifyMessage ?? null,
       notifyRoStates: parseRoStates(b.notifyRoStates),
+      plays: b.plays ?? "hosted",
+      playlistId: b.playlistId ?? null,
+      streamUrl: b.streamUrl ?? null,
     })),
   };
 }

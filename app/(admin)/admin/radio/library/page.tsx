@@ -88,6 +88,7 @@ export default function RadioLibraryPage() {
           actions={
             <>
               <Link href="/admin/radio" className="gs-bar-link pb-0.5 text-sm font-bold">← Schedule</Link>
+              <Link href="/admin/radio/ratings" className="gs-bar-link pb-0.5 text-sm font-bold">Song ratings →</Link>
               <Button size="sm" variant="outline" onClick={() => setUploading(true)} className="h-10 cursor-pointer px-5 text-sm">
                 <Upload /> Upload a file
               </Button>
