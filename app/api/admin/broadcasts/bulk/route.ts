@@ -7,6 +7,7 @@ import { requireStaff } from "@/lib/admin-auth";
 import { BroadcastRecord, loadShowsAndBroadcasts } from "@/lib/schedule";
 import { validateBulk } from "@/lib/schedule-validation";
 import { radioConflictMessage } from "@/lib/broadcast-admin";
+import { republish } from "@/lib/radio/program";
 
 export const runtime = "edge";
 
@@ -35,6 +36,7 @@ export async function POST(request: NextRequest) {
 
     if (parsed.action === "delete") {
       await db.delete(broadcastsTable).where(inArray(broadcastsTable.id, parsed.ids));
+      await republish(getDb(d1));
       return NextResponse.json({ success: true, count: parsed.ids.length });
     }
 
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(broadcastsTable.id, b.id));
     }
+    await republish(getDb(d1));
     return NextResponse.json({ success: true, count: selected.size });
   } catch (error) {
     console.error("Bulk broadcast error:", error);

@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { checkTimelineChange, type RadioTimeline } from "@/lib/radio/autodj";
 import { songsByKeys } from "@/lib/radio/library";
 import { AUTODJ_KEY, noStore, radioBucket, radioDb } from "@/lib/radio/store";
+import { logTimeline, markQueuedPlayed } from "@/lib/radio/studio";
 
 export const runtime = "edge";
 
@@ -41,5 +42,14 @@ export async function POST(request: NextRequest) {
     onlyIf: stored ? { etagMatches: stored.etag } : { uploadedBefore: new Date(0) },
   });
   if (!put) return NextResponse.json({ error: "someone else was first" }, { status: 409, headers: noStore });
+  // Studio: queued songs now lined up leave the queue; replays being recorded keep a copy
+  try {
+    const stored = next as RadioTimeline;
+    const before = new Set(current?.items.map((i) => i.key) ?? []);
+    await markQueuedPlayed(getDb(db), stored.items.map((i) => i.key).filter((k) => !before.has(k)));
+    await logTimeline(getDb(db), stored);
+  } catch (err) {
+    console.error("radio: after storing the running order", err);
+  }
   return NextResponse.json({ rev: (next as RadioTimeline).rev }, { headers: noStore });
 }

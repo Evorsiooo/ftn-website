@@ -9,6 +9,8 @@
 
 export type BroadcastTag = "live" | "simulcast" | "rebroadcast";
 export type BroadcastStatus = "scheduled" | "cancelled";
+/** What the radio plays during an airing: a hosted show (Studio or OBS), a library playlist, or another station's stream. */
+export type BroadcastPlays = "hosted" | "playlist" | "stream";
 
 export interface ShowRecord {
   id: string;
@@ -39,6 +41,9 @@ export interface BroadcastRecord {
   notify: boolean;
   notifyMessage: string | null;
   notifyRoStates: string[];
+  plays: BroadcastPlays;
+  playlistId: string | null;
+  streamUrl: string | null;
 }
 
 export interface Occurrence {
@@ -54,6 +59,9 @@ export interface Occurrence {
   recurring: boolean;
   youtubeId: string | null;
   sportsEventId: string | null;
+  plays: BroadcastPlays;
+  playlistId: string | null;
+  streamUrl: string | null;
   start: Date;
   end: Date;
   show: ShowRecord | null;
@@ -161,6 +169,9 @@ export function expandOccurrences(
       recurring: b.kind === "weekly",
       youtubeId: b.youtubeId,
       sportsEventId: b.sportsEventId,
+      plays: b.plays ?? "hosted",
+      playlistId: b.playlistId ?? null,
+      streamUrl: b.streamUrl ?? null,
       start,
       end,
       show,
@@ -249,6 +260,7 @@ export function serializeOccurrence(o: Occurrence) {
     recurring: o.recurring,
     youtubeId: o.youtubeId,
     sportsEventId: o.sportsEventId,
+    plays: o.plays,
     start: o.start.toISOString(),
     end: o.end.toISOString(),
   };

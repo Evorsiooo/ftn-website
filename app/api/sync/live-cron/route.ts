@@ -4,6 +4,8 @@ import { syncConfiguredTwitchLives } from "@/lib/twitch";
 import { syncAllConfiguredChannels } from "@/lib/youtube";
 import { syncRadioLive } from "@/lib/radio/live";
 import { syncOpenImports } from "@/lib/radio/library";
+import { publishProgram } from "@/lib/radio/program";
+import { ensurePlaylistReplays, tidy } from "@/lib/radio/studio";
 
 export const runtime = "edge";
 
@@ -33,6 +35,15 @@ export async function POST(request: NextRequest) {
     out.radioLive = await syncRadioLive(db);
   } catch (err: any) {
     out.radioLiveError = err?.message || "Icecast check failed";
+  }
+  try {
+    // the Studio (people who left, a show nobody runs), then radio/program.json (airings roll
+    // forward) and replays of playlist shows on air
+    await tidy(db);
+    const program = await publishProgram(db);
+    await ensurePlaylistReplays(db, program);
+  } catch (err: any) {
+    out.radioProgramError = err?.message || "Radio program failed";
   }
   if (request.nextUrl.searchParams.get("youtube") === "1") {
     try {
