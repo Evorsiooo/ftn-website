@@ -52,9 +52,6 @@ export default function AdminSchedulePage() {
               <Link href="/admin/radio/library" className="gs-bar-link pb-0.5 text-sm font-bold">
                 Song library →
               </Link>
-              <Link href="/admin/radio/ratings" className="gs-bar-link pb-0.5 text-sm font-bold">
-                Song ratings →
-              </Link>
               <Link href="/plus/schedule" className="gs-bar-link pb-0.5 text-sm font-bold">
                 View public schedule →
               </Link>

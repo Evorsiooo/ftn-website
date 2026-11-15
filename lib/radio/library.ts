@@ -86,6 +86,8 @@ export interface ReviewState {
   answered: number[];
   /** Spotify ids picked or skipped, so a re-sync of the playlist doesn't ask about them again. */
   answeredIds?: string[];
+  /** What the source says it has, when more than the downloader could list (Spotify: first 100). */
+  sourceTotal?: number;
 }
 
 export function parseReview(raw: string | null): ReviewState {
@@ -96,6 +98,7 @@ export function parseReview(raw: string | null): ReviewState {
       open: Array.isArray(v?.open) ? v.open : [],
       answered: Array.isArray(v?.answered) ? v.answered : [],
       answeredIds: Array.isArray(v?.answeredIds) ? v.answeredIds : [],
+      ...(typeof v?.sourceTotal === "number" ? { sourceTotal: v.sourceTotal } : {}),
     };
   } catch {
     return { open: [], answered: [] };
@@ -155,7 +158,7 @@ export const cancelJob = (db: DbClient, jobId: string) =>
 // ---------- links ----------
 
 /** Playlists, albums and sets: these become a library playlist linked to their source. */
-export function linkKind(raw: string): { source: "youtube" | "soundcloud" | "spotify"; collection: boolean } | null {
+export function linkKind(raw: string): { source: "youtube" | "soundcloud" | "spotify"; collection: boolean; mix?: boolean } | null {
   let url: URL;
   const value = raw.trim();
   if (/^spotify:(track|album|playlist):/i.test(value)) return { source: "spotify", collection: !/^spotify:track:/i.test(value) };
@@ -167,6 +170,8 @@ export function linkKind(raw: string): { source: "youtube" | "soundcloud" | "spo
   const host = url.hostname.replace(/^(www|m|music)\./, "");
   if (host === "youtube.com" || host === "youtu.be") {
     const collection = url.pathname === "/playlist" || url.pathname.startsWith("/browse/");
+    // YouTube's "Mix" / radio lists (list=RD…) are generated without end: they never finish reading.
+    if (collection && /^RD/.test(url.searchParams.get("list") || "")) return { source: "youtube", collection, mix: true };
     return { source: "youtube", collection };
   }
   if (host === "soundcloud.com" || host === "on.soundcloud.com") return { source: "soundcloud", collection: url.pathname.includes("/sets/") };
@@ -205,7 +210,70 @@ function songRow(song: DownloaderSong, spotifyId: string | null, userId: string 
   };
 }
 
-/** The song ids for [keys] (R2 keys), adding the songs that aren't in the library yet. */
+// ---------- duplicates ----------
+
+const squash = (s: string) =>
+  s
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "");
+
+/** The main artist: "Kanye West, Lupe Fiasco" -> "kanyewest"; YouTube's "X - Topic" and "XVEVO" channels -> "x". */
+function mainArtist(artist: string): string {
+  const first = artist.split(/,|&|\s+x\s+|\s+and\s+|\bfeat\.?|\bft\.?|\bfeaturing\b/i)[0] || artist;
+  return squash(first.replace(/\s*-\s*topic$/i, "")).replace(/(vevo|official|music)$/, "");
+}
+
+/** The song's own name: drops "(Official Music Video)", "[HD]", "feat. …" and a leading "Artist - ". */
+function bareTitle(title: string, artist: string): string {
+  let t = title
+    .replace(/[([][^)\]]*(official|video|audio|lyric|feat|ft\.|with |visuali[sz]er|\bhd\b|\b4k\b|\bhq\b|\bmv\b|remaster)[^)\]]*[)\]]/gi, "")
+    .replace(/\s(feat|ft|featuring)\.?\s.*$/i, "");
+  const dash = t.match(/^(.+?)\s+[-–—]\s+(.+)$/);
+  if (dash && mainArtist(dash[1]) && (mainArtist(dash[1]) === mainArtist(artist) || squash(artist).startsWith(mainArtist(dash[1])))) t = dash[2];
+  return squash(t);
+}
+
+export interface DuplicateCandidate {
+  id: string;
+  title: string;
+  artist: string;
+  durationSec: number;
+  spotifyId?: string | null;
+}
+
+/** The library song [song] is a copy of: same Spotify track, or same artist and title within 5 s. */
+export function findDuplicate<T extends DuplicateCandidate>(song: Omit<DuplicateCandidate, "id">, library: T[]): T | null {
+  if (song.spotifyId) {
+    const same = library.find((s) => s.spotifyId === song.spotifyId);
+    if (same) return same;
+  }
+  const title = bareTitle(song.title, song.artist);
+  const artist = mainArtist(song.artist);
+  if (!title) return null;
+  return (
+    library.find((s) => {
+      if (Math.abs(s.durationSec - song.durationSec) > 5) return false;
+      if (bareTitle(s.title, s.artist) !== title) return false;
+      const a = mainArtist(s.artist);
+      return a === artist || (!!a && !!artist && (a.startsWith(artist) || artist.startsWith(a)));
+    }) ?? null
+  );
+}
+
+export async function librarySongsForDuplicates(db: DbClient) {
+  return db
+    .select({ id: radioSongs.id, r2Key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, spotifyId: radioSongs.spotifyId })
+    .from(radioSongs);
+}
+
+/**
+ * The song ids for [keys] (R2 keys), adding the songs that aren't in the library yet. A song that
+ * is already in the library under another file (another upload of the same track, or the Spotify
+ * match of a song added from YouTube) isn't added again: its new file is deleted and the library
+ * song is used instead.
+ */
 async function recordSongs(db: DbClient, items: JobItem[], userId: string | null): Promise<Map<string, string>> {
   const songs = items.filter((i) => i.song?.audio?.r2Key?.startsWith("songs/"));
   const keys = [...new Set(songs.map((i) => i.song!.audio.r2Key))];
@@ -219,6 +287,22 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
     const key = item.song!.audio.r2Key;
     if (ids.has(key) || fresh.has(key)) continue;
     fresh.set(key, songRow(item.song!, item.spotify?.spotifyId ?? null, userId));
+  }
+  if (fresh.size) {
+    const library: (DuplicateCandidate & { r2Key: string })[] = await librarySongsForDuplicates(db);
+    const copies: string[] = [];
+    for (const [key, row] of [...fresh]) {
+      const same = findDuplicate(row, library);
+      if (same) {
+        ids.set(key, same.id);
+        fresh.delete(key);
+        copies.push(key, ...(row.metaKey ? [row.metaKey] : []));
+      } else {
+        library.push(row);
+      }
+    }
+    const bucket = radioBucket();
+    if (bucket && copies.length) await bucket.delete(copies).catch(() => {});
   }
   const rows = [...fresh.values()];
   // 21 columns: D1 allows 100 bound parameters per statement, so 4 rows per insert.
@@ -304,7 +388,8 @@ export async function syncImport(db: DbClient, row: ImportRow): Promise<ImportRo
       reviewState.open.push({ index: i.index, spotify: i.spotify ?? null, candidates: (i.candidates ?? []).slice(0, 3) });
     }
   }
-  const review = reviewState.open.length || reviewState.answered.length ? JSON.stringify(reviewState) : null;
+  if (typeof job.sourceTotal === "number" && job.total && job.sourceTotal > job.total) reviewState.sourceTotal = job.sourceTotal;
+  const review = reviewState.open.length || reviewState.answered.length || reviewState.sourceTotal ? JSON.stringify(reviewState) : null;
 
   const next = {
     state: job.state,

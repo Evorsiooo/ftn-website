@@ -77,7 +77,10 @@ function OTTShell({ children }: { children: React.ReactNode }) {
     <div className={`fp${radio.barShown ? " listening" : ""}`}>
       {splash}
       <TopBar user={user} />
-      {children}
+      {/* keyed by page, so each FTN+ page fades in as it opens */}
+      <div className="page-in" key={pathname}>
+        {children}
+      </div>
       <PhoneTabs />
     </div>
   );

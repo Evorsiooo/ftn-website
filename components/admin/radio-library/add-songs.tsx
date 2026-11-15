@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "@/components/gs/dialogs";
+import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { api, duration, FINAL, type Import, type Review } from "./types";
 
 const STATE_LABEL: Record<string, string> = {
@@ -26,7 +26,18 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
     if (!url.trim()) return;
     setBusy(true);
     try {
-      await api("/api/admin/radio/imports", { method: "POST", body: JSON.stringify({ url: url.trim() }) });
+      const link = url.trim();
+      // Spotify only lets the downloader read a playlist's first 100 songs: ask before importing a bigger one.
+      const check = await api<{ songCount: number | null; limit: number | null }>(`/api/admin/radio/imports/check?url=${encodeURIComponent(link)}`);
+      if (check.limit && (check.songCount == null || check.songCount > check.limit)) {
+        const ok = await confirmDialog(
+          check.songCount
+            ? `This playlist has ${check.songCount} songs, but Spotify only shows the first ${check.limit}, so only those will be imported. For the whole playlist, import a YouTube Music copy of it instead. Import the first ${check.limit}?`
+            : `Spotify only shows the first ${check.limit} songs of a playlist, so if this one has more, only those will be imported. For a bigger playlist, import a YouTube Music copy of it instead. Continue?`
+        );
+        if (!ok) return;
+      }
+      await api("/api/admin/radio/imports", { method: "POST", body: JSON.stringify({ url: link }) });
       setUrl("");
       onChange();
     } catch (err: any) {
@@ -82,6 +93,7 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
                   <div className="text-xs text-neutral-500 dark:text-neutral-400">
                     {STATE_LABEL[i.state] || i.state}
                     {total > 0 && ` · ${i.done} of ${total} added`}
+                    {i.sourceTotal && i.sourceTotal > total ? ` (first ${total} of ${i.sourceTotal}, Spotify's limit: import a YouTube Music copy for the rest)` : ""}
                     {i.failed > 0 && ` · ${i.failed} failed`}
                     {i.error && ` · ${i.error}`}
                   </div>

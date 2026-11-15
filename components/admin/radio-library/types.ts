@@ -56,6 +56,8 @@ export interface Import {
   state: string;
   title: string | null;
   total: number | null;
+  /** What the source has when the downloader could list fewer (Spotify: first 100). */
+  sourceTotal: number | null;
   done: number;
   failed: number;
   error: string | null;
