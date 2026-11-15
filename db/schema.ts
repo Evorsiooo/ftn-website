@@ -255,6 +255,11 @@ export const broadcasts = sqliteTable("broadcasts", {
   notifyMessage: text("notify_message"),
   notifyRoStates: text("notify_ro_states"),
   lastNotifiedAt: integer("last_notified_at", { mode: "timestamp" }),
+  // What the radio plays during the airing: a show run from the Studio or OBS ("hosted"), a library
+  // playlist played by the AutoDJ ("playlist"), or another station's https stream ("stream").
+  plays: text("plays", { enum: ["hosted", "playlist", "stream"] }).notNull().default("hosted"),
+  playlistId: text("playlist_id"),
+  streamUrl: text("stream_url"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
@@ -472,3 +477,83 @@ export const radioListeners = sqliteTable("radio_listeners", {
   id: text("id").primaryKey(),
   seenAt: integer("seen_at", { mode: "timestamp" }).notNull(),
 }, (t) => [index("radio_listeners_seen_idx").on(t.seenAt)]);
+
+// ---------- Radio wave 3: Studio, voice usage, replays ----------
+
+// A show run from the admin Studio. Live until every broadcaster has left or one ends it.
+export const radioStudioSessions = sqliteTable("radio_studio_sessions", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  showId: text("show_id"),
+  state: text("state", { enum: ["live", "ended"] }).notNull().default("live"),
+  callIn: integer("call_in", { mode: "boolean" }).notNull().default(false),
+  /** Music paused by a host: when, and the song and place it stopped at. */
+  pausedAt: integer("paused_at", { mode: "timestamp_ms" }),
+  pausedKey: text("paused_key"),
+  pausedSec: real("paused_sec"),
+  replayId: text("replay_id"),
+  startedBy: text("started_by"),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+  endedAt: integer("ended_at", { mode: "timestamp_ms" }),
+}, (t) => [index("radio_studio_sessions_state_idx").on(t.state)]);
+
+// Broadcasters (host, co-hosts) and callers of a Studio session. state: waiting (callers only),
+// on_air, left. rtcSession/track: their voice on Cloudflare Realtime, for listeners to pull.
+export const radioStudioPeople = sqliteTable("radio_studio_people", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  userId: text("user_id").notNull(),
+  name: text("name").notNull(),
+  avatar: text("avatar"),
+  role: text("role", { enum: ["host", "cohost", "caller"] }).notNull(),
+  state: text("state", { enum: ["waiting", "on_air", "left"] }).notNull(),
+  rtcSession: text("rtc_session"),
+  track: text("track"),
+  joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull(),
+  seenAt: integer("seen_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [index("radio_studio_people_session_idx").on(t.sessionId, t.state)]);
+
+// The Studio's song queue. songKey is null while a pasted link is still downloading (importId).
+export const radioStudioQueue = sqliteTable("radio_studio_queue", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull(),
+  songKey: text("song_key"),
+  importId: text("import_id"),
+  label: text("label").notNull(),
+  position: real("position").notNull(),
+  state: text("state", { enum: ["queued", "played", "failed"] }).notNull().default("queued"),
+  addedBy: text("added_by"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [index("radio_studio_queue_session_idx").on(t.sessionId, t.state, t.position)]);
+
+// Estimated Cloudflare Realtime transfer per month ("2026-11"), for the hard cap.
+export const radioRtcUsage = sqliteTable("radio_rtc_usage", {
+  month: text("month").primaryKey(),
+  bytes: integer("bytes").notNull().default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+// A replay: rebuilt in the browser from its parts (the running orders that played, each voice
+// recording, and pauses). kind: studio (a hosted show) or playlist (an automated show).
+export const radioReplays = sqliteTable("radio_replays", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["studio", "playlist"] }).notNull(),
+  airingKey: text("airing_key"),
+  title: text("title").notNull(),
+  showId: text("show_id"),
+  artUrl: text("art_url"),
+  startedAt: integer("started_at", { mode: "timestamp_ms" }).notNull(),
+  endedAt: integer("ended_at", { mode: "timestamp_ms" }),
+  hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [uniqueIndex("radio_replays_airing_idx").on(t.airingKey), index("radio_replays_started_idx").on(t.startedAt)]);
+
+export const radioReplayParts = sqliteTable("radio_replay_parts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  replayId: text("replay_id").notNull(),
+  kind: text("kind", { enum: ["timeline", "voice", "pause"] }).notNull(),
+  r2Key: text("r2_key"),
+  startMs: integer("start_ms").notNull(),
+  endMs: integer("end_ms"),
+  userId: text("user_id"),
+}, (t) => [index("radio_replay_parts_replay_idx").on(t.replayId, t.startMs)]);
