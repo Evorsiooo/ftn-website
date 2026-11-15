@@ -8,6 +8,8 @@ import { useRadio } from "@/components/radio/radio-provider";
 import { useOnAir } from "@/components/radio/use-on-air";
 import { useNowPlaying, type ShowInfo } from "@/components/radio/use-now-playing";
 import { ListenButton, Volume } from "./radio-controls";
+import { CallIn } from "./call-in";
+import { Replays } from "./replays";
 import * as I from "./icons";
 
 // ---------------------------------------------------------------------------------------------- what's on air
@@ -21,6 +23,11 @@ export type StationView = {
   art: string | null;
   /** The AutoDJ song's file (votes and lyrics are keyed by it). */
   songKey: string | null;
+  /** The song itself (the big line shows the show during a show). */
+  songTitle: string;
+  songArtist: string;
+  /** During a show: "Song · Artist" under the show's name. */
+  song: string | null;
   durationSec: number;
   /** Where the song is now, in seconds (null when unknown). */
   position: () => number | null;
@@ -42,8 +49,12 @@ function when(iso: string) {
 }
 const nextLine = (s: ShowInfo | null | undefined) => (s ? `Next: ${s.name}, ${when(s.start)}` : null);
 
+const slotLine = (start: number, end: number) => `${timeFmt.format(new Date(start))} to ${timeFmt.format(new Date(end))}`;
+
 export function useStationView(enabled = true): StationView {
   const radio = useRadio();
+  const studio = radio.program?.studio ?? null;
+  const airing = radio.airing;
   const onAir = useOnAir(enabled);
   const { info } = useNowPlaying(30_000, enabled);
   const positionNow = radio.positionNow;
@@ -54,8 +65,12 @@ export function useStationView(enabled = true): StationView {
 
   return useMemo<StationView>(() => {
     const none = () => null;
-    if (onAir.state === "loading") return { mode: "loading", name: "", by: "", art: null, songKey: null, durationSec: 0, position: none, next: null, listening: null };
-    if (onAir.state === "off-air") return { mode: "offair", name: "Off air", by: "", art: null, songKey: null, durationSec: 0, position: none, next, listening: null };
+    const blank = { songKey: null, songTitle: "", songArtist: "", song: null, durationSec: 0, position: none };
+    if (radio.source === "stream" && airing) {
+      return { ...blank, mode: "hosted", name: airing.title, by: slotLine(airing.start, airing.end), art: airing.art, next, listening };
+    }
+    if (onAir.state === "loading") return { ...blank, mode: "loading", name: "", by: "", art: null, next: null, listening: null };
+    if (onAir.state === "off-air") return { ...blank, mode: "offair", name: "Off air", by: "", art: null, next, listening: null };
     if (onAir.state === "icecast") {
       const show = info?.currentShow;
       const slot = show ? `${timeFmt.format(new Date(show.start))} to ${timeFmt.format(new Date(show.end))}` : null;
@@ -64,26 +79,32 @@ export function useStationView(enabled = true): StationView {
         name: show?.name ?? info?.track?.title ?? "On air",
         by: show ? [show.presenter ? `with ${show.presenter}` : null, slot].filter(Boolean).join(" · ") : info?.track?.artist ?? "",
         art: show?.artUrl ?? info?.artUrl ?? null,
-        songKey: null,
-        durationSec: 0,
-        position: none,
+        ...blank,
         next,
         listening,
       };
     }
     const { positionSec, at } = onAir;
+    // a Studio show, or a scheduled show the AutoDJ plays: the show is the big line, the song under it
+    const hosts = studio?.voices.filter((p) => p.role !== "caller").map((p) => p.name) ?? [];
+    const showName = studio?.title ?? (airing && airing.plays !== "stream" ? airing.title : null);
+    const showBy = studio ? (hosts.length ? `with ${hosts.join(", ")}` : "") : airing ? slotLine(airing.start, airing.end) : "";
+    const songLine = `${onAir.title} · ${onAir.artist}`;
     return {
       mode: "autodj",
-      name: onAir.title,
-      by: onAir.artist,
-      art: onAir.art,
+      name: showName ?? onAir.title,
+      by: showName ? showBy : onAir.artist,
+      art: (showName ? studio?.art ?? airing?.art : null) ?? onAir.art,
+      song: showName ? (studio?.pausedAt ? null : songLine) : null,
+      songTitle: onAir.title,
+      songArtist: onAir.artist,
       songKey: onAir.key,
       durationSec: onAir.durationSec,
       position: () => (playingHere ? positionNow() : positionSec == null ? null : positionSec + (Date.now() - at) / 1000),
       next,
       listening,
     };
-  }, [onAir, info, next, listening, playingHere, positionNow]);
+  }, [onAir, info, next, listening, playingHere, positionNow, radio.source, studio, airing]);
 }
 
 // ---------------------------------------------------------------------------------------------------- lyrics
@@ -115,7 +136,7 @@ export function useLyrics(v: StationView): Lyric[] | null {
     let alive = true;
     const s = song.current;
     loadLyricsModule()
-      .then((m) => m.findLyrics({ key, title: s.name, artist: s.by, durationSec: s.durationSec }))
+      .then((m) => m.findLyrics({ key, title: s.songTitle, artist: s.songArtist, durationSec: s.durationSec }))
       .then((found) => {
         const lines = found?.synced ? found.lines : null;
         lyricsCache.set(key, lines);
@@ -221,6 +242,60 @@ export function Votes({ songKey }: { songKey: string | null }) {
 
 // ---------------------------------------------------------------------------------------------- radio page
 
+// ------------------------------------------------------------------------------------------- on stage
+
+type OnStage = { id: string; name: string; avatar: string | null; talking: boolean };
+
+/** The people on air in a Studio show, with who is talking now. */
+export function useOnStage(): OnStage[] {
+  const r = useRadio();
+  const voices = r.program?.studio?.voices ?? [];
+  const talking = new Set(r.speaking);
+  return voices.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, talking: talking.has(p.id) }));
+}
+
+/**
+ * Who's on air, Discord-style: each person's avatar with their name under it, a green ring
+ * while they talk. Above the lyrics, which dim while someone talks over the music.
+ */
+function Stage({ people }: { people: OnStage[] }) {
+  return (
+    <ul className="stage" aria-label="On air">
+      {people.map((p) => (
+        <li key={p.id} className={p.talking ? "talk" : undefined} aria-label={p.talking ? `${p.name}, talking` : p.name}>
+          {p.avatar ? <img src={p.avatar} alt="" /> : <span className="ini">{p.name.slice(0, 1).toUpperCase()}</span>}
+          <span className="nm">{p.name}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Side({ lyrics, people, position }: { lyrics: Lyric[] | null; people: OnStage[]; position: () => number | null }) {
+  const anyoneTalking = people.some((p) => p.talking);
+  return (
+    <div className={`side${people.length ? " staged" : ""}`}>
+      {people.length > 0 && <Stage people={people} />}
+      {lyrics && (
+        <div className={anyoneTalking ? "dim" : undefined}>
+          <Lyrics lines={lyrics} position={position} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** During a show: the song playing, under the show's name. */
+function SongLine({ v }: { v: StationView }) {
+  if (!v.song) return null;
+  return (
+    <div className="song">
+      <I.Note />
+      {v.song}
+    </div>
+  );
+}
+
 function Secondary({ v }: { v: StationView }) {
   const r = useRadio();
   return (
@@ -281,6 +356,7 @@ function Shows() {
 export function RadioPage() {
   const v = useStationView();
   const lyrics = useLyrics(v);
+  const people = useOnStage();
   return (
     <main>
       <div className="rtop">
@@ -294,19 +370,21 @@ export function RadioPage() {
             <h1 className="name">Off air</h1>
             {v.next && <div className="rmeta">{v.next}</div>}
           </div>
-        ) : lyrics ? (
+        ) : lyrics || people.length ? (
           <div className="radio">
             <div>
               {v.art ? <img className="art" src={v.art} alt="" /> : <div className="art ph-art" />}
               <h1 className="name">{v.name}</h1>
               <div className="by">{v.by}</div>
+              <SongLine v={v} />
               <div className="ctrl">
                 <ListenButton />
                 <Secondary v={v} />
               </div>
               {meta(v) && <div className="rmeta">{meta(v)}</div>}
+              <CallIn />
             </div>
-            <Lyrics lines={lyrics} position={v.position} />
+            <Side lyrics={lyrics} people={people} position={v.position} />
           </div>
         ) : (
           <div className="radio solo">
@@ -314,16 +392,19 @@ export function RadioPage() {
             <div>
               <h1 className="name">{v.name}</h1>
               <div className="by">{v.by}</div>
+              <SongLine v={v} />
               <div className="ctrl">
                 <ListenButton />
                 <Secondary v={v} />
               </div>
               {meta(v) && <div className="rmeta">{meta(v)}</div>}
+              <CallIn />
             </div>
           </div>
         )}
       </div>
       <Shows />
+      <Replays />
       <SourceLink />
     </main>
   );
@@ -347,6 +428,7 @@ export function FullScreen() {
   const r = useRadio();
   const v = useStationView();
   const lyrics = useLyrics(v);
+  const people = useOnStage();
   const close = r.setFull;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close(false);
@@ -362,11 +444,12 @@ export function FullScreen() {
       <button className="ib corner" style={{ right: 20 }} aria-label="Open in a popout window" onClick={r.popout}>
         <I.Pop />
       </button>
-      <div className={`grid${lyrics ? "" : " solo"}`}>
+      <div className={`grid${lyrics || people.length ? "" : " solo"}`}>
         <section aria-label="On air">
           {v.art ? <img className="art" src={v.art} alt="" /> : <div className="art ph-art" />}
           <div className="name">{v.name}</div>
           <div className="by">{v.by}</div>
+          <SongLine v={v} />
           <div className="ctrl">
             <ListenButton big={false} />
             <span className="gap" />
@@ -375,7 +458,7 @@ export function FullScreen() {
           </div>
           {meta(v) && <div className="rmeta">{meta(v)}</div>}
         </section>
-        {lyrics && <Lyrics lines={lyrics} position={v.position} />}
+        {(lyrics || people.length > 0) && <Side lyrics={lyrics} people={people} position={v.position} />}
       </div>
     </div>
   );

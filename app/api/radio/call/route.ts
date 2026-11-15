@@ -3,7 +3,7 @@ import { radioUser, studioFailure } from "@/lib/radio/admin-route";
 import { liveStudio } from "@/lib/radio/program";
 import { overCap } from "@/lib/radio/rtc";
 import { noStore } from "@/lib/radio/store";
-import { StudioError, leave, me, requestCall, seen, setTrack } from "@/lib/radio/studio";
+import { StudioError, leave, me, requestCall, seen, setTrack, waitingPosition } from "@/lib/radio/studio";
 
 export const runtime = "edge";
 
@@ -21,8 +21,9 @@ export async function GET(request: NextRequest) {
     if (!s) return NextResponse.json({ open: false, me: null }, { headers: noStore });
     const p = await me(ctx.db, s.id, ctx.user);
     if (p) await seen(ctx.db, p);
+    const position = p?.state === "waiting" ? await waitingPosition(ctx.db, s.id, p.joinedAt) : null;
     return NextResponse.json(
-      { open: s.callIn, show: s.title, me: p && p.role === "caller" ? { id: p.id, state: p.state } : null },
+      { open: s.callIn, show: s.title, me: p && p.role === "caller" ? { id: p.id, state: p.state, position } : null },
       { headers: noStore },
     );
   } catch (err) {

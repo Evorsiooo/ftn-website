@@ -461,3 +461,41 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .srclink a:hover { color: var(--text); }
 .fp .radio .art.ph-art, .fp .full .art.ph-art { background: var(--surface-2); }
 .fp .pbar .ph-art { display: block; flex: none; background: var(--surface-2); }
+
+/* ---- Radio wave 3 ---------------------------------------------------------------------------------- */
+
+/* Studio shows: who's on air, Discord-style. Each avatar with its name under it; a green ring
+   while that person talks. People coming on or off air fade and scale in; the ring snaps on
+   (speech is fast) and eases off. Lyrics under them dim while anyone talks over the music. */
+.fp .side { min-width: 0; }
+.fp .side.staged { display: flex; flex-direction: column; gap: 28px; }
+.fp .stage { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 28px 36px; }
+.fp .stage li { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 112px; animation: fp-stage-in 360ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.fp .stage img, .fp .stage .ini { width: 96px; height: 96px; border-radius: 999px; object-fit: cover; background: var(--surface-2); box-shadow: 0 0 0 3px transparent, 0 10px 24px rgba(0, 0, 0, 0.3); transition: box-shadow 260ms ease-out; }
+.fp .stage .ini { display: grid; place-items: center; font: 800 34px/1 var(--title); color: var(--text-2); }
+.fp .stage li.talk img, .fp .stage li.talk .ini { box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px #23a55a, 0 10px 24px rgba(0, 0, 0, 0.3); transition-duration: 60ms; }
+.fp .stage .nm { font: 600 15px/1.2 var(--body); color: var(--text); text-align: center; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fp .side .dim { opacity: 0.35; transition: opacity 400ms; }
+.fp .side > div { transition: opacity 600ms; }
+.fp .side.staged .lyrics { height: 360px; }
+.fp .full .side.staged .lyrics { height: min(50vh, 460px); }
+@keyframes fp-stage-in { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .fp .stage li { animation: none; } }
+@media (max-width: 760px) {
+  .fp .stage { gap: 18px 20px; justify-content: center; }
+  .fp .stage li { width: 76px; }
+  .fp .stage img, .fp .stage .ini { width: 64px; height: 64px; }
+  .fp .stage .nm { font-size: 13px; }
+}
+
+/* Replays: past shows to listen back to, under Shows on the radio page */
+.fp .replays { display: grid; grid-template-columns: repeat(min(var(--cols), 4), minmax(0, 1fr)); gap: 20px; padding: 0 var(--pad) 64px; }
+.fp .replays a { display: block; }
+.fp .replays img, .fp .replays .ph-art { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; object-fit: cover; transition: opacity 150ms; }
+.fp .replays a:hover img { opacity: 0.85; }
+.fp .replays .n { font: 600 15px/1.3 var(--body); margin-top: 12px; }
+.fp .replays .w { font-size: 13px; color: var(--text-3); }
+
+/* The replay player */
+.fp .seek { display: flex; align-items: center; gap: 12px; margin-top: 22px; max-width: 520px; font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.fp .seek input { flex: 1; accent-color: var(--yellow); }

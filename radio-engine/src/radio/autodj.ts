@@ -26,6 +26,7 @@ import {
   type TimelineItem,
   virtualOnAir,
 } from './timeline';
+import { programPick, type RadioProgram } from './programFile';
 
 /** Songs lined up after the one on air before a listener plans another. */
 const LOOKAHEAD = 2;
@@ -122,6 +123,7 @@ export type Post = (tl: RadioTimeline) => Promise<{ ok: boolean; error?: string 
 export async function extend(
   current: RadioTimeline | null,
   library: LibrarySong[],
+  program: RadioProgram | null,
   serverNow: () => number,
   post: Post,
   log: (s: string) => void,
@@ -131,11 +133,15 @@ export async function extend(
     // near its end, a little earlier, so there's time to line up the next one
     const startMs = serverNow() + 1500;
     const v = virtualOnAir(library, startMs)!;
-    const song = v.song;
+    // a Studio show's queue or a playlist show starts its own song, from the top
+    const showKey = programPick(program, startMs, current?.items.map((i) => i.key) ?? [], new Set(library.map((s) => s.key)));
+    const showSong = showKey ? library.find((s) => s.key === showKey) : undefined;
+    const song = showSong ?? v.song;
     const buffer = await decodeForPlan(song.key);
     const item = await makeItem(song, buffer);
     const anchorMs = Math.round(serverNow() + 1500);
-    const startSec = Math.max(0, Math.min(v.positionSec + (anchorMs - startMs) / 1000, buffer.duration - 75));
+    const from = showSong ? 0 : v.positionSec + (anchorMs - startMs) / 1000;
+    const startSec = Math.max(0, Math.min(from, buffer.duration - 75));
     const tl: RadioTimeline = {
       version: TIMELINE_VERSION,
       id: 'autodj',
@@ -157,7 +163,10 @@ export async function extend(
   const lastK = current.firstK + n - 1;
   const lastSlot = slotAt(current, lastK)!;
   const lastSong = library.find((s) => s.key === lastSlot.item.key)!;
-  const next = pick(library, current.items.map((i) => i.key));
+  const recent = current.items.map((i) => i.key);
+  // a show's song (the Studio queue, a playlist show) when one is due as this song starts
+  const showKey = programPick(program, endOfTimelineMs(current), recent, new Set(library.map((s) => s.key)));
+  const next = (showKey && library.find((s) => s.key === showKey)) || pick(library, recent);
   log(`lining up ${next.title} after ${lastSong.title}`);
   const [bLast, bNext, storedLast, storedNext] = await Promise.all([
     decodeForPlan(lastSong.key),

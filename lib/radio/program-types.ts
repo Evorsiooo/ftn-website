@@ -64,7 +64,7 @@ export function airingAt(p: RadioProgram | null, ms: number): ProgramAiring | nu
 export function programPick(p: RadioProgram | null, startMs: number, recent: string[], playable: Set<string>): string | null {
   if (!p) return null;
   if (p.studio && p.studio.pausedAt === null) {
-    const q = p.studio.queue.find((k) => playable.has(k) && !recent.slice(-1).includes(k));
+    const q = p.studio.queue.find((k) => playable.has(k) && !recent.slice(-3).includes(k));
     if (q) return q;
   }
   const a = airingAt(p, startMs);

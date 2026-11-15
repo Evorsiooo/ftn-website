@@ -6,6 +6,9 @@ import { useRadioPlayer } from "./use-radio-player";
 import { useRadioSource } from "./use-radio-source";
 import { useNowPlaying, type NowPlaying } from "./use-now-playing";
 import { useMediaSession } from "./use-media-session";
+import { useRadioProgram } from "./use-radio-program";
+import { useStudioVoices } from "./use-studio-voices";
+import type { ProgramAiring, RadioProgram } from "@/lib/radio/program-types";
 import { FullScreen, PlayerBar } from "@/components/plus/radio-ui";
 
 type RadioPlayer = ReturnType<typeof useRadioPlayer>;
@@ -24,6 +27,16 @@ export interface RadioContextValue extends RadioPlayer {
   setFull: (on: boolean) => void;
   /** Moves the radio to a small window of its own: playback carries on there and stops here. */
   popout: () => void;
+  /** Shows and the Studio show on air (radio/program.json). */
+  program: RadioProgram | null;
+  /** The scheduled airing on now, if any. */
+  airing: ProgramAiring | null;
+  /** This browser is on air (Studio or calling in): its own voice isn't played back to it. */
+  setOwnVoice: (v: { id: string; mic: MediaStream } | null) => void;
+  /** Why the show's voices can't be heard (usage cap, connection), or null. */
+  voiceError: string | null;
+  /** The people on air talking right now (their ids in program.studio.voices). */
+  speaking: string[];
 }
 
 const RadioContext = createContext<RadioContextValue | null>(null);
@@ -47,8 +60,24 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const isPopout = pathname.startsWith("/plus/radio/popout");
   const [started, setStarted] = useState(false);
   // checked once the radio has been started here, and on the radio pages
-  const source = useRadioSource(webradioEnabled && (started || pathname.startsWith("/plus/radio")));
-  const player = useRadioPlayer(streamUrl, undefined, { takeOver: isPopout, source });
+  const watching = webradioEnabled && (started || pathname.startsWith("/plus/radio") || pathname.startsWith("/admin/radio"));
+  const icecast = useRadioSource(watching);
+  const { program, airing } = useRadioProgram(watching);
+  // an OBS show on Icecast wins; then a scheduled stream show; otherwise the AutoDJ (with any Studio show)
+  const showStream = airing?.plays === "stream" && airing.stream ? airing.stream : null;
+  const source = icecast === "icecast" ? "icecast" : showStream ? "stream" : "autodj";
+  const player = useRadioPlayer(source === "stream" ? showStream! : streamUrl, undefined, { takeOver: isPopout, source });
+  const [own, setOwn] = useState<{ id: string; mic: MediaStream } | null>(null);
+  const playingHere = player.localStatus === "playing" || player.localStatus === "buffering";
+  const { error: voiceError, speaking } = useStudioVoices({
+    program,
+    active: source === "autodj" && playingHere,
+    volume: player.volume,
+    muted: player.muted,
+    ownVoiceId: own?.id ?? null,
+    ownMic: own?.mic ?? null,
+    voiceDuck: player.voiceDuck,
+  });
   const [dismissed, setDismissed] = useState(false);
   const [full, setFull] = useState(false);
 
@@ -100,6 +129,11 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       },
       full,
       setFull,
+      program,
+      airing,
+      setOwnVoice: setOwn,
+      voiceError,
+      speaking,
       popout: () => {
         const wasPlaying = player.localStatus === "playing" || player.localStatus === "buffering" || player.localStatus === "connecting";
         if (live) player.stop();
@@ -108,7 +142,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
         setDismissed(true);
       },
     }),
-    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live, full]
+    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live, full, program, airing, voiceError, speaking.join(",")]
   );
 
   return (

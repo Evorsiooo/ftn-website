@@ -228,6 +228,15 @@ export async function requestCall(db: DbClient, user: RobloxUser): Promise<Perso
   return row as Person;
 }
 
+/** A waiting caller's place in line (1 = next). */
+export async function waitingPosition(db: DbClient, sessionId: string, joinedAt: Date): Promise<number> {
+  const [r] = await db
+    .select({ n: sql<number>`count(*)` })
+    .from(radioStudioPeople)
+    .where(and(eq(radioStudioPeople.sessionId, sessionId), eq(radioStudioPeople.state, "waiting"), lt(radioStudioPeople.joinedAt, joinedAt)));
+  return Number(r?.n ?? 0) + 1;
+}
+
 export async function putOnAir(db: DbClient, s: Session, personId: string): Promise<void> {
   const list = await people(db, s.id);
   const p = list.find((x) => x.id === personId);

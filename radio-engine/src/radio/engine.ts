@@ -20,6 +20,7 @@ import { songBytes } from './fetchAudio';
 import { loudnessGain } from './loudness';
 import { LOOP_GAIN_REST, PARAM_REST, loopChangesFrom, replayParam, shiftOp, type AbsOp, type DeckId, type ParamId } from './program';
 import { endOfTimelineMs, nowPlaying, slotAt, slotIndexAt, type LibrarySong, type RadioTimeline, type Slot, type TimelineMix } from './timeline';
+import { fetchProgram, type RadioProgram } from './programFile';
 
 /** listenTogether.ts: PING_INTERVAL_MS, and the four quick pings on connect. */
 const PING_INTERVAL_MS = 15_000;
@@ -68,12 +69,27 @@ export interface EngineOptions {
   /** The song on air changed (for the lock screen and the page). */
   onSong?: (item: Slot['item']) => void;
   log?: (line: string) => void;
+  /**
+   * Replays: a clock of our own instead of the website's (server ms for a performance.now()
+   * time), and the running orders that played, in place of the live one. Nothing is fetched
+   * or lined up.
+   */
+  replay?: { clock: (perfMs: number) => number; timelines: RadioTimeline[]; pauses: { start: number; end: number }[] };
 }
 
 export class RadioEngine {
   readonly ctx: AudioContext;
   readonly master: GainNode;
   private readonly out: GainNode;
+  /** Music only: down to 0 while a Studio host has paused it, lowered while someone on air talks. */
+  private readonly music: GainNode;
+  private musicLevel = 1;
+  private voiceDuck = 1;
+  private paused = false;
+  /** Shows, the Studio's queue and pause (radio/program.json). */
+  program: RadioProgram | null = null;
+  /** The running order being played (the live one, or a replay's at this moment). */
+  private playing: RadioTimeline | null = null;
   private volume = 1;
   private duck = 1;
   /** Listeners on now, from the last clock ping (null until the website says). */
@@ -112,7 +128,8 @@ export class RadioEngine {
     this.master = new GainNode(this.ctx, { gain: 1 });
     // listener volume and ducking sit after the mix, so they never touch what everyone hears in step
     this.out = new GainNode(this.ctx, { gain: 1 });
-    this.master.connect(this.out).connect(this.ctx.destination);
+    this.music = new GainNode(this.ctx, { gain: 1 });
+    this.master.connect(this.music).connect(this.out).connect(this.ctx.destination);
     const make = () => {
       const a = new Audio();
       a.preload = 'auto';
@@ -140,6 +157,12 @@ export class RadioEngine {
       void el.play().then(() => el.pause()).catch(() => {});
     }
     this.startedAt = performance.now();
+    this.lastTick = performance.now();
+    if (this.opts.replay) {
+      this.timers.push(setInterval(() => this.tick(), TICK_MS));
+      return;
+    }
+    void this.refreshProgram();
     for (let i = 0; i < 4; i++) setTimeout(() => void this.ping(), i * 300);
     const schedulePing = () => {
       const slow = performance.now() - this.startedAt > SLOW_PING_AFTER_MS;
@@ -154,7 +177,6 @@ export class RadioEngine {
     this.timers.push(setInterval(() => void this.refreshLibrary(), LIBRARY_REFRESH_MS));
     this.timers.push(setInterval(() => this.tick(), TICK_MS));
     this.timers.push(setInterval(() => void this.refresh(), REFRESH_MS));
-    this.lastTick = performance.now();
   }
 
   stop(): void {
@@ -184,6 +206,29 @@ export class RadioEngine {
     this.applyOut();
   }
 
+  /** Lowers the music (not the voices) while someone on air talks: 1 = full. */
+  setVoiceDuck(level: number): void {
+    this.voiceDuck = Math.min(1, Math.max(0, level));
+    this.applyMusic();
+  }
+
+  private applyMusic(): void {
+    if (this.stopped) return;
+    const target = this.paused ? 0 : this.voiceDuck;
+    if (Math.abs(target - this.musicLevel) < 0.001) return;
+    // quick down when someone starts talking, slower back up (BitChord's 0.08 s style ramps)
+    const tc = target < this.musicLevel ? 0.06 : this.paused ? 0.3 : 0.35;
+    this.musicLevel = target;
+    this.music.gain.setTargetAtTime(target, this.ctx.currentTime, tc);
+  }
+
+  private setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    this.log(paused ? 'music paused by the host' : 'music back on');
+    this.applyMusic();
+  }
+
   private applyOut(): void {
     if (this.stopped) return;
     // linear, like the <audio> volume the site used before
@@ -200,6 +245,14 @@ export class RadioEngine {
   }
 
   // ---- Clock ----------------------------------------------------------------------------
+
+  private synced(): boolean {
+    return this.opts.replay ? true : this.clock.synced;
+  }
+
+  serverNow(): number {
+    return this.opts.replay ? this.opts.replay.clock(performance.now()) : this.clock.serverNowMs()!;
+  }
 
   private pings = 0;
 
@@ -229,15 +282,16 @@ export class RadioEngine {
    * out its jitter.
    */
   private ctxBase(): number | null {
+    const replay = this.opts.replay;
     const offset = this.clock.offsetMs;
-    if (offset === null) return null;
+    if (offset === null && !replay) return null;
     const ts = this.ctx.getOutputTimestamp?.();
     let base: number;
     if (ts && ts.contextTime && ts.performanceTime) {
-      const serverAt = performance.timeOrigin + ts.performanceTime + this.skewMs + offset;
+      const serverAt = replay ? replay.clock(ts.performanceTime) : performance.timeOrigin + ts.performanceTime + this.skewMs + offset!;
       base = ts.contextTime - serverAt / 1000;
     } else {
-      const serverNow = this.clock.serverNowMs()!;
+      const serverNow = this.serverNow();
       const latency = (this.ctx as AudioContext & { outputLatency?: number }).outputLatency || this.ctx.baseLatency || 0;
       base = this.ctx.currentTime - latency - serverNow / 1000;
     }
@@ -269,6 +323,7 @@ export class RadioEngine {
   }
 
   private async refresh(): Promise<void> {
+    void this.refreshProgram();
     try {
       this.adopt(await fetchTimeline());
     } catch (e) {
@@ -276,9 +331,18 @@ export class RadioEngine {
     }
   }
 
+  private async refreshProgram(): Promise<void> {
+    try {
+      this.program = await fetchProgram();
+      this.setPaused(!!this.program?.studio && this.program.studio.pausedAt !== null);
+    } catch (e) {
+      this.log(`couldn't fetch the program: ${String(e)}`);
+    }
+  }
+
   /** The AutoDJ's part: line up a song (or start the radio) when this running order needs it. */
   private async work(): Promise<void> {
-    if (this.working || this.opts.autodj === false || !this.library.length || !this.clock.synced || performance.now() < this.nextWorkAt) return;
+    if (this.working || this.opts.autodj === false || this.opts.replay || this.paused || !this.library.length || !this.clock.synced || performance.now() < this.nextWorkAt) return;
     if (!needsWork(this.timeline, this.clock.serverNowMs()!)) return;
     this.working = true;
     try {
@@ -290,6 +354,7 @@ export class RadioEngine {
       const stored = await extend(
         this.timeline,
         this.library,
+        this.program,
         () => this.clock.serverNowMs()!,
         async (tl) => {
           const r = await fetch(AUTODJ_WRITE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ timeline: tl }) });
@@ -318,16 +383,23 @@ export class RadioEngine {
     const nowPerf = performance.now();
     this.maxTickGapMs = Math.max(this.maxTickGapMs, nowPerf - this.lastTick);
     this.lastTick = nowPerf;
-    if (!this.clock.synced) {
+    if (!this.synced()) {
       this.status = { state: 'syncing clock' };
       return;
     }
     const base = this.ctxBase();
     if (base === null) return;
     const ctxAt = (serverMs: number) => base + serverMs / 1000;
-    const serverNow = this.clock.serverNowMs()!;
+    const serverNow = this.serverNow();
     void this.work();
-    const tl = this.timeline;
+    const replay = this.opts.replay;
+    if (replay) this.setPaused(replay.pauses.some((p) => p.start <= serverNow && p.end > serverNow));
+    const tl = replay ? replayTimelineAt(replay.timelines, serverNow) : this.timeline;
+    this.playing = tl;
+    if (replay && !tl) {
+      this.status = { state: 'between songs' };
+      return;
+    }
     if (!tl || (!this.library.length && endOfTimelineMs(tl) < serverNow)) {
       this.status = { state: this.library.length ? (this.workNote ?? 'starting the radio') : 'off air' };
       return;
@@ -471,7 +543,7 @@ export class RadioEngine {
           this.loopDecks = Promise.all([LoopDeck.create(this.ctx, a), LoopDeck.create(this.ctx, b)]);
         }
         const [outDeck, inDeck] = await this.loopDecks;
-        const nextSlot = slotAt(this.timeline!, slot.k + 1)!;
+        const nextSlot = slotAt(this.playing!, slot.k + 1)!;
         const [outBuf, inBuf] = await Promise.all([
           songBytes(slot.item.key).then((b) => this.ctx.decodeAudioData(b.slice(0))),
           songBytes(nextSlot.item.key).then((b) => this.ctx.decodeAudioData(b.slice(0))),
@@ -617,4 +689,14 @@ function loopParam(deck: LoopDeck, param: ParamId): AudioParam {
     case 'lp':
       return deck.sweep.lowpass.frequency;
   }
+}
+
+/** The running order that was playing at [ms] in a replay: the latest revision that covers it. */
+function replayTimelineAt(list: RadioTimeline[], ms: number): RadioTimeline | null {
+  let best: RadioTimeline | null = null;
+  for (const tl of list) {
+    if (slotIndexAt(tl, ms) === null || endOfTimelineMs(tl) <= ms) continue;
+    if (!best || tl.rev > best.rev) best = tl;
+  }
+  return best;
 }
