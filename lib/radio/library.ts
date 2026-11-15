@@ -398,7 +398,7 @@ export async function nextPosition(db: DbClient, playlistId: string): Promise<nu
  * The radio engine's running orders in R2. A song lined up in one can't be deleted (listeners
  * would hit a missing file mid-song); archive it first and delete it once it has played.
  */
-export const RUNNING_ORDER_KEYS = ["test/autodj.json"];
+export const RUNNING_ORDER_KEYS = ["radio/autodj.json"];
 
 export async function isLinedUp(bucket: R2Bucket, r2Key: string): Promise<boolean> {
   for (const key of RUNNING_ORDER_KEYS) {
