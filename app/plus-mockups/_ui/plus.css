@@ -295,6 +295,21 @@ html:has(.fp), html:has(.fp) body { background: #16110a; }
 .fp .empty { padding: 48px 0; color: var(--text-2); }
 .fp .empty .h2 { color: var(--text); margin-bottom: 8px; }
 
+/* Narrow windows: the radio stacks, centred. */
+@media (max-width: 1000px) {
+  .fp .radio, .fp .radio.solo { grid-template-columns: 1fr; gap: 32px; padding-top: calc(var(--nav-h) + 24px); min-height: 0; justify-items: center; text-align: center; }
+  .fp .radio > * { width: 100%; max-width: 560px; }
+  .fp .radio .art { width: 100%; height: auto; aspect-ratio: 1; max-width: 360px; margin: 0 auto; }
+  .fp .radio.solo .name { font-size: 48px; margin-top: 24px; }
+  .fp .radio .song { justify-content: center; }
+  .fp .radio .ctrl { justify-content: center; }
+  .fp .radio .call { margin-left: auto; margin-right: auto; }
+  .fp .radio .callbox { text-align: left; }
+  .fp .radio .lyrics { height: 300px; }
+  .fp .radio .lyrics p { font-size: 26px; }
+  .fp .offair { text-align: center; }
+}
+
 /* Phone: the same six places. Five fit in the bottom bar, Sports and Saved sit under More. */
 .fp .tabsbar, .fp .moresheet { display: none; }
 @media (max-width: 720px) {
@@ -324,13 +339,11 @@ html:has(.fp), html:has(.fp) body { background: #16110a; }
   .fp .rblock { flex-wrap: wrap; padding: 12px; gap: 12px; }
   .fp .rblock > img { width: 64px; height: 64px; }
   .fp .rblock .t { font-size: 20px; }
-  .fp .radio, .fp .radio.solo { grid-template-columns: 1fr; gap: 24px; padding-top: calc(var(--nav-h) + 16px); min-height: 0; }
-  .fp .radio .art { width: 100%; height: auto; aspect-ratio: 1; max-width: 360px; }
   .fp .radio .name, .fp .radio.solo .name { font-size: 34px; margin-top: 16px; }
   .fp .radio .vol { display: none; }
-  .fp .lyrics { height: 200px; }
-  .fp .lyrics p { font-size: 22px; margin-bottom: 14px; }
-  .fp .offair { padding-top: calc(var(--nav-h) + 64px); }
+  .fp .radio .lyrics, .fp .lyrics { height: 220px; }
+  .fp .radio .lyrics p, .fp .lyrics p { font-size: 22px; margin-bottom: 14px; }
+  .fp .offair { padding-top: calc(var(--nav-h) + 64px); text-align: center; }
   .fp .offair .name { font-size: 44px; }
   .fp .watch { grid-template-columns: 1fr; padding-top: var(--nav-h); }
   .fp .watch .player { margin: 0 calc(var(--pad) * -1); border-radius: 0; }
@@ -353,7 +366,9 @@ html:has(.fp), html:has(.fp) body { background: #16110a; }
   .fp .event, .fp .upnext { grid-template-columns: 120px minmax(0, 1fr); gap: 14px; }
   .fp .event > :last-child { grid-column: 2; }
   .fp .lbanner { height: 220px; }
-  .fp .full .grid, .fp .full .grid.solo { grid-template-columns: 1fr; padding: 72px 24px 24px; align-content: start; gap: 24px; }
+  .fp .full .grid, .fp .full .grid.solo { grid-template-columns: 1fr; padding: 72px 24px 24px; align-content: start; gap: 24px; justify-items: center; text-align: center; }
+  .fp .full .ctrl, .fp .full .call { justify-content: center; margin-left: auto; margin-right: auto; }
+  .fp .full .art { margin: 0 auto; }
   .fp .full .art { max-width: 280px; }
   .fp .full .lyrics { height: 30vh; }
   .fp .full .lyrics p { font-size: 22px; }

@@ -114,15 +114,18 @@ export function MockShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [full]);
 
+  // On the Radio page the page itself is the player, so the bar stays hidden there.
+  const onRadio = pathname === `${M}/radio` || pathname.startsWith(`${M}/radio/`);
+  const showBar = bar && !onRadio && !pathname.startsWith(`${M}/popout`);
   const chromeless = pathname.startsWith(`${M}/popout`) || pathname.startsWith(`${M}/site`) || pathname === M;
   const ctx: Ctx = { mode, setMode, station, listening, bar, listen, stop, closeBar, volume, setVolume, vote, setVote, full, setFull, call, setCall, signedIn, setSignedIn, queue, ducked, setDucked, line, popout };
 
   return (
     <RadioCtx.Provider value={ctx}>
-      <div className={`fp${bar && !pathname.startsWith(`${M}/popout`) ? " listening" : ""}${pathname.startsWith(`${M}/popout`) ? " pop" : ""}`}>
+      <div className={`fp${showBar ? " listening" : ""}${pathname.startsWith(`${M}/popout`) ? " pop" : ""}`}>
         {!chromeless && <TopBar pathname={pathname} />}
         {children}
-        {!pathname.startsWith(`${M}/popout`) && bar && <PlayerBar />}
+        {showBar && <PlayerBar />}
         {!chromeless && <PhoneTabs pathname={pathname} />}
         {full && <FullScreen />}
       </div>
