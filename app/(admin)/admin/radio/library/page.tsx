@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Upload } from "lucide-react";
+import { RefreshCw, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { canManageRadio } from "@/lib/rbac";
 import { AddSongs, ReviewMatches } from "@/components/admin/radio-library/add-songs";
 import { SongList, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
 import { PlaylistList } from "@/components/admin/radio-library/playlists";
+import { useMetadataCheck } from "@/components/admin/radio-library/metadata-check";
 import { api, FINAL, type Import, type Playlist, type Review, type Song } from "@/components/admin/radio-library/types";
 
 type Tab = "songs" | "playlists" | "archived";
@@ -71,6 +72,8 @@ export default function RadioLibraryPage() {
     return () => clearInterval(t);
   }, [active, loadImports]);
 
+  const meta = useMetadataCheck(songs, loadLibrary);
+
   const live = useMemo(() => (songs || []).filter((s) => !s.archived), [songs]);
   const archived = useMemo(() => (songs || []).filter((s) => s.archived), [songs]);
   const shown = useMemo(() => {
@@ -89,6 +92,16 @@ export default function RadioLibraryPage() {
             <>
               <Link href="/admin/radio" className="gs-bar-link pb-0.5 text-sm font-bold">← Schedule</Link>
               <Link href="/admin/radio/ratings" className="gs-bar-link pb-0.5 text-sm font-bold">Song ratings →</Link>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={meta.recheckAll}
+                disabled={!songs?.length || meta.state.running}
+                className="h-10 cursor-pointer px-5 text-sm"
+                title="Look every song up in the music catalog for its exact title, artist, album and cover"
+              >
+                <RefreshCw /> Re-check titles
+              </Button>
               <Button size="sm" variant="outline" onClick={() => setUploading(true)} className="h-10 cursor-pointer px-5 text-sm">
                 <Upload /> Upload a file
               </Button>
@@ -97,6 +110,20 @@ export default function RadioLibraryPage() {
         />
 
         <AddSongs imports={imports} onChange={reload} />
+        {(meta.state.running || meta.state.note || (meta.state.all && meta.state.total > 0)) && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900" role="status">
+            <span className="min-w-0 flex-1">
+              {meta.state.running ? "Checking titles, artists and covers" : "Checked titles, artists and covers"}: {meta.state.done} of {meta.state.total}
+              {meta.state.updated > 0 && `, ${meta.state.updated} updated`}
+              {meta.state.note && <span className="text-neutral-500 dark:text-neutral-400"> · {meta.state.note}</span>}
+            </span>
+            {meta.state.running && (
+              <Button size="sm" variant="outline" className="cursor-pointer" onClick={meta.stop}>
+                Stop
+              </Button>
+            )}
+          </div>
+        )}
         <ReviewMatches reviews={reviews} onChange={reload} />
 
         <div className="space-y-4">

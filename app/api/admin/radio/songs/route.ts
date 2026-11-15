@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
       title: radioSongs.title,
       artist: radioSongs.artist,
       album: radioSongs.album,
+      releaseYear: radioSongs.releaseYear,
       durationSec: radioSongs.durationSec,
       loudnessDb: radioSongs.loudnessDb,
       thumbnail: radioSongs.thumbnailUrl,

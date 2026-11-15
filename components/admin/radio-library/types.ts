@@ -12,6 +12,7 @@ export interface Song {
   title: string;
   artist: string;
   album: string | null;
+  releaseYear: number | null;
   durationSec: number;
   loudnessDb: number | null;
   thumbnail: string | null;
