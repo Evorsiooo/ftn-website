@@ -8,12 +8,12 @@ export const runtime = "edge";
 
 type Params = { params: Promise<{ id: string }> };
 
-// Edit a song's title and artist, or archive it (hidden from the AutoDJ and the library list) and back.
+// Edit a song's title, artist, album, year and cover (by hand, or from the music catalog), or archive it (hidden from the AutoDJ and the library list) and back.
 export async function PATCH(request: NextRequest, { params }: Params) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
   const { id } = await params;
-  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; archived?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown } | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const set: Partial<typeof radioSongs.$inferInsert> = {};
@@ -26,6 +26,20 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const artist = typeof body.artist === "string" ? body.artist.trim() : "";
     if (!artist || artist.length > 300) return NextResponse.json({ error: "An artist is required (300 characters at most)." }, { status: 400 });
     set.artist = artist;
+  }
+  if (body.album !== undefined) {
+    if (body.album !== null && (typeof body.album !== "string" || body.album.trim().length > 300)) return NextResponse.json({ error: "album must be text (300 characters at most) or null" }, { status: 400 });
+    set.album = typeof body.album === "string" ? body.album.trim() || null : null;
+  }
+  if (body.releaseYear !== undefined) {
+    const y = body.releaseYear;
+    if (y !== null && !(typeof y === "number" && Number.isInteger(y) && y >= 1800 && y <= 2200)) return NextResponse.json({ error: "releaseYear must be a year or null" }, { status: 400 });
+    set.releaseYear = y as number | null;
+  }
+  if (body.thumbnail !== undefined) {
+    const t = body.thumbnail;
+    if (typeof t !== "string" || !/^https:\/\/[^\s"'<>]+$/.test(t) || t.length > 500) return NextResponse.json({ error: "thumbnail must be an https link" }, { status: 400 });
+    set.thumbnailUrl = t;
   }
   if (body.archived !== undefined) {
     if (typeof body.archived !== "boolean") return NextResponse.json({ error: "archived must be true or false" }, { status: 400 });

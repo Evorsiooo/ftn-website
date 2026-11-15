@@ -2,6 +2,7 @@ import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
 import type { DbClient } from "@/db";
 import { radioImports, radioPlaylists, radioPlaylistSongs, radioSongs } from "@/db/schema";
 import { getSecureRadioSettings } from "@/lib/radio";
+import { guessTitleArtist } from "@/lib/radio/metadata";
 
 /**
  * The radio's song library. Songs come from the VPS downloader (euno-radio, spec
@@ -29,6 +30,12 @@ export interface DownloaderSong {
   loudnessDb?: number | null;
   audio: { r2Key: string; bytes?: number; contentType?: string };
   metaKey?: string;
+  // How sure title and artist are, and the raw fields behind them (download-api.md; absent on older songs).
+  metadataSource?: "tagged" | "topic-channel" | "spotify" | "video" | null;
+  track?: string | null;
+  artists?: string[] | null;
+  rawTitle?: string | null;
+  channel?: string | null;
 }
 
 export interface Candidate {
@@ -186,6 +193,9 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : n
 
 function songRow(song: DownloaderSong, spotifyId: string | null, userId: string | null) {
   const now = new Date();
+  // A plain video's "Artist - Title (Official Video)" by its uploader becomes Title by Artist; the library
+  // page then looks the song up in the music catalog for the exact names, album and cover.
+  const named = guessTitleArtist({ ...song, durationSec: num(song.durationSec) ?? 0 });
   return {
     id: crypto.randomUUID(),
     r2Key: song.audio.r2Key,
@@ -193,8 +203,8 @@ function songRow(song: DownloaderSong, spotifyId: string | null, userId: string 
     source: song.source,
     sourceId: song.sourceId ?? null,
     sourceUrl: song.sourceUrl ?? null,
-    title: clampText(song.title, 300) || "Untitled",
-    artist: clampText(song.artist, 300) || "Unknown artist",
+    title: clampText(named.title, 300) || clampText(song.title, 300) || "Untitled",
+    artist: clampText(named.artist, 300) || clampText(song.artist, 300) || "Unknown artist",
     album: clampText(song.album, 300) || null,
     releaseYear: num(song.releaseYear),
     durationSec: num(song.durationSec) ?? 0,

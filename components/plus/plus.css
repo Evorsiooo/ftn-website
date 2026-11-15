@@ -168,7 +168,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 .fp .meter i { width: 6px; border-radius: 2px; background: rgba(255, 248, 230, 0.18); height: 100%; }
 .fp .meter i.on { background: var(--text); }
 .fp .select { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 14px; color: var(--text-2); }
-.fp .select select { background: var(--surface-2); color: var(--text); border: 0; border-radius: 999px; height: 36px; padding: 0 14px; font: 600 14px/1 var(--body); }
+.fp .select select { width: auto; flex: 0 1 auto; min-width: 0; max-width: 240px; overflow: hidden; text-overflow: ellipsis; background: var(--surface-2); color: var(--text); border: 0; border-radius: 999px; height: 36px; padding: 0 14px; font: 600 14px/1 var(--body); }
 .fp .onair { display: inline-flex; align-items: center; gap: 8px; }
 .fp .onair::before { content: ""; width: 8px; height: 8px; border-radius: 999px; background: var(--yellow); }
 

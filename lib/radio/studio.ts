@@ -384,11 +384,19 @@ export async function markQueuedPlayed(db: DbClient, keys: string[]): Promise<vo
 
 export async function studioState(db: DbClient, user: RobloxUser) {
   const s = await liveStudio(db);
+  if (!s) return studioStateOf(null, [], [], user);
+  const [list, queue] = await Promise.all([people(db, s.id), openQueue(db, s.id)]);
+  return studioStateOf(s, list, queue, user);
+}
+
+type QueueRow = typeof radioStudioQueue.$inferSelect;
+
+function openQueue(db: DbClient, sessionId: string): Promise<QueueRow[]> {
+  return db.select().from(radioStudioQueue).where(and(eq(radioStudioQueue.sessionId, sessionId), ne(radioStudioQueue.state, "played"))).orderBy(asc(radioStudioQueue.position));
+}
+
+function studioStateOf(s: Session | null, list: Person[], queue: QueueRow[], user: RobloxUser) {
   if (!s) return { session: null, me: null, people: [], queue: [], cap: ON_AIR_CAP };
-  const [list, queue] = await Promise.all([
-    people(db, s.id),
-    db.select().from(radioStudioQueue).where(and(eq(radioStudioQueue.sessionId, s.id), ne(radioStudioQueue.state, "played"))).orderBy(asc(radioStudioQueue.position)),
-  ]);
   const mine = list.find((p) => p.userId === user.id && isBroadcaster(p)) ?? null;
   return {
     session: {
@@ -405,4 +413,29 @@ export async function studioState(db: DbClient, user: RobloxUser) {
     queue: queue.map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey })),
     cap: ON_AIR_CAP,
   };
+}
+
+/**
+ * The Studio page checking in (every few seconds, from every open Studio): the state, read once.
+ * The common case is three small reads (the show, its people, its queue). Tidying away people who
+ * stopped checking in, and following up queued links, only run when there is something to do.
+ */
+export async function studioPoll(db: DbClient, user: RobloxUser) {
+  let s = await liveStudio(db);
+  if (!s) return studioStateOf(null, [], [], user);
+  let [list, queue] = await Promise.all([people(db, s.id), openQueue(db, s.id)]);
+  const cutoff = Date.now() - STALE_MS;
+  if (list.some((p) => p.seenAt.getTime() < cutoff && p.userId !== user.id)) {
+    await tidy(db);
+    s = await liveStudio(db);
+    if (!s) return studioStateOf(null, [], [], user);
+    [list, queue] = await Promise.all([people(db, s.id), openQueue(db, s.id)]);
+  }
+  const mine = list.find((p) => p.userId === user.id);
+  if (mine) await seen(db, mine);
+  if (queue.some((q) => q.state === "queued" && !q.songKey)) {
+    await resolveQueue(db, s);
+    queue = await openQueue(db, s.id);
+  }
+  return studioStateOf(s, list, queue, user);
 }

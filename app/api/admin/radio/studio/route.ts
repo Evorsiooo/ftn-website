@@ -17,14 +17,11 @@ import {
   queueSong,
   queueUrl,
   removeFromQueue,
-  resolveQueue,
   resumeMusic,
-  seen,
   setCallIn,
   setTrack,
   startSession,
-  studioState,
-  tidy,
+  studioPoll,
 } from "@/lib/radio/studio";
 
 export const runtime = "edge";
@@ -49,14 +46,7 @@ export async function GET(request: NextRequest) {
         .limit(25);
       return NextResponse.json({ songs }, { headers: noStore });
     }
-    await tidy(db);
-    const s = await liveStudio(db);
-    if (s) {
-      const p = await me(db, s.id, user);
-      if (p && p.state !== "left") await seen(db, p);
-      await resolveQueue(db, s);
-    }
-    const [state, bytes] = await Promise.all([studioState(db, user), usageBytes(db)]);
+    const [state, bytes] = await Promise.all([studioPoll(db, user), usageBytes(db)]);
     return NextResponse.json({ ...state, usage: usageSummary(bytes) }, { headers: noStore });
   } catch (err) {
     return studioFailure(err, "Could not load the Studio");
