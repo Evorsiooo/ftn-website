@@ -127,16 +127,15 @@ export async function extend(
   log: (s: string) => void,
 ): Promise<RadioTimeline | null> {
   if (!current || endOfTimelineMs(current) < serverNow() + 5_000) {
-    // nobody was listening: start with the song the pages have been showing, at the same place (virtualOnAir),
-    // unless it is nearly over, then with the one after it from the top
+    // nobody was listening: start with the song the pages have been showing, at the same place (virtualOnAir);
+    // near its end, a little earlier, so there's time to line up the next one
     const startMs = serverNow() + 1500;
     const v = virtualOnAir(library, startMs)!;
-    const late = v.leftSec < 75;
-    const song = late ? v.next : v.song;
+    const song = v.song;
     const buffer = await decodeForPlan(song.key);
     const item = await makeItem(song, buffer);
     const anchorMs = Math.round(serverNow() + 1500);
-    const startSec = late ? 0 : Math.max(0, Math.min(v.positionSec + (anchorMs - startMs) / 1000, buffer.duration - 75));
+    const startSec = Math.max(0, Math.min(v.positionSec + (anchorMs - startMs) / 1000, buffer.duration - 75));
     const tl: RadioTimeline = {
       version: TIMELINE_VERSION,
       id: 'autodj',
