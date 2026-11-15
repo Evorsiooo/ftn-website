@@ -1,11 +1,5 @@
-"use client";
-import { AppShell } from "../_bc/shell";
-import { HomePage } from "../_bc/pages";
+import { HomePage } from "../_ui/home";
 
 export default function Page() {
-  return (
-    <AppShell active="home">
-      <HomePage />
-    </AppShell>
-  );
+  return <HomePage />;
 }

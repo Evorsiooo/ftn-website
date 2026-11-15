@@ -2,7 +2,7 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* The BitChord mockups build their own Tailwind theme (app/plus-mockups/_bc/global.css). */
+/* The FTN+ mockups (app/plus-mockups) use their own plain stylesheet. */
 @source not "./plus-mockups";
 
 @custom-variant dark (&:is(.dark *));
