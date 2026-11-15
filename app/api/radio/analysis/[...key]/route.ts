@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/db";
 import { checkAnalysis } from "@/lib/radio/autodj";
 import { songsByKeys } from "@/lib/radio/library";
 import { analysisKey, noStore, radioBucket, radioDb } from "@/lib/radio/store";
@@ -16,7 +17,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const db = radioDb();
   if (!bucket || !db) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
   const song = (await params).key?.join("/") ?? "";
-  const library = await songsByKeys(db, [song]);
+  const library = await songsByKeys(getDb(db), [song]);
   if (!library.has(song)) return NextResponse.json({ error: "not in the library" }, { status: 404, headers: noStore });
   if (await bucket.head(analysisKey(song))) return NextResponse.json({ kept: "first one" }, { headers: noStore });
   const raw = await request.text();

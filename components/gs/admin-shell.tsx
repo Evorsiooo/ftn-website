@@ -51,7 +51,10 @@ export function GsAdminShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   const modules = useMemo(() => (roles ? ADMIN_MODULES.filter((m) => m.allowed(roles)) : []), [roles]);
-  const active = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(href + "/"));
+  const under = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // The deepest matching entry wins, so Song library (/admin/radio/library) doesn't also light up Schedule.
+  const active = (href: string) =>
+    href === "/admin" ? pathname === "/admin" : under(href) && !modules.some((m) => m.href.length > href.length && m.href.startsWith(href + "/") && under(m.href));
   const inSettings = pathname.startsWith("/admin/settings");
 
   const linkClass = (on: boolean) =>

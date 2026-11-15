@@ -333,8 +333,8 @@ export function RadioPage() {
 export function SourceLink() {
   return (
     <div className="srclink">
-      FTN Radio runs on open source code from BitChord and AutoMix.{" "}
-      <a href="https://github.com/evorsiooo/ftn-website/tree/main/radio-engine" target="_blank" rel="noopener noreferrer">
+      FTN Radio runs on open source code from BitChord and AutoMix, and so does this site.{" "}
+      <a href="https://github.com/Evorsiooo/ftn-website" target="_blank" rel="noopener noreferrer">
         Source code
       </a>
     </div>

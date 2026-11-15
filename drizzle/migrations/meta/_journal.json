@@ -169,6 +169,13 @@
       "when": 1793144400000,
       "tag": "0024_song_votes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1794700000000,
+      "tag": "0025_radio_library",
+      "breakpoints": true
     }
   ]
 }

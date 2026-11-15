@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/db";
 import { checkTimelineChange, type RadioTimeline } from "@/lib/radio/autodj";
 import { songsByKeys } from "@/lib/radio/library";
 import { AUTODJ_KEY, noStore, radioBucket, radioDb } from "@/lib/radio/store";
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
   const current = stored ? ((await stored.json()) as RadioTimeline) : null;
   const items = (next as { items?: unknown })?.items;
   const keys = Array.isArray(items) ? items.map((i) => String((i as { key?: unknown })?.key)) : [];
-  const error = checkTimelineChange(current, next, Date.now(), await songsByKeys(db, keys));
+  const error = checkTimelineChange(current, next, Date.now(), await songsByKeys(getDb(db), keys));
   if (error) {
     const stale = current !== null && (next as { rev?: unknown })?.rev !== current.rev + 1;
     return NextResponse.json({ error }, { status: stale ? 409 : 422, headers: noStore });

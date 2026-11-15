@@ -25,6 +25,7 @@ export const ADMIN_MODULES: AdminModule[] = [
   { title: "Articles", group: "Newsroom", badge: "drafts", description: "Write, edit and publish stories.", href: "/admin/articles", allowed: canPublishArticles },
   { title: "Tipline", group: "Newsroom", badge: "tips", description: "Review anonymous leads.", href: "/admin/tips", allowed: (r) => canPublishArticles(r) || canConfigureSite(r) },
   { title: "Schedule", group: "Broadcast", description: "Radio shows, livestreams and the broadcast password.", href: "/admin/radio", allowed: canManageRadio },
+  { title: "Song library", group: "Broadcast", description: "The radio's songs and playlists: add, import, archive.", href: "/admin/radio/library", allowed: canManageRadio },
   { title: "Sports", group: "Sports", description: "Leagues, rosters, venues and results.", href: "/admin/sports", allowed: canManageSports },
   { title: "Advertisements", group: "Revenue", description: "Ad placements and click metrics.", href: "/admin/ads", allowed: canManageAds },
   { title: "Posts", group: "Newsroom", badge: "posts", description: "Design posts with an ad and send them for approval.", href: "/admin/posts", allowed: canManagePosts },
