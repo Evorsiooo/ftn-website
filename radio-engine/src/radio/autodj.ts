@@ -131,17 +131,21 @@ export async function extend(
   if (!current || endOfTimelineMs(current) < serverNow() + 5_000) {
     // nobody was listening: start with the song the pages have been showing, at the same place (virtualOnAir);
     // near its end, a little earlier, so there's time to line up the next one
-    const startMs = serverNow() + 1500;
+    const startMs = serverNow() + 1000;
     const v = virtualOnAir(library, startMs)!;
     // a Studio show's queue or a playlist show starts its own song, from the top
     const showKey = programPick(program, startMs, current?.items.map((i) => i.key) ?? [], new Set(library.map((s) => s.key)));
     const showSong = showKey ? library.find((s) => s.key === showKey) : undefined;
     const song = showSong ?? v.song;
-    const buffer = await decodeForPlan(song.key);
-    const item = await makeItem(song, buffer);
-    const anchorMs = Math.round(serverNow() + 1500);
+    // The library already knows the song's length and loudness (the downloader measured them): then
+    // the radio starts at once, without first downloading and decoding the whole file here.
+    const known = (song.durationSec ?? 0) > 0 && song.loudnessDb != null;
+    const item: TimelineItem = known
+      ? { key: song.key, title: song.title, artist: song.artist, durationSec: song.durationSec!, loudnessDb: song.loudnessDb ?? null }
+      : await makeItem(song, await decodeForPlan(song.key));
+    const anchorMs = Math.round(serverNow() + 1000);
     const from = showSong ? 0 : v.positionSec + (anchorMs - startMs) / 1000;
-    const startSec = Math.max(0, Math.min(from, buffer.duration - 75));
+    const startSec = Math.max(0, Math.min(from, item.durationSec - 75));
     const tl: RadioTimeline = {
       version: TIMELINE_VERSION,
       id: 'autodj',

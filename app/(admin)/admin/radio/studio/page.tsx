@@ -413,11 +413,11 @@ export default function StudioPage() {
                     <div className="truncate font-bold">{r.title}</div>
                     <div className="text-xs text-neutral-500">
                       {dateFmt.format(new Date(r.startedAt))}
-                      {r.endedAt ? ` to ${timeFmt.format(new Date(r.endedAt))}` : " · on air"}
+                      {r.endedAt && r.endedAt < Date.now() ? ` to ${timeFmt.format(new Date(r.endedAt))}` : " · on air"}
                       {r.hidden ? " · hidden" : ""}
                     </div>
                   </div>
-                  {r.endedAt && !r.hidden && (
+                  {r.endedAt && r.endedAt < Date.now() && !r.hidden && (
                     <Link href={`/plus/radio/replays/${r.id}`} className="gs-bar-link text-sm font-bold">
                       Listen
                     </Link>

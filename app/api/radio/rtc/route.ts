@@ -5,7 +5,7 @@ import { radioStudioPeople } from "@/db/schema";
 import { verifySessionToken } from "@/lib/auth";
 import { liveStudio } from "@/lib/radio/program";
 import { PROGRAM_KEY, type RadioProgram } from "@/lib/radio/program-types";
-import { addUsage, checkSessionToken, CAP_BYTES, overCap, sessionToken, sfu } from "@/lib/radio/rtc";
+import { addUsage, checkSessionToken, CAP_BYTES, overCap, rtcConfig, sessionToken, sfu } from "@/lib/radio/rtc";
 import { noStore, radioBucket, radioDb } from "@/lib/radio/store";
 
 export const runtime = "edge";
@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
   const d1 = radioDb();
   if (!d1) return bad("Database unavailable", 503);
   const db = getDb(d1);
+  if (!rtcConfig()) return bad("Voice isn't set up (REALTIME_APP_ID / REALTIME_APP_TOKEN).", 503);
   const body = (await request.json().catch(() => ({}))) as Record<string, any>;
   const op = String(body.op ?? "");
 

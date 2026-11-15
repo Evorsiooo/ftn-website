@@ -347,7 +347,9 @@ export class RadioEngine {
     this.working = true;
     try {
       // a short random wait, then a fresh look: listeners don't all do the same work at once
-      await new Promise((r) => setTimeout(r, Math.random() * 4000));
+      // (a fresh start waits less: someone pressed Listen and nothing is playing yet)
+      const fresh = !this.timeline || endOfTimelineMs(this.timeline) < this.clock.serverNowMs()! + 5_000;
+      await new Promise((r) => setTimeout(r, Math.random() * (fresh ? 400 : 4000)));
       await this.refresh();
       if (!needsWork(this.timeline, this.clock.serverNowMs()!)) return;
       this.workNote = this.timeline ? 'lining up the next song' : 'starting the radio';
