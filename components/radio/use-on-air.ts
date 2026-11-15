@@ -2,7 +2,7 @@
 // What the radio is playing, for pages that show it without playing it (Home's radio row, the Radio page before
 // Listen). While this browser plays the AutoDJ, its own player is the source; otherwise the stored running order
 // and the server clock give the same answer every listener hears, and between listeners virtualOnAir does.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { endOfTimelineMs, nowPlaying, virtualOnAir, type LibrarySong, type RadioTimeline } from "@/lib/radio/autodj";
 import { RADIO_FILES } from "./use-radio-source";
 import { useRadio } from "./radio-provider";
@@ -18,7 +18,7 @@ export type OnAir =
       title: string;
       artist: string;
       art: string | null;
-      /** Where the song was at [at] (this device's ms); null while this browser plays it (ask the player). */
+      /** Where the song was at [at] (this device's ms). While this browser plays it, ask the player instead. */
       positionSec: number | null;
       at: number;
       durationSec: number;
@@ -74,7 +74,12 @@ export function useOnAir(enabled = true): OnAir {
         .then((r) => (r.ok ? (r.json() as Promise<RadioTimeline>) : null))
         .then((t) => alive && setTl(t))
         .catch(() => alive && setTl(null));
-    if (!playingHere) void read();
+    // A running order read before this browser started playing is out of date: drop it, and keep showing the
+    // last song until a fresh one arrives (no flash of "loading" or of another song on Stop).
+    if (!playingHere) {
+      setTl(undefined);
+      void read();
+    }
     const poll = playingHere ? undefined : setInterval(read, POLL_MS);
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => {
@@ -84,12 +89,14 @@ export function useOnAir(enabled = true): OnAir {
     };
   }, [enabled, playingHere]);
 
-  return useMemo<OnAir>(() => {
+  const last = useRef<OnAir | null>(null);
+  const value = useMemo<OnAir>(() => {
     const art = (key: string) => songs?.find((s) => s.key === key)?.thumbnail ?? null;
     if (radio.source === "icecast") return { state: "icecast" };
     if (playingHere && radio.song) {
       const s = radio.song;
-      return { state: "song", key: s.key, title: s.title, artist: s.artist, art: art(s.key), positionSec: null, at: now, durationSec: s.durationSec };
+      // the player's own position, so the song can be held where it was if playback stops
+      return { state: "song", key: s.key, title: s.title, artist: s.artist, art: art(s.key), positionSec: radio.positionNow(), at: Date.now(), durationSec: s.durationSec };
     }
     if (songs === null || tl === undefined) return { state: "loading" };
     const serverNow = now + skew;
@@ -105,4 +112,7 @@ export function useOnAir(enabled = true): OnAir {
     if (!v) return { state: "off-air" };
     return { state: "song", key: v.song.key, title: v.song.title, artist: v.song.artist, art: v.song.thumbnail ?? null, positionSec: v.positionSec, at: now, durationSec: v.song.durationSec ?? 0 };
   }, [radio.source, radio.song, playingHere, songs, tl, now, skew]);
+  if (value.state === "loading" && last.current?.state === "song") return last.current;
+  last.current = value;
+  return value;
 }

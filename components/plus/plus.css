@@ -68,8 +68,12 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 /* Volume */
 .fp .vol { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); }
 .fp .vol svg { width: 20px; height: 20px; flex: none; }
-.fp .vol input { -webkit-appearance: none; appearance: none; width: 104px; height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--text) var(--v, 70%), rgba(255, 248, 230, 0.2) var(--v, 70%)); cursor: pointer; }
-.fp .vol input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 999px; background: var(--text); border: 0; }
+/* The 4px track is drawn by the track itself and the 12px thumb is pulled up by half the difference, so the
+   thumb sits on the middle of the line in every browser. */
+.fp .vol input { -webkit-appearance: none; appearance: none; width: 104px; height: 16px; margin: 0; background: transparent; cursor: pointer; }
+.fp .vol input::-webkit-slider-runnable-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--text) var(--v, 70%), rgba(255, 248, 230, 0.2) var(--v, 70%)); }
+.fp .vol input::-moz-range-track { height: 4px; border-radius: 4px; background: linear-gradient(90deg, var(--text) var(--v, 70%), rgba(255, 248, 230, 0.2) var(--v, 70%)); }
+.fp .vol input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 999px; background: var(--text); border: 0; }
 .fp .vol input::-moz-range-thumb { width: 12px; height: 12px; border-radius: 999px; background: var(--text); border: 0; }
 
 /* Top bar: the same bar on every page, over the page's top. It turns solid once the page scrolls. */
@@ -130,11 +134,9 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 .fp .rtop { position: relative; overflow: hidden; }
 .fp .glow { position: absolute; left: -20%; top: -20%; width: 140%; height: 140%; object-fit: cover; filter: blur(80px) saturate(1.5); opacity: 0.75; pointer-events: none; transition: opacity 600ms; }
 .fp .rtop::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(0deg, var(--bg) 0%, rgba(22, 17, 10, 0.35) 45%, rgba(22, 17, 10, 0.15) 100%), linear-gradient(90deg, rgba(22, 17, 10, 0.45) 0%, rgba(22, 17, 10, 0) 55%); }
-.fp .radio { position: relative; z-index: 1; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 80px; align-items: center; padding: calc(var(--nav-h) + 48px) var(--pad) 48px; max-width: 1640px; margin: 0 auto; min-height: 640px; }
-.fp .radio.solo { grid-template-columns: 360px minmax(0, 1fr); }
+.fp .radio { position: relative; z-index: 1; display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 80px; align-items: start; padding: calc(var(--nav-h) + 48px) var(--pad) 48px; max-width: 1640px; margin: 0 auto; min-height: 640px; }
 .fp .radio .art { width: 360px; height: 360px; border-radius: 16px; object-fit: cover; box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); }
 .fp .radio .name { font: 800 48px/1 var(--title); letter-spacing: -0.035em; margin: 24px 0 0; text-wrap: balance; }
-.fp .radio.solo .name { font-size: 72px; margin: 0; }
 .fp .radio .by { font-size: 18px; color: var(--text-2); margin-top: 8px; }
 .fp .radio .song { font-size: 15px; color: var(--text-2); margin-top: 14px; display: flex; gap: 8px; align-items: center; }
 .fp .radio .song svg { width: 16px; height: 16px; color: var(--text-3); }
@@ -147,7 +149,11 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 
 /* Lyrics, beside the song as in BitChord's full-screen player: the current line bright, the rest dimmed. */
 .fp .lyrics { height: 480px; overflow: hidden; position: relative; mask-image: linear-gradient(180deg, transparent 0, #000 24%, #000 72%, transparent 100%); }
+.fp .lyrics { opacity: 0; transition: opacity 500ms; }
+.fp .lyrics.in { opacity: 1; }
+.fp .radio .lyrics { height: 360px; }
 .fp .lyrics .rail { position: absolute; left: 0; right: 0; top: 0; transition: transform 600ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.fp .lyrics .rail.still { transition: none; }
 .fp .lyrics p { margin: 0 0 22px; font: 700 30px/1.25 var(--body); letter-spacing: -0.01em; color: rgba(255, 248, 230, 0.3); text-wrap: balance; transition: color 400ms; }
 .fp .lyrics p.past { color: rgba(255, 248, 230, 0.2); }
 .fp .lyrics p.now { color: var(--text); }
@@ -298,10 +304,9 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 
 /* Narrow windows: the radio stacks, centred. */
 @media (max-width: 1000px) {
-  .fp .radio, .fp .radio.solo { grid-template-columns: 1fr; gap: 32px; padding-top: calc(var(--nav-h) + 24px); min-height: 0; justify-items: center; text-align: center; }
+  .fp .radio { grid-template-columns: 1fr; gap: 32px; padding-top: calc(var(--nav-h) + 24px); min-height: 0; justify-items: center; text-align: center; }
   .fp .radio > * { width: 100%; max-width: 560px; }
   .fp .radio .art { width: 100%; height: auto; aspect-ratio: 1; max-width: 360px; margin: 0 auto; }
-  .fp .radio.solo .name { font-size: 48px; margin-top: 24px; }
   .fp .radio .song { justify-content: center; }
   .fp .radio .ctrl { justify-content: center; }
   .fp .radio .call { margin-left: auto; margin-right: auto; }
@@ -340,7 +345,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
   .fp .rblock { flex-wrap: wrap; padding: 12px; gap: 12px; }
   .fp .rblock > img { width: 64px; height: 64px; }
   .fp .rblock .t { font-size: 20px; }
-  .fp .radio .name, .fp .radio.solo .name { font-size: 34px; margin-top: 16px; }
+  .fp .radio .name { font-size: 34px; margin-top: 16px; }
   .fp .radio .vol { display: none; }
   .fp .radio .lyrics, .fp .lyrics { height: 220px; }
   .fp .radio .lyrics p, .fp .lyrics p { font-size: 22px; margin-bottom: 14px; }
@@ -456,8 +461,21 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 .fp.fp-lite { min-height: 0; background: none; position: static; }
 .fp.fp-site .pbar { bottom: 0; }
 body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
-.fp .srclink { max-width: 1640px; margin: 0 auto; padding: 0 var(--pad) 48px; font-size: 13px; color: var(--text-3); }
-.fp .srclink a { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
-.fp .srclink a:hover { color: var(--text); }
 .fp .radio .art.ph-art, .fp .full .art.ph-art { background: var(--surface-2); }
 .fp .pbar .ph-art { display: block; flex: none; background: var(--surface-2); }
+
+/* Song changes: the art and its glow crossfade (FadeImg), the title and artist fade in. */
+.fp .xf { position: relative; overflow: hidden; }
+.fp .glow.xf { position: absolute; overflow: visible; }
+.fp .xf img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 600ms ease; }
+.fp .xf img.on { opacity: 1; }
+.fp .swap { animation: fp-swap 500ms ease both; }
+@keyframes fp-swap { from { opacity: 0; transform: translateY(6px); } }
+
+/* Moving between FTN+ pages: the new page fades and rises in. */
+.fp .page-in { animation: fp-page 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+@keyframes fp-page { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) {
+  .fp .page-in, .fp .swap { animation: none; }
+  .fp .xf img, .fp .lyrics, .fp .lyrics .rail { transition: none; }
+}

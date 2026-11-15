@@ -66,7 +66,7 @@ export default function AdminSongRatingsPage() {
               ? `${data.totalVotes} vote${data.totalVotes === 1 ? "" : "s"} across ${data.totalSongs} song${data.totalSongs === 1 ? "" : "s"}. Score is likes minus dislikes.`
               : "What listeners think of the songs on the webradio."
           }
-          actions={<Link href="/admin/radio" className="gs-bar-link pb-0.5 text-sm font-bold">← Schedule</Link>}
+          actions={<Link href="/admin/radio/library" className="gs-bar-link pb-0.5 text-sm font-bold">← Song library</Link>}
         />
         {error ? (
           <p className="text-sm text-red-600">Could not load ratings.</p>

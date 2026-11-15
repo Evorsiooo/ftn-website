@@ -1,6 +1,8 @@
 "use client";
 // Radio controls shared by the radio page, the player bar, full screen and Home's radio row.
+import { useEffect } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
+import { loadStationModule } from "@/components/radio/use-radio-player";
 import * as I from "./icons";
 
 /** Listen, which becomes Stop. There's no pause: the radio is the same for everyone, and Listen rejoins it live. */
@@ -8,6 +10,16 @@ export function ListenButton({ big = true }: { big?: boolean }) {
   const r = useRadio();
   const on = r.status !== "idle" && r.status !== "error" && r.status !== "off-air";
   const busy = r.status === "connecting" || r.status === "reconnecting" || r.status === "buffering";
+  // Fetch the AutoDJ engine while the page is idle, so pressing Listen doesn't wait for the download.
+  useEffect(() => {
+    const go = () => void loadStationModule().catch(() => {});
+    if (typeof requestIdleCallback === "function") {
+      const id = requestIdleCallback(go, { timeout: 3000 });
+      return () => cancelIdleCallback(id);
+    }
+    const t = setTimeout(go, 1500);
+    return () => clearTimeout(t);
+  }, []);
   return on ? (
     <button className={`btn main${big ? " lg" : ""}`} onClick={r.stop} aria-busy={busy}>
       <I.Stop />

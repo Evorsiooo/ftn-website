@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { radioSongs } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
-import { radioBucket } from "@/lib/radio/library";
+import { findDuplicate, librarySongsForDuplicates, radioBucket } from "@/lib/radio/library";
 
 export const runtime = "edge";
 
@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
   if (!title || title.length > 300 || !artist || artist.length > 300) return NextResponse.json({ error: "Title and artist are required." }, { status: 400 });
   if (!Number.isFinite(durationSec) || durationSec < 5 || durationSec > 3 * 3600) return NextResponse.json({ error: "Could not read the song's length." }, { status: 400 });
   if (loudnessDb !== null && (!Number.isFinite(loudnessDb) || loudnessDb < -60 || loudnessDb > 30)) return NextResponse.json({ error: "Bad loudness figure." }, { status: 400 });
+
+  const same = findDuplicate({ title, artist, durationSec }, await librarySongsForDuplicates(ctx.db));
+  if (same) return NextResponse.json({ error: `Already in the library: “${same.title}” by ${same.artist}.` }, { status: 409 });
 
   const id = crypto.randomUUID();
   const r2Key = `songs/upload/${id}.${type.ext}`;

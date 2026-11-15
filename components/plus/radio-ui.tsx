@@ -129,39 +129,91 @@ export function useLyrics(v: StationView): Lyric[] | null {
   return key && got?.key === key ? got.lines : null;
 }
 
-/** Synced lyrics: the current line bright and held a little above the middle. */
+/** Synced lyrics: the current line bright and held a little above the middle. Opens on the line being sung
+ *  (no scroll from the top), and only scrolls smoothly once placed. Key it by song so each song fades in. */
 export function Lyrics({ lines, position }: { lines: Lyric[]; position: () => number | null }) {
   const box = useRef<HTMLDivElement>(null);
   const rail = useRef<HTMLDivElement>(null);
-  const [cur, setCur] = useState(-1);
+  const find = () => {
+    const p = position();
+    if (p == null) return null;
+    const ms = p * 1000;
+    let i = -1;
+    for (let k = 0; k < lines.length; k++) if (lines[k]!.timeMs <= ms) i = k;
+    return i;
+  };
+  // null until the position is known: nothing is shown before the rail is in place
+  const [cur, setCur] = useState<number | null>(find);
   const [y, setY] = useState(0);
+  const [smooth, setSmooth] = useState(false);
   useEffect(() => {
     const tick = () => {
-      const p = position();
-      if (p == null) return;
-      const ms = p * 1000;
-      let i = -1;
-      for (let k = 0; k < lines.length; k++) if (lines[k]!.timeMs <= ms) i = k;
-      setCur(i);
+      const i = find();
+      if (i != null) setCur(i);
     };
     tick();
     const t = setInterval(tick, 200);
     return () => clearInterval(t);
   }, [lines, position]);
   useLayoutEffect(() => {
+    if (cur == null) return;
     const el = rail.current?.children[Math.max(0, cur)] as HTMLElement | undefined;
     const h = box.current?.clientHeight ?? 0;
     if (el) setY(h * 0.4 - el.offsetTop - el.offsetHeight / 2);
   }, [cur, lines]);
+  // Turn the scroll animation on only after the first placement has been painted.
+  const placed = cur != null;
+  useEffect(() => {
+    if (!placed || smooth) return;
+    let b = 0;
+    const a = requestAnimationFrame(() => (b = requestAnimationFrame(() => setSmooth(true))));
+    return () => {
+      cancelAnimationFrame(a);
+      cancelAnimationFrame(b);
+    };
+  }, [placed, smooth]);
   return (
-    <div className="lyrics" ref={box} aria-label="Lyrics">
-      <div className="rail" ref={rail} style={{ transform: `translateY(${y}px)` }}>
+    <div className={`lyrics${placed ? " in" : ""}`} ref={box} aria-label="Lyrics">
+      <div className={`rail${smooth ? "" : " still"}`} ref={rail} style={{ transform: `translateY(${y}px)` }}>
         {lines.map((l, i) => (
-          <p key={i} className={i === cur ? "now" : i < cur ? "past" : undefined}>
-            {l.text || "♪"}
+          <p key={i} className={cur == null ? undefined : i === cur ? "now" : i < cur ? "past" : undefined}>
+            {l.text || "\u266a"}
           </p>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** An image that crossfades to the next one once it has loaded, instead of switching at once. */
+export function FadeImg({ src, className }: { src: string | null; className: string }) {
+  const [layers, setLayers] = useState<{ src: string; shown: boolean }[]>(() => (src ? [{ src, shown: true }] : []));
+  useEffect(() => {
+    setLayers((ls) => {
+      if (!src) return [];
+      if (ls[ls.length - 1]?.src === src) return ls;
+      return [...ls.filter((l) => l.shown).slice(-1), { src, shown: false }];
+    });
+  }, [src]);
+  const loaded = (s: string) => {
+    setLayers((ls) => ls.map((l) => (l.src === s ? { ...l, shown: true } : l)));
+    // the old picture stays under the new one until the fade is over
+    setTimeout(() => setLayers((ls) => (ls.length > 1 && ls[ls.length - 1]!.shown ? ls.slice(-1) : ls)), 700);
+  };
+  return (
+    <div className={`${className} xf`} aria-hidden>
+      {layers.map((l) => (
+        <img
+          key={l.src}
+          src={l.src}
+          alt=""
+          className={l.shown ? "on" : undefined}
+          ref={(el) => {
+            if (el && !l.shown && el.complete && el.naturalWidth) loaded(l.src);
+          }}
+          onLoad={() => !l.shown && loaded(l.src)}
+        />
+      ))}
     </div>
   );
 }
@@ -284,60 +336,40 @@ export function RadioPage() {
   return (
     <main>
       <div className="rtop">
-        {v.art && <img className="glow" src={v.art} alt="" />}
-        {v.mode === "loading" ? (
-          <div className="radio solo" aria-label="Loading">
-            <div className="art ph-box" />
-          </div>
-        ) : v.mode === "offair" ? (
+        <FadeImg className="glow" src={v.art} />
+        {v.mode === "offair" ? (
           <div className="offair">
             <h1 className="name">Off air</h1>
             {v.next && <div className="rmeta">{v.next}</div>}
           </div>
-        ) : lyrics ? (
+        ) : (
+          // One layout with or without lyrics: the song under its art, the lyrics (when there are some) beside it,
+          // level with the art's top and bottom.
           <div className="radio">
             <div>
-              {v.art ? <img className="art" src={v.art} alt="" /> : <div className="art ph-art" />}
-              <h1 className="name">{v.name}</h1>
-              <div className="by">{v.by}</div>
-              <div className="ctrl">
-                <ListenButton />
-                <Secondary v={v} />
-              </div>
-              {meta(v) && <div className="rmeta">{meta(v)}</div>}
+              {v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}
+              {v.mode !== "loading" && (
+                <>
+                  <h1 className="name swap" key={`n${v.songKey ?? v.name}`}>
+                    {v.name}
+                  </h1>
+                  <div className="by swap" key={`b${v.songKey ?? v.name}`}>
+                    {v.by}
+                  </div>
+                  <div className="ctrl">
+                    <ListenButton />
+                    <Secondary v={v} />
+                  </div>
+                  {meta(v) && <div className="rmeta">{meta(v)}</div>}
+                </>
+              )}
             </div>
-            <Lyrics lines={lyrics} position={v.position} />
-          </div>
-        ) : (
-          <div className="radio solo">
-            {v.art ? <img className="art" src={v.art} alt="" /> : <div className="art ph-art" />}
-            <div>
-              <h1 className="name">{v.name}</h1>
-              <div className="by">{v.by}</div>
-              <div className="ctrl">
-                <ListenButton />
-                <Secondary v={v} />
-              </div>
-              {meta(v) && <div className="rmeta">{meta(v)}</div>}
-            </div>
+            {lyrics && <Lyrics key={v.songKey} lines={lyrics} position={v.position} />}
           </div>
         )}
       </div>
       <Shows />
-      <SourceLink />
     </main>
-  );
-}
-
-/** The engine and lyrics are AGPL and GPL code: listeners are offered the source. */
-export function SourceLink() {
-  return (
-    <div className="srclink">
-      FTN Radio runs on open source code from BitChord and AutoMix, and so does this site.{" "}
-      <a href="https://github.com/Evorsiooo/ftn-website" target="_blank" rel="noopener noreferrer">
-        Source code
-      </a>
-    </div>
   );
 }
 
@@ -355,7 +387,7 @@ export function FullScreen() {
   }, [close]);
   return (
     <div className="full" role="dialog" aria-modal="true" aria-label="Radio, full screen">
-      {v.art && <img className="glow" src={v.art} alt="" />}
+      <FadeImg className="glow" src={v.art} />
       <button className="ib corner" style={{ left: 20 }} aria-label="Close full screen" onClick={() => close(false)}>
         <I.Close />
       </button>
@@ -364,7 +396,7 @@ export function FullScreen() {
       </button>
       <div className={`grid${lyrics ? "" : " solo"}`}>
         <section aria-label="On air">
-          {v.art ? <img className="art" src={v.art} alt="" /> : <div className="art ph-art" />}
+          {v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}
           <div className="name">{v.name}</div>
           <div className="by">{v.by}</div>
           <div className="ctrl">
@@ -375,7 +407,7 @@ export function FullScreen() {
           </div>
           {meta(v) && <div className="rmeta">{meta(v)}</div>}
         </section>
-        {lyrics && <Lyrics lines={lyrics} position={v.position} />}
+        {lyrics && <Lyrics key={v.songKey} lines={lyrics} position={v.position} />}
       </div>
     </div>
   );
@@ -461,7 +493,7 @@ export function PopoutPage() {
   );
   return (
     <main className="popw">
-      {v.art && <img className="glow" src={v.art} alt="" />}
+      <FadeImg className="glow" src={v.art} />
       {size === "tiny" ? (
         <div className="inner" style={{ justifyContent: "space-between" }}>
           {v.art && <img className="art" src={v.art} alt="" style={{ width: 64, height: 64 }} />}
@@ -480,7 +512,7 @@ export function PopoutPage() {
         </div>
       ) : (
         <div className="tall">
-          {v.art && <img className="art" src={v.art} alt="" />}
+          {v.art && <FadeImg className="art" src={v.art} />}
           <div className="name">{v.name}</div>
           <div className="by">{v.by}</div>
           <div className="ctrl" style={{ marginTop: 18 }}>

@@ -53,8 +53,6 @@ export function GsFooter() {
           <p className="flex gap-4">
             <Link href="/privacy" className="hover:text-brand">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-brand">Terms of Service</Link>
-            {/* AGPL-3.0 (the radio uses BitChord's code): the site's source must be one click away. */}
-            <a href="https://github.com/Evorsiooo/ftn-website" target="_blank" rel="noopener noreferrer" className="hover:text-brand">Source code</a>
           </p>
         </div>
       </div>
