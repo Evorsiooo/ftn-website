@@ -1,175 +1,156 @@
 "use client";
 export const runtime = "edge";
-import { IconVideo } from "@tabler/icons-react";
-import { OTTBillboard, BillboardItem } from "@/components/ott/ott-billboard";
-import { OTTSwimlane } from "@/components/ott/ott-swimlane";
-import { PageShell } from "@/components/ftn/page";
-import { Button, EmptyState, GUTTER } from "@/components/ftn/ui";
-import { Lane, LaneSkeleton, MediaCard } from "@/components/ftn/media";
-import { ContinueWatching } from "@/components/ftn/continue-watching";
-import { HomeSports, SportsGlass, useSportsHighlights } from "@/components/ftn/home-sports";
-import { OnAirGlass, OnAirStrip } from "@/components/ftn/on-air-strip";
-import { useSchedule, type ScheduleEntry } from "@/components/ftn/use-schedule";
+import Link from "next/link";
+import { useMemo } from "react";
 import { useFTNPlus } from "@/lib/ftnplus-context";
-import { useSportsData } from "@/lib/use-sports-data";
-import { hhmm, localZone } from "@/lib/schedule-client";
+import { useContinueWatching } from "@/lib/watch-progress";
 import { watchPath } from "@/lib/plus-links";
+import { CardsLoading, ChannelLogo, VideoCard, toVideo, type PlusVideo } from "@/components/plus/cards";
+import { LiveMark } from "@/components/plus/live";
+import { RadioRow } from "@/components/plus/radio-row";
+import { useSaved } from "@/components/plus/saved";
+import * as I from "@/components/plus/icons";
 
-const FALLBACK_BACKDROP = "https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=1600&auto=format&fit=crop&q=80";
-
-function untilLabel(ms: number) {
-  const mins = Math.max(1, Math.round(ms / 60000));
-  if (mins < 60) return `in ${mins}m`;
-  const h = Math.floor(mins / 60);
-  if (h < 24) return `in ${h}h ${mins % 60}m`;
-  return `in ${Math.floor(h / 24)}d ${h % 24}h`;
-}
-
-function dayLabel(d: Date, now: number) {
-  const today = new Date(now);
-  if (d.toDateString() === today.toDateString()) return "Today";
-  const tomorrow = new Date(now + 86400000);
-  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return d.toLocaleDateString(undefined, { weekday: "short" });
-}
-
-/** Schedule page opened on the day the entry airs (local date). */
-function scheduleHref(start: string) {
-  const d = new Date(start);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `/plus/schedule?date=${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function entryHref(e: ScheduleEntry) {
-  if (e.onStream && e.youtubeId) return watchPath(e.youtubeId);
-  if (e.onRadio) return "/plus/radio";
-  return scheduleHref(e.start);
-}
-
-/** Home: what is on FTN+ right now, what is next, and what is new. */
+/** Home: the featured video (a live stream takes its place), then what's new, the radio, and the curated rows. */
 export default function FTNPlusHomePage() {
-  const { featuredVideo, allVideos, loadingLibrary, error, refreshLibrary } = useFTNPlus();
-  const { live, upcoming, loaded: scheduleLoaded, now } = useSchedule();
-  const { data: sports, loading: sportsLoading } = useSportsData();
-  const { next: nextSports } = useSportsHighlights(sports);
+  const { featuredVideo, allVideos, trendingRaw, customSwimlanes, loadingLibrary, error, refreshLibrary } = useFTNPlus();
+  const continueItems = useContinueWatching();
 
-  const next = upcoming[0];
-  const featuredBackdrop = featuredVideo?.thumbnailUrl || FALLBACK_BACKDROP;
-
-  // Context hero: a live stream, else the next broadcast within a day, else the featured video.
-  let billboardItem: BillboardItem | null = null;
-  if (featuredVideo?.isLive) {
-    billboardItem = {
-      id: featuredVideo.youtubeId || featuredVideo.id,
-      title: featuredVideo.title,
-      description: featuredVideo.description || "",
-      category: featuredVideo.channelTitle || "FTN+ Original",
-      backdropUrl: featuredBackdrop,
-      isLive: true,
-    };
-  } else if (next && new Date(next.start).getTime() - now < 24 * 3600 * 1000) {
-    billboardItem = {
-      id: next.id,
-      title: next.title,
-      description: next.presenter ? `with ${next.presenter}` : "",
-      category: next.onStream ? "Livestream" : "FTN Radio",
-      backdropUrl: next.artUrl || featuredBackdrop,
-      kicker: `Up next ${untilLabel(new Date(next.start).getTime() - now)}`,
-      href: scheduleHref(next.start),
-      ctaLabel: "See the schedule",
-    };
-  } else if (featuredVideo) {
-    billboardItem = {
-      id: featuredVideo.youtubeId || featuredVideo.id,
-      title: featuredVideo.title,
-      description: featuredVideo.description || "",
-      category: featuredVideo.channelTitle || "FTN+ Original",
-      backdropUrl: featuredBackdrop,
-    };
-  }
-
-  const comingUp = upcoming.slice(0, 4);
-  const latest = allVideos.slice(0, 8).map((v: any) => ({
-    id: v.youtubeId || v.id,
-    title: v.title,
-    category: v.channelTitle || "FTN+",
-    thumbnailUrl: v.thumbnailUrl,
-    channelId: v.channelId,
-    channelTitle: v.channelTitle,
-    channelLogoUrl: v.channelLogoUrl,
-    isLive: v.isLive,
+  const all = useMemo(() => allVideos.map(toVideo), [allVideos]);
+  const byId = useMemo(() => new Map(all.map((v) => [v.id, v])), [all]);
+  const featured = featuredVideo ? toVideo(featuredVideo) : null;
+  const latest = all.filter((v) => !v.live).slice(0, 6);
+  const trending = trendingRaw.map(toVideo).filter((v) => v.id !== featured?.id).slice(0, 6);
+  const resume = continueItems.map((p) => ({
+    v:
+      byId.get(p.youtubeId) ??
+      ({
+        id: p.youtubeId,
+        title: p.title,
+        channel: p.channelTitle || "FTN",
+        channelId: p.channelId || "",
+        logo: p.channelLogoUrl || null,
+        description: "",
+        thumb: p.thumbnailUrl,
+        publishedAt: new Date(p.updatedAt).toISOString(),
+        live: false,
+        stream: false,
+        durationSec: p.duration,
+      } satisfies PlusVideo),
+    progress: (p.position / p.duration) * 100,
+    left: Math.max(1, Math.round((p.duration - p.position) / 60)),
   }));
 
-  const loadingHero = loadingLibrary || !scheduleLoaded;
-
-  // The hero already is the live stream when it is live, so it is not repeated as an "on air" card.
-  const heroLiveId = billboardItem?.isLive ? billboardItem.id : null;
-  // A live hero stands alone: no on-air card repeating it.
-  const onAir = heroLiveId ? [] : live;
+  if (!loadingLibrary && !featured) {
+    return (
+      <main className="page">
+        <div className="empty">
+          <h1 className="h2">{error ? "FTN+ couldn't load" : "Nothing here yet"}</h1>
+          <div>{error ? "Check your connection and try again." : "Videos and streams show up here as soon as they're published."}</div>
+          {error && (
+            <div style={{ marginTop: 20 }}>
+              <button className="btn sec" onClick={() => refreshLibrary()}>
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <PageShell>
-      {billboardItem ? (
-        <OTTBillboard item={billboardItem} aside={
-            <>
-              <OnAirGlass live={onAir} now={now} max={nextSports ? 1 : 2} />
-              <SportsGlass data={sports} />
-            </>
-          } />
-      ) : !loadingHero ? (
-        <div className={`pt-32 pb-10 ${GUTTER}`}>
-          <EmptyState
-            icon={<IconVideo />}
-            title="Welcome to FTN+"
-            description={
-              error
-                ? "Unable to connect to the streaming library. Please check your connection."
-                : "Nothing is scheduled or published yet. Check back soon for broadcasts and video."
-            }
-            action={error ? <Button onClick={() => refreshLibrary()}>Retry connection</Button> : undefined}
-          />
-        </div>
-      ) : (
-        <div className="relative h-[78vh] min-h-[540px] max-h-[760px] ftn-skeleton !rounded-none" aria-label="Loading FTN+" />
+    <main>
+      {featured ? <Hero v={featured} /> : <section className="hero ph-box" style={{ borderRadius: 0 }} aria-label="Loading" />}
+
+      {resume.length > 0 && (
+        <>
+          <div className="rowh">
+            <h2 className="h2">Continue watching</h2>
+          </div>
+          <div className="cards one-row">
+            {resume.map(({ v, progress, left }) => (
+              <VideoCard key={v.id} v={v} progress={progress} sub={`${left} min left`} />
+            ))}
+          </div>
+        </>
       )}
 
-      <div className="relative z-20 -mt-12 space-y-12">
-        <OnAirStrip live={onAir} now={now} className={billboardItem ? "lg:hidden" : undefined} />
-
-        {comingUp.length > 0 && (
-          <Lane title="Coming up" sub={localZone()} href="/plus/schedule" hrefLabel="Full schedule" cols={4}>
-            {comingUp.map((e) => {
-              const start = new Date(e.start);
-              return (
-                <MediaCard
-                  key={e.id + e.start}
-                  href={entryHref(e)}
-                  art={e.artUrl}
-                  shape="poster"
-                  title={e.title}
-                  className="w-44 sm:w-52 md:w-56"
-                  topLeft={
-                    <div className="leading-tight">
-                      <div className="ftn-display text-2xl">{hhmm(start)}</div>
-                      <div className="text-xs font-semibold text-white/85">{dayLabel(start, now)}</div>
-                    </div>
-                  }
-                >
-                  {e.presenter && <p>with {e.presenter}</p>}
-                </MediaCard>
-              );
-            })}
-          </Lane>
-        )}
-
-        <ContinueWatching />
-
-        <HomeSports data={sports} loading={sportsLoading} />
-
-        {loadingLibrary && <LaneSkeleton />}
-
-        {latest.length > 0 && <OTTSwimlane title="Latest videos" videos={latest} href="/plus/library" hrefLabel="Browse the library" />}
+      <div className="rowh">
+        <h2 className="h2">Latest</h2>
+        <Link href="/plus/videos">See all</Link>
       </div>
-    </PageShell>
+      {loadingLibrary ? (
+        <CardsLoading />
+      ) : (
+        <div className="cards one-row">
+          {latest.map((v) => (
+            <VideoCard key={v.id} v={v} />
+          ))}
+        </div>
+      )}
+
+      <RadioRow />
+
+      {trending.length > 0 && (
+        <>
+          <div className="rowh">
+            <h2 className="h2">Trending</h2>
+          </div>
+          <div className="cards one-row">
+            {trending.map((v) => (
+              <VideoCard key={v.id} v={v} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {customSwimlanes
+        .filter((l) => l.videos?.length)
+        .map((l, i, lanes) => (
+          <div key={l.id}>
+            <div className="rowh">
+              <h2 className="h2">{l.title}</h2>
+            </div>
+            <div className="cards one-row" style={i === lanes.length - 1 ? { paddingBottom: 64 } : undefined}>
+              {l.videos.slice(0, 6).map((raw: any) => {
+                const v = toVideo(raw);
+                return <VideoCard key={v.id} v={v} />;
+              })}
+            </div>
+          </div>
+        ))}
+      <div style={{ height: 64 }} />
+    </main>
+  );
+}
+
+function Hero({ v }: { v: PlusVideo }) {
+  const { saved, toggle } = useSaved(v.live ? null : v);
+  return (
+    <section className="hero">
+      <img src={v.thumb.replace(/\/(hq|mq|sd)default\.jpg$/, "/maxresdefault.jpg")} alt="" onError={(e) => (e.currentTarget.src = v.thumb)} />
+      <div className="copy">
+        <div className="chan">
+          <ChannelLogo v={v} />
+          {v.channel}
+          {v.live && <LiveMark inline />}
+        </div>
+        <h1>{v.title}</h1>
+        {!v.live && v.description && <p>{v.description}</p>}
+        <div className="acts">
+          <Link href={watchPath(v.id)} className="btn main lg">
+            <I.Play />
+            {v.live ? "Watch" : "Play"}
+          </Link>
+          {!v.live && (
+            <button className="btn sec lg" aria-pressed={saved} onClick={toggle}>
+              {saved ? <I.Saved /> : <I.Save />}
+              {saved ? "Saved" : "Save"}
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import OTTClientLayout from "./client-layout";
+import "@/components/plus/plus.css";
 
 const manrope = localFont({
   src: "../../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
@@ -11,8 +12,10 @@ const manrope = localFont({
 
 export const runtime = "edge";
 
+// FTN+ is dark only.
 export const viewport: Viewport = {
-  themeColor: "#FFBB14",
+  themeColor: "#16110a",
+  colorScheme: "dark",
 };
 
 export const metadata: Metadata = {
@@ -36,9 +39,7 @@ export const metadata: Metadata = {
     title: "FTN+",
     description: "Stream Roblox livestreams, broadcasts, podcasts, and video on-demand on FTN+.",
   },
-  other: {
-    "theme-color": "#FFBB14",
-  },
+
 };
 
 export default function OTTLayout({

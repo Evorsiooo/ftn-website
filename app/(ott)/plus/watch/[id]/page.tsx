@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { siteSettings, videos } from "@/db/schema";
 import { and, eq, like, or } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { OTTPlayer } from "@/components/ott/ott-player";
+import { PlusWatch } from "@/components/plus/watch";
 import { findTwitchBroadcast, parseTwitchId, twitchBroadcastId } from "@/lib/twitch";
 import { publicVideoId, resolvePublicTwitchId } from "@/lib/twitch-id";
 
@@ -138,6 +138,7 @@ export default async function OTTWatchPage({
   let isLive = false;
   let twitchVodId: string | undefined;
   let broadcastEnded = false;
+  let thumbnailUrl: string | undefined;
   const twitch = parseTwitchId(id);
   let foundRow = false;
   let redirectTo: string | null = null;
@@ -168,6 +169,7 @@ export default async function OTTWatchPage({
         channelTitle = match[0].channelTitle;
         channelLogoUrl = match[0].channelLogoUrl || "";
         isLive = match[0].isLive || false;
+        thumbnailUrl = match[0].thumbnailUrl || undefined;
         if (match[0].publishedAt) {
           publishedAt = new Date(match[0].publishedAt).toISOString();
         }
@@ -244,14 +246,14 @@ export default async function OTTWatchPage({
   }
 
   return (
-    <OTTPlayer
+    <PlusWatch
       youtubeId={targetYoutubeId}
       title={videoTitle}
       description={videoDescription}
-      category={videoCategory}
       channelId={channelId}
       channelTitle={channelTitle}
       channelLogoUrl={channelLogoUrl}
+      thumbnailUrl={thumbnailUrl}
       publishedAt={publishedAt}
       isLive={isLive}
       twitchVodId={twitchVodId}

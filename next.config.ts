@@ -9,6 +9,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // FTN+'s old page names (renamed in the 2026 redesign)
+  async redirects() {
+    return [
+      { source: "/plus/library", destination: "/plus/videos", permanent: true },
+      { source: "/plus/watchlist", destination: "/plus/saved", permanent: true },
+    ];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

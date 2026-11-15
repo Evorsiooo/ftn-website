@@ -213,7 +213,9 @@ export class RadioEngine {
       const received = this.clock.nowMs();
       const body = (await r.json()) as { serverMs: number; listeners?: number | null };
       if (typeof body.listeners === 'number') this.listeners = body.listeners;
-      if (!Number.isFinite(body.serverMs)) return;
+      // a counting ping waits on the database after the server read its clock, so its round trip says
+      // nothing true about the network: it isn't used for the clock
+      if (count || !Number.isFinite(body.serverMs)) return;
       this.clock.record(sentAt, body.serverMs, received);
     } catch (e) {
       this.log(`ping failed: ${String(e)}`);

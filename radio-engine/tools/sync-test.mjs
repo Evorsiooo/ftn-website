@@ -126,7 +126,8 @@ for (let i = 0; i < MIXES; i++) {
   results.push(await compare(`after mix ${i + 1}, song alone`, A, B, Date.now() + 300, 4));
 }
 const final = { A: await status(A), B: await status(B) };
-const stored = await (await fetch(`${base}/api/radio/autodj`, { cache: 'no-store' })).json();
+const files = process.env.FILES ? `${base}${process.env.FILES}` : 'https://radio-files.euno.cc';
+const stored = await (await fetch(`${files}/radio/autodj.json?t=${Date.now()}`, { cache: 'no-store' })).json();
 writeFileSync(reportPath, JSON.stringify({ results, final, stored: { rev: stored.rev, firstK: stored.firstK, songs: stored.items.map((i) => i.title), mixes: stored.mixes.map((m) => m.style) }, logs: { A: A.logs, B: B.logs } }, null, 1));
 console.log('final', JSON.stringify(final));
 await A.browser.close();

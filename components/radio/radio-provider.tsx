@@ -15,6 +15,8 @@ export interface RadioContextValue extends RadioPlayer {
   info: NowPlaying | null;
   /** Radio has been started in this tab (or by another window) and the mini player may show. */
   sessionActive: boolean;
+  /** The player bar is on screen (pages leave room for it). */
+  barShown: boolean;
   dismissMini: () => void;
 }
 
@@ -84,13 +86,13 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       streamUrl,
       info,
       sessionActive,
+      barShown: showMini,
       dismissMini: () => {
         if (live) player.stop();
         setDismissed(true);
       },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, live]
+    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live]
   );
 
   return (
