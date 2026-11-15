@@ -460,3 +460,4 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .srclink a { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
 .fp .srclink a:hover { color: var(--text); }
 .fp .radio .art.ph-art, .fp .full .art.ph-art { background: var(--surface-2); }
+.fp .pbar .ph-art { display: block; flex: none; background: var(--surface-2); }
