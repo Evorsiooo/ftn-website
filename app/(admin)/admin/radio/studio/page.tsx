@@ -87,8 +87,18 @@ export default function StudioPage() {
     call<{ shows: Show[] }>("/api/admin/broadcasts")
       .then((d) => setShows(d.shows || []))
       .catch(() => {});
-    const t = setInterval(load, 3000);
-    return () => clearInterval(t);
+    // every 5 s while the tab is visible, every 20 s while it's hidden: still within the 45 s after
+    // which the server takes a silent broadcaster off air, so switching tabs doesn't end the show
+    let n = 0;
+    const tick = () => {
+      if (document.visibilityState === "visible" || ++n % 4 === 0) void load();
+    };
+    const t = setInterval(tick, 5000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [load, loadReplays]);
 
   const act = async (body: Record<string, unknown>) => {
