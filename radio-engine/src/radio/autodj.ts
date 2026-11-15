@@ -24,6 +24,7 @@ import {
   type LibrarySong,
   type RadioTimeline,
   type TimelineItem,
+  virtualOnAir,
 } from './timeline';
 
 /** Songs lined up after the one on air before a listener plans another. */
@@ -126,20 +127,23 @@ export async function extend(
   log: (s: string) => void,
 ): Promise<RadioTimeline | null> {
   if (!current || endOfTimelineMs(current) < serverNow() + 5_000) {
-    // nobody was listening: start now, with a song someone has analysed if there is one
-    // (a sample of up to 16 songs, so a big library doesn't mean hundreds of requests)
-    const analysed = new Set<string>();
-    const sample = [...library].sort(() => Math.random() - 0.5).slice(0, 16);
-    await Promise.all(sample.map(async (s) => (await fresh(analysisKey(s.key), { method: 'HEAD' })).ok && analysed.add(s.key)));
-    const song = pick(library, [], analysed);
-    const item = await makeItem(song, await decodeForPlan(song.key));
+    // nobody was listening: start with the song the pages have been showing, at the same place (virtualOnAir),
+    // unless it is nearly over, then with the one after it from the top
+    const startMs = serverNow() + 1500;
+    const v = virtualOnAir(library, startMs)!;
+    const late = v.leftSec < 75;
+    const song = late ? v.next : v.song;
+    const buffer = await decodeForPlan(song.key);
+    const item = await makeItem(song, buffer);
+    const anchorMs = Math.round(serverNow() + 1500);
+    const startSec = late ? 0 : Math.max(0, Math.min(v.positionSec + (anchorMs - startMs) / 1000, buffer.duration - 75));
     const tl: RadioTimeline = {
       version: TIMELINE_VERSION,
       id: 'autodj',
       rev: (current?.rev ?? 0) + 1,
       firstK: current ? current.firstK + current.items.length + 1 : 0,
-      anchorMs: Math.round(serverNow() + 1500),
-      startSec: 0,
+      anchorMs,
+      startSec: Math.round(startSec * 1000) / 1000,
       repeat: false,
       items: [item],
       mixes: [],

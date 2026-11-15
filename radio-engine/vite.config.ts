@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 
 // The radio engine, built into the website's public folder (public/radio-engine/):
 // - site.js: what the website's radio player loads when someone presses Listen;
+// - lyrics.js: BitChord's lyric lookup, for the radio page and full screen (loaded on its own, without the engine);
 // - index.html: the test page (/radio-engine/index.html), not linked from the site.
 // onnxruntime-web's 14 MB .wasm is served from the radio bucket (models/), not shipped with the page
 const dropOrtWasm = () => ({
@@ -20,10 +21,10 @@ export default defineConfig({
     target: 'es2022',
     chunkSizeWarningLimit: 4000,
     rollupOptions: {
-      input: { lab: 'index.html', site: 'src/site.ts' },
+      input: { lab: 'index.html', site: 'src/site.ts', lyrics: 'src/lyrics.ts' },
       preserveEntrySignatures: 'exports-only',
       output: {
-        entryFileNames: (chunk) => (chunk.name === 'site' ? 'site.js' : 'assets/[name]-[hash].js'),
+        entryFileNames: (chunk) => (chunk.name === 'site' || chunk.name === 'lyrics' ? `${chunk.name}.js` : 'assets/[name]-[hash].js'),
       },
     },
   },

@@ -24,13 +24,10 @@ export function RadioRow() {
     title = show?.name ?? info?.track?.title ?? "On air";
     sub = show ? (show.presenter ? `with ${show.presenter}` : null) : info?.track?.artist ?? null;
     art = show?.artUrl ?? info?.artUrl ?? null;
-  } else if (onAir.state === "song") {
+  } else {
     title = onAir.title;
     sub = onAir.artist;
     art = onAir.art;
-  } else {
-    title = "Nothing playing right now";
-    sub = "Press Listen and the music starts.";
   }
   return (
     <>

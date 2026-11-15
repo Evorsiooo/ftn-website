@@ -438,3 +438,49 @@ export function checkAnalysis(a: unknown, key: string, song: LibrarySong | undef
   if (!walk(a, 0)) return 'too big or not plain data';
   return null;
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The radio between listeners. Nothing is lined up while nobody listens (the listeners' browsers do the work), but
+// the radio is 24/7: pages that only show it (Home's radio row, the Radio page before Listen) show this instead,
+// and the first listener's fresh start begins with the same song at the same place, so what the page said is
+// what they hear. It is worked out from the library and the clock alone, so every page agrees.
+
+const VIRTUAL_BLOCK_MS = 3_600_000;
+const VIRTUAL_NO_REPEAT = 8;
+const VIRTUAL_DEFAULT_SEC = 210;
+
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** The song "on air" at [serverMs] when nobody is listening, and how far into it. Null with an empty library. */
+export function virtualOnAir(library: LibrarySong[], serverMs: number): { song: LibrarySong; positionSec: number; leftSec: number; next: LibrarySong } | null {
+  if (!library.length) return null;
+  const songs = [...library].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const block = Math.floor(serverMs / VIRTUAL_BLOCK_MS);
+  const rand = seeded(block * 2654435761);
+  const recent: string[] = [];
+  const draw = () => {
+    const pool = songs.filter((s) => !recent.includes(s.key));
+    const from = pool.length ? pool : songs;
+    const s = from[Math.floor(rand() * from.length)]!;
+    recent.push(s.key);
+    if (recent.length > Math.min(VIRTUAL_NO_REPEAT, songs.length - 1)) recent.shift();
+    return s;
+  };
+  const len = (s: LibrarySong) => (finite(s.durationSec) && s.durationSec! > 1 ? s.durationSec! : VIRTUAL_DEFAULT_SEC);
+  let t = (serverMs - block * VIRTUAL_BLOCK_MS) / 1000;
+  let song = draw();
+  for (let guard = 0; t >= len(song) && guard < 10_000; guard++) {
+    t -= len(song);
+    song = draw();
+  }
+  return { song, positionSec: t, leftSec: len(song) - t, next: draw() };
+}

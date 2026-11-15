@@ -6,7 +6,7 @@ import { useRadioPlayer } from "./use-radio-player";
 import { useRadioSource } from "./use-radio-source";
 import { useNowPlaying, type NowPlaying } from "./use-now-playing";
 import { useMediaSession } from "./use-media-session";
-import { RadioMiniPlayer } from "./radio-mini-player";
+import { FullScreen, PlayerBar } from "@/components/plus/radio-ui";
 
 type RadioPlayer = ReturnType<typeof useRadioPlayer>;
 export interface RadioContextValue extends RadioPlayer {
@@ -17,7 +17,13 @@ export interface RadioContextValue extends RadioPlayer {
   sessionActive: boolean;
   /** The player bar is on screen (pages leave room for it). */
   barShown: boolean;
+  /** Stops and closes the player bar. */
   dismissMini: () => void;
+  /** The radio in full screen (opened from the bar or the radio page). */
+  full: boolean;
+  setFull: (on: boolean) => void;
+  /** Moves the radio to a small window of its own: playback carries on there and stops here. */
+  popout: () => void;
 }
 
 const RadioContext = createContext<RadioContextValue | null>(null);
@@ -28,8 +34,8 @@ export function useRadio(): RadioContextValue {
   return ctx;
 }
 
-// Pages that have their own full player, or where a floating one would be in the way.
-const HIDDEN_ON = ["/plus/radio", "/plus/watch", "/api"];
+// The radio page is the player itself, so the bar stays hidden there (and in the popout under it).
+const HIDDEN_ON = ["/plus/radio", "/api"];
 
 /**
  * Owns the one <audio> for the webradio. It lives in the root layout, so playback carries on
@@ -44,6 +50,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const source = useRadioSource(webradioEnabled && (started || pathname.startsWith("/plus/radio")));
   const player = useRadioPlayer(streamUrl, undefined, { takeOver: isPopout, source });
   const [dismissed, setDismissed] = useState(false);
+  const [full, setFull] = useState(false);
 
   const live = player.status !== "idle" && player.status !== "error";
   useEffect(() => {
@@ -91,14 +98,28 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
         if (live) player.stop();
         setDismissed(true);
       },
+      full,
+      setFull,
+      popout: () => {
+        const wasPlaying = player.localStatus === "playing" || player.localStatus === "buffering" || player.localStatus === "connecting";
+        if (live) player.stop();
+        window.open(`/plus/radio/popout${wasPlaying ? "?autoplay=1" : ""}`, "ftnplus-radio", "width=380,height=640");
+        setFull(false);
+        setDismissed(true);
+      },
     }),
-    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live]
+    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live, full]
   );
 
   return (
     <RadioContext.Provider value={value}>
       {children}
-      {showMini && <RadioMiniPlayer />}
+      {(showMini || full) && (
+        <div className={`fp fp-lite${pathname.startsWith("/plus") ? "" : " fp-site"}`}>
+          {showMini && <PlayerBar />}
+          {full && <FullScreen />}
+        </div>
+      )}
     </RadioContext.Provider>
   );
 }

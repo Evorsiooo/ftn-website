@@ -30,7 +30,7 @@
   -webkit-font-smoothing: antialiased;
   color-scheme: dark;
 }
-html:has(.fp), html:has(.fp) body { background: #16110a; }
+html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #16110a; }
 .fp *, .fp *::before, .fp *::after { box-sizing: border-box; }
 .fp a { color: inherit; text-decoration: none; }
 .fp button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -450,3 +450,13 @@ html:has(.fp), html:has(.fp) body { background: #16110a; }
   .fp .event.team > :last-child { grid-column: auto; }
   .fp .event .res { grid-column: 1 / -1; }
 }
+
+/* The player bar and full screen, outside the FTN+ shell (components/radio/radio-provider.tsx). On the FTN site
+   there are no tabs under the bar, and the page leaves room for it. */
+.fp.fp-lite { min-height: 0; background: none; position: static; }
+.fp.fp-site .pbar { bottom: 0; }
+body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
+.fp .srclink { max-width: 1640px; margin: 0 auto; padding: 0 var(--pad) 48px; font-size: 13px; color: var(--text-3); }
+.fp .srclink a { color: var(--text-2); text-decoration: underline; text-underline-offset: 3px; }
+.fp .srclink a:hover { color: var(--text); }
+.fp .radio .art.ph-art, .fp .full .art.ph-art { background: var(--surface-2); }

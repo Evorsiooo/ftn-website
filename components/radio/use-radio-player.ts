@@ -531,5 +531,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
 
   // A window that is only listening to another one shows that as playing.
   const shownStatus: PlayerStatus = status === "idle" && remotePlaying ? "playing" : status;
-  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck };
+  /** Where the song on air is right now in this browser's AutoDJ (for lyrics), or null. */
+  const positionNow = useCallback(() => stationRef.current?.status().positionSec ?? null, []);
+  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow };
 }

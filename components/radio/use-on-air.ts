@@ -1,9 +1,9 @@
 "use client";
 // What the radio is playing, for pages that show it without playing it (Home's radio row, the Radio page before
 // Listen). While this browser plays the AutoDJ, its own player is the source; otherwise the stored running order
-// and the server clock give the same answer every listener hears.
+// and the server clock give the same answer every listener hears, and between listeners virtualOnAir does.
 import { useEffect, useMemo, useState } from "react";
-import { endOfTimelineMs, nowPlaying, type LibrarySong, type RadioTimeline } from "@/lib/radio/autodj";
+import { endOfTimelineMs, nowPlaying, virtualOnAir, type LibrarySong, type RadioTimeline } from "@/lib/radio/autodj";
 import { RADIO_FILES } from "./use-radio-source";
 import { useRadio } from "./radio-provider";
 
@@ -12,9 +12,17 @@ export type OnAir =
   | { state: "loading" }
   /** No songs in the library: the radio is off air. */
   | { state: "off-air" }
-  /** Nobody is listening, so nothing is lined up: the first listener starts it. */
-  | { state: "idle" }
-  | { state: "song"; key: string; title: string; artist: string; art: string | null; positionSec: number | null; durationSec: number }
+  | {
+      state: "song";
+      key: string;
+      title: string;
+      artist: string;
+      art: string | null;
+      /** Where the song was at [at] (this device's ms); null while this browser plays it (ask the player). */
+      positionSec: number | null;
+      at: number;
+      durationSec: number;
+    }
   /** An OBS show on Icecast. */
   | { state: "icecast" };
 
@@ -81,7 +89,7 @@ export function useOnAir(enabled = true): OnAir {
     if (radio.source === "icecast") return { state: "icecast" };
     if (playingHere && radio.song) {
       const s = radio.song;
-      return { state: "song", key: s.key, title: s.title, artist: s.artist, art: art(s.key), positionSec: null, durationSec: s.durationSec };
+      return { state: "song", key: s.key, title: s.title, artist: s.artist, art: art(s.key), positionSec: null, at: now, durationSec: s.durationSec };
     }
     if (songs === null || tl === undefined) return { state: "loading" };
     const serverNow = now + skew;
@@ -89,9 +97,12 @@ export function useOnAir(enabled = true): OnAir {
       const np = nowPlaying(tl, serverNow);
       if (np) {
         const it = np.slot.item;
-        return { state: "song", key: it.key, title: it.title, artist: it.artist, art: art(it.key), positionSec: np.positionSec, durationSec: it.durationSec };
+        return { state: "song", key: it.key, title: it.title, artist: it.artist, art: art(it.key), positionSec: np.positionSec, at: now, durationSec: it.durationSec };
       }
     }
-    return songs.length ? { state: "idle" } : { state: "off-air" };
+    // Nobody listening: the song the first listener will start with, at the same place (see virtualOnAir).
+    const v = virtualOnAir(songs, serverNow);
+    if (!v) return { state: "off-air" };
+    return { state: "song", key: v.song.key, title: v.song.title, artist: v.song.artist, art: v.song.thumbnail ?? null, positionSec: v.positionSec, at: now, durationSec: v.song.durationSec ?? 0 };
   }, [radio.source, radio.song, playingHere, songs, tl, now, skew]);
 }
