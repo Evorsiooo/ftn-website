@@ -58,6 +58,16 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
   const [notify, setNotify] = useState(broadcast?.notify ?? false);
   const [notifyMessage, setNotifyMessage] = useState(broadcast?.notifyMessage ?? "");
   const [notifyRoStates, setNotifyRoStates] = useState<string[]>(broadcast?.notifyRoStates ?? []);
+  const [plays, setPlays] = useState<"hosted" | "playlist" | "stream">(broadcast?.plays ?? "hosted");
+  const [playlistId, setPlaylistId] = useState(broadcast?.playlistId ?? "");
+  const [streamUrl, setStreamUrl] = useState(broadcast?.streamUrl ?? "");
+  const [playlists, setPlaylists] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    fetch("/api/admin/radio/playlists")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: any) => setPlaylists(Array.isArray(d?.playlists) ? d.playlists.map((p: any) => ({ id: p.id, name: p.name })) : []))
+      .catch(() => {});
+  }, []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -113,6 +123,9 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       notify,
       notifyMessage,
       notifyRoStates,
+      plays: onRadio ? plays : "hosted",
+      playlistId: onRadio && plays === "playlist" ? playlistId || null : null,
+      streamUrl: onRadio && plays === "stream" ? streamUrl : null,
     };
     if (kind === "weekly") {
       Object.assign(body, { dayOfWeek: day, startTime: time, durationMinutes: duration });
@@ -176,6 +189,40 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
           <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Grand Prix live" />
         </div>
       </div>
+
+      {onRadio && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>What the radio plays</label>
+            <Select value={plays} onChange={(e) => setPlays(e.target.value as any)} className={selectClass}>
+              <option value="hosted">A hosted show (Studio or OBS)</option>
+              <option value="playlist">A playlist from the library</option>
+              <option value="stream">Another station&apos;s stream</option>
+            </Select>
+          </div>
+          {plays === "playlist" && (
+            <div>
+              <label className={labelClass}>Playlist</label>
+              <Select value={playlistId} onChange={(e) => setPlaylistId(e.target.value)} className={selectClass}>
+                <option value="">Choose a playlist…</option>
+                {playlists.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-[11px] text-neutral-500 mt-1">The AutoDJ plays it in order, mixing in as the slot starts.</p>
+            </div>
+          )}
+          {plays === "stream" && (
+            <div>
+              <label className={labelClass}>Stream link</label>
+              <Input value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="https://…/stream.mp3" />
+              <p className="text-[11px] text-neutral-500 mt-1">Listeners switch to this stream for the slot. It must start with https://.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div>
         <label className={labelClass}>Description (optional)</label>

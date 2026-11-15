@@ -46,6 +46,9 @@ export default function AdminSchedulePage() {
           description="Click an empty slot to add a broadcast. Click a block to edit it."
           actions={
             <>
+              <Link href="/admin/radio/studio" className="gs-bar-link pb-0.5 text-sm font-bold">
+                Studio →
+              </Link>
               <Link href="/admin/radio/library" className="gs-bar-link pb-0.5 text-sm font-bold">
                 Song library →
               </Link>

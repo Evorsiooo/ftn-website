@@ -153,7 +153,6 @@ export function CallIn() {
     () => () => {
       if (step === "queued") void fetch("/api/radio/call", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "leave" }), keepalive: true });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
