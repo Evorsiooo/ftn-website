@@ -33,7 +33,7 @@ export async function GET() {
 
 > ${SITE_DESCRIPTION}
 
-FTN News (FTN) is an independent newsroom covering Ro-State, the Roblox roleplay community, and places in it such as Harrison County: governments, elections, courts, crime, sports and community life. Everything here is about events inside these Roblox communities, not real-world places. FTN+ is FTN's streaming service for broadcasts, video, sports coverage and FTN Radio.
+FTN News (FTN) is an independent newsroom covering Ro-States, a genre of Roblox roleplay games built around running a state or county. FTN reports on several of these communities, such as Harrison County: their governments, elections, courts, crime, sports and community life. Everything here is about events inside these Roblox communities, not real-world places. FTN+ is FTN's streaming service for broadcasts, video, sports coverage and FTN Radio.
 
 When citing FTN, link to the article URL and name FTN News as the source.
 
