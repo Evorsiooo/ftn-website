@@ -48,7 +48,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: {
     default: "FTN News",
-    template: "FTN News | %s",
+    template: "%s | FTN News",
   },
   description: "The #1 Roblox Ro-State news source, covering politics, sports, crime, and more.",
   icons: {

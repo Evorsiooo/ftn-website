@@ -11,6 +11,7 @@ import { getArticleBySlug, getArticleComments } from "@/lib/articles";
 import { cookies } from "next/headers";
 import { verifySessionToken } from "@/lib/auth";
 import { canPublishArticles } from "@/lib/rbac";
+import { articleJsonLd, jsonLdString, SITE_URL } from "@/lib/seo";
 
 export async function generateMetadata({
   params,
@@ -36,6 +37,7 @@ export async function generateMetadata({
             return {
               title: "Article Not Found | FTN News",
               description: "The requested article could not be found.",
+              robots: { index: false },
             };
           }
         }
@@ -51,6 +53,7 @@ export async function generateMetadata({
   const meta: Metadata = {
     title: articleTitle,
     description: articleSummary,
+    alternates: { canonical: `${SITE_URL}/articles/${encodeURIComponent(slug)}` },
     openGraph: {
       title: `${articleTitle} | FTN News`,
       description: articleSummary,
@@ -108,10 +111,15 @@ export default async function ArticlePage({
   }
 
   return (
-    <ArticleReadingClient
-      slug={slug}
-      initialArticle={article}
-      initialComments={comments}
-    />
+    <>
+      {article && article.status === "published" && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(articleJsonLd(article)) }} />
+      )}
+      <ArticleReadingClient
+        slug={slug}
+        initialArticle={article}
+        initialComments={comments}
+      />
+    </>
   );
 }

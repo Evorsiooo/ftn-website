@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Tipline",
@@ -14,6 +15,7 @@ export const metadata: Metadata = {
     title: "Tipline | FTN News",
     description: "Have any information to share with us? This is the place.",
   },
+  alternates: { canonical: `${SITE_URL}/tips` },
   other: {
     "theme-color": "#e2162b",
   },
