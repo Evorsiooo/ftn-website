@@ -576,3 +576,10 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
   .fp .radio .info .ctrl .btn { height: 44px; padding: 0 16px; font-size: 15px; }
   .fp .radio .info .ctrl .gap { width: 0; }
 }
+
+/* (2026-11-16) the controls stay beside the title, but start where the lyrics start instead of at the far
+   right; a title longer than the art pushes them along, 48px after it */
+@media (min-width: 1001px) {
+  .fp .radio .info { justify-content: flex-start; gap: 48px; }
+  .fp .radio .info .txt { flex: 0 1 auto; min-width: calc(var(--art) + 16px); }
+}
