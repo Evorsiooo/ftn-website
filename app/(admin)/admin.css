@@ -281,7 +281,7 @@
 .adm .tl-mark { position: absolute; bottom: 0; width: 1px; height: 4px; background: var(--a-border-strong); }
 .adm .tl-mark.major { height: 8px; background: var(--a-faint); }
 .adm .tl-lbl { position: absolute; bottom: 9px; left: 0; transform: translateX(-50%); font-size: 11px; color: var(--a-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.adm .tl-mark:first-child .tl-lbl { transform: none; left: 9px; }
+.adm .tl-mark:first-child .tl-lbl { transform: none; left: 10px; }
 .adm .tl-limit { position: absolute; top: 0; bottom: -1px; border-left: 2px solid var(--a-red); }
 .adm .tl-limit .tl-lbl { left: 6px; transform: none; color: var(--a-red); font-weight: 600; }
 .adm .tl-lane { position: relative; background: var(--a-sunken); border-radius: 8px; overflow: hidden; }
@@ -311,7 +311,7 @@
 .adm .tl-empty:hover { border-color: var(--a-accent); color: var(--a-text); }
 .adm .tl-empty .ic { width: 15px; height: 15px; }
 .adm .tl-playhead { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px solid var(--a-red); margin-left: -1px; z-index: 5; pointer-events: none; }
-.adm .tl-knob { position: absolute; top: 0; left: -8px; width: 14px; height: 16px; background: var(--a-red); clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); pointer-events: auto; cursor: ew-resize; touch-action: none; }
+.adm .tl-knob { position: absolute; top: 0; left: -7px; width: 12px; height: 14px; background: var(--a-red); clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%); pointer-events: auto; cursor: ew-resize; touch-action: none; }
 
 .adm .vi { border-left: 1px solid var(--a-border); padding: 8px 14px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px 14px; align-content: start; overflow-y: auto; font-size: 13px; min-width: 0; }
 .adm .vi > :not(.vi-slider) { grid-column: 1 / -1; }
