@@ -12,7 +12,6 @@ import { RO_STATES } from "@/lib/ro-states";
 import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
 import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/video-editor";
 
-
 async function uploadToPosts(file: Blob, name: string): Promise<string> {
   const body = new FormData();
   body.append("file", new File([file], name, { type: file.type }));
@@ -81,9 +80,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
   const [openingVideo, setOpeningVideo] = useState(false);
   const videoEditor = useRef<VideoEditorHandle>(null);
   // The video timeline is drawn here, below the form and preview, at full page width.
-  const [timelineHost, setTimelineHost] = useState<HTMLDivElement | null>(null);
   // The selected clip controls sit in the free column left of the preview.
-  const [selectedHost, setSelectedHost] = useState<HTMLDivElement | null>(null);
   const [saving, setSaving] = useState(false);
   // Empty = send to Discord right away; otherwise the local time the post should be sent.
   const [scheduleAt, setScheduleAt] = useState("");
@@ -153,11 +150,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
         }
       } catch (err: any) {
         if (token === renderToken.current) {
-          setPreviewError(
-            selectedAd
-              ? "This ad's image can't be used on a post. Re-upload it from the Advertisements page."
-              : err?.message || "Preview failed"
-          );
+          setPreviewError(selectedAd ? "This ad's image can't be used on a post. Re-upload it from the Advertisements page." : err?.message || "Preview failed");
         }
       }
     })();
@@ -167,7 +160,12 @@ export function PostCreator({ editId }: { editId: string | null }) {
   const handleExport = async () => {
     if (mode === "video") {
       try {
-        const slug = headline.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+        const slug = headline
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .slice(0, 50);
         await videoEditor.current?.downloadVideo(slug);
       } catch (err: any) {
         toast(err.message || "Could not create the video");
@@ -177,7 +175,12 @@ export function PostCreator({ editId }: { editId: string | null }) {
     if (previewError || !canvasRef.current) return toast(previewError || "Preview is not ready.");
     const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
     if (!blob) return toast("Could not create the image");
-    const slug = headline.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+    const slug = headline
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -284,8 +287,17 @@ export function PostCreator({ editId }: { editId: string | null }) {
         // Renders the video in this browser, then uploads it with a still image of it.
         const saved = await videoEditor.current!.prepareSave();
         payload = {
-          headline, body, logo, roState, adId: noAd ? null : adId || null, noAd, backgroundUrl: null,
-          mediaType: "video", imageUrl: saved.imageUrl, videoUrl: saved.videoUrl, videoEdit: saved.videoEdit,
+          headline,
+          body,
+          logo,
+          roState,
+          adId: noAd ? null : adId || null,
+          noAd,
+          backgroundUrl: null,
+          mediaType: "video",
+          imageUrl: saved.imageUrl,
+          videoUrl: saved.videoUrl,
+          videoEdit: saved.videoEdit,
         };
       } else {
         const blob = await new Promise<Blob | null>((resolve) => canvasRef.current!.toBlob(resolve, "image/png"));
@@ -323,8 +335,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
     }
   };
 
-  const adOptionLabel = (a: any) =>
-    `${a.organizerName}: ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
+  const adOptionLabel = (a: any) => `${a.organizerName}: ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
 
   const editingDraft = !!editingId && posts.find((p) => p.id === editingId)?.status === "draft";
   const dirty = !!(headline.trim() || body.trim() || photo || videoEditor.current?.hasVideo());
@@ -393,6 +404,19 @@ export function PostCreator({ editId }: { editId: string | null }) {
                   Save draft
                 </button>
               )}
+              {mode === "video" && (
+                <Select
+                  value={transparent ? "webp" : "mp4"}
+                  onChange={(e) => setTransparent(e.target.value === "webp")}
+                  className="select hide-m"
+                  style={{ width: 196 }}
+                  aria-label="Video format"
+                  title="MP4: with sound, on a dark background. Transparent WebP: no sound, the gap above the ad and the rounded corners stay see-through, slower to render."
+                >
+                  <option value="mp4">MP4 with sound</option>
+                  <option value="webp">Transparent WebP</option>
+                </Select>
+              )}
               <button type="button" className="btn has-lbl-m" onClick={handleExport} aria-label={mode === "video" ? "Download video" : "Download image"} title="Download without saving">
                 <Download className="ic" />
                 <span className="lbl-m">Download</span>
@@ -403,23 +427,37 @@ export function PostCreator({ editId }: { editId: string | null }) {
             </>
           }
           mrow={
-            <Seg
-              value={mode}
-              onChange={(m) => !editingId && setMode(m)}
-              options={[
-                { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
-                { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
-              ]}
-              label="Post type"
-            />
+            <>
+              <Seg
+                value={mode}
+                onChange={(m) => !editingId && setMode(m)}
+                options={[
+                  { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
+                  { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
+                ]}
+                label="Post type"
+              />
+              {mode === "video" && (
+                <select
+                  className="select sm"
+                  style={{ flex: 1, minWidth: 0 }}
+                  value={transparent ? "webp" : "mp4"}
+                  onChange={(e) => setTransparent(e.target.value === "webp")}
+                  aria-label="Video format"
+                >
+                  <option value="mp4">MP4 with sound</option>
+                  <option value="webp">Transparent WebP</option>
+                </select>
+              )}
+            </>
           }
         />
         <Body>
-          <div className="creator">
-            <div className={mode === "video" ? "stage video" : "stage"}>
-              <canvas ref={canvasRef} width={1024} height={1024} style={mode === "video" ? { flex: "1 1 0" } : undefined} />
+          <div className={mode === "video" ? "creator video" : "creator"}>
+            <div className="stage">
+              <canvas ref={canvasRef} width={1024} height={1024} />
               {previewError && <div className="err">{previewError}</div>}
-              <div ref={setTimelineHost} className={mode === "video" ? "card" : ""} style={mode === "video" ? { width: "100%", padding: 12, flex: "none" } : { display: "none" }} />
+              {openingVideo && <div className="help">Opening the saved edit…</div>}
             </div>
 
             <div className="creator-form">
@@ -478,16 +516,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
                 </div>
               </Field>
 
-              {mode === "video" ? (
-                <Field label="Video">
-                  {openingVideo && <div className="help">Opening the saved edit…</div>}
-                  <Line label="Transparent animated WebP" help="Keeps the gap above the ad and the rounded corners see-through. No sound, and slower to render. Off: an MP4 with sound on a dark background.">
-                    <Switch checked={transparent} onChange={setTransparent} label="Transparent animated WebP" />
-                  </Line>
-                  <div ref={setSelectedHost} />
-                  <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} selectedHost={selectedHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
-                </Field>
-              ) : (
+              {mode === "image" && (
                 <Field label="Background">
                   <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleBackground} className="hidden" />
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -539,12 +568,24 @@ export function PostCreator({ editId }: { editId: string | null }) {
                     label="When"
                   />
                   {when === "later" && (
-                    <DateTimeInput type="datetime-local" value={scheduleAt} min={toLocalInput(new Date())} onChange={(e) => setScheduleAt(e.target.value)} className={DT_CLASS} placeholder="Pick a date and time" />
+                    <DateTimeInput
+                      type="datetime-local"
+                      value={scheduleAt}
+                      min={toLocalInput(new Date())}
+                      onChange={(e) => setScheduleAt(e.target.value)}
+                      className={DT_CLASS}
+                      placeholder="Pick a date and time"
+                    />
                   )}
                 </Field>
               )}
-
             </div>
+
+            {mode === "video" && (
+              <div className="vdock-host">
+                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
+              </div>
+            )}
           </div>
           <div className="creator-send">
             {canSchedule && (
