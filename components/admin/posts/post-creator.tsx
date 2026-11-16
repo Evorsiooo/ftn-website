@@ -3,30 +3,15 @@ import { Select } from "@/components/ui/select";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Loader2, Shuffle, Upload } from "lucide-react";
-import { AdminRow, AdminSegmented, AdminSwitch } from "@/components/gs/admin-form";
-import { Button } from "@/components/ui/button";
+import { Download, Loader2, Shuffle, Upload } from "lucide-react";
+import { Body, DT_CLASS, Field, Line, PageBar, Screen, Seg, Switch } from "@/components/admin/ui";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canManagePosts } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
 import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
 import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/video-editor";
 
-const labelClass = "mb-1 block text-sm font-bold";
-const fieldClass =
-  "w-full rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1.5 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
-
-// Editor-only backdrop: the saved image is transparent outside the post, and the white
-// disclaimer needs something dark behind it to be readable here.
-const CHECKERBOARD: React.CSSProperties = {
-  backgroundColor: "#2a2a2a",
-  backgroundImage:
-    "linear-gradient(45deg, #3a3a3a 25%, transparent 25%), linear-gradient(-45deg, #3a3a3a 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #3a3a3a 75%), linear-gradient(-45deg, transparent 75%, #3a3a3a 75%)",
-  backgroundSize: "20px 20px",
-  backgroundPosition: "0 0, 0 10px, 10px -10px, -10px 0",
-};
 
 async function uploadToPosts(file: Blob, name: string): Promise<string> {
   const body = new FormData();
@@ -280,6 +265,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
 
   const handleSave = async (asDraft = false) => {
     if (!headline.trim()) return toast("Please write a headline.");
+    if (!asDraft && (!editingId || editingDraft) && when === "later" && !scheduleAt) return toast("Pick when the post should go out, or choose Right away.");
     if (!roState) return toast("Please choose a Ro-State.");
     if (mode === "image" && !photo) return toast("Please upload a background photo.");
     if (mode === "image" && !backgroundUrl) return toast("The background is still uploading, try again in a moment.");
@@ -362,172 +348,216 @@ export function PostCreator({ editId }: { editId: string | null }) {
     router.push("/admin/posts");
   };
 
-  // The preview fills the free height: the top bar, the page padding and, in video mode, the timeline.
-  const previewStyle: React.CSSProperties = {
-    maxWidth: mode === "video" ? "clamp(200px, calc(100dvh - 22rem), 1024px)" : "clamp(300px, calc(100dvh - 6rem), 1024px)",
-  };
+  const saveLabel = saving ? "Saving…" : editingId && !editingDraft ? "Save changes" : scheduleAt ? "Schedule post" : "Send for approval";
+  const canSchedule = !editingId || editingDraft;
+  const busy = saving || uploadingBg || openingVideo;
+  const [when, setWhen] = useState<"now" | "later">("now");
+  useEffect(() => {
+    if (scheduleAt) setWhen("later");
+  }, [scheduleAt]);
+  const headlineLines = layout?.headlineLines?.filter((l) => l.trim()).length ?? 0;
 
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
-      <div className="gs flex min-h-dvh flex-col text-neutral-900 dark:text-white xl:h-dvh xl:overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-neutral-200 bg-white/70 px-4 dark:border-neutral-800 dark:bg-neutral-950/70">
-          <button type="button" onClick={leave} className="flex cursor-pointer items-center gap-1.5 rounded-full border border-neutral-300 px-3.5 py-1.5 text-sm font-bold transition hover:border-neutral-500 dark:border-neutral-700">
-            <ArrowLeft className="h-4 w-4" /> Back to posts
-          </button>
-          <h1 className="min-w-0 flex-1 truncate text-lg font-extrabold">
-            Creator <span className="font-semibold text-neutral-500">· {editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}</span>
-          </h1>
-        </header>
-
-        <div className="grid min-h-0 w-full flex-1 grid-cols-1 items-start gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_minmax(26rem,34rem)] xl:items-stretch">
-          <section className="min-w-0 space-y-3 xl:overflow-y-auto">
-            <div className="relative space-y-2">
-              <div ref={setSelectedHost} className={mode === "video" ? "mb-2 space-y-3 xl:absolute xl:bottom-0 xl:left-0 xl:z-10 xl:mb-0 xl:w-64" : "hidden"} />
-              <canvas ref={canvasRef} width={1024} height={1024} className="mx-auto w-full" style={{ ...CHECKERBOARD, ...previewStyle }} />
-              {previewError && <p className="text-xs text-red-600">{previewError}</p>}
-            </div>
-            <div ref={setTimelineHost} className={mode === "video" ? "rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950" : "hidden"} />
-          </section>
-
-          <section className="min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 xl:flex xl:min-h-0 xl:flex-col">
-          <div className="space-y-4 p-5 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
-            <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">1</span>Write it</h3>
-
-            <div>
-              <label className={labelClass}>Headline (max 3 lines)</label>
-              <textarea value={headline} onChange={(e) => setHeadline(e.target.value.replace(/\s*\n+\s*/g, " "))} onKeyDown={(e) => { if (e.key === "Enter") e.preventDefault(); }} rows={2} className={`${fieldClass} field-sizing-content resize-none`} placeholder="Headline" />
-              {layout?.headlineOverflow && <p className="mt-1 text-[11px] text-red-600">Too long: only 3 lines fit.</p>}
-            </div>
-
-            <div>
-              <label className={labelClass}>Body</label>
-              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} className={fieldClass} placeholder="Leave a blank line between paragraphs" />
-              {layout?.bodyTooLong && <p className="mt-1 text-[11px] text-red-600">Too long for the post.</p>}
-            </div>
-
-            <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">2</span>Where it goes</h3>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className={labelClass}>Ro-State (required)</label>
-                <Select value={roState} onChange={(e) => setRoState(e.target.value)} className={fieldClass}>
-                  <option value="">Choose...</option>
-                  {RO_STATES.map((s) => (
-                    <option key={s.key} value={s.key}>{s.label}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div>
-              <label className={labelClass}>Ad</label>
-              <div className="flex gap-2">
-                <Select value={adId} onChange={(e) => setAdId(e.target.value)} className={`${fieldClass} min-w-0 flex-1`}>
-                  <option value="">Placeholder (&quot;your advertisement here&quot;)</option>
-                  <option value={NO_AD}>No ad (image cropped to the box)</option>
-                  {ads.map((a) => (
-                    <option key={a.id} value={a.id} disabled={!a.imageUrl.startsWith("/")}>
-                      {adOptionLabel(a)}{a.imageUrl.startsWith("/") ? "" : " (re-upload image first)"}
-                    </option>
-                  ))}
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={!suggestedAdId}
-                  onClick={() => suggestedAdId && setAdId(suggestedAdId)}
-                  className="cursor-pointer shrink-0"
-                  title="Pick the next ad in rotation"
-                >
-                  <Shuffle className="h-4 w-4 mr-1.5" /> Auto-pick
-                </Button>
-              </div>
-              <p className="mt-1 text-[11px] text-neutral-500">
-                The post uses one of the ad&apos;s impressions. Auto-pick rotates between ads that have impressions left.
-              </p>
-            </div>
-
-            <h3 className="flex items-center gap-2 border-b border-neutral-200 pb-1.5 pt-1 text-sm font-extrabold dark:border-neutral-800"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-brand-ink">3</span>Media</h3>
-
-            <div>
-              <label className={labelClass}>Post type</label>
-              <AdminSegmented value={mode} onChange={(m) => !editingId && setMode(m)} options={[{ value: "image", label: "Image" }, { value: "video", label: "Video" }]} />
-            </div>
-
-            {mode === "video" ? (
-              <div>
-                <label className={labelClass}>Video</label>
-                {openingVideo && <p className="mb-2 text-[11px] text-neutral-500">Opening the saved edit...</p>}
-                <div className="mb-3">
-                  <AdminRow
-                    label="Transparent animated WebP"
-                    hint="Keeps the gap above the ad and the rounded corners see-through. No sound, and it takes longer to render. When off, the post is an MP4 with sound on a dark background."
-                  >
-                    <AdminSwitch checked={transparent} onChange={setTransparent} label="Transparent animated WebP" />
-                  </AdminRow>
-                </div>
-                <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} selectedHost={selectedHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
-              </div>
-            ) : (
-            <div>
-              <label className={labelClass}>Background photo</label>
-              <div className="flex items-center gap-2">
-                <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleBackground} className="hidden" />
-                <Button type="button" variant="outline" onClick={() => fileInput.current?.click()} className="cursor-pointer">
-                  {uploadingBg ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Upload className="h-4 w-4 mr-1.5" />}
-                  {photo ? "Replace photo" : "Upload photo"}
-                </Button>
-                {uploadingBg && <span className="text-[11px] text-neutral-500">Uploading in the background...</span>}
-              </div>
-              {photo && (
-                <div className="mt-3 grid grid-cols-3 gap-3 text-[11px] text-neutral-600 dark:text-neutral-400">
-                  <label>Zoom<input type="range" min={1} max={3} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-full" /></label>
-                  <label>Left / right<input type="range" min={0} max={1} step={0.01} value={focusX} onChange={(e) => setFocusX(Number(e.target.value))} className="w-full" /></label>
-                  <label>Up / down<input type="range" min={0} max={1} step={0.01} value={focusY} onChange={(e) => setFocusY(Number(e.target.value))} className="w-full" /></label>
-                </div>
-              )}
-            </div>
-            )}
-
-            {(!editingId || editingDraft) && (
-              <div>
-                <label className={labelClass}>Publish time (optional)</label>
-                <div className="flex flex-wrap gap-2">
-                  <DateTimeInput type="datetime-local" value={scheduleAt} min={toLocalInput(new Date())} onChange={(e) => setScheduleAt(e.target.value)} className={fieldClass} placeholder="Send right away" />
-                  {scheduleAt && (
-                    <Button type="button" variant="outline" onClick={() => setScheduleAt("")} className="cursor-pointer shrink-0">Send now</Button>
-                  )}
-                </div>
-                <p className="mt-1 text-[11px] text-neutral-500">
-                  {scheduleAt
-                    ? "The post is sent to #ftn-plus and #leadership at this time (your local time), then waits for approval as usual."
-                    : "Leave empty to send to Discord as soon as the post is generated."}
-                </p>
-              </div>
-            )}
-
-          </div>
-          <div className="border-t border-neutral-200 p-4 dark:border-neutral-800">
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" onClick={() => handleSave(false)} disabled={saving || uploadingBg || openingVideo} className="min-w-[10rem] flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
-                {saving ? "Saving..." : editingId && !editingDraft ? "Save Changes" : scheduleAt ? "Schedule Post" : "Generate Post"}
-              </Button>
-              {(!editingId || editingDraft) && (
-                <Button type="button" variant="outline" onClick={() => handleSave(true)} disabled={saving || uploadingBg || openingVideo} className="cursor-pointer">
-                  Save draft
-                </Button>
-              )}
-              <Button type="button" variant="outline" onClick={handleExport} className="cursor-pointer">
-                <Download className="h-4 w-4 mr-1.5" /> {mode === "video" ? "Export video" : "Export post"}
-              </Button>
+      <Screen>
+        <PageBar
+          crumb={{
+            href: "/admin/posts",
+            label: "Posts",
+            onClick: (e) => {
+              e.preventDefault();
+              leave();
+            },
+          }}
+          title={editingDraft ? "Edit draft" : editingId ? "Edit post" : "New post"}
+          tools={
+            <Seg
+              value={mode}
+              onChange={(m) => !editingId && setMode(m)}
+              options={[
+                { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
+                { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
+              ]}
+              label="Post type"
+            />
+          }
+          end={
+            <>
               {editingId && (
-                <Button type="button" variant="outline" onClick={leave} className="cursor-pointer">Cancel</Button>
+                <button type="button" className="btn ghost hide-m" onClick={leave}>
+                  Cancel
+                </button>
               )}
+              {canSchedule && (
+                <button type="button" className="btn ghost hide-m" onClick={() => handleSave(true)} disabled={busy}>
+                  Save draft
+                </button>
+              )}
+              <button type="button" className="btn has-lbl-m" onClick={handleExport} aria-label={mode === "video" ? "Download video" : "Download image"} title="Download without saving">
+                <Download className="ic" />
+                <span className="lbl-m">Download</span>
+              </button>
+              <button type="button" className="btn primary lg hide-m" onClick={() => handleSave(false)} disabled={busy}>
+                {saveLabel}
+              </button>
+            </>
+          }
+          mrow={
+            <Seg
+              value={mode}
+              onChange={(m) => !editingId && setMode(m)}
+              options={[
+                { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
+                { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
+              ]}
+              label="Post type"
+            />
+          }
+        />
+        <Body>
+          <div className="creator">
+            <div className={mode === "video" ? "stage video" : "stage"}>
+              <canvas ref={canvasRef} width={1024} height={1024} style={mode === "video" ? { flex: "1 1 0" } : undefined} />
+              {previewError && <div className="err">{previewError}</div>}
+              <div ref={setTimelineHost} className={mode === "video" ? "card" : ""} style={mode === "video" ? { width: "100%", padding: 12, flex: "none" } : { display: "none" }} />
+            </div>
+
+            <div className="creator-form">
+              <Field
+                label={
+                  <span style={{ display: "flex", justifyContent: "space-between" }}>
+                    Headline
+                    <span className={layout?.headlineOverflow ? "err" : "help"} style={{ fontWeight: 400 }}>
+                      {layout?.headlineOverflow ? "Too long: only 3 lines fit" : `${headlineLines} of 3 lines`}
+                    </span>
+                  </span>
+                }
+              >
+                <textarea
+                  value={headline}
+                  onChange={(e) => setHeadline(e.target.value.replace(/\s*\n+\s*/g, " "))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") e.preventDefault();
+                  }}
+                  rows={2}
+                  className="textarea field-sizing-content"
+                  style={{ resize: "none" }}
+                  placeholder="What happened"
+                />
+              </Field>
+
+              <Field label="Body" error={layout?.bodyTooLong ? "Too long for the post." : undefined} help="Leave a blank line between paragraphs.">
+                <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} className="textarea" />
+              </Field>
+
+              <Field label="Ro-State">
+                <div className="states" role="radiogroup" aria-label="Ro-State">
+                  {RO_STATES.map((s) => (
+                    <button key={s.key} type="button" role="radio" aria-checked={roState === s.key} className={roState === s.key ? "on" : ""} onClick={() => setRoState(s.key)}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </Field>
+
+              <Field label="Ad" help="The post uses one of the ad's impressions. Auto picks the next ad in rotation.">
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Select value={adId} onChange={(e) => setAdId(e.target.value)} className="select h-9 min-w-0 flex-1" aria-label="Ad">
+                    <option value="">Placeholder (&quot;your advertisement here&quot;)</option>
+                    <option value={NO_AD}>No ad (image cropped to the box)</option>
+                    {ads.map((a) => (
+                      <option key={a.id} value={a.id} disabled={!a.imageUrl.startsWith("/")}>
+                        {adOptionLabel(a)}
+                        {a.imageUrl.startsWith("/") ? "" : " (re-upload image first)"}
+                      </option>
+                    ))}
+                  </Select>
+                  <button type="button" className="btn" disabled={!suggestedAdId} onClick={() => suggestedAdId && setAdId(suggestedAdId)} title="Pick the next ad in rotation">
+                    <Shuffle className="ic" /> Auto
+                  </button>
+                </div>
+              </Field>
+
+              {mode === "video" ? (
+                <Field label="Video">
+                  {openingVideo && <div className="help">Opening the saved edit…</div>}
+                  <Line label="Transparent animated WebP" help="Keeps the gap above the ad and the rounded corners see-through. No sound, and slower to render. Off: an MP4 with sound on a dark background.">
+                    <Switch checked={transparent} onChange={setTransparent} label="Transparent animated WebP" />
+                  </Line>
+                  <div ref={setSelectedHost} />
+                  <VideoEditor ref={videoEditor} canvasRef={canvasRef} layers={videoLayers} animatedWebp={transparent} timelineHost={timelineHost} selectedHost={selectedHost} uploadPoster={(blob) => uploadToPosts(blob, "post.png")} />
+                </Field>
+              ) : (
+                <Field label="Background">
+                  <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleBackground} className="hidden" />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    {photo ? <img src={photo.src} alt="" className="thumb" style={{ width: 48, height: 48 }} /> : null}
+                    <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
+                      {uploadingBg ? <Loader2 className="ic spin" /> : <Upload className="ic" />}
+                      {photo ? "Replace" : "Upload photo"}
+                    </button>
+                    {uploadingBg && <span className="help">Uploading in the background…</span>}
+                  </div>
+                  {photo && (
+                    <div className="three" style={{ marginTop: 4 }}>
+                      <label className="help">
+                        Zoom
+                        <input type="range" min={1} max={3} step={0.05} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="range" />
+                      </label>
+                      <label className="help">
+                        Left / right
+                        <input type="range" min={0} max={1} step={0.01} value={focusX} onChange={(e) => setFocusX(Number(e.target.value))} className="range" />
+                      </label>
+                      <label className="help">
+                        Up / down
+                        <input type="range" min={0} max={1} step={0.01} value={focusY} onChange={(e) => setFocusY(Number(e.target.value))} className="range" />
+                      </label>
+                    </div>
+                  )}
+                </Field>
+              )}
+
+              {canSchedule && (
+                <Field
+                  label="When"
+                  help={
+                    when === "later"
+                      ? "Sent to #ftn-plus and #leadership at this time (your local time), then it waits for approval as usual."
+                      : "Sent to Discord for approval as soon as you press Send."
+                  }
+                >
+                  <Seg
+                    value={when}
+                    onChange={(v) => {
+                      setWhen(v);
+                      if (v === "now") setScheduleAt("");
+                    }}
+                    options={[
+                      { value: "now", label: "Right away" },
+                      { value: "later", label: "Later" },
+                    ]}
+                    label="When"
+                  />
+                  {when === "later" && (
+                    <DateTimeInput type="datetime-local" value={scheduleAt} min={toLocalInput(new Date())} onChange={(e) => setScheduleAt(e.target.value)} className={DT_CLASS} placeholder="Pick a date and time" />
+                  )}
+                </Field>
+              )}
+
             </div>
           </div>
-          </section>
-        </div>
-      </div>
+          <div className="creator-send">
+            {canSchedule && (
+              <button type="button" className="btn" onClick={() => handleSave(true)} disabled={busy}>
+                Save draft
+              </button>
+            )}
+            <button type="button" className="btn primary" onClick={() => handleSave(false)} disabled={busy}>
+              {saveLabel}
+            </button>
+          </div>
+        </Body>
+      </Screen>
     </AdminAuthGuard>
   );
 }

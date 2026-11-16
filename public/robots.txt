@@ -1,0 +1,33 @@
+# FTN News (https://ftn.euno.cc)
+# Search engines and AI assistants are welcome to read and cite FTN's public reporting.
+
+User-agent: *
+Allow: /
+Allow: /api/media/
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/
+Disallow: /plus/saved
+Disallow: /plus/radio/popout
+
+# AI crawlers, listed explicitly so they are never mistaken for blocked.
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Perplexity-User
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+User-agent: CCBot
+Allow: /
+Allow: /api/media/
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth/
+Disallow: /plus/saved
+Disallow: /plus/radio/popout
+
+Sitemap: https://ftn.euno.cc/sitemap.xml

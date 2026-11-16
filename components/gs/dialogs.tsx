@@ -6,7 +6,7 @@ import React, { useEffect, useRef, useState } from "react";
  * Mount <GsDialogHost /> once in a layout, then call toast(), confirmDialog() or promptDialog() from anywhere.
  */
 type Toast = { id: number; message: string };
-type Ask = { kind: "confirm" | "prompt"; message: string; value: string; resolve: (v: any) => void };
+type Ask = { kind: "confirm" | "prompt"; message: string; value: string; resolve: (v: any) => void; ok?: string; danger?: boolean };
 
 let pushToast: (message: string) => void = () => {};
 let pushAsk: (a: Ask) => void = () => {};
@@ -15,15 +15,16 @@ export function toast(message: unknown) {
   pushToast(String(message));
 }
 
-export function confirmDialog(message: string): Promise<boolean> {
-  return new Promise((resolve) => pushAsk({ kind: "confirm", message, value: "", resolve }));
+/** `ok` names the button (e.g. "Delete"); `danger` makes it red. */
+export function confirmDialog(message: string, opts: { ok?: string; danger?: boolean } = {}): Promise<boolean> {
+  return new Promise((resolve) => pushAsk({ kind: "confirm", message, value: "", resolve, ...opts }));
 }
 
-export function promptDialog(message: string, defaultValue = ""): Promise<string | null> {
-  return new Promise((resolve) => pushAsk({ kind: "prompt", message, value: defaultValue, resolve }));
+export function promptDialog(message: string, defaultValue = "", opts: { ok?: string; danger?: boolean } = {}): Promise<string | null> {
+  return new Promise((resolve) => pushAsk({ kind: "prompt", message, value: defaultValue, resolve, ...opts }));
 }
 
-export function GsDialogHost() {
+export function GsDialogHost({ variant }: { variant?: "admin" } = {}) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [ask, setAsk] = useState<Ask | null>(null);
   const [text, setText] = useState("");
@@ -56,6 +57,41 @@ export function GsDialogHost() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   });
+
+  if (variant === "admin") {
+    return (
+      <>
+        <div className="adm-toasts" aria-live="polite">
+          {toasts.map((t) => (
+            <div key={t.id} className="adm-toast">
+              <span>{t.message}</span>
+              <button type="button" aria-label="Dismiss" onClick={() => setToasts((x) => x.filter((y) => y.id !== t.id))}>
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+        {ask && (
+          <div className="adm-dialog-back" onMouseDown={(e) => e.target === e.currentTarget && close(ask.kind === "confirm" ? false : null)}>
+            <div role="dialog" aria-modal="true" className="adm-dialog">
+              <p>{ask.message}</p>
+              {ask.kind === "prompt" && (
+                <input autoFocus value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && close(text)} className="input" style={{ width: "100%" }} />
+              )}
+              <div className="acts">
+                <button type="button" className="btn" onClick={() => close(ask.kind === "confirm" ? false : null)}>
+                  Cancel
+                </button>
+                <button type="button" autoFocus={ask.kind === "confirm"} className={ask.danger ? "btn danger-solid" : "btn strong"} onClick={() => close(ask.kind === "confirm" ? true : text)}>
+                  {ask.ok || "OK"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <>

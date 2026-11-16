@@ -1,5 +1,13 @@
 import React from "react";
 import { GsPageHeader } from "@/components/gs/page-header";
+import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Terms of Service",
+  description: "The terms for using FTN News, FTN+ and FTN Radio.",
+  alternates: { canonical: `${SITE_URL}/terms` },
+};
 
 export const runtime = "edge";
 

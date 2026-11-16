@@ -1,139 +1,333 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { Check, X } from "lucide-react";
 import { fetchSession } from "@/lib/session-client";
-import { fetchAdminSummary, type AdminSummary } from "@/lib/admin-summary";
-import { ADMIN_MODULES } from "@/components/gs/admin-nav";
-import { AdminPageHeader } from "@/components/gs/admin-header";
-import { hhmm } from "@/lib/schedule-client";
-import { cn } from "@/lib/utils";
+import { fetchAdminSummary, refreshAdminSummary, type AdminSummary } from "@/lib/admin-summary";
+import { canConfigureSite, canManagePosts, canManageSports, canPublishArticles, isPostsLeadership } from "@/lib/rbac";
+import { RO_STATES } from "@/lib/ro-states";
+import { toast, promptDialog } from "@/components/gs/dialogs";
+import { Body, PageBar, Pill, Screen, ago, hm } from "@/components/admin/ui";
+import { studioHref, hostedOnRadio } from "@/components/admin/schedule/on-air-strip";
 
-const card = "rounded-2xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-900";
-const pillLink =
-  "mt-5 inline-flex h-10 items-center rounded-full px-5 text-sm font-bold transition";
+type Me = { id: string; displayName?: string; robloxUsername?: string; roles: string[] };
 
-function Stat({ label, value, note, href, action, hot }: { label: string; value: number; note: string; href: string; action: string; hot?: boolean }) {
-  return (
-    <div className={cn(card, hot && "border-[#16110a] bg-[#16110a] text-[#fff8e6] dark:border-brand/60 dark:bg-black")}>
-      <div className={cn("text-xs font-bold uppercase tracking-widest", hot ? "text-[#fff8e6]/70" : "text-neutral-500")}>{label}</div>
-      <div className={cn("gs-display mt-3 text-6xl font-extrabold leading-none", hot && "text-brand")}>{value}</div>
-      <p className={cn("mt-2 text-sm", hot ? "text-[#fff8e6]/70" : "text-neutral-600 dark:text-neutral-400")}>{note}</p>
-      <Link href={href} className={cn(pillLink, value > 0 ? "bg-brand text-brand-ink hover:bg-brand-hover" : "border border-neutral-300 hover:border-neutral-500 dark:border-neutral-700", hot && value === 0 && "border-[#fff8e6]/40")}>
-        {action}
-      </Link>
-    </div>
-  );
-}
+const dayTime = (d: Date) => (d.toDateString() === new Date().toDateString() ? `Today ${hm(d)}` : `${d.toLocaleDateString(undefined, { weekday: "short" })} ${hm(d)}`);
+const stateLabel = (key: string) => RO_STATES.find((s) => s.key === key)?.label ?? key;
 
-function when(d: Date): string {
-  const today = new Date();
-  const same = d.toDateString() === today.toDateString();
-  return same ? hhmm(d) : `${d.toLocaleDateString(undefined, { weekday: "short" })} ${hhmm(d)}`;
-}
-
+/**
+ * Today: what needs this person now, as short lists they can act on in place.
+ * Each group only shows for roles that can act on it, and only when it has something in it.
+ */
 export default function AdminToday() {
-  const [roles, setRoles] = useState<string[] | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
   const [summary, setSummary] = useState<AdminSummary | null>(null);
+  const [pending, setPending] = useState<any[] | null>(null);
+  const [tips, setTips] = useState<any[] | null>(null);
+  const [results, setResults] = useState<{ id: string; name: string; league: string; startsAt: string }[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSession()
-      .then((data: any) => setRoles(data?.user?.roles || []))
-      .catch(() => setRoles([]));
+      .then((data: any) => setMe(data?.user ? { ...data.user, roles: data.user.roles || [] } : { id: "", roles: [] }))
+      .catch(() => setMe({ id: "", roles: [] }));
   }, []);
 
+  const roles = me?.roles ?? [];
+  const load = useCallback(async () => {
+    if (!me || roles.length === 0) return;
+    refreshAdminSummary();
+    const [s, p, t, sp] = await Promise.all([
+      fetchAdminSummary(roles),
+      canManagePosts(roles)
+        ? fetch("/api/admin/posts")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null,
+      canPublishArticles(roles) || canConfigureSite(roles)
+        ? fetch("/api/admin/tips")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null,
+      canManageSports(roles)
+        ? fetch("/api/sports/data")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null,
+    ]);
+    setSummary(s);
+    setPending(p ? (p as any).posts.filter((x: any) => x.status === "pending" && !x.scheduledAt) : null);
+    if (sp) {
+      const d = sp as any;
+      const teams = new Map<string, string>((d.teams ?? []).map((x: any) => [x.id, x.name]));
+      const leagues = new Map<string, string>((d.leagues ?? []).map((x: any) => [x.id, x.name]));
+      const now = Date.now();
+      setResults(
+        (d.events ?? [])
+          .filter((e: any) => e.status === "scheduled" && +new Date(e.startsAt) < now)
+          .map((e: any) => ({
+            id: e.id,
+            name: e.name || (e.homeTeamId && e.awayTeamId ? `${teams.get(e.homeTeamId) ?? "?"} vs ${teams.get(e.awayTeamId) ?? "?"}` : "Event"),
+            league: leagues.get(e.leagueId) ?? "",
+            startsAt: e.startsAt,
+          })),
+      );
+    } else setResults(null);
+    setTips(t ? (t as any).tips.filter((x: any) => x.status === "unread").sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt)) : null);
+  }, [me]);
   useEffect(() => {
-    if (!roles || roles.length === 0) return;
-    fetchAdminSummary(roles).then(setSummary);
-  }, [roles]);
+    load();
+  }, [load]);
 
-  const modules = roles ? ADMIN_MODULES.filter((m) => m.allowed(roles)) : [];
-  const stats = summary
-    ? [
-        summary.tips && { key: "tips", node: <Stat hot label="Tipline" value={summary.tips.unread} note={summary.tips.unread ? `unread, oldest ${summary.tips.oldestDays === 0 ? "today" : `${summary.tips.oldestDays} day${summary.tips.oldestDays === 1 ? "" : "s"} old`}` : "all leads handled"} href="/admin/tips" action={summary.tips.unread ? "Open inbox" : "View tipline"} /> },
-        summary.posts && { key: "posts", node: <Stat label="Posts waiting" value={summary.posts.pending} note="awaiting approval" href="/admin/posts" action={summary.posts.pending ? "Review" : "View posts"} /> },
-        summary.drafts && { key: "drafts", node: <Stat label="Drafts" value={summary.drafts.count} note={summary.drafts.stale ? `${summary.drafts.stale} untouched for over a week` : "none stale"} href="/admin/articles" action="Open articles" /> },
-      ].filter(Boolean) as { key: string; node: React.ReactNode }[]
-    : [];
+  const decide = async (post: any, decision: "approve" | "deny") => {
+    let reason = "";
+    if (decision === "deny") {
+      reason = ((await promptDialog("Why is this post denied? The author sees this.", "", { ok: "Deny", danger: true })) || "").trim();
+      if (!reason) return;
+    }
+    setBusy(post.id);
+    try {
+      const res = await fetch(`/api/admin/posts/${post.id}/decision`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision, reason }) });
+      const data = (await res.json().catch(() => ({}))) as any;
+      if (!res.ok) toast(data.error || "Failed to save decision");
+      else toast(decision === "approve" ? `Approved: ${post.headline}` : `Denied: ${post.headline}`);
+      await load();
+    } finally {
+      setBusy(null);
+    }
+  };
 
-  const hasAir = !!summary?.onAir;
-  const hasAds = !!summary?.adsLow;
+  const leadership = isPostsLeadership(roles);
+  const loading = !me || (roles.length > 0 && !summary);
+  const onAir = summary?.onAir;
+  const nextHosted = onAir?.upcoming.find((o) => hostedOnRadio(o)) ?? null;
+  const imports = summary?.imports;
+  const adsLow = summary?.adsLow ?? [];
+  const drafts = summary?.drafts;
+
+  const needs = (pending?.length ?? 0) + (tips?.length ?? 0) + (imports?.review ? 1 : 0) + adsLow.length + (results?.length ?? 0);
+  const firstName = (me?.displayName || me?.robloxUsername || "").split(" ")[0];
 
   return (
-    <div className="w-full space-y-8">
-      <AdminPageHeader title="Today" description="What needs you right now. You only see what your role can act on." />
+    <Screen>
+      <PageBar title="Today" />
+      <Body scroll>
+        {loading ? (
+          <div className="pane-empty">Loading…</div>
+        ) : (
+          <div className="today">
+            <p className="greet">
+              {firstName ? `Hi ${firstName}. ` : ""}
+              {needs === 0 ? "Nothing needs you right now." : `${needs} ${needs === 1 ? "thing needs" : "things need"} you.`}
+            </p>
 
-      {!roles || (roles.length > 0 && !summary) ? (
-        <div className="p-8 text-center text-sm text-neutral-500">Loading…</div>
-      ) : (
-        <>
-          {stats.length > 0 && <div className={cn("grid gap-4", stats.length === 1 ? "grid-cols-1" : stats.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>{stats.map((s) => <React.Fragment key={s.key}>{s.node}</React.Fragment>)}</div>}
-
-          {(hasAir || hasAds) && (
-            <div className={cn("grid gap-4", hasAir && hasAds && "lg:grid-cols-[1.4fr_1fr]")}>
-              {hasAir && summary!.onAir && (
-                <div className={card}>
-                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">On air and next</div>
-                  <ul className="mt-3 divide-y divide-neutral-200 dark:divide-neutral-800">
-                    {summary!.onAir.current ? (
-                      <li className="flex items-center justify-between gap-4 py-3">
-                        <span className="flex items-center gap-2.5 font-bold">
-                          <span className="h-2.5 w-2.5 rounded-full bg-red-600" /> On air now · {summary!.onAir.current.title}
+            {pending && pending.length > 0 && (
+              <section className="todo">
+                <h2>
+                  Posts waiting for approval <span className="c">{pending.length}</span>
+                  <Link href="/admin/posts">All posts</Link>
+                </h2>
+                <div className="rows">
+                  {pending.slice(0, 5).map((p) => (
+                    <div key={p.id} className="r">
+                      <Link href={`/admin/posts?id=${encodeURIComponent(p.id)}`} style={{ display: "contents", color: "inherit" }}>
+                        <img src={p.imageUrl} alt="" className="thumb" style={{ width: 40, height: 40 }} />
+                        <span className="grow">
+                          <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                            {p.headline}
+                          </span>
+                          <span className="t12 muted">
+                            {stateLabel(p.roState)} · {p.creatorName || "unknown"} · {ago(p.createdAt)}
+                          </span>
                         </span>
-                        <span className="text-sm text-neutral-500">until {hhmm(summary!.onAir.current.end)}</span>
-                      </li>
-                    ) : (
-                      <li className="py-3 text-sm text-neutral-500">Nothing on air right now.</li>
-                    )}
-                    {summary!.onAir.upcoming.map((o) => (
-                      <li key={o.broadcastId + o.start.getTime()} className="flex items-center justify-between gap-4 py-3">
-                        <span className="flex items-center gap-2.5">
-                          <span className="h-2.5 w-2.5 rounded-full bg-brand" /> {o.title}
+                      </Link>
+                      {leadership && (
+                        <span style={{ display: "flex", gap: 6, flex: "none" }}>
+                          <button type="button" className="btn sm" disabled={busy === p.id} onClick={() => decide(p, "deny")} aria-label={`Deny ${p.headline}`}>
+                            <X className="ic-sm" />
+                            <span className="hide-m">Deny</span>
+                          </button>
+                          <button type="button" className="btn sm strong" disabled={busy === p.id} onClick={() => decide(p, "approve")} aria-label={`Approve ${p.headline}`}>
+                            <Check className="ic-sm" />
+                            <span className="hide-m">Approve</span>
+                          </button>
                         </span>
-                        <span className="text-sm text-neutral-500">{when(o.start)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Link href="/admin/schedule" className={cn(pillLink, "border border-neutral-300 hover:border-neutral-500 dark:border-neutral-700")}>
-                    Open schedule
-                  </Link>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
+              </section>
+            )}
 
-              {hasAds && summary!.adsLow && (
-                <div className={card}>
-                  <div className="text-xs font-bold uppercase tracking-widest text-neutral-500">Ads running low</div>
-                  {summary!.adsLow.length === 0 ? (
-                    <p className="mt-3 text-sm text-neutral-500">Every active ad has plenty of impressions left.</p>
+            {tips && tips.length > 0 && (
+              <section className="todo">
+                <h2>
+                  Unread tips <span className="c">{tips.length}</span>
+                  <Link href="/admin/tips">Tipline</Link>
+                </h2>
+                <div className="rows">
+                  {tips.slice(0, 3).map((t) => (
+                    <Link key={t.id} href={`/admin/tips?id=${encodeURIComponent(t.id)}`} className="r">
+                      <span className="dot amber" />
+                      <span className="grow">
+                        <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                          {t.subject}
+                        </span>
+                        <span className="t12 muted trunc" style={{ display: "block" }}>
+                          {t.details}
+                        </span>
+                      </span>
+                      <span className="t12 muted" style={{ flex: "none" }}>
+                        {ago(t.createdAt)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {results && results.length > 0 && (
+              <section className="todo">
+                <h2>
+                  Needs a result <span className="c">{results.length}</span>
+                  <Link href="/admin/sports">Sports</Link>
+                </h2>
+                <div className="rows">
+                  {results.slice(0, 3).map((e) => (
+                    <Link key={e.id} href={`/admin/sports?result=${encodeURIComponent(e.id)}`} className="r">
+                      <span className="dot amber" />
+                      <span className="grow">
+                        <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                          {e.name}
+                        </span>
+                        <span className="t12 muted trunc" style={{ display: "block" }}>
+                          {e.league} · {dayTime(new Date(e.startsAt))}
+                        </span>
+                      </span>
+                      <span className="btn sm" style={{ flex: "none" }}>
+                        Enter result
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {onAir && (
+              <section className="todo">
+                <h2>
+                  Radio
+                  <Link href="/admin/schedule">Schedule</Link>
+                </h2>
+                <div className="rows">
+                  {onAir.current ? (
+                    <div className="r">
+                      <span className="dot red" />
+                      <span className="grow">
+                        <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                          On air: {onAir.current.title}
+                        </span>
+                        <span className="t12 muted">
+                          Until {hm(onAir.current.end)}
+                          {onAir.current.presenter ? ` · ${onAir.current.presenter}` : ""}
+                        </span>
+                      </span>
+                      {hostedOnRadio(onAir.current) && (
+                        <Link href={studioHref(onAir.current)} className="btn sm strong">
+                          Open Studio
+                        </Link>
+                      )}
+                    </div>
                   ) : (
-                    <ul className="mt-3 divide-y divide-neutral-200 dark:divide-neutral-800">
-                      {summary!.adsLow.map((a) => (
-                        <li key={a.id} className="flex items-center justify-between gap-4 py-3">
-                          <span className="min-w-0 truncate">{a.organizer ? `${a.organizer} · ` : ""}{a.title}</span>
-                          <span className="shrink-0 text-sm font-bold">{a.left} left</span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="r">
+                      <span className="dot grey" />
+                      <span className="grow muted">Nothing on air. The AutoDJ is playing.</span>
+                      {nextHosted && (
+                        <Link href={studioHref(nextHosted)} className="btn sm">
+                          Studio: {nextHosted.title}
+                        </Link>
+                      )}
+                    </div>
                   )}
-                  <Link href="/admin/ads" className={cn(pillLink, "border border-neutral-300 hover:border-neutral-500 dark:border-neutral-700")}>
-                    Open advertisements
+                  {imports && imports.review > 0 && (
+                    <Link href="/admin/radio/library" className="r">
+                      <span className="dot amber" />
+                      <span className="grow">
+                        {imports.review} imported {imports.review === 1 ? "song needs" : "songs need"} you to pick the right version
+                      </span>
+                      <span className="btn sm">Review</span>
+                    </Link>
+                  )}
+                  {imports && imports.running > 0 && (
+                    <Link href="/admin/radio/library" className="r">
+                      <span className="dot blue" />
+                      <span className="grow muted">
+                        {imports.running} {imports.running === 1 ? "import" : "imports"} downloading
+                      </span>
+                    </Link>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {onAir && onAir.upcoming.length > 0 && (
+              <section className="todo">
+                <h2>Coming up</h2>
+                <div className="rows">
+                  {onAir.upcoming.map((o) => (
+                    <Link key={o.broadcastId + o.start.getTime()} href="/admin/schedule" className="r">
+                      <span className="t12 num muted" style={{ width: 96, flex: "none" }}>
+                        {dayTime(o.start)}
+                      </span>
+                      <span className="grow trunc" style={{ fontWeight: 600 }}>
+                        {o.title}
+                      </span>
+                      {o.presenter && <span className="t12 muted trunc hide-m">{o.presenter}</span>}
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {summary?.adsLow && adsLow.length > 0 && (
+              <section className="todo">
+                <h2>
+                  Ads running low <span className="c">{adsLow.length}</span>
+                  <Link href="/admin/ads">Ads</Link>
+                </h2>
+                <div className="rows">
+                  {adsLow.map((a) => (
+                    <Link key={a.id} href={`/admin/ads?id=${encodeURIComponent(a.id)}`} className="r">
+                      <span className="grow trunc">
+                        {a.organizer ? <span className="muted">{a.organizer} · </span> : null}
+                        <b>{a.title}</b>
+                      </span>
+                      <Pill tone={a.left <= 5 ? "red" : "amber"}>{a.left} posts left</Pill>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {drafts && drafts.count > 0 && (
+              <section className="todo">
+                <h2>
+                  Article drafts <span className="c">{drafts.count}</span>
+                  <Link href="/admin/articles">Articles</Link>
+                </h2>
+                <div className="rows">
+                  <Link href="/admin/articles" className="r">
+                    <span className="grow">
+                      {drafts.count} {drafts.count === 1 ? "draft" : "drafts"}
+                      {drafts.stale ? <span className="muted"> · {drafts.stale} untouched for over a week</span> : null}
+                    </span>
                   </Link>
                 </div>
-              )}
-            </div>
-          )}
-
-          <div>
-            <div className="mb-3 text-xs font-bold uppercase tracking-widest text-neutral-500">Everything you can open</div>
-            <div className="flex flex-wrap gap-2">
-              {modules.map((m) => (
-                <Link key={m.href} href={m.href} className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-bold transition hover:border-brand hover:bg-brand/10 dark:border-neutral-700">
-                  {m.title}
-                </Link>
-              ))}
-            </div>
+              </section>
+            )}
           </div>
-        </>
-      )}
-    </div>
+        )}
+      </Body>
+    </Screen>
   );
 }

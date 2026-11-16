@@ -4,19 +4,17 @@
 // broadcasters join. Listeners' browsers do the playing and mixing; only voices go live.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Link2, Mic, MicOff, Pause, Play, Search, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Mic, MicOff, Pause, Play, Search, SkipForward, Trash2, UserPlus, X } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader } from "@/components/gs/admin-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Body, PageBar, Pill, Screen, Switch } from "@/components/admin/ui";
+import { confirmDialog } from "@/components/gs/dialogs";
 import { canManageRadio } from "@/lib/rbac";
 import { useRadio } from "@/components/radio/radio-provider";
 import { useMicLevel, useOnAirVoice } from "@/components/radio/use-on-air-voice";
 import { getMic } from "@/components/radio/voice";
-import { labelClass } from "@/components/admin/schedule/styles";
 import { expandOccurrences, type Occurrence } from "@/lib/schedule-core";
-import { fmtTime, parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
+import { parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
+import { hm as fmtTime } from "@/components/admin/ui";
 
 type Person = { id: string; name: string; avatar: string | null; role: "host" | "cohost" | "caller"; state: "waiting" | "on_air"; connected: boolean };
 type Queued = { id: string; label: string; state: string; ready: boolean };
@@ -41,20 +39,32 @@ async function call<T = any>(url: string, init?: RequestInit): Promise<T> {
 const post = (body: Record<string, unknown>) => call("/api/admin/radio/studio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 const gb = (b: number) => `${(b / 1e9).toFixed(b < 10e9 ? 2 : 0)} GB`;
-const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-const dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-
-const card = "rounded-2xl border border-neutral-200 p-5 dark:border-neutral-800";
-const h2 = "text-lg font-extrabold mb-3";
+const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
+const dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
 
 function Avatar({ p, talking }: { p: { name: string; avatar: string | null }; talking?: boolean }) {
-  const ring = talking ? "ring-4 ring-[#23a55a]" : "ring-0";
-  return p.avatar ? (
-    <img src={p.avatar} alt="" className={`h-10 w-10 rounded-full object-cover transition-shadow ${ring}`} />
-  ) : (
-    <span className={`flex h-10 w-10 items-center justify-center rounded-full bg-neutral-200 font-bold dark:bg-neutral-800 ${ring}`}>{p.name.slice(0, 1).toUpperCase()}</span>
+  return p.avatar ? <img src={p.avatar} alt="" className={talking ? "pic talk" : "pic"} /> : <span className={talking ? "pic talk" : "pic"}>{p.name.slice(0, 1).toUpperCase()}</span>;
+}
+
+/** Eight level bars for a microphone (level: lit bars out of 15, from useMicLevel). */
+function Levels({ level, off }: { level: number; off?: boolean }) {
+  const n = 8;
+  return (
+    <span className="levels" aria-hidden>
+      {Array.from({ length: n }, (_, i) => {
+        const on = !off && i < Math.round((level / 15) * n);
+        return <i key={i} style={{ height: `${30 + (i / (n - 1)) * 70}%`, background: on ? undefined : "var(--a-border-strong)" }} />;
+      })}
+    </span>
   );
 }
+
+const elapsed = (from: number) => {
+  const s = Math.max(0, Math.floor((Date.now() - from) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}` : `${m} min`;
+};
 
 export default function StudioPage() {
   const radio = useRadio();
@@ -190,307 +200,382 @@ export default function StudioPage() {
   const callLink = typeof window !== "undefined" ? `${window.location.origin}/plus/radio?call=1` : "/plus/radio?call=1";
   const usage = state?.usage;
 
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const roleName = (p: Person) => (p.role === "host" ? "Host" : p.role === "cohost" ? "Co-host" : "Caller");
+  const endShow = async () => {
+    if (await confirmDialog("End the show for everyone? The AutoDJ takes over.", { ok: "End show", danger: true })) void act({ op: "end" });
+  };
+  const copyLink = () =>
+    void navigator.clipboard.writeText(callLink).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  const title = state?.session?.title ?? occ?.title ?? "Studio";
+  const when = occ ? `${occ.start.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} ${fmtTime(occ.start)} – ${fmtTime(occ.end)}` : null;
+  const imOn = !!state?.session && !!state?.me;
+
   return (
     <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Studio">
-      <div className="w-full space-y-6 text-neutral-900 dark:text-white">
-        <div>
-          <nav aria-label="Breadcrumb" className="mb-1 text-sm text-neutral-500">
-            <Link href="/admin/schedule" className="font-bold underline">
-              Schedule
-            </Link>{" "}
-            / Studio
-          </nav>
-          <AdminPageHeader
-            title={state?.session?.title ?? occ?.title ?? "Studio"}
-            description={
-              occ
-                ? `${occ.start.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}, ${fmtTime(occ.start)} to ${fmtTime(occ.end)}${occ.presenter ? ` · with ${occ.presenter}` : ""}`
-                : "Run a show on the radio: talk, queue songs, take calls. Listeners hear the music mixed in their own browser, and your voices on top."
-            }
-          />
-        </div>
-
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {voice.error && <p className="text-sm text-red-600">{voice.error}</p>}
-
-        {!state ? (
-          <p className="text-sm text-neutral-500">Loading…</p>
-        ) : !state.session ? (
-          occ === undefined ? (
-            <p className="text-sm text-neutral-500">Loading…</p>
-          ) : occ ? (
-            <div className={card}>
-              <h2 className={h2}>Ready when you are</h2>
-              <p className="text-sm text-neutral-500">
-                Your microphone goes on air as soon as you press it. Use headphones so the radio doesn&apos;t echo into it. Until then, the AutoDJ plays.
-              </p>
-              <Button className="mt-4 h-10 cursor-pointer px-5" disabled={busy || usage?.blocked} onClick={() => void goOnAir({ op: "start", showId: occ.show?.id ?? null, title: occ.title })}>
-                <Mic /> Go on air
-              </Button>
+      <Screen>
+        <PageBar
+          crumb={{ href: "/admin/schedule", label: "Schedule" }}
+          title={title}
+          tools={
+            state?.session ? (
+              <>
+                <Pill tone="red" dot>
+                  On air {elapsed(state.session.startedAt)}
+                </Pill>
+                <span className="t12 muted trunc">
+                  Since {timeFmt.format(new Date(state.session.startedAt))}
+                  {occ ? ` · until ${fmtTime(occ.end)}` : ""}
+                  {radio.listeners != null ? ` · ${radio.listeners} listening` : ""}
+                </span>
+              </>
+            ) : when ? (
+              <span className="muted trunc">{when}{occ?.presenter ? ` · ${occ.presenter}` : ""}</span>
+            ) : null
+          }
+          end={
+            imOn ? (
+              <>
+                <button type="button" className="btn ghost hide-m" disabled={busy} onClick={() => void act({ op: "leave" })} title="Leave the show; it carries on without you">
+                  Leave
+                </button>
+                <button type="button" className={muted ? "btn strong" : "btn"} onClick={() => setMuted((m) => !m)} aria-pressed={muted}>
+                  {muted ? <MicOff className="ic" /> : <Mic className="ic" />}
+                  {muted ? "Unmute me" : "Mute me"}
+                </button>
+                <button type="button" className="btn danger" disabled={busy} onClick={endShow}>
+                  End show
+                </button>
+              </>
+            ) : null
+          }
+        />
+        {(error || voice.error) && (
+          <div className="notice warn">
+            <span className="trunc">{error || voice.error}</span>
+            {error && (
+              <button type="button" className="btn sm ghost" style={{ marginLeft: "auto" }} onClick={() => setError(null)}>
+                Dismiss
+              </button>
+            )}
+          </div>
+        )}
+        <Body scroll={!imOn}>
+          {!state || (!state.session && occ === undefined) ? (
+            <div className="pane-empty">Loading the Studio…</div>
+          ) : !imOn ? (
+            <div className="today">
+              <section className="card" style={{ padding: 20, display: "grid", gap: 12 }}>
+                {!state.session ? (
+                  occ ? (
+                    <>
+                      <h2 className="t16" style={{ margin: 0, fontWeight: 600 }}>Ready when you are</h2>
+                      <p className="muted" style={{ margin: 0 }}>
+                        Your microphone goes on air as soon as you press the button. Use headphones so the radio doesn&apos;t echo into it. Until then, the AutoDJ plays.
+                      </p>
+                      <div>
+                        <button type="button" className="btn primary lg" disabled={busy || usage?.blocked} onClick={() => void goOnAir({ op: "start", showId: occ.show?.id ?? null, title: occ.title })}>
+                          <Mic className="ic" /> Go on air
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="t16" style={{ margin: 0, fontWeight: 600 }}>Open a show to go on air</h2>
+                      <p className="muted" style={{ margin: 0 }}>Shows are made on the Schedule. Pick one there, then Open Studio.</p>
+                      <div>
+                        <Link href="/admin/schedule" className="btn strong">
+                          Go to the Schedule
+                        </Link>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <h2 className="t16" style={{ margin: 0, fontWeight: 600 }}>{state.session.title} is on air</h2>
+                    <p className="muted" style={{ margin: 0 }}>
+                      With {live.map((p) => p.name).join(", ") || "nobody yet"} · since {timeFmt.format(new Date(state.session.startedAt))}
+                    </p>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      <button type="button" className="btn primary" disabled={busy || live.length >= state.cap} onClick={() => void goOnAir({ op: "join" })}>
+                        <Mic className="ic" /> Join as co-host
+                      </button>
+                      {live.length >= state.cap && <span className="help">{state.cap} people are already on air.</span>}
+                    </div>
+                  </>
+                )}
+              </section>
+              <Replays scope={scope} shown={shown} reload={loadReplays} />
+              {usage && <UsageMeter usage={usage} />}
             </div>
           ) : (
-            <div className={card}>
-              <h2 className={h2}>Open a show to go on air</h2>
-              <p className="text-sm text-neutral-500">Shows are made on the Schedule. Click one there, then Open Studio.</p>
-              <Link href="/admin/schedule" className="mt-4 inline-flex h-10 items-center rounded-full bg-brand px-5 text-sm font-bold text-brand-ink hover:bg-brand-hover">
-                Go to the Schedule
-              </Link>
-            </div>
-          )
-        ) : !state.me ? (
-          <div className={card}>
-            <h2 className={h2}>{state.session.title} is on air</h2>
-            <p className="text-sm text-neutral-500">
-              With {live.map((p) => p.name).join(", ") || "nobody yet"} · since {timeFmt.format(new Date(state.session.startedAt))}
-            </p>
-            <Button className="mt-4 h-10 cursor-pointer px-5" disabled={busy || live.length >= state.cap} onClick={() => void goOnAir({ op: "join" })}>
-              <Mic /> Join as co-broadcaster
-            </Button>
-            {live.length >= state.cap && <p className="mt-2 text-sm text-neutral-500">{state.cap} people are already on air.</p>}
-          </div>
-        ) : (
-          <>
-            <div className={card}>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-extrabold">{state.session.title}</h2>
-                  <p className="text-sm text-neutral-500">
-                    On air since {timeFmt.format(new Date(state.session.startedAt))} · {voice.connected ? "your microphone is live" : micAsk ? "your microphone isn't connected" : "connecting your microphone…"}
-                  </p>
+            <div className="studio">
+              <section className="col" aria-label="On air">
+                <div className="col-head">
+                  <h2>On air</h2>
+                  <span className="t12 muted">
+                    {live.length} of {state.cap}
+                  </span>
+                </div>
+                <div className="col-body">
+                  {live.map((p) => {
+                    const isMe = p.id === state.me!.id;
+                    return (
+                      <div key={p.id} className="person">
+                        <Avatar p={p} talking={speaking.has(p.id)} />
+                        <div className="grow" style={{ flex: 1, minWidth: 0 }}>
+                          <div className="trunc" style={{ fontWeight: 600 }}>
+                            {p.name}
+                            {isMe ? " (you)" : ""}
+                          </div>
+                          <div className="t12 muted">
+                            {roleName(p)}
+                            {isMe ? (muted ? " · muted" : voice.connected ? " · mic live" : micAsk ? " · mic not connected" : " · connecting…") : p.connected ? "" : " · connecting"}
+                          </div>
+                        </div>
+                        {isMe && <Levels level={level} off={muted} />}
+                        {!isMe && p.role !== "host" && (
+                          <button type="button" className="btn sm" disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
+                            Take off
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                   {micAsk && (
-                    <Button className="mt-2 h-9 cursor-pointer px-4" onClick={() => void ensureMic().then(() => setMicAsk(false), () => setError("The browser didn't give access to the microphone. Allow it in the address bar, then try again."))}>
-                      <Mic /> Connect your microphone
-                    </Button>
+                    <button
+                      type="button"
+                      className="btn strong"
+                      onClick={() => void ensureMic().then(() => setMicAsk(false), () => setError("The browser didn't give access to the microphone. Allow it in the address bar, then try again."))}
+                    >
+                      <Mic className="ic" /> Connect your microphone
+                    </button>
                   )}
+                  <p className="help" style={{ margin: 0 }}>
+                    <UserPlus className="ic-sm" style={{ display: "inline", verticalAlign: -2 }} /> Co-hosts join from this page: they open the show in the Schedule, then Join.
+                  </p>
+                  <p className="help" style={{ margin: 0 }}>The music goes down by itself while anyone talks, and back up after.</p>
+                  {usage && <UsageMeter usage={usage} compact />}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" className="h-10 cursor-pointer px-4" onClick={() => setMuted((m) => !m)} aria-pressed={muted}>
-                    {muted ? <MicOff /> : <Mic />} {muted ? "Unmute" : "Mute"}
-                  </Button>
-                  <Button variant="outline" className="h-10 cursor-pointer px-4" disabled={busy} onClick={() => void act({ op: state.session!.paused ? "resume" : "pause" })}>
-                    {state.session.paused ? <Play /> : <Pause />} {state.session.paused ? "Play music" : "Pause music"}
-                  </Button>
-                  <Button variant="outline" className="h-10 cursor-pointer px-4" disabled={busy} onClick={() => void act({ op: "leave" })}>
-                    Leave
-                  </Button>
-                  <Button className="h-10 cursor-pointer px-4" disabled={busy} onClick={() => window.confirm("End the show for everyone?") && void act({ op: "end" })}>
-                    End show
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-4 flex h-3 gap-[3px]" aria-hidden>
-                {Array.from({ length: 24 }, (_, i) => (
-                  <i key={i} className={`w-1.5 rounded-sm ${!muted && i < (level * 24) / 15 ? "bg-[#23a55a]" : "bg-neutral-300 dark:bg-neutral-700"}`} />
-                ))}
-              </div>
-              <p className="mt-2 text-xs text-neutral-500">The music goes down by itself while anyone talks, and back up after.</p>
-            </div>
+              </section>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div className={card}>
-                <h2 className={h2}>
-                  On air ({live.length} of {state.cap})
-                </h2>
-                <ul className="space-y-3">
-                  {live.map((p) => (
-                    <li key={p.id} className="flex items-center gap-3">
-                      <Avatar p={p} talking={speaking.has(p.id)} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-bold">{p.name}</div>
-                        <div className="text-xs text-neutral-500">
-                          {p.role === "host" ? "Host" : p.role === "cohost" ? "Co-broadcaster" : "Caller"}
-                          {p.connected ? "" : " · connecting"}
+              <section className="col" aria-label="Callers">
+                <div className="col-head">
+                  <h2>Callers</h2>
+                  <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }} className="t12 muted">
+                    {state.session!.callIn ? "Calls open" : "Calls closed"}
+                    <Switch checked={state.session!.callIn} disabled={busy} onChange={(on) => void act({ op: "callIn", on })} label="Take calls" />
+                  </label>
+                </div>
+                <div className="col-body">
+                  {!state.session!.callIn ? (
+                    <p className="muted" style={{ margin: 0 }}>
+                      Calls are closed. Open them and listeners get a Call in button on the radio player, plus a link you can share.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="field">
+                        <label>Call link</label>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <input className="input sm" readOnly value={callLink} style={{ flex: 1 }} onFocus={(e) => e.currentTarget.select()} aria-label="Call link" />
+                          <button type="button" className="btn sm" onClick={copyLink}>
+                            <Copy className="ic-sm" /> {copied ? "Copied" : "Copy link"}
+                          </button>
                         </div>
                       </div>
-                      {p.id !== state.me!.id && p.role !== "host" && (
-                        <Button variant="outline" size="sm" className="cursor-pointer" disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
-                          Take off air
-                        </Button>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-6 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-                  <label className="flex items-center gap-2 text-sm font-bold">
-                    <input type="checkbox" checked={state.session.callIn} disabled={busy} onChange={(e) => void act({ op: "callIn", on: e.target.checked })} />
-                    Take calls
-                  </label>
-                  {state.session.callIn && (
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <code className="rounded bg-neutral-100 px-2 py-1 text-xs dark:bg-neutral-900">{callLink}</code>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="cursor-pointer"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(callLink).then(() => {
-                            setCopied(true);
-                            setTimeout(() => setCopied(false), 1500);
-                          });
-                        }}
-                      >
-                        <Link2 /> {copied ? "Copied" : "Copy link"}
-                      </Button>
-                    </div>
-                  )}
-                  {state.session.callIn && (
-                    <>
-                      <h3 className="mt-4 text-sm font-extrabold">Waiting ({waiting.length})</h3>
+                      <div className="sublabel">Waiting ({waiting.length})</div>
                       {waiting.length === 0 ? (
-                        <p className="text-sm text-neutral-500">Nobody yet. Callers wait on the radio page until you bring them on.</p>
+                        <p className="muted" style={{ margin: 0 }}>Nobody yet. Callers wait on the radio page until you bring them on.</p>
                       ) : (
-                        <ul className="mt-2 space-y-2">
-                          {waiting.map((p) => (
-                            <li key={p.id} className="flex items-center gap-3">
-                              <Avatar p={p} />
-                              <span className="min-w-0 flex-1 truncate font-bold">{p.name}</span>
-                              <Button size="sm" className="cursor-pointer" disabled={busy || live.length >= state.cap} onClick={() => void act({ op: "onAir", id: p.id })}>
-                                Put on air
-                              </Button>
-                              <Button size="sm" variant="outline" className="cursor-pointer" aria-label={`Remove ${p.name}`} disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
-                                <X />
-                              </Button>
-                            </li>
-                          ))}
-                        </ul>
+                        waiting.map((p) => (
+                          <div key={p.id} className="person">
+                            <Avatar p={p} />
+                            <span className="trunc" style={{ flex: 1, fontWeight: 600 }}>
+                              {p.name}
+                            </span>
+                            <button type="button" className="btn sm strong" disabled={busy || live.length >= state.cap} onClick={() => void act({ op: "onAir", id: p.id })}>
+                              Put on air
+                            </button>
+                            <button type="button" className="iconbtn" aria-label={`Remove ${p.name}`} disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
+                              <X className="ic" />
+                            </button>
+                          </div>
+                        ))
                       )}
                     </>
                   )}
                 </div>
-              </div>
+              </section>
 
-              <div className={card}>
-                <h2 className={h2}>Up next</h2>
-                {state.queue.length === 0 ? (
-                  <p className="text-sm text-neutral-500">Nothing queued: the AutoDJ picks from the library (or the show&apos;s playlist).</p>
-                ) : (
-                  <ol className="space-y-2">
-                    {state.queue.map((q, i) => (
-                      <li key={q.id} className="flex items-center gap-2">
-                        <span className="w-5 text-right text-xs text-neutral-500">{i + 1}</span>
-                        <span className="min-w-0 flex-1 truncate text-sm">
-                          {q.label}
-                          {q.state === "failed" ? " · couldn't download" : !q.ready ? " · downloading…" : ""}
-                        </span>
-                        <button className="cursor-pointer p-1" aria-label="Move up" disabled={busy || i === 0} onClick={() => void act({ op: "move", id: q.id, dir: -1 })}>
-                          <ArrowUp className="h-4 w-4" />
-                        </button>
-                        <button className="cursor-pointer p-1" aria-label="Move down" disabled={busy || i === state.queue.length - 1} onClick={() => void act({ op: "move", id: q.id, dir: 1 })}>
-                          <ArrowDown className="h-4 w-4" />
-                        </button>
-                        <button className="cursor-pointer p-1" aria-label="Remove" disabled={busy} onClick={() => void act({ op: "remove", id: q.id })}>
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                )}
-                <p className="mt-2 text-xs text-neutral-500">A queued song plays within two songs: the next two are already lined up and mixed.</p>
-
-                <div className="mt-5">
-                  <label className={labelClass} htmlFor="studio-search">
-                    Search the library
-                  </label>
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-                    <Input id="studio-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Title or artist" className="pl-9" />
-                  </div>
-                  {results.length > 0 && (
-                    <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-                      {results.map((s) => (
-                        <li key={s.key} className="flex items-center gap-2">
-                          <span className="min-w-0 flex-1 truncate text-sm">
-                            {s.title} · <span className="text-neutral-500">{s.artist}</span>
-                          </span>
-                          <Button size="sm" variant="outline" className="cursor-pointer" disabled={busy} onClick={() => void act({ op: "queueSong", key: s.key })}>
-                            Queue
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+              <section className="col" aria-label="Music">
+                <div className="col-head">
+                  <h2>Music</h2>
+                  <button type="button" className="btn sm" style={{ marginLeft: "auto" }} disabled={busy} onClick={() => void act({ op: state.session!.paused ? "resume" : "pause" })}>
+                    {state.session!.paused ? <Play className="ic-sm" /> : <Pause className="ic-sm" />}
+                    {state.session!.paused ? "Play music" : "Pause music"}
+                  </button>
                 </div>
-                <form
-                  className="mt-4"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (url.trim()) void act({ op: "queueUrl", url }).then(() => setUrl(""));
-                  }}
-                >
-                  <label className={labelClass} htmlFor="studio-url">
-                    Or paste a song link
-                  </label>
-                  <div className="flex gap-2">
-                    <Input id="studio-url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="YouTube, SoundCloud or Spotify" />
-                    <Button type="submit" className="h-10 cursor-pointer px-4" disabled={busy || !url.trim()}>
-                      Queue
-                    </Button>
-                  </div>
-                  <p className="mt-1 text-xs text-neutral-500">It&apos;s downloaded into the library first (usually under a minute), then joins the queue.</p>
-                </form>
-              </div>
-            </div>
-          </>
-        )}
-
-        {usage && (
-          <div className={card}>
-            <h2 className={h2}>Voice usage this month</h2>
-            <div className="h-2 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
-              <div className={`h-full ${usage.blocked ? "bg-red-600" : "bg-brand"}`} style={{ width: `${Math.min(100, (usage.bytes / usage.capBytes) * 100)}%` }} />
-            </div>
-            <p className="mt-2 text-sm text-neutral-500">
-              About {gb(usage.bytes)} of the {gb(usage.capBytes)} cap (Cloudflare&apos;s free allowance is {gb(usage.freeBytes)}).{" "}
-              {usage.blocked ? "Voice is off until next month." : "Voice stops by itself at the cap, so it never costs anything."}
-            </p>
-          </div>
-        )}
-
-        <div className={card}>
-          <h2 className={h2}>{scope ? `Past episodes of ${scope.title}` : "Replays"}</h2>
-          {shown.length === 0 ? (
-            <p className="text-sm text-neutral-500">Shows run from the Studio, and playlist shows, are kept here to listen back to on FTN+.</p>
-          ) : (
-            <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-              {shown.map((r) => (
-                <li key={r.id} className="flex flex-wrap items-center gap-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-bold">{r.title}</div>
-                    <div className="text-xs text-neutral-500">
-                      {dateFmt.format(new Date(r.startedAt))}
-                      {r.endedAt && r.endedAt < Date.now() ? ` to ${timeFmt.format(new Date(r.endedAt))}` : " · on air"}
-                      {r.hidden ? " · hidden" : ""}
+                <div className="col-body">
+                  <div className="np">
+                    <span className="cover" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                      {state.session!.paused ? <Pause className="ic" /> : <SkipForward className="ic faint" />}
+                    </span>
+                    <div style={{ minWidth: 0 }}>
+                      <div className="t12 muted">{state.session!.paused ? "Paused" : "Playing now"}</div>
+                      <div className="trunc" style={{ fontWeight: 600 }}>
+                        {radio.song ? radio.song.title : "AutoDJ"}
+                      </div>
+                      <div className="trunc muted">{radio.song ? radio.song.artist : "Picks from the library or the show's playlist"}</div>
                     </div>
                   </div>
-                  {r.endedAt && r.endedAt < Date.now() && !r.hidden && (
-                    <Link href={`/plus/radio/replays/${r.id}`} className="gs-bar-link text-sm font-bold">
-                      Listen
-                    </Link>
+
+                  <div className="sublabel">Up next</div>
+                  {state.queue.length === 0 ? (
+                    <p className="muted" style={{ margin: 0 }}>Nothing queued: the AutoDJ picks from the library (or the show&apos;s playlist).</p>
+                  ) : (
+                    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
+                      {state.queue.map((q, i) => (
+                        <li key={q.id} className="song">
+                          <span className="t12 faint num" style={{ width: 16, textAlign: "right" }}>
+                            {i + 1}
+                          </span>
+                          <span className="trunc" style={{ flex: 1 }}>
+                            {q.label}
+                            <span className="muted">{q.state === "failed" ? " · couldn't download" : !q.ready ? " · downloading…" : ""}</span>
+                          </span>
+                          <button type="button" className="iconbtn" aria-label="Move up" disabled={busy || i === 0} onClick={() => void act({ op: "move", id: q.id, dir: -1 })}>
+                            <ArrowUp className="ic-sm" />
+                          </button>
+                          <button type="button" className="iconbtn" aria-label="Move down" disabled={busy || i === state.queue.length - 1} onClick={() => void act({ op: "move", id: q.id, dir: 1 })}>
+                            <ArrowDown className="ic-sm" />
+                          </button>
+                          <button type="button" className="iconbtn" aria-label="Remove" disabled={busy} onClick={() => void act({ op: "remove", id: q.id })}>
+                            <Trash2 className="ic-sm" />
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
                   )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="cursor-pointer"
-                    onClick={() => void call(`/api/admin/radio/replays/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hidden: !r.hidden }) }).then(loadReplays)}
+                  <p className="help" style={{ margin: 0 }}>A queued song plays within two songs: the next two are already lined up and mixed.</p>
+
+                  <div className="sublabel">Add a song</div>
+                  <div className="search">
+                    <Search />
+                    <input id="studio-search" className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the library" aria-label="Search the library" />
+                  </div>
+                  {results.length > 0 && (
+                    <div style={{ display: "grid", gap: 2 }}>
+                      {results.map((s) => (
+                        <div key={s.key} className="song">
+                          <span className="trunc" style={{ flex: 1 }}>
+                            {s.title} <span className="muted">· {s.artist}</span>
+                          </span>
+                          <button type="button" className="btn sm" disabled={busy} onClick={() => void act({ op: "queueSong", key: s.key })}>
+                            Queue
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <form
+                    style={{ display: "flex", gap: 8 }}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (url.trim()) void act({ op: "queueUrl", url }).then(() => setUrl(""));
+                    }}
                   >
-                    {r.hidden ? "Show" : "Hide"}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="cursor-pointer"
-                    aria-label={`Delete ${r.title}`}
-                    onClick={() => window.confirm(`Delete the replay of ${r.title} for good?`) && void call(`/api/admin/radio/replays/${r.id}`, { method: "DELETE" }).then(loadReplays)}
-                  >
-                    <Trash2 />
-                  </Button>
-                </li>
-              ))}
-            </ul>
+                    <input className="input" style={{ flex: 1 }} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Or paste a YouTube, SoundCloud or Spotify link" aria-label="Song link" />
+                    <button type="submit" className="btn" disabled={busy || !url.trim()}>
+                      Queue
+                    </button>
+                  </form>
+                  <p className="help" style={{ margin: 0 }}>A link is downloaded into the library first (usually under a minute), then joins the queue.</p>
+                </div>
+              </section>
+            </div>
           )}
-        </div>
-      </div>
+        </Body>
+      </Screen>
     </AdminAuthGuard>
+  );
+}
+
+function UsageMeter({ usage, compact }: { usage: Usage; compact?: boolean }) {
+  const pct = Math.min(100, (usage.bytes / usage.capBytes) * 100);
+  return (
+    <div style={{ display: "grid", gap: 6 }} className={compact ? undefined : "todo"}>
+      {compact ? <div className="sublabel">Voice usage this month</div> : <h2>Voice usage this month</h2>}
+      <div className={usage.blocked ? "meter low" : "meter"}>
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <div className="help">
+        About {gb(usage.bytes)} of the {gb(usage.capBytes)} cap (Cloudflare&apos;s free allowance is {gb(usage.freeBytes)}).{" "}
+        {usage.blocked ? "Voice is off until next month." : "Voice stops by itself at the cap, so it never costs anything."}
+      </div>
+    </div>
+  );
+}
+
+function Replays({ scope, shown, reload }: { scope: { title: string } | null; shown: Replay[]; reload: () => void }) {
+  const remove = async (r: Replay) => {
+    if (!(await confirmDialog(`Delete the replay of ${r.title} for good?`, { ok: "Delete", danger: true }))) return;
+    await call(`/api/admin/radio/replays/${r.id}`, { method: "DELETE" }).catch(() => {});
+    reload();
+  };
+  return (
+    <section className="todo">
+      <h2>
+        {scope ? `Past episodes of ${scope.title}` : "Replays"} <span className="c">{shown.length || ""}</span>
+      </h2>
+      {shown.length === 0 ? (
+        <div className="rows">
+          <div className="r muted">Shows run from the Studio, and playlist shows, are kept here to listen back to on FTN+.</div>
+        </div>
+      ) : (
+        <div className="rows">
+          {shown.map((r) => {
+            const ended = !!r.endedAt && r.endedAt < Date.now();
+            return (
+              <div key={r.id} className="r">
+                <div className="grow">
+                  <div className="trunc" style={{ fontWeight: 600 }}>
+                    {r.title}
+                  </div>
+                  <div className="t12 muted">
+                    {dateFmt.format(new Date(r.startedAt))}
+                    {ended ? ` to ${timeFmt.format(new Date(r.endedAt!))}` : " · on air"}
+                    {r.hidden ? " · hidden" : ""}
+                  </div>
+                </div>
+                {ended && !r.hidden && (
+                  <Link href={`/plus/radio/replays/${r.id}`} className="btn sm ghost">
+                    Listen
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  className="btn sm"
+                  onClick={() =>
+                    void call(`/api/admin/radio/replays/${r.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hidden: !r.hidden }) }).then(reload)
+                  }
+                >
+                  {r.hidden ? "Show" : "Hide"}
+                </button>
+                <button type="button" className="iconbtn" aria-label={`Delete ${r.title}`} onClick={() => void remove(r)}>
+                  <Trash2 className="ic-sm" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
