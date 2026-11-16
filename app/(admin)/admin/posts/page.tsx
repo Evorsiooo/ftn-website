@@ -126,7 +126,9 @@ function PostsPage() {
     return out;
   }, [visible]);
 
-  const current = all.find((p) => p.id === selectedId) || null;
+  const picked = all.find((p) => p.id === selectedId) || null;
+  // On a computer the first post shows straight away; on a phone the list stays until one is tapped.
+  const current = picked ?? visible[0] ?? null;
   const mine = (p: any) => me?.id === p.createdBy || isLeadership;
 
   const run = async (key: string, fn: () => Promise<void>) => {
@@ -254,7 +256,7 @@ function PostsPage() {
         }
       />
       <Body>
-        <div className={cn("ld", current && "detail")}>
+        <div className={cn("ld", picked && "detail")}>
           <div className="ld-list">
             {posts === null ? (
               <div className="empty">Loading posts…</div>
@@ -271,7 +273,7 @@ function PostsPage() {
                     const st = statusOf(p);
                     const when = p.scheduledAt && p.status !== "draft" ? p.scheduledAt : p.createdAt;
                     return (
-                      <button key={p.id} type="button" className={cn("item", p.id === selectedId && "on")} onClick={() => select(p.id)}>
+                      <button key={p.id} type="button" className={cn("item", p.id === current?.id && "on")} onClick={() => select(p.id)}>
                         <img src={p.imageUrl} alt="" className="thumb" width={44} height={44} style={{ width: 44, height: 44 }} />
                         <span className="grow">
                           <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
