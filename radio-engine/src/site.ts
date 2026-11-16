@@ -37,7 +37,9 @@ export async function startStation(opts: StationOptions = {}): Promise<Station> 
   // iOS 17+: keep playing with the ringer switch on silent and while locked
   const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
   if (session) session.type = 'playback';
-  const [library, tl] = await Promise.all([loadLibrary(), fetchTimeline().catch(() => null)]);
+  // A slow or failed library fetch must not stop the radio: the running order is enough to start
+  // playing, and the engine fetches the library again until it has it.
+  const [library, tl] = await Promise.all([loadLibrary().catch(() => [] as Awaited<ReturnType<typeof loadLibrary>>), fetchTimeline().catch(() => null)]);
   const engine = new RadioEngine(tl, library, { listenerId: opts.listenerId, onSong: opts.onSong, log: opts.log });
   engine.setVolume(opts.volume ?? 1);
   await engine.start();

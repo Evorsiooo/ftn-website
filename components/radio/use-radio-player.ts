@@ -60,6 +60,8 @@ function listenerId(): string | undefined {
   }
 }
 
+/** Waits before trying again when the AutoDJ fails to start (then it gives up and shows an error). */
+const STATION_RETRIES_MS = [800, 2000, 4000];
 const STATION_POLL_MS = 500;
 /** How low the radio goes under a video. */
 export const DUCK_LEVEL = 0.18;
@@ -244,6 +246,16 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
       .catch((err) => {
         if (gen !== startGen.current) return;
         console.error("radio: couldn't start the AutoDJ", err);
+        // a network hiccup: keep "connecting" and try again (the press already unlocked audio)
+        if (wantPlaying.current && retries.current < STATION_RETRIES_MS.length) {
+          const delay = STATION_RETRIES_MS[retries.current]!;
+          retries.current += 1;
+          timers.current.retry = setTimeout(() => {
+            timers.current.retry = undefined;
+            if (gen === startGen.current && wantPlaying.current) startStation();
+          }, delay);
+          return;
+        }
         wantPlaying.current = false;
         clearPending();
         setStatus("error");
