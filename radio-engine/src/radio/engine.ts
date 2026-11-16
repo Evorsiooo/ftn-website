@@ -175,6 +175,8 @@ export class RadioEngine {
     };
     schedulePing();
     this.timers.push(setInterval(() => void this.refreshLibrary(), LIBRARY_REFRESH_MS));
+    // started without the library (its fetch failed): try again soon rather than in ten minutes
+    this.timers.push(setInterval(() => void (this.library.length ? null : this.refreshLibrary()), 5_000));
     this.timers.push(setInterval(() => this.tick(), TICK_MS));
     this.timers.push(setInterval(() => void this.refresh(), REFRESH_MS));
   }
