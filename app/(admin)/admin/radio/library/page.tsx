@@ -1,41 +1,42 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RefreshCw, Upload } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { MoreHorizontal, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Body, PageBar, Screen, Seg, Sheet } from "@/components/admin/ui";
 import { SongRatings } from "@/components/admin/radio-library/ratings";
 import { canManageRadio } from "@/lib/rbac";
 import { AddSongs, ReviewMatches } from "@/components/admin/radio-library/add-songs";
-import { SongList, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
+import { SongPane, SongTable, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
 import { PlaylistList } from "@/components/admin/radio-library/playlists";
 import { useMetadataCheck } from "@/components/admin/radio-library/metadata-check";
 import { api, FINAL, type Import, type Playlist, type Review, type Song } from "@/components/admin/radio-library/types";
+import { refreshAdminSummary } from "@/lib/admin-summary";
+import { cn } from "@/lib/utils";
 
-type Tab = "songs" | "playlists" | "archived" | "ratings";
+type Tab = "songs" | "playlists" | "ratings";
 
-export default function RadioLibraryPage() {
+function LibraryPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const tab = ((["songs", "playlists", "ratings"] as const).find((t) => t === params.get("tab")) ?? "songs") as Tab;
+  const setTab = (t: Tab) => router.replace(t === "songs" ? "/admin/radio/library" : `/admin/radio/library?tab=${t}`, { scroll: false });
+
   const [songs, setSongs] = useState<Song[] | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [imports, setImports] = useState<Import[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("songs");
-  // ?tab=ratings (the old Song ratings page redirects here)
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("tab") === "ratings") setTab("ratings");
-  }, []);
+  const [archived, setArchived] = useState(false);
   const [query, setQuery] = useState("");
-  const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<"add" | "review" | "upload" | null>(null);
+  const [menu, setMenu] = useState(false);
   const preview = usePreview();
 
   const loadLibrary = useCallback(async () => {
     try {
-      const [s, p] = await Promise.all([
-        api<{ songs: Song[] }>("/api/admin/radio/songs"),
-        api<{ playlists: Playlist[] }>("/api/admin/radio/playlists"),
-      ]);
+      const [s, p] = await Promise.all([api<{ songs: Song[] }>("/api/admin/radio/songs"), api<{ playlists: Playlist[] }>("/api/admin/radio/playlists")]);
       setSongs(s.songs);
       setPlaylists(p.playlists);
       setError(null);
@@ -51,7 +52,6 @@ export default function RadioLibraryPage() {
       const d = await api<{ imports: Import[]; reviews: Review[] }>("/api/admin/radio/imports");
       setImports(d.imports);
       setReviews(d.reviews);
-      // reload songs when an import has added some since the last look
       const sig = d.imports.map((i) => `${i.id}:${i.done}:${i.state}`).join("|");
       if (doneCount.current && sig !== doneCount.current) loadLibrary();
       doneCount.current = sig;
@@ -63,106 +63,225 @@ export default function RadioLibraryPage() {
   const reload = useCallback(() => {
     loadLibrary();
     loadImports();
+    refreshAdminSummary();
   }, [loadLibrary, loadImports]);
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const active = imports.some((i) => !FINAL.includes(i.state));
+  const running = imports.filter((i) => !FINAL.includes(i.state));
   useEffect(() => {
-    if (!active) return;
+    if (!running.length) return;
     const t = setInterval(loadImports, 4000);
     return () => clearInterval(t);
-  }, [active, loadImports]);
+  }, [running.length, loadImports]);
 
   const meta = useMetadataCheck(songs, loadLibrary);
 
   const live = useMemo(() => (songs || []).filter((s) => !s.archived), [songs]);
-  const archived = useMemo(() => (songs || []).filter((s) => s.archived), [songs]);
+  const archivedSongs = useMemo(() => (songs || []).filter((s) => s.archived), [songs]);
   const shown = useMemo(() => {
-    const list = tab === "archived" ? archived : live;
+    const list = archived ? archivedSongs : live;
     const q = query.trim().toLowerCase();
     return q ? list.filter((s) => `${s.title} ${s.artist} ${s.album || ""}`.toLowerCase().includes(q)) : list;
-  }, [tab, live, archived, query]);
+  }, [archived, live, archivedSongs, query]);
+  const current = (songs || []).find((s) => s.id === selected) ?? null;
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(false);
+    document.addEventListener("click", close);
+    return () => document.removeEventListener("click", close);
+  }, [menu]);
+
+  const tabs = [
+    { value: "songs" as const, label: "Songs", n: songs ? live.length : undefined },
+    { value: "playlists" as const, label: "Playlists", n: playlists.length },
+    { value: "ratings" as const, label: "Ratings" },
+  ];
+  const songTools = tab === "songs" && (
+    <>
+      <div className="search" style={{ width: 240 }}>
+        <Search />
+        <input className="input sm" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, artist or album" aria-label="Search songs" />
+      </div>
+      <label className="t12 muted" style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          className="check"
+          checked={archived}
+          onChange={(e) => {
+            setArchived(e.target.checked);
+            setSelected(null);
+          }}
+        />
+        Archived ({archivedSongs.length})
+      </label>
+    </>
+  );
+
+  const checking = meta.state.running || meta.state.note || (meta.state.all && meta.state.total > 0);
 
   return (
-    <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Song library">
-      <div className="w-full space-y-8 text-neutral-900 dark:text-white">
-        <AdminPageHeader
-          title="Song library"
-          description="The songs the radio plays. Every song here that isn't archived can come up on the AutoDJ."
-          actions={
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={meta.recheckAll}
-                disabled={!songs?.length || meta.state.running}
-                className="h-10 cursor-pointer px-5 text-sm"
-                title="Look every song up in the music catalog for its exact title, artist, album and cover"
+    <Screen>
+      <PageBar
+        title="Song library"
+        tools={
+          <>
+            <Seg value={tab} onChange={setTab} options={tabs} label="Show" />
+            {songTools}
+          </>
+        }
+        end={
+          <>
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                className="btn icon"
+                aria-label="More"
+                aria-expanded={menu}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenu((v) => !v);
+                }}
               >
-                <RefreshCw /> Re-check titles
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => setUploading(true)} className="h-10 cursor-pointer px-5 text-sm">
-                <Upload /> Upload a file
-              </Button>
-            </>
-          }
-        />
-
-        <AddSongs imports={imports} onChange={reload} />
-        {(meta.state.running || meta.state.note || (meta.state.all && meta.state.total > 0)) && (
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm dark:border-neutral-800 dark:bg-neutral-900" role="status">
-            <span className="min-w-0 flex-1">
-              {meta.state.running ? "Checking titles, artists and covers" : "Checked titles, artists and covers"}: {meta.state.done} of {meta.state.total}
-              {meta.state.updated > 0 && `, ${meta.state.updated} updated`}
-              {meta.state.note && <span className="text-neutral-500 dark:text-neutral-400"> · {meta.state.note}</span>}
-            </span>
-            {meta.state.running && (
-              <Button size="sm" variant="outline" className="cursor-pointer" onClick={meta.stop}>
-                Stop
-              </Button>
-            )}
-          </div>
-        )}
-        <ReviewMatches reviews={reviews} onChange={reload} />
-
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800">
-            <div className="flex gap-1 overflow-x-auto">
-              <AdminTab active={tab === "songs"} onClick={() => setTab("songs")}>Songs {songs ? `(${live.length})` : ""}</AdminTab>
-              <AdminTab active={tab === "playlists"} onClick={() => setTab("playlists")}>Playlists ({playlists.length})</AdminTab>
-              <AdminTab active={tab === "archived"} onClick={() => setTab("archived")}>Archived {songs ? `(${archived.length})` : ""}</AdminTab>
-              <AdminTab active={tab === "ratings"} onClick={() => setTab("ratings")}>Ratings</AdminTab>
+                <MoreHorizontal className="ic" />
+              </button>
+              {menu && (
+                <div className="card" role="menu" style={{ position: "absolute", right: 0, top: 40, zIndex: 20, padding: 4, minWidth: 220, boxShadow: "var(--a-shadow)" }}>
+                  <button type="button" role="menuitem" className="btn ghost" style={{ width: "100%", justifyContent: "flex-start" }} onClick={() => setSheet("upload")}>
+                    <Upload className="ic" /> Upload a file
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="btn ghost"
+                    style={{ width: "100%", justifyContent: "flex-start" }}
+                    disabled={!songs?.length || meta.state.running}
+                    onClick={meta.recheckAll}
+                    title="Look every song up in the music catalog for its exact title, artist, album and cover"
+                  >
+                    <RefreshCw className="ic" /> Re-check all titles
+                  </button>
+                </div>
+              )}
             </div>
-            {(tab === "songs" || tab === "archived") && (
-              <div className="w-full pb-2 sm:w-72">
-                <label htmlFor="radio-library-search" className="sr-only">Search songs</label>
-                <Input id="radio-library-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, artist or album" />
-              </div>
-            )}
+            <button type="button" className="btn primary has-lbl-m" onClick={() => setSheet("add")} aria-label="Add songs">
+              <Plus className="ic" />
+              <span className="lbl-m">Add songs</span>
+            </button>
+          </>
+        }
+        mrow={
+          <>
+            <Seg value={tab} onChange={setTab} options={tabs} label="Show" />
+          </>
+        }
+      />
+      {tab === "songs" && (
+        <div className="adm-mrow">
+          <div className="search">
+            <Search />
+            <input className="input sm" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search songs" aria-label="Search songs" />
           </div>
-
-          {tab === "ratings" ? (
-            <SongRatings />
-          ) : error ? (
-            <p className="text-sm text-red-600">{error}</p>
-          ) : !songs ? (
-            <p className="text-sm text-neutral-500">Loading…</p>
-          ) : tab === "playlists" ? (
-            <PlaylistList playlists={playlists} imports={imports} library={songs} onChange={reload} preview={preview} />
-          ) : songs.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center dark:border-neutral-700">
-              <p className="font-bold">The library is empty.</p>
-              <p className="mt-1 text-sm text-neutral-500">Paste a song or playlist link above to add the first songs.</p>
-            </div>
-          ) : (
-            <SongList songs={shown} archivedView={tab === "archived"} onChange={loadLibrary} preview={preview} />
+          <label className="t12 muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+            <input type="checkbox" className="check" checked={archived} onChange={(e) => setArchived(e.target.checked)} />
+            Archived
+          </label>
+        </div>
+      )}
+      {(running.length > 0 || reviews.length > 0) && (
+        <div className="notice">
+          <span className={running.length ? "dot amber" : "dot grey"} />
+          <span className="trunc" style={{ flex: 1 }}>
+            {running.length > 0 && (
+              <>
+                Importing {running.length === 1 ? `“${running[0].playlistName || running[0].title || "a link"}”` : `${running.length} links`}
+                {running.length === 1 && running[0].total ? ` · ${running[0].done} of ${running[0].total}` : ""}
+                {reviews.length ? " · " : ""}
+              </>
+            )}
+            {reviews.length > 0 && `${reviews.length} ${reviews.length === 1 ? "song needs" : "songs need"} you to pick the right version`}
+          </span>
+          {reviews.length > 0 && (
+            <button type="button" className="btn sm strong" onClick={() => setSheet("review")}>
+              Review {reviews.length}
+            </button>
+          )}
+          {running.length > 0 && (
+            <button type="button" className="btn sm ghost" onClick={() => setSheet("add")}>
+              See imports
+            </button>
           )}
         </div>
-      </div>
-      {uploading && <UploadSong onClose={() => setUploading(false)} onDone={loadLibrary} />}
+      )}
+      {checking && (
+        <div className="notice" role="status">
+          <RefreshCw className={cn("ic-sm", meta.state.running && "spin")} />
+          <span className="trunc" style={{ flex: 1 }}>
+            {meta.state.running ? "Checking titles, artists and covers" : "Checked titles, artists and covers"}: {meta.state.done} of {meta.state.total}
+            {meta.state.updated > 0 && `, ${meta.state.updated} updated`}
+            {meta.state.note && <span className="muted"> · {meta.state.note}</span>}
+          </span>
+          {meta.state.running && (
+            <button type="button" className="btn sm" onClick={meta.stop}>
+              Stop
+            </button>
+          )}
+        </div>
+      )}
+      <Body scroll={tab === "ratings"}>
+        {tab === "ratings" ? (
+          <SongRatings />
+        ) : error ? (
+          <div className="empty">{error}</div>
+        ) : !songs ? (
+          <div className="pane-empty">Loading the library…</div>
+        ) : tab === "playlists" ? (
+          <PlaylistList playlists={playlists} imports={imports} library={songs} onChange={reload} preview={preview} />
+        ) : songs.length === 0 ? (
+          <div className="pane-empty">
+            <div style={{ display: "grid", gap: 10, justifyItems: "center" }}>
+              <b style={{ color: "var(--a-text)" }}>The library is empty.</b>
+              <span>Paste a song or playlist link to add the first songs.</span>
+              <button type="button" className="btn primary" onClick={() => setSheet("add")}>
+                <Plus className="ic" /> Add songs
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className={cn("ld side-right", current && "detail")}>
+            <div className="ld-list">
+              <SongTable songs={shown} selectedId={selected} onSelect={setSelected} archivedView={archived} />
+            </div>
+            <div className="ld-pane">
+              {current ? <SongPane song={current} onChange={loadLibrary} onClose={() => setSelected(null)} preview={preview} /> : <div className="pane-empty">Pick a song to listen to it, edit it or archive it.</div>}
+            </div>
+          </div>
+        )}
+      </Body>
+      {sheet === "add" && (
+        <Sheet title="Add songs" onClose={() => setSheet(null)}>
+          <AddSongs imports={imports} onChange={reload} />
+        </Sheet>
+      )}
+      {sheet === "review" && (
+        <Sheet title="Pick the right version" onClose={() => setSheet(null)} wide>
+          {reviews.length ? <ReviewMatches reviews={reviews} onChange={reload} /> : <div className="empty">All done. Nothing left to review.</div>}
+        </Sheet>
+      )}
+      {sheet === "upload" && <UploadSong onClose={() => setSheet(null)} onDone={loadLibrary} />}
+    </Screen>
+  );
+}
+
+export default function RadioLibraryPage() {
+  return (
+    <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Song library">
+      <React.Suspense fallback={null}>
+        <LibraryPage />
+      </React.Suspense>
     </AdminAuthGuard>
   );
 }

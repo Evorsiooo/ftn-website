@@ -1,67 +1,87 @@
 "use client";
-import { toast, confirmDialog } from "@/components/gs/dialogs";
-import React, { useState, useEffect, useRef, Suspense } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import React, { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import { Archive, ArchiveRestore, ExternalLink, History, Pencil, Plus, RotateCcw, Search } from "lucide-react";
 import type { ArticleData } from "@/components/editor/rich-text-editor";
+import { toast, confirmDialog } from "@/components/gs/dialogs";
+import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
+import { BackButton, Body, Facts, PageBar, Pill, Screen, Seg, Sheet, ago, formatDay, formatWhen, type Tone } from "@/components/admin/ui";
+import { refreshAdminSummary } from "@/lib/admin-summary";
+import { canPublishArticles } from "@/lib/rbac";
+import { cn } from "@/lib/utils";
 
 // The editor (TipTap) is only needed once an article is opened, so keep it out of the list view's bundle.
 const RichTextEditor = dynamic(() => import("@/components/editor/rich-text-editor").then((m) => m.RichTextEditor), {
   ssr: false,
-  loading: () => <div className="p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading editor...</div>,
+  loading: () => <div className="pane-empty">Loading the editor…</div>,
 });
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import {
-  ArrowLeft,
-  Plus,
-  Edit3,
-  ExternalLink,
-  Newspaper,
-  History,
-  RotateCcw,
-  User,
-  Clock,
-  Archive,
-  ArchiveRestore,
-} from "lucide-react";
-import { formatDate, formatTimeAgo } from "@/lib/utils";
-import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
-import { canPublishArticles } from "@/lib/rbac";
+
+type Filter = "draft" | "published" | "archived" | "all";
+const STATUS: Record<string, { label: string; tone: Tone }> = {
+  draft: { label: "Draft", tone: "amber" },
+  published: { label: "Published", tone: "green" },
+  archived: { label: "Archived", tone: "grey" },
+};
+const CATEGORY: Record<string, string> = { news: "News", politics: "Politics", business: "Business", technology: "Technology", entertainment: "Entertainment", opinion: "Opinion" };
+const statusOf = (a: any) => STATUS[a.status || "draft"] ?? STATUS.draft;
+const author = (a: any) => (a.authorUsername || a.authorName ? `@${a.authorUsername || a.authorName}` : "");
+
+function toEditor(art: any): ArticleData {
+  return {
+    id: art.id,
+    slug: art.slug,
+    title: art.title,
+    content: art.content || "",
+    summary: art.summary,
+    category: art.category,
+    coverImageUrl: art.coverImageUrl,
+    status: art.status,
+  };
+}
 
 function AdminArticlesContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const editSlugParam = searchParams.get("edit") || searchParams.get("slug");
+  const selectedId = searchParams.get("id");
   const initialParamHandled = useRef(false);
 
-  const [activeTab, setActiveTab] = useState<"list" | "create" | "history">("list");
-  const [articlesList, setArticlesList] = useState<any[]>([]);
+  const [articlesList, setArticlesList] = useState<any[] | null>(null);
+  const [mode, setMode] = useState<"list" | "edit">("list");
   const [editingArticle, setEditingArticle] = useState<ArticleData | null>(null);
+  const [filter, setFilter] = useState<Filter>("draft");
+  const filterTouched = useRef(false);
+  const [query, setQuery] = useState("");
+
+  // Version history, in a side panel, for the article being edited or the one picked in the list.
+  const [historyOf, setHistoryOf] = useState<{ slug: string; title: string } | null>(null);
   const [revisions, setRevisions] = useState<any[]>([]);
   const [loadingRevisions, setLoadingRevisions] = useState(false);
   const [revertingRevisionId, setRevertingRevisionId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+
+  const select = (id: string | null) => router.replace(id ? `/admin/articles?id=${encodeURIComponent(id)}` : "/admin/articles", { scroll: false });
 
   const fetchArticles = () => {
-    setLoading(true);
     fetch("/api/articles?admin=true")
       .then((res) => res.json())
-      .then((data: any) => {
-        if (data && Array.isArray(data.articles)) {
-          setArticlesList(data.articles);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then((data: any) => setArticlesList(data && Array.isArray(data.articles) ? data.articles : []))
+      .catch(() => setArticlesList([]));
+    refreshAdminSummary();
   };
 
   useEffect(() => {
     fetchArticles();
   }, []);
+
+  // Open on Drafts when there are some, otherwise Published.
+  useEffect(() => {
+    if (!articlesList || filterTouched.current) return;
+    filterTouched.current = true;
+    const picked = selectedId ? articlesList.find((a) => a.id === selectedId) : null;
+    if (picked) setFilter((picked.status || "draft") as Filter);
+    else if (!articlesList.some((a) => (a.status || "draft") === "draft")) setFilter("published");
+  }, [articlesList, selectedId]);
 
   // "Start article from this tip" hands the lead over through sessionStorage.
   useEffect(() => {
@@ -72,152 +92,107 @@ function AdminArticlesContent() {
       if (!raw) return;
       const tip = JSON.parse(raw) as { title: string; content: string };
       setEditingArticle({ title: tip.title, content: tip.content, category: "news", status: "draft" });
-      setActiveTab("create");
+      setMode("edit");
       window.history.replaceState(null, "", "/admin/articles");
     } catch {}
   }, []);
 
-  // Handle direct edit URL param only once on initial mount
+  // Open the editor from a link (?edit=slug) once.
   useEffect(() => {
-    if (editSlugParam && articlesList.length > 0 && !initialParamHandled.current) {
+    if (editSlugParam && articlesList && articlesList.length > 0 && !initialParamHandled.current) {
       initialParamHandled.current = true;
-      const match = articlesList.find(
-        (a) => a.slug === editSlugParam || a.id === editSlugParam
-      );
-      if (match) {
-        handleStartEdit(match);
-      }
+      const match = articlesList.find((a) => a.slug === editSlugParam || a.id === editSlugParam);
+      if (match) handleStartEdit(match);
     }
   }, [editSlugParam, articlesList]);
 
   const handleBackToList = () => {
+    const id = editingArticle?.id;
     setEditingArticle(null);
-    setActiveTab("list");
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", "/admin/articles");
-    }
+    setMode("list");
+    setHistoryOf(null);
+    router.replace(id ? `/admin/articles?id=${encodeURIComponent(id)}` : "/admin/articles", { scroll: false });
   };
 
   const fetchRevisions = (slug: string) => {
     setLoadingRevisions(true);
+    setRevisions([]);
     fetch(`/api/articles/${encodeURIComponent(slug)}/revisions`)
       .then((res) => res.json())
-      .then((data: any) => {
-        if (data && Array.isArray(data.revisions)) {
-          setRevisions(data.revisions);
-        } else {
-          setRevisions([]);
-        }
-      })
+      .then((data: any) => setRevisions(data && Array.isArray(data.revisions) ? data.revisions : []))
       .catch(() => setRevisions([]))
       .finally(() => setLoadingRevisions(false));
   };
 
+  const openHistory = (art: { slug?: string; title: string }) => {
+    if (!art.slug) return;
+    setHistoryOf({ slug: art.slug, title: art.title });
+    fetchRevisions(art.slug);
+  };
+
   const handleSaveArticle = async (articleData: ArticleData) => {
     try {
-      const res = await fetch("/api/articles", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(articleData),
-      });
-
+      const res = await fetch("/api/articles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(articleData) });
       const data = (await res.json()) as any;
       if (res.ok) {
-        toast(
-          articleData.id
-            ? "Story successfully updated!"
-            : "New story created and published!"
-        );
-        handleBackToList();
+        toast(articleData.status === "draft" ? "Draft saved." : articleData.status === "archived" ? "Story archived." : articleData.id ? "Story updated." : "Story published.");
+        const id = articleData.id || data.article?.id || data.id;
+        setEditingArticle(null);
+        setMode("list");
+        setHistoryOf(null);
+        filterTouched.current = true;
+        setFilter(articleData.status as Filter);
+        router.replace(id ? `/admin/articles?id=${encodeURIComponent(id)}` : "/admin/articles", { scroll: false });
         fetchArticles();
-      } else {
-        toast(`Error saving story: ${data.error || "Unknown error"}`);
-      }
-    } catch (e: any) {
-      toast("Network error while saving article.");
+      } else toast(`The story could not be saved: ${data.error || "unknown error"}`);
+    } catch {
+      toast("Network error while saving the story.");
     }
   };
 
   const handleStartEdit = (art: any) => {
-    setEditingArticle({
-      id: art.id,
-      slug: art.slug,
-      title: art.title,
-      content: art.content || "",
-      summary: art.summary,
-      category: art.category,
-      coverImageUrl: art.coverImageUrl,
-      status: art.status,
-    });
-    setActiveTab("create");
-    if (art.slug) fetchRevisions(art.slug);
-  };
-
-  const handleOpenHistory = (art: any) => {
-    handleStartEdit(art);
-    setTimeout(() => document.getElementById("article-history")?.scrollIntoView({ behavior: "smooth" }), 400);
+    setEditingArticle(toEditor(art));
+    setMode("edit");
+    if (art.slug) window.history.replaceState(null, "", `/admin/articles?edit=${encodeURIComponent(art.slug)}`);
   };
 
   const handleToggleArchive = async (art: any) => {
     const nextStatus = art.status === "archived" ? "published" : "archived";
-    const confirmMsg =
-      art.status === "archived"
-        ? `Unarchive and publish "${art.title}" back to the public website?`
-        : `Archive "${art.title}"? This will hide the story from public view.`;
-    if (!await confirmDialog(confirmMsg)) return;
-
+    const msg = art.status === "archived" ? `Unarchive “${art.title}” and publish it on the site again?` : `Archive “${art.title}”? It will be hidden from readers.`;
+    if (!(await confirmDialog(msg, { ok: art.status === "archived" ? "Unarchive" : "Archive" }))) return;
     try {
-      const res = await fetch(`/api/articles/${encodeURIComponent(art.slug)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      if (res.ok) {
-        fetchArticles();
-      } else {
-        const data = (await res.json().catch(() => ({}))) as any;
-        toast(`Failed to update status: ${data?.error || "Unknown error"}`);
-      }
+      const res = await fetch(`/api/articles/${encodeURIComponent(art.slug)}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: nextStatus }) });
+      if (res.ok) fetchArticles();
+      else toast(`Failed to update status: ${((await res.json().catch(() => ({}))) as any)?.error || "unknown error"}`);
     } catch {
       toast("Network error updating status.");
     }
   };
 
   const handleRevertToRevision = async (rev: any) => {
-    if (!editingArticle?.slug) return;
-    const confirmRevert = await confirmDialog(
-      `Are you sure you want to revert to Version ${rev.versionNumber}? This will restore the content and settings from ${formatDate(rev.createdAt)}.`
-    );
-    if (!confirmRevert) return;
-
+    if (!historyOf) return;
+    if (
+      !(await confirmDialog(`Go back to version ${rev.versionNumber}? The story's text and settings from ${formatWhen(rev.createdAt, { year: true })} are restored, as a new version.`, {
+        ok: "Revert",
+      }))
+    )
+      return;
     setRevertingRevisionId(rev.id);
     try {
-      const res = await fetch(`/api/articles/${encodeURIComponent(editingArticle.slug)}/revisions`, {
+      const res = await fetch(`/api/articles/${encodeURIComponent(historyOf.slug)}/revisions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ revisionId: rev.id }),
       });
-
       const data = (await res.json()) as any;
       if (res.ok) {
-        toast(`Successfully reverted to Version ${rev.versionNumber}!`);
-        setEditingArticle({
-          id: data.article.id,
-          slug: editingArticle.slug,
-          title: data.article.title,
-          content: data.article.content,
-          summary: data.article.summary,
-          category: data.article.category,
-          coverImageUrl: data.article.coverImageUrl,
-          status: data.article.status,
-        });
-        setActiveTab("create");
+        toast(`Back to version ${rev.versionNumber}.`);
+        if (mode === "edit" && editingArticle?.slug === historyOf.slug) setEditingArticle({ ...toEditor(data.article), slug: historyOf.slug });
+        fetchRevisions(historyOf.slug);
         fetchArticles();
-      } else {
-        toast(`Revert failed: ${data.error || "Unknown error"}`);
-      }
+      } else toast(`Revert failed: ${data.error || "unknown error"}`);
     } catch {
-      toast("Network error while reverting article.");
+      toast("Network error while reverting the story.");
     } finally {
       setRevertingRevisionId(null);
     }
@@ -225,258 +200,223 @@ function AdminArticlesContent() {
 
   const handleNewStory = () => {
     setEditingArticle(null);
-    setActiveTab("create");
+    setMode("edit");
   };
 
+  const all = articlesList || [];
+  const needle = query.trim().toLowerCase();
+  const count = (f: Filter) => (f === "all" ? all.length : all.filter((a) => (a.status || "draft") === f).length);
+  const visible = useMemo(
+    () =>
+      all
+        .filter((a) => filter === "all" || (a.status || "draft") === filter)
+        .filter((a) => !needle || `${a.title} ${a.authorUsername || a.authorName || ""} ${a.category}`.toLowerCase().includes(needle))
+        .sort((a, b) => +new Date(b.updatedAt || b.createdAt) - +new Date(a.updatedAt || a.createdAt)),
+    [all, filter, needle],
+  );
+  const picked = selectedId ? (all.find((a) => a.id === selectedId) ?? null) : null;
+  const current = picked ?? visible[0] ?? null;
+
+  const filters = (["draft", "published", "archived", "all"] as const).map((f) => ({ value: f, label: f === "all" ? "All" : f === "draft" ? "Drafts" : STATUS[f].label, n: count(f) }));
+  const pick = (f: Filter) => {
+    filterTouched.current = true;
+    setFilter(f);
+    select(null);
+  };
+
+  const historySheet = historyOf && (
+    <Sheet title={`History: ${historyOf.title}`} onClose={() => setHistoryOf(null)}>
+      {loadingRevisions ? (
+        <div className="empty">Loading versions…</div>
+      ) : revisions.length === 0 ? (
+        <div className="empty">No earlier versions yet. One is kept each time the story is saved.</div>
+      ) : (
+        <div className="rows" style={{ display: "grid" }}>
+          {revisions.map((rev, idx) => (
+            <div key={rev.id} className="r" style={{ alignItems: "flex-start" }}>
+              <span className="pill grey num" style={{ flex: "none" }}>
+                v{rev.versionNumber}
+              </span>
+              <span className="grow">
+                <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                  {rev.title}
+                </span>
+                <span className="t12 muted" style={{ display: "block" }}>
+                  {formatWhen(rev.createdAt)} · @{rev.editorUsername || "staff"} · {STATUS[rev.status]?.label ?? rev.status}
+                  {rev.revertedFromVersion ? ` · back to v${rev.revertedFromVersion}` : ""}
+                </span>
+                {rev.summary && (
+                  <span className="t12 muted" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", marginTop: 2 }}>
+                    {rev.summary}
+                  </span>
+                )}
+              </span>
+              {idx === 0 ? (
+                <Pill tone="green">Current</Pill>
+              ) : (
+                <button type="button" className="btn sm" disabled={revertingRevisionId === rev.id} onClick={() => handleRevertToRevision(rev)}>
+                  <RotateCcw className="ic-sm" />
+                  {revertingRevisionId === rev.id ? "Reverting…" : "Revert"}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Sheet>
+  );
+
+  if (mode === "edit") {
+    return (
+      <Screen>
+        <RichTextEditor
+          initialArticle={editingArticle}
+          onSave={handleSaveArticle}
+          onCancel={handleBackToList}
+          barActions={
+            editingArticle?.slug ? (
+              <button type="button" className="btn ghost has-lbl-m" onClick={() => openHistory(editingArticle)} aria-label="History">
+                <History className="ic" />
+                <span className="lbl-m">History</span>
+              </button>
+            ) : null
+          }
+        />
+        {historySheet}
+      </Screen>
+    );
+  }
+
   return (
-    <div className="w-full space-y-8 text-neutral-900 dark:text-white">
-      <AdminPageHeader
+    <Screen>
+      <PageBar
         title="Articles"
-        description="Create, edit, and publish stories and news investigations."
-        actions={
-          <Button size="sm" onClick={handleNewStory} className="h-10 cursor-pointer gap-1.5 px-5 text-sm">
-            <Plus className="h-4 w-4" /> New story
-          </Button>
-        }
-        tabs={
+        tools={
           <>
-            <AdminTab active={activeTab === "list"} onClick={handleBackToList}>
-              All stories ({articlesList.length})
-            </AdminTab>
-            {activeTab === "create" && <AdminTab active>{editingArticle ? "Editing" : "New story"}</AdminTab>}
+            <Seg value={filter} onChange={pick} options={filters} label="Show" />
+            <div className="search" style={{ width: 240 }}>
+              <Search />
+              <input className="input sm" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, author or category" aria-label="Search stories" />
+            </div>
+          </>
+        }
+        end={
+          <button type="button" className="btn primary has-lbl-m" onClick={handleNewStory} aria-label="New story">
+            <Plus className="ic" />
+            <span className="lbl-m">New story</span>
+          </button>
+        }
+        mrow={
+          <>
+            <select className="select sm" style={{ flex: "none", width: 140 }} value={filter} onChange={(e) => pick(e.target.value as Filter)} aria-label="Show">
+              {filters.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label} ({f.n})
+                </option>
+              ))}
+            </select>
+            <div className="search" style={{ flex: 1 }}>
+              <Search />
+              <input className="input sm" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search stories" aria-label="Search stories" />
+            </div>
           </>
         }
       />
-
-      {activeTab === "create" ? (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <h2 className="text-2xl font-extrabold text-neutral-900 dark:text-white">
-                {editingArticle ? `Edit Story: ${editingArticle.title}` : "Compose New Story"}
-              </h2>
-              {editingArticle && (
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Changes will be automatically recorded in version history.
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleBackToList}
-                className="text-xs border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-800 dark:text-neutral-300 dark:hover:text-white cursor-pointer"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-
-          <RichTextEditor
-            initialArticle={editingArticle}
-            onSave={handleSaveArticle}
-            onCancel={handleBackToList}
-          />
-
-        {editingArticle?.slug && (
-        /* Version History Drawer / Tab */
-        <div className="space-y-6">
-          <div id="article-history" className="border-b border-neutral-200 pb-3 dark:border-neutral-800">
-            <h2 className="text-xl font-extrabold">Version history</h2>
-            <p className="text-xs text-neutral-500">Every save is kept. Revert to any earlier version.</p>
-          </div>
-
-          {loadingRevisions ? (
-            <div className="p-12 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading version snapshots...</div>
-          ) : revisions.length === 0 ? (
-            <div className="p-12 text-center rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3 shadow-sm dark:shadow-none">
-              <History className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mx-auto" />
-              <div className="text-sm font-bold text-neutral-900 dark:text-white">No historical versions recorded yet</div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
-                Snapshots are automatically created each time this article is updated or published.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-4 border-l-2 border-neutral-200 pl-5 dark:border-neutral-800">
-              {revisions.map((rev, idx) => (
-                <Card
-                  key={rev.id}
-                  className="p-5 rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 hover:border-neutral-300 dark:hover:border-neutral-700 transition space-y-3"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-900 pb-3">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <div className="px-2.5 py-1 rounded-full bg-brand/20 border border-brand text-brand-text font-mono font-black text-xs">
-                        v{rev.versionNumber}
-                      </div>
-
-                      {rev.revertedFromVersion && (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/80 border border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300 font-bold text-[11px] flex items-center gap-1">
-                          <RotateCcw className="h-3 w-3" /> Reverted to v{rev.revertedFromVersion}
-                        </span>
-                      )}
-
-                      {idx === 0 && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 font-bold text-[10px]">
-                          CURRENT VERSION
-                        </span>
-                      )}
-
-                      <span className="text-xs text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
-                        <Clock className="h-3 w-3 text-neutral-400 dark:text-neutral-500" />
-                        {formatDate(rev.createdAt)} ({formatTimeAgo(rev.createdAt)})
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                        {rev.editorAvatar ? (
-                          <img
-                            src={rev.editorAvatar}
-                            alt=""
-                            className="h-5 w-5 rounded-full object-cover"
-                          />
-                        ) : (
-                          <User className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                        )}
-                        <span>
-                          By <strong className="text-neutral-800 dark:text-neutral-200">@{rev.editorUsername || "Staff"}</strong>
-                        </span>
-                      </div>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={revertingRevisionId === rev.id || idx === 0}
-                        onClick={() => handleRevertToRevision(rev)}
-                        className={`text-xs gap-1 cursor-pointer ${
-                          idx === 0
-                            ? "opacity-50 cursor-not-allowed border-neutral-200 dark:border-neutral-800 text-neutral-400"
-                            : "border-neutral-300 text-neutral-700 hover:text-black dark:border-neutral-700 dark:text-neutral-300 dark:hover:text-white"
-                        }`}
-                      >
-                        <RotateCcw className="h-3 w-3" />
-                        {revertingRevisionId === rev.id ? "Reverting..." : "Revert to Version"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5 pl-2 border-l-2 border-neutral-200 dark:border-neutral-800">
-                    <div className="flex items-center gap-2 text-[11px] text-neutral-500 dark:text-neutral-400 uppercase font-mono font-bold">
-                      <span>{rev.category}</span>
-                      <span>•</span>
-                      <span
-                        className={
-                          rev.status === "published"
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : rev.status === "archived"
-                            ? "text-neutral-500 dark:text-neutral-400"
-                            : "text-amber-600 dark:text-amber-400"
-                        }
-                      >
-                        {rev.status}
-                      </span>
-                    </div>
-
-                    <h4 className="text-base font-bold text-neutral-900 dark:text-white">{rev.title}</h4>
-                    {rev.summary && (
-                      <p className="text-xs text-neutral-600 dark:text-neutral-300 line-clamp-2">{rev.summary}</p>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-        )}
-        </div>
-      ) : (
-        /* All Articles Table / Grid */
-        <div className="space-y-4">
-          {loading ? (
-            <div className="p-8 text-center text-xs text-neutral-500 dark:text-neutral-400">Loading articles...</div>
-          ) : articlesList.length === 0 ? (
-            <div className="p-12 text-center rounded-[1.75rem] border-0 bg-white dark:bg-neutral-900 space-y-3 shadow-sm dark:shadow-none">
-              <Newspaper className="h-8 w-8 text-neutral-400 dark:text-neutral-600 mx-auto" />
-              <div className="text-sm font-bold text-neutral-900 dark:text-white">No articles published yet</div>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
-                Start by composing your first news investigation or opinion piece.
-              </p>
-              <Button
-                onClick={handleNewStory}
-                size="sm"
-                className="mt-2 text-xs bg-brand hover:bg-brand-hover text-brand-ink font-bold cursor-pointer shadow-sm"
-              >
-                Compose First Story
-              </Button>
-            </div>
-          ) : (
-            <>
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search stories by title, author or category" className="max-w-md" />
-            <div className="grid items-start gap-5 lg:grid-cols-3">
-              {([
-                { key: "draft", title: "Drafts", note: "Not public yet", dot: "bg-amber-500" },
-                { key: "published", title: "Published", note: "Live on the site", dot: "bg-emerald-500" },
-                { key: "archived", title: "Archived", note: "Hidden from readers", dot: "bg-neutral-400" },
-              ] as const).map((col) => {
-                const items = articlesList.filter((a) => (a.status || "draft") === col.key && (!query.trim() || `${a.title} ${a.authorUsername || a.authorName || ""} ${a.category}`.toLowerCase().includes(query.trim().toLowerCase())));
+      <Body>
+        <div className={cn("ld", picked && "detail")}>
+          <div className="ld-list">
+            {articlesList === null ? (
+              <div className="empty">Loading stories…</div>
+            ) : visible.length === 0 ? (
+              <div className="empty">{needle ? "No story matches your search." : all.length === 0 ? "No stories yet. Write the first one with New story." : "Nothing here."}</div>
+            ) : (
+              visible.map((a) => {
+                const st = statusOf(a);
                 return (
-                  <section key={col.key} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950">
-                    <header className="flex items-center justify-between px-2 pb-3 pt-1">
-                      <div>
-                        <div className="flex items-center gap-2 text-sm font-extrabold"><span className={`h-2.5 w-2.5 rounded-full ${col.dot}`} />{col.title}</div>
-                        <div className="text-xs text-neutral-500">{col.note}</div>
-                      </div>
-                      <span className="rounded-full bg-neutral-200 px-2.5 text-xs font-extrabold dark:bg-neutral-800">{items.length}</span>
-                    </header>
-                    <div className="space-y-2.5">
-                      {items.length === 0 && <div className="rounded-xl border border-dashed border-neutral-300 p-4 text-center text-xs text-neutral-500 dark:border-neutral-700">Empty</div>}
-                      {items.map((art) => (
-                        <article key={art.id} className="rounded-xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-                          <div className="flex items-center justify-between gap-2 text-xs">
-                            <span className="font-bold uppercase tracking-widest text-brand-text">{art.category === "news" ? "" : art.category}</span>
-                            <span className="text-neutral-500">{formatTimeAgo(art.updatedAt || art.createdAt)}</span>
-                          </div>
-                          <button type="button" onClick={() => handleStartEdit(art)} className="mt-1.5 block w-full cursor-pointer text-left text-base font-bold leading-snug hover:underline">
-                            {art.title}
-                          </button>
-                          {(art.authorUsername || art.authorName) && <div className="mt-1 text-xs text-neutral-500">@{art.authorUsername || art.authorName}</div>}
-                          <div className="mt-3 flex flex-wrap items-center gap-1 border-t border-neutral-200 pt-2 dark:border-neutral-800">
-                            <Button variant="ghost" size="sm" onClick={() => handleStartEdit(art)} className="h-8 cursor-pointer gap-1 px-2 font-bold">
-                              <Edit3 className="h-3.5 w-3.5" /> Edit
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenHistory(art)} className="h-8 cursor-pointer gap-1 px-2" title="Version history">
-                              <History className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleToggleArchive(art)} className="h-8 cursor-pointer gap-1 px-2" title={art.status === "archived" ? "Unarchive and publish story" : "Archive and hide from public view"}>
-                              {art.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
-                            </Button>
-                            <Link href={`/articles/${art.slug}`} target="_blank" className="ml-auto">
-                              <Button variant="ghost" size="sm" className="h-8 cursor-pointer gap-1 px-2" title="View on site">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </Button>
-                            </Link>
-                          </div>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
+                  <button key={a.id} type="button" className={cn("item", current?.id === a.id && "on")} onClick={() => select(a.id)}>
+                    {a.coverImageUrl ? (
+                      <img src={a.coverImageUrl} alt="" className="thumb" style={{ width: 64, height: 36, objectFit: "cover", flex: "none" }} />
+                    ) : (
+                      <span className="thumb" style={{ width: 64, height: 36, flex: "none", background: "var(--a-sunken)" }} />
+                    )}
+                    <span className="grow">
+                      <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                        {a.title || "Untitled"}
+                      </span>
+                      <span className="meta">
+                        {filter === "all" && <Pill tone={st.tone}>{st.label}</Pill>}
+                        <span className="trunc">{[CATEGORY[a.category] || a.category, author(a)].filter(Boolean).join(" · ")}</span>
+                      </span>
+                    </span>
+                    <span className="t12 muted" style={{ flex: "none" }}>
+                      {ago(a.updatedAt || a.createdAt)}
+                    </span>
+                  </button>
                 );
-              })}
-            </div>
-            </>
-          )}
+              })
+            )}
+          </div>
+          <div className="ld-pane">
+            {!current ? (
+              <div className="pane-empty">{all.length ? "Pick a story to see it here." : ""}</div>
+            ) : (
+              <>
+                <div className="pane-head capped">
+                  <BackButton onClick={() => select(null)} label="Back to stories" />
+                  <Pill tone={statusOf(current).tone} dot>
+                    {statusOf(current).label}
+                  </Pill>
+                  <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button type="button" className="btn sm ghost" onClick={() => openHistory(current)} aria-label="History">
+                      <History className="ic-sm" />
+                      <span className="hide-m">History</span>
+                    </button>
+                    {
+                      <button type="button" className="btn sm" onClick={() => handleToggleArchive(current)} aria-label={current.status === "archived" ? "Unarchive" : "Archive"}>
+                        {current.status === "archived" ? <ArchiveRestore className="ic-sm" /> : <Archive className="ic-sm" />}
+                        <span className="hide-m">{current.status === "archived" ? "Unarchive" : "Archive"}</span>
+                      </button>
+                    }
+                    {current.status === "published" && (
+                      <a href={`/articles/${current.slug}`} target="_blank" rel="noopener noreferrer" className="btn sm" aria-label="View on site">
+                        <ExternalLink className="ic-sm" />
+                        <span className="hide-m">View on site</span>
+                      </a>
+                    )}
+                    <button type="button" className="btn sm strong" onClick={() => handleStartEdit(current)}>
+                      <Pencil className="ic-sm" /> Edit
+                    </button>
+                  </span>
+                </div>
+                <div className="pane-body capped" style={{ display: "grid", gap: 16, alignContent: "start" }}>
+                  {current.coverImageUrl && (
+                    <img src={current.coverImageUrl} alt="" style={{ width: "100%", maxWidth: 640, aspectRatio: "16 / 9", objectFit: "cover", borderRadius: 8, border: "1px solid var(--a-border)" }} />
+                  )}
+                  <h2 style={{ margin: 0, fontSize: 22, lineHeight: 1.25, fontWeight: 700, overflowWrap: "anywhere" }}>{current.title}</h2>
+                  {current.summary && <p style={{ margin: 0, lineHeight: 1.6, color: "var(--a-muted)", maxWidth: 640 }}>{current.summary}</p>}
+                  <Facts
+                    rows={[
+                      ["Category", CATEGORY[current.category] || current.category],
+                      ["Written by", author(current) || "Unknown"],
+                      ["Last change", formatWhen(current.updatedAt || current.createdAt, { year: true })],
+                      ["Created", formatDay(current.createdAt)],
+                    ]}
+                  />
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      )}
-    </div>
+      </Body>
+      {historySheet}
+    </Screen>
   );
 }
 
 export default function AdminArticlesConsole() {
   return (
-    <AdminAuthGuard requiredPermission={canPublishArticles} featureTitle="Articles & Publishing Console">
-      <Suspense fallback={<div className="p-8 text-center text-xs text-neutral-400">Loading editor...</div>}>
+    <AdminAuthGuard requiredPermission={canPublishArticles} featureTitle="Articles">
+      <Suspense fallback={null}>
         <AdminArticlesContent />
       </Suspense>
     </AdminAuthGuard>

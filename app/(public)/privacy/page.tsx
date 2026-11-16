@@ -1,5 +1,13 @@
 import React from "react";
 import { GsPageHeader } from "@/components/gs/page-header";
+import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy",
+  description: "How FTN News collects, uses and protects your information.",
+  alternates: { canonical: `${SITE_URL}/privacy` },
+};
 
 export const runtime = "edge";
 

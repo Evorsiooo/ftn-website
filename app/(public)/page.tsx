@@ -13,6 +13,14 @@ import { desc, eq } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { plusHref, watchPath } from "@/lib/plus-links";
 import { isPendingTwitchRecording } from "@/lib/twitch-id";
+import type { Metadata } from "next";
+import { homeJsonLd, jsonLdString, SITE_DESCRIPTION, SITE_URL } from "@/lib/seo";
+
+export const metadata: Metadata = {
+  title: { absolute: "FTN News: Roblox Ro-State news, politics and sports" },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: SITE_URL },
+};
 
 export default async function HomePage() {
   let articleList: any[] = [];
@@ -108,6 +116,7 @@ export default async function HomePage() {
 
   return (
     <div className="text-neutral-900 dark:text-white">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdString(homeJsonLd()) }} />
       {/* 1. Masthead hero: the featured FTN+ video on gold, the thumbnail breaking out of the band */}
       <section className="bg-brand text-brand-ink">
         <div className="mx-auto grid max-w-7xl items-end gap-8 px-4 pt-10 sm:px-8 lg:grid-cols-[1.05fr_1fr] lg:gap-12 lg:pt-16">

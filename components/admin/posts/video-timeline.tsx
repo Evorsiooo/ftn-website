@@ -161,7 +161,7 @@ export function VideoTimeline({ project, sources, time, selectedId, onSelect, on
   while (pps * step < 44 && step < span) step *= 2;
   for (let t = 0; t <= span + 1e-6; t += step) ticks.push(t);
 
-  const laneClass = "relative h-12 rounded-md bg-neutral-100 dark:bg-neutral-900 overflow-hidden";
+  const laneClass = "relative h-12 rounded-md bg-a-sunken overflow-hidden";
   const handleClass = "absolute top-0 bottom-0 cursor-ew-resize bg-white/40 hover:bg-white/70";
 
   return (
@@ -172,13 +172,13 @@ export function VideoTimeline({ project, sources, time, selectedId, onSelect, on
       onPointerCancel={onUp}
     >
       <div className="grid grid-cols-[56px_1fr] gap-x-2">
-        <div className="flex flex-col gap-1.5 pt-[30px] text-xs font-semibold text-neutral-500">
+        <div className="flex flex-col gap-1.5 pt-[30px] text-xs font-semibold text-a-muted">
           <span className="h-12 flex items-center">Video</span>
           <span className="h-12 flex items-center">Music</span>
         </div>
         <div ref={trackRef} className="relative flex flex-col gap-1.5">
         <div
-          className="relative h-6 cursor-pointer text-xs text-neutral-500"
+          className="relative h-6 cursor-pointer text-xs text-a-faint"
           onPointerDown={(e) => {
             begin(e, { kind: "seek" });
             onSeek(timeAt(e.clientX));
@@ -251,7 +251,7 @@ export function VideoTimeline({ project, sources, time, selectedId, onSelect, on
             />
           )}
           {project.clips.length === 0 && (
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] text-neutral-500">
+            <span className="absolute inset-0 flex items-center justify-center text-xs text-a-muted">
               Add a video to start
             </span>
           )}
@@ -301,7 +301,7 @@ export function VideoTimeline({ project, sources, time, selectedId, onSelect, on
             );
           })}
           {project.music.length === 0 && (
-            <span className="absolute inset-0 flex items-center justify-center text-[11px] text-neutral-500">
+            <span className="absolute inset-0 flex items-center justify-center text-xs text-a-muted">
               Add a song to put it here
             </span>
           )}

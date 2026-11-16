@@ -1,12 +1,8 @@
 "use client";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Trash2, Loader2, Upload } from "lucide-react";
 import type { ShowRecord } from "@/lib/schedule-client";
-import { labelClass } from "./styles";
 
 async function uploadArt(file: File): Promise<string> {
   const form = new FormData();
@@ -73,7 +69,7 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
   };
 
   const handleDeleteShow = async (show: ShowRecord) => {
-    if (!await confirmDialog(`Delete "${show.name}"? Its radio airings are removed from the schedule; livestreams keep their entry.`)) return;
+    if (!(await confirmDialog(`Delete "${show.name}"? Its radio airings are removed from the schedule; livestreams keep their entry.`, { ok: "Delete", danger: true }))) return;
     const res = await fetch(`/api/admin/radio/shows/${show.id}`, { method: "DELETE" });
     if (res.ok) await load();
     else toast(((await res.json().catch(() => ({}))) as any).error || "Failed to delete show");
@@ -92,101 +88,77 @@ export function ShowsTab({ shows, loading, reload }: { shows: ShowRecord[]; load
   };
 
   return (
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)]">
-          {/* Add show */}
-          <Card className="p-6 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 h-fit lg:sticky lg:top-24">
-            <div><h2 className="text-lg font-extrabold">New show</h2><p className="mt-1 text-xs text-neutral-500">Shows are what you schedule on the Schedule tab.</p></div>
-            <form onSubmit={handleAddShow} className="space-y-3">
-              <div>
-                <label className={labelClass}>Show Name</label>
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Friday Night Pulse" />
-              </div>
-              <div>
-                <label className={labelClass}>Presenter / DJ</label>
-                <Input value={newPresenter} onChange={(e) => setNewPresenter(e.target.value)} placeholder="DJ Nova" />
-              </div>
-              <div>
-                <label className={labelClass}>Description (optional)</label>
-                <Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
-              </div>
-              <div>
-                <label className={labelClass}>Album Art</label>
-                <div className="flex items-center gap-3">
-                  {newArtUrl ? (
-                    <img src={newArtUrl} alt="" className="h-14 w-14 rounded-md object-cover" />
-                  ) : (
-                    <div className="h-14 w-14 rounded-md bg-neutral-200 dark:bg-neutral-800" />
-                  )}
-                  <label className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-2">
-                    {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    Upload
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="hidden"
-                      onChange={(e) => handleArtPicked(e.target.files?.[0], setNewArtUrl)}
-                    />
-                  </label>
+    <div style={{ display: "grid", gap: 24 }}>
+      <section className="todo">
+        <h2>
+          Shows <span className="c">{shows.length}</span>
+        </h2>
+        {loading ? (
+          <div className="muted">Loading shows…</div>
+        ) : shows.length === 0 ? (
+          <div className="rows">
+            <div className="r muted">No shows yet. Create one below, then add it to the Schedule.</div>
+          </div>
+        ) : (
+          <div className="rows">
+            {shows.map((show) => (
+              <div key={show.id} className="r">
+                {show.artUrl ? <img src={show.artUrl} alt="" className="thumb" style={{ width: 44, height: 44 }} /> : <span className="thumb" style={{ width: 44, height: 44 }} />}
+                <div className="grow">
+                  <div className="trunc" style={{ fontWeight: 600 }}>
+                    {show.name}
+                  </div>
+                  <div className="t12 muted trunc">
+                    {show.presenter}
+                    {show.description ? ` · ${show.description}` : ""}
+                  </div>
                 </div>
+                <label className="btn sm ghost">
+                  Replace art
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => handleReplaceArt(show, e.target.files?.[0])} />
+                </label>
+                <button type="button" onClick={() => handleDeleteShow(show)} className="iconbtn" aria-label={`Delete ${show.name}`}>
+                  <Trash2 className="ic-sm" />
+                </button>
               </div>
-              <Button type="submit" disabled={submitting || uploading} className="w-full text-xs font-bold cursor-pointer">
-                {submitting ? "Creating..." : "Create Show"}
-              </Button>
-            </form>
-          </Card>
+            ))}
+          </div>
+        )}
+      </section>
 
-          {/* Shows and slots */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-extrabold">Shows ({shows.length})</h2>
-            {loading ? (
-              <div className="flex items-center gap-2 text-xs text-neutral-500">
-                <Loader2 className="h-4 w-4 animate-spin" /> Loading shows...
-              </div>
-            ) : shows.length === 0 ? (
-              <Card className="p-6 text-xs text-neutral-500 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-                No shows yet. Create one, then schedule it from the Schedule tab.
-              </Card>
-            ) : (
-              shows.map((show) => {
-                return (
-                  <Card key={show.id} className="p-5 space-y-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
-                    <div className="flex items-start gap-4">
-                      {show.artUrl ? (
-                        <img src={show.artUrl} alt="" className="h-16 w-16 rounded-lg object-cover flex-shrink-0" />
-                      ) : (
-                        <div className="h-16 w-16 rounded-lg bg-neutral-200 dark:bg-neutral-800 flex-shrink-0" />
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-base truncate">{show.name}</div>
-                        <div className="text-xs text-neutral-600 dark:text-neutral-400">{show.presenter}</div>
-                        {show.description && <div className="text-xs text-neutral-500 mt-1">{show.description}</div>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <label className="text-[11px] font-semibold cursor-pointer underline text-neutral-600 dark:text-neutral-400">
-                          Replace art
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,image/gif"
-                            className="hidden"
-                            onChange={(e) => handleReplaceArt(show, e.target.files?.[0])}
-                          />
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteShow(show)}
-                          className="text-red-600 hover:text-red-500 cursor-pointer"
-                          aria-label={`Delete ${show.name}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-
-                  </Card>
-                );
-              })
-            )}
+      <form onSubmit={handleAddShow} className="card" style={{ padding: 16, display: "grid", gap: 12 }}>
+        <div className="section-title">New show</div>
+        <div className="two">
+          <div className="field">
+            <label>Name</label>
+            <input className="input" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Friday Night Pulse" />
+          </div>
+          <div className="field">
+            <label>Presenter or DJ</label>
+            <input className="input" value={newPresenter} onChange={(e) => setNewPresenter(e.target.value)} placeholder="DJ Nova" />
           </div>
         </div>
+        <div className="field">
+          <label>Description (optional)</label>
+          <input className="input" value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
+        </div>
+        <div className="field">
+          <label>Cover art</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {newArtUrl ? <img src={newArtUrl} alt="" className="thumb" style={{ width: 44, height: 44 }} /> : <span className="thumb" style={{ width: 44, height: 44 }} />}
+            <label className="btn sm">
+              {uploading ? <Loader2 className="ic-sm spin" /> : <Upload className="ic-sm" />}
+              Upload
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => handleArtPicked(e.target.files?.[0], setNewArtUrl)} />
+            </label>
+          </div>
+        </div>
+        <div>
+          <button type="submit" disabled={submitting || uploading} className="btn strong">
+            {submitting ? "Creating…" : "Create show"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

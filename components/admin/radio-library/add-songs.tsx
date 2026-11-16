@@ -1,8 +1,6 @@
 "use client";
 import React, { useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { api, duration, FINAL, type Import, type Review } from "./types";
 
@@ -61,64 +59,73 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
   const shown = [...running, ...(showAll ? recent : recent.slice(0, 3))];
 
   return (
-    <section className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900 sm:p-6">
-      <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
-        <label htmlFor="radio-import-url" className="sr-only">Song or playlist link</label>
-        <Input
-          id="radio-import-url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste a YouTube, YouTube Music, SoundCloud or Spotify link"
-          className="h-11 flex-1"
-          autoComplete="off"
-        />
-        <Button type="submit" disabled={busy || !url.trim()} className="h-11 cursor-pointer px-6">
-          {busy ? "Adding…" : "Add"}
-        </Button>
+    <div style={{ display: "grid", gap: 16 }}>
+      <form onSubmit={submit} style={{ display: "grid", gap: 6 }}>
+        <label htmlFor="radio-import-url" className="lbl">
+          Song, album or playlist link
+        </label>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            id="radio-import-url"
+            className="input"
+            style={{ flex: 1 }}
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="YouTube, YouTube Music, SoundCloud or Spotify"
+            autoComplete="off"
+            autoFocus
+          />
+          <button type="submit" className="btn primary" disabled={busy || !url.trim()}>
+            {busy ? "Adding…" : "Add"}
+          </button>
+        </div>
+        <div className="help">Albums and playlists also become a playlist here, linked to the original so you can re-sync it later.</div>
       </form>
-      <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        A song, an album or a playlist. Albums and playlists also become a playlist here, linked to the original so you can re-sync it later.
-      </p>
 
       {shown.length > 0 && (
-        <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-          {shown.map((i) => {
-            const total = i.total || 0;
-            const pct = total ? Math.round(((i.done + i.failed) / total) * 100) : 0;
-            const live = !FINAL.includes(i.state);
-            return (
-              <li key={i.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3">
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-bold">{i.position != null ? `${i.title || i.url}${i.playlistName ? ` (for ${i.playlistName})` : ""}` : i.playlistName && i.playlistName !== i.url ? i.playlistName : i.title || i.url}</div>
-                  <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                    {STATE_LABEL[i.state] || i.state}
-                    {total > 0 && ` · ${i.done} of ${total} added`}
-                    {i.sourceTotal && i.sourceTotal > total ? ` (first ${total} of ${i.sourceTotal}, Spotify's limit: import a YouTube Music copy for the rest)` : ""}
-                    {i.failed > 0 && ` · ${i.failed} failed`}
-                    {i.error && ` · ${i.error}`}
-                  </div>
-                  {live && total > 0 && (
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-                      <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${pct}%` }} />
+        <section className="todo">
+          <h2>Imports</h2>
+          <div className="rows">
+            {shown.map((i) => {
+              const total = i.total || 0;
+              const pct = total ? Math.round(((i.done + i.failed) / total) * 100) : 0;
+              const live = !FINAL.includes(i.state);
+              return (
+                <div key={i.id} className="r">
+                  <div className="grow">
+                    <div className="trunc" style={{ fontWeight: 600 }}>
+                      {i.position != null ? `${i.title || i.url}${i.playlistName ? ` (for ${i.playlistName})` : ""}` : i.playlistName && i.playlistName !== i.url ? i.playlistName : i.title || i.url}
                     </div>
+                    <div className="t12 muted">
+                      {STATE_LABEL[i.state] || i.state}
+                      {total > 0 && ` · ${i.done} of ${total} added`}
+                      {i.sourceTotal && i.sourceTotal > total ? ` (first ${total} of ${i.sourceTotal}, Spotify's limit: import a YouTube Music copy for the rest)` : ""}
+                      {i.failed > 0 && ` · ${i.failed} failed`}
+                      {i.error && ` · ${i.error}`}
+                    </div>
+                    {live && total > 0 && (
+                      <div className="meter" style={{ marginTop: 6 }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+                        <i style={{ width: `${pct}%` }} />
+                      </div>
+                    )}
+                  </div>
+                  {live && (
+                    <button type="button" className="btn sm" onClick={() => stop(i.id)}>
+                      Stop
+                    </button>
                   )}
                 </div>
-                {live && (
-                  <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => stop(i.id)}>
-                    Stop
-                  </Button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+              );
+            })}
+          </div>
+          {recent.length > 3 && (
+            <button type="button" onClick={() => setShowAll((v) => !v)} className="btn sm ghost" style={{ marginTop: 6 }}>
+              {showAll ? "Show fewer" : `Show all ${recent.length} finished imports`}
+            </button>
+          )}
+        </section>
       )}
-      {recent.length > 3 && (
-        <button type="button" onClick={() => setShowAll((v) => !v)} className="cursor-pointer text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white">
-          {showAll ? "Show fewer" : `Show all ${recent.length} finished imports`}
-        </button>
-      )}
-    </section>
+    </div>
   );
 }
 
@@ -140,57 +147,50 @@ export function ReviewMatches({ reviews, onChange }: { reviews: Review[]; onChan
   };
 
   return (
-    <section className="space-y-4">
-      <div>
-        <h2 className="text-xl font-extrabold">Pick the right version</h2>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          {reviews.length} Spotify {reviews.length === 1 ? "track has" : "tracks have"} no sure match on YouTube Music. Open a candidate to check it, then pick one or skip the track.
-        </p>
-      </div>
-      <ul className="space-y-3">
-        {reviews.map((r) => {
-          const key = `${r.importId}:${r.index}`;
-          return (
-            <li key={key} className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="font-bold">{r.spotify?.title || "Unknown track"}</div>
-                  <div className="text-sm text-neutral-500 dark:text-neutral-400">
-                    {r.spotify?.artists.join(", ")}
-                    {r.spotify?.durationMs ? ` · ${duration(r.spotify.durationMs / 1000)}` : ""}
-                    {r.playlistName ? ` · in ${r.playlistName}` : ""}
-                  </div>
+    <div style={{ display: "grid", gap: 16 }}>
+      <p className="muted" style={{ margin: 0 }}>
+        {reviews.length} Spotify {reviews.length === 1 ? "track has" : "tracks have"} no sure match on YouTube Music. Open a candidate to check it, then pick one or skip the track.
+      </p>
+      {reviews.map((r) => {
+        const key = `${r.importId}:${r.index}`;
+        return (
+          <section key={key} className="card" style={{ padding: 14, display: "grid", gap: 10 }}>
+            <div className="line">
+              <div>
+                <div style={{ fontWeight: 600 }}>{r.spotify?.title || "Unknown track"}</div>
+                <div className="t12 muted">
+                  {r.spotify?.artists.join(", ")}
+                  {r.spotify?.durationMs ? ` · ${duration(r.spotify.durationMs / 1000)}` : ""}
+                  {r.playlistName ? ` · in ${r.playlistName}` : ""}
                 </div>
-                <Button size="sm" variant="ghost" className="cursor-pointer" disabled={busy === key} onClick={() => answer(r, null)}>
-                  Skip this track
-                </Button>
               </div>
-              {r.candidates.length === 0 ? (
-                <p className="mt-3 text-sm text-neutral-500">No candidates found. Paste the right link above to add it by hand.</p>
-              ) : (
-                <ul className="mt-3 grid gap-2 md:grid-cols-3">
-                  {r.candidates.map((c) => (
-                    <li key={c.url} className="flex flex-col justify-between gap-3 rounded-xl border border-neutral-200 p-3 dark:border-neutral-800">
-                      <div className="min-w-0">
-                        <a href={c.url} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-start gap-1 text-sm font-bold hover:underline">
-                          <span className="line-clamp-2">{c.title}</span>
-                          <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 opacity-60" aria-hidden />
-                        </a>
-                        <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
-                          {[c.artists?.join(", "), duration(c.durationSec), c.kind].filter(Boolean).join(" · ")}
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline" className="cursor-pointer self-start" disabled={busy === key} onClick={() => answer(r, c.url)}>
-                        Use this one
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+              <button type="button" className="btn sm ghost" disabled={busy === key} onClick={() => answer(r, null)}>
+                Skip
+              </button>
+            </div>
+            {r.candidates.length === 0 ? (
+              <p className="muted" style={{ margin: 0 }}>No candidates found. Add the right link by hand with Add songs.</p>
+            ) : (
+              <div className="rows">
+                {r.candidates.map((c) => (
+                  <div key={c.url} className="r">
+                    <div className="grow">
+                      <a href={c.url} target="_blank" rel="noopener noreferrer" className="link" style={{ display: "inline-flex", gap: 4, alignItems: "center", maxWidth: "100%" }}>
+                        <span className="trunc">{c.title}</span>
+                        <ExternalLink className="ic-sm" aria-hidden />
+                      </a>
+                      <div className="t12 muted">{[c.artists?.join(", "), duration(c.durationSec), c.kind].filter(Boolean).join(" · ")}</div>
+                    </div>
+                    <button type="button" className="btn sm strong" disabled={busy === key} onClick={() => answer(r, c.url)}>
+                      Use this
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
