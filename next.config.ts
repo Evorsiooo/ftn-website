@@ -35,6 +35,10 @@ const nextConfig: NextConfig = {
       { source: "/admin/radio", destination: "/admin/schedule", permanent: true },
       { source: "/admin/radio/studio", destination: "/admin/schedule/studio", permanent: true },
       { source: "/admin/radio/ratings", destination: "/admin/radio/library?tab=ratings", permanent: true },
+      // admin redesign (2026-11): roles, accounts and mutes are one People page; FTN+ content left Settings
+      { source: "/admin/roles", destination: "/admin/people", permanent: false },
+      { source: "/admin/settings/moderation", destination: "/admin/people?tab=muted", permanent: false },
+      { source: "/admin/settings/plus", destination: "/admin/plus", permanent: false },
     ];
   },
   async headers() {

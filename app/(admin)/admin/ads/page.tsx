@@ -1,16 +1,15 @@
 "use client";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ExternalLink, Loader2, Pause, Pencil, Play, Plus, Trash2, Upload } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
-import React, { useState, useEffect, useRef } from "react";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import Link from "next/link";
-import { Eye, MousePointerClick, TrendingUp, ArrowLeft, DollarSign, Trash2, Loader2, Pencil, Pause, Play, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
+import { BackButton, Body, Facts, Field, PageBar, Pill, Screen, Section, Seg, Sheet, type Tone } from "@/components/admin/ui";
+import { refreshAdminSummary } from "@/lib/admin-summary";
 import { canManageAds } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
+import { cn } from "@/lib/utils";
 
 function parseLinks(raw: unknown): Record<string, string> {
   try {
@@ -27,11 +26,15 @@ const FORMAT_DIMENSIONS: Record<AdFormat, [number, number]> = {
   "1024x180": [1024, 180],
   "512x180": [512, 180],
 };
+const FORMAT_LABEL: Record<string, string> = {
+  "1024x180": "1024 × 180, full width",
+  "512x180": "512 × 180, shared with another ad",
+};
 
 const ZONE_LABELS: Record<string, string> = {
-  header_leaderboard: "Homepage Top",
-  in_feed_banner: "Articles Inline",
-  sidebar_rectangle: "Sports Sidebar",
+  header_leaderboard: "Homepage top",
+  in_feed_banner: "Articles inline",
+  sidebar_rectangle: "Sports sidebar",
 };
 
 const ZONE_FORM_VALUES: Record<string, string> = {
@@ -39,10 +42,6 @@ const ZONE_FORM_VALUES: Record<string, string> = {
   in_feed_banner: "articles_inline",
   sidebar_rectangle: "sports_sidebar",
 };
-
-const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
-const selectClass =
-  "w-full h-9 rounded-md border border-neutral-300 bg-neutral-50 text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-white px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 function readImageSize(file: File): Promise<[number, number]> {
   return new Promise((resolve, reject) => {
@@ -60,13 +59,43 @@ function readImageSize(file: File): Promise<[number, number]> {
   });
 }
 
-export default function AdminAdsConsole() {
-  const [campaigns, setCampaigns] = useState<any[]>([]);
+type Filter = "running" | "paused" | "soldout" | "all";
+
+const isSoldOut = (c: any) => c.impressionsLeft !== null && c.impressionsLeft !== undefined && c.impressionsLeft <= 0;
+function stateOf(c: any): {
+  key: Exclude<Filter, "all">;
+  label: string;
+  tone: Tone;
+} {
+  if (isSoldOut(c)) return { key: "soldout", label: "Sold out", tone: "red" };
+  if (c.status !== "active") return { key: "paused", label: "Paused", tone: "grey" };
+  return { key: "running", label: "Running", tone: "green" };
+}
+const ctr = (views: number, clicks: number) => (views > 0 ? ((clicks / views) * 100).toFixed(1) : "0.0");
+const host = (u: string) => {
+  try {
+    return new URL(u).host;
+  } catch {
+    return u;
+  }
+};
+
+function AdsPage() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const selectedId = params.get("id");
+  const select = (id: string | null) => router.replace(id ? `/admin/ads?id=${encodeURIComponent(id)}` : "/admin/ads", { scroll: false });
+
+  const [campaigns, setCampaigns] = useState<any[] | null>(null);
   const [organizers, setOrganizers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("running");
+  const [orgFilter, setOrgFilter] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Form (in a sheet)
+  const [sheet, setSheet] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
-
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [organizerId, setOrganizerId] = useState("");
@@ -84,27 +113,34 @@ export default function AdminAdsConsole() {
       const [adsRes, orgRes] = await Promise.all([fetch("/api/admin/ads"), fetch("/api/admin/organizers")]);
       if (adsRes.ok) {
         const data = (await adsRes.json()) as any;
-        if (Array.isArray(data.campaigns)) setCampaigns(data.campaigns);
-      }
+        setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
+      } else setCampaigns([]);
       if (orgRes.ok) {
         const data = (await orgRes.json()) as any;
         if (Array.isArray(data.organizers)) setOrganizers(data.organizers);
       }
     } catch (err) {
       console.error("Failed to load ads:", err);
-    } finally {
-      setLoading(false);
+      setCampaigns([]);
     }
+    refreshAdminSummary();
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Open the ad from a link (?id=) on the right filter.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !campaigns || !selectedId) return;
+    const c = campaigns.find((x) => x.id === selectedId);
+    if (c) setFilter(stateOf(c).key);
+    opened.current = true;
+  }, [campaigns, selectedId]);
 
   const resetForm = () => {
-    setDrawerOpen(false);
+    setSheet(false);
     setEditingId(null);
     setTitle("");
     setOrganizerId("");
@@ -121,7 +157,6 @@ export default function AdminAdsConsole() {
   const handleFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       const [w, h] = await readImageSize(file);
       const [expectedW, expectedH] = FORMAT_DIMENSIONS[format];
@@ -135,7 +170,6 @@ export default function AdminAdsConsole() {
       e.target.value = "";
       return;
     }
-
     setUploading(true);
     try {
       const body = new FormData();
@@ -181,7 +215,6 @@ export default function AdminAdsConsole() {
       toast("Post impressions must be a whole number, or empty for unlimited.");
       return;
     }
-
     setSubmitting(true);
     try {
       let orgId = organizerId;
@@ -190,7 +223,6 @@ export default function AdminAdsConsole() {
         if (!created) return;
         orgId = created;
       }
-
       const payload = {
         title: title.trim(),
         organizerId: orgId,
@@ -211,8 +243,13 @@ export default function AdminAdsConsole() {
         toast(data.error || "Failed to save ad");
         return;
       }
+      const newId = editingId || data.campaign?.id || data.id;
       resetForm();
       await loadData();
+      if (newId) {
+        if (!editingId) setFilter("running");
+        select(newId);
+      }
     } catch (err) {
       console.error("Save ad error:", err);
       toast("An unexpected error occurred while saving the ad.");
@@ -222,7 +259,6 @@ export default function AdminAdsConsole() {
   };
 
   const startEditing = (c: any) => {
-    setDrawerOpen(true);
     setEditingId(c.id);
     setTitle(c.title || c.name);
     setOrganizerId(c.organizerId || "");
@@ -233,31 +269,40 @@ export default function AdminAdsConsole() {
     setImpressions(c.postImpressionsPurchased === null || c.postImpressionsPurchased === undefined ? "" : String(c.postImpressionsPurchased));
     setFormat((c.adFormat || "1024x180") as AdFormat);
     setZone(ZONE_FORM_VALUES[c.zone] || "homepage_top");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setSheet(true);
   };
 
   const toggleStatus = async (c: any) => {
     const next = c.status === "active" ? "paused" : "active";
-    const res = await fetch(`/api/admin/ads/${c.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    });
-    if (res.ok) {
-      setCampaigns((prev) => prev.map((x) => (x.id === c.id ? { ...x, status: next } : x)));
-    } else {
-      const data = (await res.json()) as any;
-      toast(data.error || "Failed to update ad");
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/ads/${c.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (res.ok) {
+        setCampaigns((prev) => (prev || []).map((x) => (x.id === c.id ? { ...x, status: next } : x)));
+        refreshAdminSummary();
+      } else {
+        const data = (await res.json()) as any;
+        toast(data.error || "Failed to update ad");
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!await confirmDialog("Are you sure you want to delete this ad?")) return;
+  const handleDelete = async (c: any) => {
+    if (!(await confirmDialog(`Delete the ad “${c.title || c.name}”? This can't be undone.`, { ok: "Delete", danger: true }))) return;
     try {
-      const res = await fetch(`/api/admin/ads?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const res = await fetch(`/api/admin/ads?id=${encodeURIComponent(c.id)}`, {
+        method: "DELETE",
+      });
       if (res.ok) {
-        setCampaigns((prev) => prev.filter((c) => c.id !== id));
-        if (editingId === id) resetForm();
+        setCampaigns((prev) => (prev || []).filter((x) => x.id !== c.id));
+        if (selectedId === c.id) select(null);
+        refreshAdminSummary();
       } else {
         const data = (await res.json()) as any;
         toast(data.error || "Failed to delete ad");
@@ -268,235 +313,454 @@ export default function AdminAdsConsole() {
     }
   };
 
-  const totalImpressions = campaigns.reduce((acc, c) => acc + (c.impressionsCount || 0), 0);
-  const totalClicks = campaigns.reduce((acc, c) => acc + (c.clicksCount || 0), 0);
-  const averageCtr = totalImpressions > 0 ? ((totalClicks / totalImpressions) * 100).toFixed(2) : "0.00";
+  const all = campaigns || [];
+  const totalViews = all.reduce((acc, c) => acc + (c.impressionsCount || 0), 0);
+  const totalClicks = all.reduce((acc, c) => acc + (c.clicksCount || 0), 0);
+  const counts = useMemo(() => {
+    const n = { running: 0, paused: 0, soldout: 0, all: all.length };
+    for (const c of all) n[stateOf(c).key]++;
+    return n;
+  }, [all]);
+  const shown = (filter === "all" ? all : all.filter((c) => stateOf(c).key === filter)).filter((c) => !orgFilter || (orgFilter === "none" ? !c.organizerId : c.organizerId === orgFilter));
 
-  // Group ads under their organizer, keeping organizers without ads visible.
-  const groups = organizers.map((o) => ({
-    organizer: o,
-    ads: campaigns.filter((c) => c.organizerId === o.id),
-  }));
-  const unassigned = campaigns.filter((c) => !c.organizerId || !organizers.some((o) => o.id === c.organizerId));
+  // Ads grouped under their organizer; organizers with no ads in this filter are left out.
+  const groups = useMemo(() => {
+    const known = new Set(organizers.map((o) => o.id));
+    const out = organizers
+      .map((o) => ({
+        key: o.id,
+        name: o.name as string,
+        ads: shown.filter((c) => c.organizerId === o.id),
+      }))
+      .filter((g) => g.ads.length > 0);
+    const none = shown.filter((c) => !c.organizerId || !known.has(c.organizerId));
+    if (none.length) out.push({ key: "none", name: "No organizer", ads: none });
+    return out;
+  }, [organizers, shown]);
+  const emptyOrganizers = organizers.filter((o) => !all.some((c) => c.organizerId === o.id));
 
-  const renderAd = (c: any) => {
-    const left = c.impressionsLeft;
-    const soldOut = left !== null && left !== undefined && left <= 0;
-    return (
-      <div key={c.id} className="flex gap-3 rounded-lg border border-neutral-200 dark:border-neutral-800 p-3">
-        <img src={c.imageUrl} alt={c.title || c.name} className="h-12 w-auto max-w-[45%] rounded object-contain bg-neutral-100 dark:bg-neutral-900" />
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="truncate text-sm font-bold text-neutral-900 dark:text-white">{c.title || c.name}</h4>
-            <div className="flex shrink-0 items-center gap-1">
-              <span className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 mr-1">{c.adFormat}</span>
-              <button type="button" onClick={() => startEditing(c)} className="p-1 text-neutral-400 hover:text-brand-text cursor-pointer" title="Edit">
-                <Pencil className="h-3.5 w-3.5" />
-              </button>
-              <button type="button" onClick={() => toggleStatus(c)} className="p-1 text-neutral-400 hover:text-amber-500 cursor-pointer" title={c.status === "active" ? "Pause" : "Resume"}>
-                {c.status === "active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-              </button>
-              <button type="button" onClick={() => handleDelete(c.id)} className="p-1 text-neutral-400 hover:text-red-500 cursor-pointer" title="Delete">
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
-          {c.postImpressionsPurchased ? (
-            <div className="h-1.5 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800" title="Post impressions left">
-              <div className={soldOut ? "h-full bg-red-500" : "h-full bg-brand"} style={{ width: `${Math.max(0, Math.min(100, ((left ?? 0) / c.postImpressionsPurchased) * 100))}%` }} />
-            </div>
-          ) : null}
-          <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Destination: {c.targetUrl}</p>
-          <p className="truncate text-[11px] text-neutral-600 dark:text-neutral-400">Message links: {(() => { const l = parseLinks(c.messageLinks); const n = RO_STATES.filter((r) => l[r.key]).length; return n ? `${n} of ${RO_STATES.length} Ro-States` : "same as destination"; })()}</p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-neutral-600 dark:text-neutral-400">
-            <span>Zone: {ZONE_LABELS[c.zone] || c.zone}</span>
-            <span>
-              Post impressions:{" "}
-              <strong className={soldOut ? "text-red-600 dark:text-red-400" : "text-neutral-900 dark:text-white"}>
-                {c.postImpressionsPurchased === null || c.postImpressionsPurchased === undefined
-                  ? "unlimited"
-                  : `${left} left of ${c.postImpressionsPurchased}`}
-              </strong>
-            </span>
-            <span>Views: <strong className="text-neutral-900 dark:text-white">{(c.impressionsCount || 0).toLocaleString()}</strong></span>
-            <span>Clicks: <strong className="text-neutral-900 dark:text-white">{c.clicksCount || 0}</strong></span>
-            <span>CTR: <strong className="text-neutral-900 dark:text-white">{c.impressionsCount ? (((c.clicksCount || 0) / c.impressionsCount) * 100).toFixed(2) : "0.00"}%</strong></span>
-            <span className={c.status === "active" && !soldOut ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
-              {soldOut ? "sold out (hidden)" : c.status}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const picked = all.find((c) => c.id === selectedId) ?? null;
+  // On a computer the first ad shows straight away; on a phone the list stays until one is tapped.
+  const current = picked ?? groups[0]?.ads[0] ?? null;
+  const orgName = (id: string) => organizers.find((o) => o.id === id)?.name;
+
+  const filters = [
+    { value: "running" as const, label: "Running", n: counts.running },
+    { value: "paused" as const, label: "Paused", n: counts.paused },
+    { value: "soldout" as const, label: "Sold out", n: counts.soldout },
+    { value: "all" as const, label: "All", n: counts.all },
+  ];
+  const statsLine = `All time: ${totalViews.toLocaleString()} site views · ${totalClicks.toLocaleString()} clicks · ${ctr(totalViews, totalClicks)}%`;
 
   return (
-    <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Commercial & Advertisements Console">
-      <div className="w-full space-y-8 text-neutral-900 dark:text-white">
-        <AdminPageHeader
-          title="Advertisements"
-          description="What is running, how much is left, and how it performs."
-          actions={
-            <Button size="sm" onClick={() => { resetForm(); setDrawerOpen(true); }} className="h-10 cursor-pointer px-5 text-sm">
-              New ad
-            </Button>
-          }
-        />
-
-        <dl className="grid grid-cols-3 divide-x divide-neutral-200 rounded-[1.75rem] bg-[#16110a] text-[#fff8e6] dark:divide-neutral-800 dark:bg-black [&>div]:min-w-0 [&>div]:p-3 min-[420px]:[&>div]:p-5 sm:[&>div]:p-8">
-          <div>
-            <dt className="text-xs font-bold uppercase tracking-widest opacity-60">Site views</dt>
-            <dd className="gs-display mt-2 text-2xl font-extrabold text-brand min-[420px]:text-3xl sm:text-4xl lg:text-6xl">{totalImpressions.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-bold uppercase tracking-widest opacity-60">Clicks</dt>
-            <dd className="gs-display mt-2 text-2xl font-extrabold text-brand min-[420px]:text-3xl sm:text-4xl lg:text-6xl">{totalClicks.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-bold uppercase tracking-widest opacity-60">CTR</dt>
-            <dd className="gs-display mt-2 text-2xl font-extrabold text-brand min-[420px]:text-3xl sm:text-4xl lg:text-6xl">{averageCtr}%</dd>
-          </div>
-        </dl>
-
-        <div className="space-y-8">
-          {drawerOpen && (
-          <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm" onClick={resetForm}>
-          <aside role="dialog" aria-label={editingId ? "Edit ad" : "New ad"} onClick={(e) => e.stopPropagation()} className="absolute inset-y-0 right-0 flex w-full max-w-xl flex-col overflow-y-auto border-l border-border bg-background text-foreground shadow-2xl">
-          <div className="flex items-center justify-between bg-brand px-6 py-5 text-brand-ink">
-            <h2 className="text-xl font-extrabold">{editingId ? "Edit ad" : "New ad"}</h2>
-            <button type="button" onClick={resetForm} aria-label="Close" className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#16110a] text-lg leading-none text-[#fff8e6] hover:bg-black">×</button>
-          </div>
-          <div className="space-y-4 p-6">
-            <form onSubmit={handleSave} className="space-y-4">
-              <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Who and where</h3>
-              <div>
-                <label className={labelClass}>Ad title</label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" />
-              </div>
-
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Organizer</label>
-                  <Select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className={selectClass}>
-                    <option value="">New organizer...</option>
-                    {organizers.map((o) => (
-                      <option key={o.id} value={o.id}>{o.name}</option>
-                    ))}
-                  </Select>
-                </div>
-                {!organizerId && (
-                  <div>
-                    <label className={labelClass}>New organizer name</label>
-                    <Input value={newOrganizer} onChange={(e) => setNewOrganizer(e.target.value)} placeholder="Organization name" />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Format</label>
-                  <Select value={format} onChange={(e) => setFormat(e.target.value as AdFormat)} className={selectClass}>
-                    <option value="1024x180">1024x180 (single ad)</option>
-                    <option value="512x180">512x180 (shared ad)</option>
-                  </Select>
-                </div>
-                <div>
-                  <label className={labelClass}>Website Zone</label>
-                  <Select value={zone} onChange={(e) => setZone(e.target.value)} className={selectClass}>
-                    <option value="homepage_top">Homepage Top</option>
-                    <option value="articles_inline">Articles Inline</option>
-                    <option value="sports_sidebar">Sports Sidebar</option>
-                  </Select>
-                </div>
-              </div>
-
-              <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Creative</h3>
-              <div>
-                <label className={labelClass}>Ad image</label>
-                <div className="flex items-center gap-2">
-                  <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleFileChosen} className="hidden" />
-                  <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInput.current?.click()} className="cursor-pointer">
-                    {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Upload className="h-4 w-4 mr-1.5" />}
-                    {imageUrl ? "Replace image" : "Upload image"}
-                  </Button>
-                  <span className="text-[11px] text-neutral-500">Exactly {FORMAT_DIMENSIONS[format].join("x")} px</span>
-                </div>
-                {imageUrl && (
-                  <img src={imageUrl} alt="Ad preview" className="mt-2 w-full max-w-[512px] rounded border border-neutral-200 dark:border-neutral-800" />
-                )}
-              </div>
-
-              <div>
-                <label className={labelClass}>Destination URL (opened when the ad is clicked on the website)</label>
-                <Input value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)} placeholder="https://..." />
-              </div>
-
-              <div className="space-y-2">
-                <label className={labelClass}>Message links (used in Discord posts, one per Ro-State, all optional)</label>
-                {RO_STATES.map((r) => (
-                  <div key={r.key} className="grid grid-cols-[6.5rem_1fr] items-center gap-2">
-                    <span className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">{r.label}</span>
-                    <Input
-                      value={messageLinks[r.key] || ""}
-                      onChange={(e) => setMessageLinks((prev) => ({ ...prev, [r.key]: e.target.value }))}
-                      placeholder="Empty = destination URL"
-                    />
-                  </div>
+    <Screen>
+      <PageBar
+        title="Ads"
+        tools={
+          <>
+            <Seg value={filter} onChange={setFilter} options={filters} label="Show" />
+            <select className="select sm" style={{ width: 170 }} value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)} aria-label="Organizer">
+              <option value="">All organizers</option>
+              {organizers.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+            <span className="t12 muted trunc" style={{ whiteSpace: "nowrap" }}>
+              {statsLine}
+            </span>
+          </>
+        }
+        end={
+          <button
+            type="button"
+            className="btn primary has-lbl-m"
+            aria-label="New ad"
+            onClick={() => {
+              resetForm();
+              setSheet(true);
+            }}
+          >
+            <Plus className="ic" />
+            <span className="lbl-m">New ad</span>
+          </button>
+        }
+        mrow={
+          <>
+            <select className="select sm" style={{ flex: 1 }} value={filter} onChange={(e) => setFilter(e.target.value as Filter)} aria-label="Show">
+              {filters.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label} ({f.n})
+                </option>
+              ))}
+            </select>
+            {organizers.length > 1 && (
+              <select className="select sm" style={{ flex: 1 }} value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)} aria-label="Organizer">
+                <option value="">All organizers</option>
+                {organizers.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.name}
+                  </option>
                 ))}
-              </div>
-
-              <h3 className="border-b border-neutral-200 pb-1.5 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500 dark:border-neutral-800">Delivery</h3>
-              <div>
-                <label className={labelClass}>Post impressions (empty = unlimited)</label>
-                <Input value={impressions} onChange={(e) => setImpressions(e.target.value)} inputMode="numeric" placeholder="e.g. 20" />
-                <p className="mt-1 text-[11px] text-neutral-500">The ad shows on the website only while it has post impressions left.</p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button type="submit" disabled={submitting || uploading} className="flex-1 font-semibold bg-brand hover:bg-brand-hover text-brand-ink cursor-pointer shadow-sm disabled:opacity-50">
-                  {submitting ? "Saving..." : editingId ? "Save Changes" : "Save Ad"}
-                </Button>
-                <Button type="button" variant="outline" onClick={resetForm} className="cursor-pointer">
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </div>
-          </aside>
-          </div>
-          )}
-
-          <div className="space-y-4">
-            <h2 className="text-lg font-extrabold">Running, by organizer</h2>
-            {loading ? (
-              <div className="flex items-center justify-center p-8 text-neutral-500">
-                <Loader2 className="h-6 w-6 animate-spin mr-2" /> Loading ads...
-              </div>
-            ) : groups.length === 0 && unassigned.length === 0 ? (
-              <div className="p-8 text-center border border-dashed border-neutral-300 dark:border-neutral-800 rounded-lg text-xs text-neutral-500">
-                No ads yet. Create the first one on the left.
+              </select>
+            )}
+          </>
+        }
+      />
+      <Body>
+        <div className={cn("ld", picked && "detail")}>
+          <div className="ld-list">
+            {campaigns === null ? (
+              <div className="empty">Loading ads…</div>
+            ) : shown.length === 0 ? (
+              <div className="empty">
+                {all.length === 0 ? "No ads yet. Make the first one with New ad." : filter === "running" ? "No ad is running." : filter === "paused" ? "No ad is paused." : "No ad is sold out."}
               </div>
             ) : (
-              <div className="grid items-start gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                {groups.map(({ organizer, ads }) => (
-                  <Card key={organizer.id} className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
-                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">
-                      {organizer.name} <span className="font-normal text-neutral-500">({ads.length} {ads.length === 1 ? "ad" : "ads"})</span>
-                    </h3>
-                    {ads.length === 0 ? <p className="text-xs text-neutral-500">No ads yet.</p> : ads.map(renderAd)}
-                  </Card>
+              groups.map((g) => (
+                <div key={g.key}>
+                  <div className="group">
+                    <span className="trunc">{g.name}</span>
+                    <span>
+                      {g.ads.length} {g.ads.length === 1 ? "ad" : "ads"}
+                    </span>
+                  </div>
+                  {g.ads.map((c) => {
+                    const total = c.postImpressionsPurchased;
+                    const left = c.impressionsLeft ?? 0;
+                    const used = total ? Math.max(0, Math.min(100, ((total - left) / total) * 100)) : 0;
+                    return (
+                      <button key={c.id} type="button" className={cn("item", c.id === current?.id && "on")} onClick={() => select(c.id)}>
+                        <img
+                          src={c.imageUrl}
+                          alt=""
+                          className="thumb"
+                          style={{
+                            width: 96,
+                            height: c.adFormat === "512x180" ? 34 : 17,
+                            borderRadius: 3,
+                            objectFit: "cover",
+                            flex: "none",
+                          }}
+                        />
+                        <span className="grow">
+                          <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                            {c.title || c.name}
+                          </span>
+                          <span className="meta">
+                            {filter === "all" && <Pill tone={stateOf(c).tone}>{stateOf(c).label}</Pill>}
+                            {total === null || total === undefined ? (
+                              "Unlimited posts"
+                            ) : (
+                              <>
+                                <span className={cn("meter", left <= Math.max(2, total * 0.2) && "low")} style={{ width: 80, flex: "none" }}>
+                                  <i style={{ width: `${used}%` }} />
+                                </span>
+                                <span className="trunc">
+                                  {Math.max(0, left)} of {total} posts left
+                                </span>
+                              </>
+                            )}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))
+            )}
+            {campaigns && emptyOrganizers.length > 0 && filter === "all" && (
+              <div>
+                <div className="group">
+                  <span>Organizers with no ads</span>
+                  <span>{emptyOrganizers.length}</span>
+                </div>
+                {emptyOrganizers.map((o) => (
+                  <div key={o.id} className="item" style={{ cursor: "default" }}>
+                    <span className="grow muted trunc">{o.name}</span>
+                  </div>
                 ))}
-                {unassigned.length > 0 && (
-                  <Card className="p-4 rounded-2xl border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900 space-y-3">
-                    <h3 className="font-bold text-sm text-neutral-900 dark:text-white">No organizer</h3>
-                    {unassigned.map(renderAd)}
-                  </Card>
-                )}
               </div>
             )}
           </div>
+
+          <div className="ld-pane">
+            {!current ? (
+              <div className="pane-empty">{all.length ? "Pick an ad to see how it's doing." : ""}</div>
+            ) : (
+              <AdDetail
+                ad={current}
+                organizer={orgName(current.organizerId)}
+                busy={busy}
+                onBack={() => select(null)}
+                onEdit={() => startEditing(current)}
+                onToggle={() => toggleStatus(current)}
+                onDelete={() => handleDelete(current)}
+              />
+            )}
+          </div>
         </div>
+      </Body>
+
+      {sheet && (
+        <Sheet
+          title={editingId ? "Edit ad" : "New ad"}
+          onClose={resetForm}
+          footer={
+            <>
+              <button type="button" className="btn ghost" onClick={resetForm}>
+                Cancel
+              </button>
+              <button type="submit" form="ad-form" className="btn primary" disabled={submitting || uploading}>
+                {submitting ? "Saving…" : editingId ? "Save changes" : "Create ad"}
+              </button>
+            </>
+          }
+        >
+          <form id="ad-form" onSubmit={handleSave} style={{ display: "grid", gap: 20 }}>
+            <Section title="Who and where">
+              <Field label="Ad title">
+                <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Spring fares" />
+              </Field>
+              <div className="two">
+                <Field label="Organizer">
+                  <Select value={organizerId} onChange={(e) => setOrganizerId(e.target.value)} className="select">
+                    <option value="">New organizer…</option>
+                    {organizers.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {!organizerId && (
+                  <Field label="New organizer name">
+                    <input className="input" value={newOrganizer} onChange={(e) => setNewOrganizer(e.target.value)} placeholder="Organization name" />
+                  </Field>
+                )}
+              </div>
+              <div className="two">
+                <Field label="Format">
+                  <Select value={format} onChange={(e) => setFormat(e.target.value as AdFormat)} className="select">
+                    <option value="1024x180">1024x180 (single ad)</option>
+                    <option value="512x180">512x180 (shared ad)</option>
+                  </Select>
+                </Field>
+                <Field label="On the site">
+                  <Select value={zone} onChange={(e) => setZone(e.target.value)} className="select">
+                    <option value="homepage_top">Homepage top</option>
+                    <option value="articles_inline">Articles inline</option>
+                    <option value="sports_sidebar">Sports sidebar</option>
+                  </Select>
+                </Field>
+              </div>
+            </Section>
+
+            <Section title="Banner and links">
+              <Field label="Banner" help={`Exactly ${FORMAT_DIMENSIONS[format].join(" × ")} px. PNG, JPEG, WebP or GIF.`}>
+                <input ref={fileInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" onChange={handleFileChosen} hidden />
+                {imageUrl && (
+                  <img
+                    src={imageUrl}
+                    alt="Banner preview"
+                    style={{
+                      width: "100%",
+                      maxWidth: 512,
+                      borderRadius: 6,
+                      border: "1px solid var(--a-border)",
+                    }}
+                  />
+                )}
+                <button type="button" className="btn" disabled={uploading} onClick={() => fileInput.current?.click()}>
+                  {uploading ? <Loader2 className="ic spin" /> : <Upload className="ic" />}
+                  {imageUrl ? "Replace banner" : "Upload banner"}
+                </button>
+              </Field>
+              <Field label="Clicks on the site go to">
+                <input className="input" value={targetUrl} onChange={(e) => setTargetUrl(e.target.value)} placeholder="https://…" inputMode="url" />
+              </Field>
+              <Field label="Discord message links" help="Used in Discord posts, one per Ro-State. Leave one empty to use the site link.">
+                <div style={{ display: "grid", gap: 6 }}>
+                  {RO_STATES.map((r) => (
+                    <div
+                      key={r.key}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "100px minmax(0,1fr)",
+                        gap: 8,
+                        alignItems: "center",
+                      }}
+                    >
+                      <span className="t12" style={{ fontWeight: 600 }}>
+                        {r.label}
+                      </span>
+                      <input
+                        className="input sm"
+                        value={messageLinks[r.key] || ""}
+                        onChange={(e) =>
+                          setMessageLinks((prev) => ({
+                            ...prev,
+                            [r.key]: e.target.value,
+                          }))
+                        }
+                        placeholder="Same as the site link"
+                        aria-label={`Message link for ${r.label}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Field>
+            </Section>
+
+            <Section title="Delivery">
+              <Field label="Post impressions" help="How many posts the ad goes on. Empty means unlimited. The ad shows on the site only while it has some left.">
+                <input className="input" style={{ maxWidth: 160 }} value={impressions} onChange={(e) => setImpressions(e.target.value)} inputMode="numeric" placeholder="Unlimited" />
+              </Field>
+            </Section>
+          </form>
+        </Sheet>
+      )}
+    </Screen>
+  );
+}
+
+function AdDetail({
+  ad,
+  organizer,
+  busy,
+  onBack,
+  onEdit,
+  onToggle,
+  onDelete,
+}: {
+  ad: any;
+  organizer?: string;
+  busy: boolean;
+  onBack: () => void;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const st = stateOf(ad);
+  const links = parseLinks(ad.messageLinks);
+  const set = RO_STATES.filter((r) => links[r.key]);
+  const total = ad.postImpressionsPurchased;
+  const views = ad.impressionsCount || 0;
+  const clicks = ad.clicksCount || 0;
+  return (
+    <>
+      <div className="pane-head capped">
+        <BackButton onClick={onBack} label="Back to ads" />
+        <Pill tone={st.tone} dot>
+          {st.label}
+        </Pill>
+        <span className="trunc" style={{ fontWeight: 600 }}>
+          {ad.title || ad.name}
+        </span>
+        <span style={{ marginLeft: "auto", display: "flex", gap: 8, flex: "none" }}>
+          <button type="button" className="btn sm" disabled={busy} onClick={onToggle}>
+            {ad.status === "active" ? <Pause className="ic-sm" /> : <Play className="ic-sm" />}
+            <span className="hide-m">{ad.status === "active" ? "Pause" : "Resume"}</span>
+          </button>
+          <button type="button" className="btn sm" onClick={onEdit}>
+            <Pencil className="ic-sm" /> Edit
+          </button>
+          <button type="button" className="btn sm ghost danger" onClick={onDelete} aria-label="Delete ad">
+            <Trash2 className="ic-sm" />
+            <span className="hide-m">Delete</span>
+          </button>
+        </span>
       </div>
+      <div className="pane-body capped" style={{ display: "grid", gap: 20, alignContent: "start" }}>
+        <img
+          src={ad.imageUrl}
+          alt=""
+          style={{
+            width: "100%",
+            maxWidth: ad.adFormat === "512x180" ? 512 : undefined,
+            borderRadius: 8,
+            border: "1px solid var(--a-border)",
+          }}
+        />
+        <div className="stats">
+          <div className="card stat">
+            <span>Post impressions</span>
+            <b>
+              {total === null || total === undefined ? (
+                "Unlimited"
+              ) : (
+                <>
+                  {Math.max(0, ad.impressionsLeft ?? 0)} <span className="t12 muted">of {total} left</span>
+                </>
+              )}
+            </b>
+          </div>
+          <div className="card stat">
+            <span>Site views</span>
+            <b>{views.toLocaleString()}</b>
+          </div>
+          <div className="card stat">
+            <span>Clicks</span>
+            <b>
+              {clicks.toLocaleString()} <span className="t12 muted">{ctr(views, clicks)}%</span>
+            </b>
+          </div>
+        </div>
+        <Facts
+          rows={[
+            ["Organizer", organizer || "None"],
+            ["Format", FORMAT_LABEL[ad.adFormat] || ad.adFormat || "1024 × 180"],
+            ["On the site", ZONE_LABELS[ad.zone] || ad.zone],
+            [
+              "Clicks go to",
+              ad.targetUrl ? (
+                <a
+                  href={ad.targetUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link"
+                  style={{
+                    display: "inline-flex",
+                    gap: 4,
+                    alignItems: "center",
+                  }}
+                >
+                  {host(ad.targetUrl)} <ExternalLink className="ic-sm" />
+                </a>
+              ) : (
+                "None"
+              ),
+            ],
+            [
+              "Discord links",
+              set.length === 0 ? (
+                "Same as the site link in every Ro-State"
+              ) : (
+                <span style={{ display: "grid", gap: 2 }}>
+                  {RO_STATES.map((r) => (
+                    <span key={r.key} className="trunc">
+                      <span className="muted">{r.label}: </span>
+                      {links[r.key] ? host(links[r.key]) : <span className="muted">site link</span>}
+                    </span>
+                  ))}
+                </span>
+              ),
+            ],
+            ...(st.key === "soldout" ? ([["On the site now", "Hidden: no post impressions left"]] as [React.ReactNode, React.ReactNode][]) : []),
+          ]}
+        />
+      </div>
+    </>
+  );
+}
+
+export default function AdminAdsConsole() {
+  return (
+    <AdminAuthGuard requiredPermission={canManageAds} featureTitle="Ads">
+      <React.Suspense fallback={null}>
+        <AdsPage />
+      </React.Suspense>
     </AdminAuthGuard>
   );
 }

@@ -52,6 +52,7 @@ export interface SelectProps {
   disabled?: boolean;
   required?: boolean;
   className?: string;
+  style?: React.CSSProperties;
   "aria-label"?: string;
   title?: string;
   children?: React.ReactNode;
@@ -164,6 +165,7 @@ export function Select({ value, defaultValue, onChange, name, id, disabled, clas
         aria-controls={open ? `${uid}-list` : undefined}
         aria-label={rest["aria-label"]}
         title={rest.title}
+        style={rest.style}
         disabled={disabled}
         onClick={() => (open ? close() : openList())}
         onKeyDown={onKeyDown}

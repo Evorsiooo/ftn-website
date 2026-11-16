@@ -14,30 +14,38 @@ interface Rated {
 
 function List({ title, empty, rows, tone }: { title: string; empty: string; rows: Rated[]; tone: "good" | "bad" }) {
   return (
-    <section className="rounded-3xl border border-neutral-200 bg-white p-6 dark:border-neutral-800 dark:bg-neutral-950">
-      <h2 className="mb-4 text-xl font-extrabold">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="text-sm text-neutral-500">{empty}</p>
-      ) : (
-        <ol className="divide-y divide-neutral-200 dark:divide-neutral-800">
-          {rows.map((r, i) => (
-            <li key={`${r.artist}|${r.title}`} className="flex items-center gap-4 py-3">
-              <span className="w-6 text-sm font-bold tabular-nums text-neutral-400">{i + 1}</span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-bold">{r.title}</div>
-                <div className="truncate text-sm text-neutral-500">{r.artist || "Unknown artist"}</div>
+    <section className="todo">
+      <h2>{title}</h2>
+      <div className="rows">
+        {rows.length === 0 ? (
+          <div className="r muted">{empty}</div>
+        ) : (
+          rows.map((r, i) => (
+            <div key={`${r.artist}|${r.title}`} className="r">
+              <span className="t12 num faint" style={{ width: 20 }}>
+                {i + 1}
+              </span>
+              <div className="grow">
+                <div className="trunc" style={{ fontWeight: 600 }}>
+                  {r.title}
+                </div>
+                <div className="t12 muted trunc">{r.artist || "Unknown artist"}</div>
               </div>
-              <div className="flex shrink-0 items-center gap-3 text-sm tabular-nums">
-                <span className="inline-flex items-center gap-1 text-neutral-600 dark:text-neutral-300"><ThumbsUp className="h-3.5 w-3.5" />{r.up}</span>
-                <span className="inline-flex items-center gap-1 text-neutral-600 dark:text-neutral-300"><ThumbsDown className="h-3.5 w-3.5" />{r.down}</span>
-                <span className={`w-10 text-right font-extrabold ${tone === "good" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                  {r.score > 0 ? `+${r.score}` : r.score}
+              <span className="t12 muted num" style={{ display: "inline-flex", gap: 10 }}>
+                <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+                  <ThumbsUp className="ic-sm" />
+                  {r.up}
                 </span>
-              </div>
-            </li>
-          ))}
-        </ol>
-      )}
+                <span style={{ display: "inline-flex", gap: 3, alignItems: "center" }}>
+                  <ThumbsDown className="ic-sm" />
+                  {r.down}
+                </span>
+              </span>
+              <span className={tone === "good" ? "pill green num" : "pill red num"}>{r.score > 0 ? `+${r.score}` : r.score}</span>
+            </div>
+          ))
+        )}
+      </div>
     </section>
   );
 }
@@ -53,14 +61,14 @@ export function SongRatings() {
       .catch(() => setError(true));
   }, []);
 
-  if (error) return <p className="text-sm text-red-600">Could not load ratings.</p>;
-  if (!data) return <p className="text-sm text-neutral-500">Loading…</p>;
+  if (error) return <div className="empty">Could not load ratings.</div>;
+  if (!data) return <div className="empty">Loading…</div>;
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-neutral-500">
+    <div className="today" style={{ maxWidth: 1000 }}>
+      <p className="muted" style={{ margin: 0 }}>
         {data.totalVotes} vote{data.totalVotes === 1 ? "" : "s"} across {data.totalSongs} song{data.totalSongs === 1 ? "" : "s"}. Score is likes minus dislikes.
       </p>
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="two" style={{ gap: 24, alignItems: "start" }}>
         <List title="Best rated" tone="good" rows={data.best} empty="No song has a positive score yet." />
         <List title="Worst rated" tone="bad" rows={data.worst} empty="No song has a negative score yet." />
       </div>

@@ -12,9 +12,11 @@ export interface AdminSummary {
   drafts: { count: number; stale: number } | null;
   onAir: { current: Occurrence | null; upcoming: Occurrence[] } | null;
   adsLow: { id: string; title: string; organizer: string; left: number }[] | null;
+  /** Song imports: how many songs wait for someone to pick the right match, and imports still running. */
+  imports: { review: number; running: number } | null;
 }
 
-const TTL_MS = 15000;
+const TTL_MS = 30000;
 let cache: { key: string; at: number; value: Promise<AdminSummary> } | null = null;
 
 async function getJson(url: string): Promise<any | null> {
@@ -29,13 +31,14 @@ async function getJson(url: string): Promise<any | null> {
 const DAY = 24 * 60 * 60 * 1000;
 
 async function load(roles: string[]): Promise<AdminSummary> {
-  const [tipsData, postsData, articlesData, schedData, adsData, orgData] = await Promise.all([
+  const [tipsData, postsData, articlesData, schedData, adsData, orgData, importsData] = await Promise.all([
     canPublishArticles(roles) || canConfigureSite(roles) ? getJson("/api/admin/tips") : null,
     canManagePosts(roles) ? getJson("/api/admin/posts") : null,
     canPublishArticles(roles) ? getJson("/api/articles?admin=true") : null,
     canManageRadio(roles) ? getJson("/api/admin/broadcasts") : null,
     canManageAds(roles) ? getJson("/api/admin/ads") : null,
     canManageAds(roles) ? getJson("/api/admin/organizers") : null,
+    canManageRadio(roles) ? getJson("/api/admin/radio/imports") : null,
   ]);
   const now = Date.now();
 
@@ -47,7 +50,7 @@ async function load(roles: string[]): Promise<AdminSummary> {
   }
 
   const posts =
-    postsData && Array.isArray(postsData.posts) ? { pending: postsData.posts.filter((p: any) => p.status === "pending").length } : null;
+    postsData && Array.isArray(postsData.posts) ? { pending: postsData.posts.filter((p: any) => p.status === "pending" && !p.scheduledAt).length } : null;
 
   let drafts: AdminSummary["drafts"] = null;
   if (articlesData && Array.isArray(articlesData.articles)) {
@@ -73,7 +76,15 @@ async function load(roles: string[]): Promise<AdminSummary> {
       .map((c: any) => ({ id: c.id, title: c.title || c.name, organizer: orgs.get(c.organizerId) ?? "", left: c.impressionsLeft }));
   }
 
-  return { tips, posts, drafts, onAir, adsLow };
+  const imports =
+    importsData && Array.isArray(importsData.imports)
+      ? {
+          review: Array.isArray(importsData.reviews) ? importsData.reviews.length : 0,
+          running: importsData.imports.filter((i: any) => !["done", "failed", "cancelled"].includes(i.state)).length,
+        }
+      : null;
+
+  return { tips, posts, drafts, onAir, adsLow, imports };
 }
 
 export function fetchAdminSummary(roles: string[]): Promise<AdminSummary> {

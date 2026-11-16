@@ -2,7 +2,6 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Loader2, Music, Pause, Play, Redo2, Scissors, Trash2, Undo2, Upload, Video, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { PostLayers } from "@/lib/post-template";
 import { exportPostVideo } from "@/lib/post-video/export";
 import { exportAnimatedWebp } from "@/lib/post-video/webp";
@@ -26,7 +25,7 @@ import { disposeSource, loadSource, type LoadedSource } from "@/lib/post-video/s
 import { uploadMedia } from "@/lib/post-video/upload";
 import { VideoTimeline } from "./video-timeline";
 
-const labelClass = "block text-xs font-semibold uppercase text-neutral-600 dark:text-neutral-400 mb-1";
+const labelClass = "lbl block";
 const HISTORY_LIMIT = 60;
 const GESTURE_WINDOW_MS = 1200;
 
@@ -462,17 +461,17 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
   );
 
   const sliderRow = (label: string, value: number, min: number, max: number, step: number, onChange: (v: number) => void, shown?: string) => (
-    <label className="block text-[11px] text-neutral-600 dark:text-neutral-400">
+    <label className="help block">
       {label}
       {shown ? <span className="float-right tabular-nums">{shown}</span> : null}
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full" />
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} className="range" />
     </label>
   );
 
   const selectedPanels = (
     <>
       {selectedClip && (
-        <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+        <div className="card space-y-3 p-3">
           <p className={labelClass}>Selected clip</p>
           <div className="grid grid-cols-2 gap-3">
             {sliderRow("Volume", selectedClip.volume, 0, 1, 0.05, (v) => setClip({ volume: v }, "volume"), `${Math.round(selectedClip.volume * 100)}%`)}
@@ -483,7 +482,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
           {project.clips.length > 1 && (
             <button
               type="button"
-              className="text-[11px] text-blue-600 dark:text-blue-400 underline cursor-pointer"
+              className="btn sm ghost"
               onClick={() => setClip({ zoom: selectedClip.zoom, focusX: selectedClip.focusX, focusY: selectedClip.focusY }, "", true)}
             >
               Use this framing for every clip
@@ -493,7 +492,7 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       )}
 
       {selectedMusic && (
-        <div className="space-y-3 rounded-xl border border-neutral-200 bg-white p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-950">
+        <div className="card space-y-3 p-3">
           <p className={labelClass}>Selected song</p>
           <div className="grid grid-cols-2 gap-3">
             {sliderRow("Volume", selectedMusic.volume, 0, 1, 0.05, (v) => setSong({ volume: v }, "volume"), `${Math.round(selectedMusic.volume * 100)}%`)}
@@ -510,41 +509,41 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       <input ref={videoInput} type="file" accept="video/*" multiple onChange={(e) => addVideos(e.target.files)} className="hidden" />
       <input ref={songInput} type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac" onChange={(e) => addSong(e.target.files)} className="hidden" />
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" size="sm" onClick={togglePlay} disabled={total <= 0} className="cursor-pointer" aria-label={playing ? "Pause" : "Play"}>
+        <button type="button" className="btn sm strong" onClick={togglePlay} disabled={total <= 0} aria-label={playing ? "Pause" : "Play"}>
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
-        <span className="text-xs tabular-nums text-neutral-600 dark:text-neutral-400">
-          {fmt(time)} / {fmt(total)} <span className="text-neutral-400">(max {MAX_DURATION}s)</span>
+        </button>
+        <span className="t12 num muted">
+          {fmt(time)} / {fmt(total)} <span className="faint">(max {MAX_DURATION}s)</span>
         </span>
         {loading && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
+          <span className="help inline-flex items-center gap-1">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> {loading}
           </span>
         )}
         {uploading && !loading && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-neutral-500">
+          <span className="help inline-flex items-center gap-1">
             <Upload className="h-3.5 w-3.5" /> Uploading files in the background...
           </span>
         )}
         <div className="ml-auto flex flex-wrap gap-1.5">
-          <Button type="button" size="sm" variant="outline" onClick={() => videoInput.current?.click()} className="cursor-pointer">
+          <button type="button" className="btn sm" onClick={() => videoInput.current?.click()}>
             <Video className="h-4 w-4 mr-1" /> Add video
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => songInput.current?.click()} className="cursor-pointer">
+          </button>
+          <button type="button" className="btn sm" onClick={() => songInput.current?.click()}>
             <Music className="h-4 w-4 mr-1" /> Add song
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={split} disabled={total <= 0} className="cursor-pointer" title="Split at the playhead (S)">
+          </button>
+          <button type="button" className="btn sm" onClick={split} disabled={total <= 0} title="Split at the playhead (S)">
             <Scissors className="h-4 w-4 mr-1" /> Split
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={removeSelected} disabled={!selectedId} className="cursor-pointer" title="Delete the selected clip (Delete)">
+          </button>
+          <button type="button" className="btn sm" onClick={removeSelected} disabled={!selectedId} title="Delete the selected clip (Delete)">
             <Trash2 className="h-4 w-4 mr-1" /> Delete
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={undo} className="cursor-pointer" aria-label="Undo" title="Undo (Ctrl+Z)">
+          </button>
+          <button type="button" className="btn sm" onClick={undo} aria-label="Undo" title="Undo (Ctrl+Z)">
             <Undo2 className="h-4 w-4" />
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={redo} className="cursor-pointer" aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
+          </button>
+          <button type="button" className="btn sm" onClick={redo} aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
             <Redo2 className="h-4 w-4" />
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -559,22 +558,22 @@ export const VideoEditor = forwardRef<VideoEditorHandle, Props>(function VideoEd
       />
 
       {failed.map((f) => (
-        <p key={f} className="text-[11px] text-red-600">{f}</p>
+        <p key={f} className="err">{f}</p>
       ))}
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && <p className="err">{error}</p>}
 
       {rendering && (
-        <div className="rounded-lg border border-blue-300 dark:border-blue-900 p-3 space-y-1.5">
-          <div className="flex items-center justify-between text-xs">
+        <div className="card space-y-1.5 p-3">
+          <div className="flex items-center justify-between t12">
             <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {rendering.label}</span>
             <span className="tabular-nums">{Math.round(rendering.fraction * 100)}%</span>
           </div>
-          <div className="h-1.5 rounded bg-neutral-200 dark:bg-neutral-800 overflow-hidden">
-            <div className="h-full bg-blue-500" style={{ width: `${Math.round(rendering.fraction * 100)}%` }} />
+          <div className="meter">
+            <i style={{ width: `${Math.round(rendering.fraction * 100)}%` }} />
           </div>
-          <Button type="button" size="sm" variant="outline" onClick={() => abort.current?.abort()} className="cursor-pointer">
+          <button type="button" className="btn sm" onClick={() => abort.current?.abort()}>
             <X className="h-3.5 w-3.5 mr-1" /> Cancel
-          </Button>
+          </button>
         </div>
       )}
     </>
