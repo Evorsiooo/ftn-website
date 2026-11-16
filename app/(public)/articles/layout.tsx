@@ -1,22 +1,11 @@
 import type { Metadata } from "next";
+import { STATIC_CARDS } from "@/lib/og/cards";
+import { shareMeta } from "@/lib/og/meta";
 
 export const metadata: Metadata = {
   title: "Articles",
-  description: "The #1 Roblox Ro-State news source, covering politics, sports, crime, and more.",
-  openGraph: {
-    title: "Articles | FTN News",
-    description: "The #1 Roblox Ro-State news source, covering politics, sports, crime, and more.",
-    type: "website",
-    siteName: "FTN News",
-  },
-  twitter: {
-    card: "summary",
-    title: "Articles | FTN News",
-    description: "The #1 Roblox Ro-State news source, covering politics, sports, crime, and more.",
-  },
-  other: {
-    "theme-color": "#e2162b",
-  },
+  description: "Every story from the FTN newsroom.",
+  ...shareMeta({ title: "Articles | FTN News", description: "Every story from the FTN newsroom.", siteName: "FTN News", image: STATIC_CARDS.articles }),
 };
 
 export default function ArticlesLayout({ children }: { children: React.ReactNode }) {

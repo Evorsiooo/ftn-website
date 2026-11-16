@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import OTTClientLayout from "./client-layout";
+import { STATIC_CARDS } from "@/lib/og/cards";
+import { shareMeta } from "@/lib/og/meta";
 
 const manrope = localFont({
   src: "../../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
@@ -27,18 +29,14 @@ export const metadata: Metadata = {
     shortcut: "/logos/ftnplus_favicon.png",
     apple: "/logos/ftnplus_favicon.png",
   },
-  openGraph: {
+  ...shareMeta({
     title: "FTN+",
-    description: "Stream Roblox livestreams, broadcasts, podcasts, and video on-demand on FTN+.",
-    type: "website",
+    description: "Videos, livestreams, radio and sports from FTN, on demand and as it happens.",
     siteName: "FTN+",
-  },
-  twitter: {
-    card: "summary",
-    title: "FTN+",
-    description: "Stream Roblox livestreams, broadcasts, podcasts, and video on-demand on FTN+.",
-  },
-
+    image: STATIC_CARDS.plus,
+  }),
+  // Discord colours the stripe beside a link preview with theme-color: FTN yellow, like the FTN News pages.
+  other: { "theme-color": "#ffbb14" },
 };
 
 export default function OTTLayout({

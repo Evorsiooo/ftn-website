@@ -1,0 +1,56 @@
+name: Draw link preview cards
+
+# Draws the 1200x630 images Discord and X show under links to articles, videos, leagues, radio shows and
+# replays (see lib/og/cards.ts). The site can't draw them itself (too little CPU on the free plan), so this
+# asks it which cards are missing, draws them in Chromium and uploads them. Most runs find nothing to do
+# and stop after one request.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: og-cards
+  cancel-in-progress: false
+
+jobs:
+  draw:
+    name: Draw missing cards
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check for missing cards
+        id: check
+        env:
+          RADIO_CRON_SECRET: ${{ secrets.RADIO_CRON_SECRET }}
+        run: |
+          missing=$(curl -s -f --max-time 60 -H "x-cron-secret: $RADIO_CRON_SECRET" "https://ftn.euno.cc/api/og/pending?limit=1" | jq -r '.missing')
+          echo "missing=$missing" >> "$GITHUB_OUTPUT"
+          echo "$missing card(s) missing"
+
+      - uses: actions/checkout@v4
+        if: steps.check.outputs.missing != '0'
+        with:
+          sparse-checkout: |
+            scripts/og
+            public/logos
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.missing != '0'
+        with:
+          node-version: 20
+
+      - name: Install Chromium and the fonts
+        if: steps.check.outputs.missing != '0'
+        run: |
+          mkdir -p "$RUNNER_TEMP/og" && cd "$RUNNER_TEMP/og"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund playwright@1.49.1 @fontsource-variable/bricolage-grotesque@5.3.0 @fontsource-variable/dm-sans@5.3.0
+          npx playwright install --with-deps chromium
+
+      - name: Draw and upload
+        if: steps.check.outputs.missing != '0'
+        env:
+          OG_DEPS: ${{ runner.temp }}/og
+          OG_CRON_SECRET: ${{ secrets.RADIO_CRON_SECRET }}
+        run: node scripts/og/render.mjs

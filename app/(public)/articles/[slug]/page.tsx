@@ -1,6 +1,8 @@
 export const runtime = "edge";
 import React from "react";
 import type { Metadata } from "next";
+import { STATIC_CARDS, absoluteUrl, articleCard, existingCardUrl, type CardSpec } from "@/lib/og/cards";
+import { shareMeta } from "@/lib/og/meta";
 import { getDb } from "@/db";
 import { articles } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -21,6 +23,7 @@ export async function generateMetadata({
   let articleTitle = "Article";
   let articleSummary = "Read the latest reporting from FTN News.";
   let coverImageUrl: string | undefined = undefined;
+  let card: CardSpec | null = null;
 
   try {
     const d1 = (process.env as any).DB as D1Database;
@@ -40,6 +43,7 @@ export async function generateMetadata({
           }
         }
         articleTitle = article.title;
+        if (article.status === "published") card = articleCard(article);
         articleSummary = article.summary || articleSummary;
         if (article.coverImageUrl && article.coverImageUrl.trim().length > 0) {
           coverImageUrl = article.coverImageUrl.trim();
@@ -51,22 +55,15 @@ export async function generateMetadata({
   const meta: Metadata = {
     title: articleTitle,
     description: articleSummary,
-    openGraph: {
+    // The article's own card once it is drawn; until then its cover, or the Articles card.
+    ...shareMeta({
       title: `${articleTitle} | FTN News`,
       description: articleSummary,
-      type: "article",
       siteName: "FTN News",
-      ...(coverImageUrl ? { images: [{ url: coverImageUrl, alt: articleTitle }] } : {}),
-    },
-    twitter: {
-      card: coverImageUrl ? "summary_large_image" : "summary",
-      title: `${articleTitle} | FTN News`,
-      description: articleSummary,
-      ...(coverImageUrl ? { images: [coverImageUrl] } : {}),
-    },
-    other: {
-      "theme-color": "#e2162b",
-    },
+      type: "article",
+      image: (await existingCardUrl(card)) || absoluteUrl(coverImageUrl) || STATIC_CARDS.articles,
+      imageAlt: articleTitle,
+    }),
   };
 
   return meta;

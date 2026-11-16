@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { SITE_URL, STATIC_CARDS } from "@/lib/og/cards";
+import { shareMeta } from "@/lib/og/meta";
 import "@/components/plus/plus.css";
 import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
@@ -41,11 +43,14 @@ const manrope = localFont({
   display: "swap",
 });
 
+// Also the colour of the stripe beside a link preview on Discord.
 export const viewport: Viewport = {
-  themeColor: "#e2162b",
+  themeColor: "#ffbb14",
 };
 
 export const metadata: Metadata = {
+  // Makes every relative image URL in the share tags absolute (it was localhost on the live site).
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "FTN News",
     template: "FTN News | %s",
@@ -54,20 +59,12 @@ export const metadata: Metadata = {
   icons: {
     icon: "/logos/ftn_favicon_transparent.png",
   },
-  openGraph: {
+  ...shareMeta({
     title: "FTN News",
     description: "The #1 Roblox Ro-State news source, covering politics, sports, crime, and more.",
-    type: "website",
     siteName: "FTN News",
-  },
-  twitter: {
-    card: "summary",
-    title: "FTN News",
-    description: "The #1 Roblox Ro-State news source, covering politics, sports, crime, and more.",
-  },
-  other: {
-    "theme-color": "#e2162b",
-  },
+    image: STATIC_CARDS.home,
+  }),
 };
 
 export default function RootLayout({

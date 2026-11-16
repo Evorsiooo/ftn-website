@@ -1,0 +1,8 @@
+{
+  "article": { "layout": "news-item", "title": "County Executive Attempts to Dismiss Department Head because of personal grievances", "meta": "News · By Giz · Sep 3, 2026", "art": "https://ftn.euno.cc/api/media/articles/2026/09/b2534554-32fe-4e41-8e47-cabf9fea51c4.jpg" },
+  "article-nocover": { "layout": "news-item", "title": "Electoral Commissions has started in Harrison County!", "meta": "Opinion · By 12XFOV · Aug 24, 2026", "art": null },
+  "video": { "layout": "plus-photo", "title": "County Council Session - 11/11", "meta": "H-SPAN · Livestream · Nov 11, 2026 · 1 h 28 min", "photo": "https://i.ytimg.com/vi/zcmpUBqBSl0/maxresdefault.jpg", "avatar": "https://yt3.ggpht.com/ytc/AIdro_k-placeholder" },
+  "league": { "layout": "plus-art", "title": "Harrison Grand Touring Championship", "meta": "Racing · 2026 season", "art": "https://ftn.euno.cc/api/media/sports/2026/10/bd672ffb-38ef-4742-812b-efc7b504ce6d.png", "photo": "https://ftn.euno.cc/api/media/sports/2026/10/7368a092-3e5d-4bdf-8d47-4e78cdeba655.png" },
+  "show": { "layout": "plus-art", "title": "Early 2000's Throwback", "sub": "with Evorsio", "meta": "FTN Radio · Nov 17, 2026 · 16:30–17:30 UTC", "art": "https://ftn.euno.cc/api/media/radio/2026/10/7537789d-c28a-474e-843f-4e26c9d5224b.png", "photo": "https://ftn.euno.cc/api/media/radio/2026/10/7537789d-c28a-474e-843f-4e26c9d5224b.png" },
+  "long-title": { "layout": "plus-art", "title": "Call in to The Extremely Long Show Name That Somebody Typed Into The Schedule Without Thinking", "sub": "with Someone", "meta": "FTN Radio · Nov 17, 2026 · 23:30–Nov 18, 2026 00:30 UTC", "art": null, "photo": null }
+}
