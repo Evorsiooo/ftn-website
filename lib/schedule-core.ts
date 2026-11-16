@@ -159,7 +159,8 @@ export function expandOccurrences(
     const make = (start: Date, end: Date): Occurrence => ({
       broadcastId: b.id,
       title: broadcastTitle(b, show),
-      presenter: show?.presenter ?? null,
+      // a playlist or another station's stream has nobody presenting it, whatever show it is filed under
+      presenter: (b.plays ?? "hosted") === "hosted" ? show?.presenter ?? null : null,
       description: b.description ?? show?.description ?? null,
       artUrl: show?.artUrl ?? null,
       onRadio: b.onRadio,

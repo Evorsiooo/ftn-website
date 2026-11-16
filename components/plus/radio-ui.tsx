@@ -368,7 +368,7 @@ function Secondary({ v }: { v: StationView }) {
 
 const meta = (v: StationView) => [v.listening, v.next].filter(Boolean).join(" · ");
 
-type Slot = { start: string; show: { id: string; name: string; presenter: string | null; artUrl: string | null } };
+type Slot = { slotId: string; start: string; show: { id: string; name: string; presenter: string | null; artUrl: string | null } };
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "long" });
 
 function Shows() {
@@ -381,7 +381,8 @@ function Shows() {
   }, []);
   const shows = useMemo(() => {
     const seen = new Map<string, Slot>();
-    for (const s of slots ?? []) if (!seen.has(s.show.id)) seen.set(s.show.id, s);
+    // one card per airing (a show can have several, each with its own title), at its next time
+    for (const s of slots ?? []) if (!seen.has(s.slotId)) seen.set(s.slotId, s);
     return [...seen.values()];
   }, [slots]);
   if (!shows.length) return null;
@@ -392,7 +393,7 @@ function Shows() {
       </div>
       <div className="shows">
         {shows.map((s) => (
-          <Link key={s.show.id} href="/plus/schedule">
+          <Link key={s.slotId} href="/plus/schedule">
             {s.show.artUrl ? <img src={s.show.artUrl} alt="" /> : <div className="ph-art" />}
             <div className="n">{s.show.name}</div>
             {s.show.presenter && <div className="h">with {s.show.presenter}</div>}

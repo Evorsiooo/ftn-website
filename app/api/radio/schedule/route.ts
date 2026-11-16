@@ -19,7 +19,8 @@ export async function GET() {
       tag: o.tag,
       start: o.start.toISOString(),
       end: o.end.toISOString(),
-      show: { id: o.show!.id, name: o.show!.name, presenter: o.show!.presenter, description: o.show!.description, artUrl: o.show!.artUrl },
+      // the airing's own title (it replaces the show name when set) and presenter (none for a playlist)
+      show: { id: o.show!.id, name: o.title, presenter: o.presenter, description: o.description, artUrl: o.artUrl },
     }));
     return NextResponse.json(
       { schedule },

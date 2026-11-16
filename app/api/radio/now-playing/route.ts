@@ -58,10 +58,10 @@ export async function GET() {
 
     const mapOcc = (o: typeof current) =>
       o && {
-        name: o.show!.name,
-        presenter: o.show!.presenter,
-        description: o.show!.description,
-        artUrl: o.show!.artUrl,
+        name: o.title,
+        presenter: o.presenter,
+        description: o.description,
+        artUrl: o.artUrl,
         tag: o.tag,
         start: o.start.toISOString(),
         end: o.end.toISOString(),

@@ -38,7 +38,7 @@ export async function loadPlusNow(db: DbClient, now: Date = new Date()): Promise
     const { shows, broadcasts } = await loadShowsAndBroadcasts(db);
     const { current } = resolveCurrentAndNext(shows, broadcasts, now);
     if (current?.show) {
-      out.radio = { show: current.show.name, presenter: current.show.presenter, artUrl: current.show.artUrl };
+      out.radio = { show: current.title, presenter: current.presenter, artUrl: current.artUrl };
     }
     const nextOcc = expandOccurrences(shows, broadcasts, now, new Date(now.getTime() + 24 * HOUR_MS), false).find(
       (o) => o.start > now
