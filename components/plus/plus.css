@@ -583,3 +583,8 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
   .fp .radio .info { justify-content: flex-start; gap: 48px; }
   .fp .radio .info .txt { flex: 0 1 auto; min-width: calc(var(--art) + 16px); }
 }
+
+/* (2026-11-16) the player fills the whole window: the art's glow and its fade run down to the bottom
+   edge, the player sits centred in it, and Shows start below the fold */
+.fp .rtop { min-height: calc(100vh - var(--tabs-h, 0px)); min-height: calc(100svh - var(--tabs-h, 0px)); display: flex; flex-direction: column; }
+.fp .rtop > .radio, .fp .rtop > .offair { flex: 1 0 auto; width: 100%; align-content: center; }
