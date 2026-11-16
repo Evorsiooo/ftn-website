@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Check, X } from "lucide-react";
 import { fetchSession } from "@/lib/session-client";
 import { fetchAdminSummary, refreshAdminSummary, type AdminSummary } from "@/lib/admin-summary";
-import { canConfigureSite, canManagePosts, canPublishArticles, isPostsLeadership } from "@/lib/rbac";
+import { canConfigureSite, canManagePosts, canManageSports, canPublishArticles, isPostsLeadership } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
 import { toast, promptDialog } from "@/components/gs/dialogs";
 import { Body, PageBar, Pill, Screen, ago, hm } from "@/components/admin/ui";
@@ -24,6 +24,7 @@ export default function AdminToday() {
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [pending, setPending] = useState<any[] | null>(null);
   const [tips, setTips] = useState<any[] | null>(null);
+  const [results, setResults] = useState<{ id: string; name: string; league: string; startsAt: string }[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -36,13 +37,42 @@ export default function AdminToday() {
   const load = useCallback(async () => {
     if (!me || roles.length === 0) return;
     refreshAdminSummary();
-    const [s, p, t] = await Promise.all([
+    const [s, p, t, sp] = await Promise.all([
       fetchAdminSummary(roles),
-      canManagePosts(roles) ? fetch("/api/admin/posts").then((r) => (r.ok ? r.json() : null)).catch(() => null) : null,
-      canPublishArticles(roles) || canConfigureSite(roles) ? fetch("/api/admin/tips").then((r) => (r.ok ? r.json() : null)).catch(() => null) : null,
+      canManagePosts(roles)
+        ? fetch("/api/admin/posts")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null,
+      canPublishArticles(roles) || canConfigureSite(roles)
+        ? fetch("/api/admin/tips")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null,
+      canManageSports(roles)
+        ? fetch("/api/sports/data")
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null)
+        : null,
     ]);
     setSummary(s);
     setPending(p ? (p as any).posts.filter((x: any) => x.status === "pending" && !x.scheduledAt) : null);
+    if (sp) {
+      const d = sp as any;
+      const teams = new Map<string, string>((d.teams ?? []).map((x: any) => [x.id, x.name]));
+      const leagues = new Map<string, string>((d.leagues ?? []).map((x: any) => [x.id, x.name]));
+      const now = Date.now();
+      setResults(
+        (d.events ?? [])
+          .filter((e: any) => e.status === "scheduled" && +new Date(e.startsAt) < now)
+          .map((e: any) => ({
+            id: e.id,
+            name: e.name || (e.homeTeamId && e.awayTeamId ? `${teams.get(e.homeTeamId) ?? "?"} vs ${teams.get(e.awayTeamId) ?? "?"}` : "Event"),
+            league: leagues.get(e.leagueId) ?? "",
+            startsAt: e.startsAt,
+          })),
+      );
+    } else setResults(null);
     setTips(t ? (t as any).tips.filter((x: any) => x.status === "unread").sort((a: any, b: any) => +new Date(b.createdAt) - +new Date(a.createdAt)) : null);
   }, [me]);
   useEffect(() => {
@@ -75,7 +105,7 @@ export default function AdminToday() {
   const adsLow = summary?.adsLow ?? [];
   const drafts = summary?.drafts;
 
-  const needs = (pending?.length ?? 0) + (tips?.length ?? 0) + (imports?.review ? 1 : 0) + adsLow.length;
+  const needs = (pending?.length ?? 0) + (tips?.length ?? 0) + (imports?.review ? 1 : 0) + adsLow.length + (results?.length ?? 0);
   const firstName = (me?.displayName || me?.robloxUsername || "").split(" ")[0];
 
   return (
@@ -149,6 +179,33 @@ export default function AdminToday() {
                       </span>
                       <span className="t12 muted" style={{ flex: "none" }}>
                         {ago(t.createdAt)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {results && results.length > 0 && (
+              <section className="todo">
+                <h2>
+                  Needs a result <span className="c">{results.length}</span>
+                  <Link href="/admin/sports">Sports</Link>
+                </h2>
+                <div className="rows">
+                  {results.slice(0, 3).map((e) => (
+                    <Link key={e.id} href={`/admin/sports?result=${encodeURIComponent(e.id)}`} className="r">
+                      <span className="dot amber" />
+                      <span className="grow">
+                        <span className="trunc" style={{ display: "block", fontWeight: 600 }}>
+                          {e.name}
+                        </span>
+                        <span className="t12 muted trunc" style={{ display: "block" }}>
+                          {e.league} · {dayTime(new Date(e.startsAt))}
+                        </span>
+                      </span>
+                      <span className="btn sm" style={{ flex: "none" }}>
+                        Enter result
                       </span>
                     </Link>
                   ))}

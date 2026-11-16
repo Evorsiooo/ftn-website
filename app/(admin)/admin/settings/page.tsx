@@ -20,8 +20,8 @@ type Page = "site" | "access" | "radio" | "connections";
 const PAGE_SECTIONS: Record<Page, string[]> = {
   site: ["donation", "links"],
   access: ["signin", "gates"],
-  radio: ["stream", "station"],
-  connections: ["icecast", "rotation", "art"],
+  radio: ["stream", "station", "icecast", "rotation"],
+  connections: ["art"],
 };
 
 function Connected({ on }: { on: boolean }) {
@@ -205,7 +205,11 @@ function AccessPage({ c }: { c: SiteConfig }) {
       </Section>
       <Section title="Staff accounts">
         <p className="help" style={{ margin: 0 }}>
-          Accounts, passwords and roles are on the <Link href="/admin/people?tab=accounts" className="link">People</Link> page.
+          Accounts, passwords and roles are on the{" "}
+          <Link href="/admin/people?tab=accounts" className="link">
+            People
+          </Link>{" "}
+          page.
         </p>
       </Section>
     </>
@@ -244,7 +248,9 @@ function RadioPage({ c }: { c: SiteConfig }) {
       <Section title="Station" desc="What listeners see on the radio page.">
         <Line
           label="Show the song that is playing"
-          help={c.radioPublic.songDetection ? "The radio page shows the song the stream reports, and listeners can vote on it." : "Only the show and station are shown: no song, no song art, no votes."}
+          help={
+            c.radioPublic.songDetection ? "The radio page shows the song the stream reports, and listeners can vote on it." : "Only the show and station are shown: no song, no song art, no votes."
+          }
         >
           <Switch checked={c.radioPublic.songDetection} onChange={(v) => set({ songDetection: v })} label="Song detection" />
         </Line>
@@ -267,6 +273,7 @@ function RadioPage({ c }: { c: SiteConfig }) {
           </Field>
         </div>
       </Section>
+      <StreamServerSections c={c} />
       <Section title="Broadcasting from OBS" id="obs" desc="For shows sent from OBS instead of the Studio. Changes here save straight away.">
         <ObsSettings />
       </Section>
@@ -277,7 +284,8 @@ function RadioPage({ c }: { c: SiteConfig }) {
               <i style={{ width: `${Math.min(100, (usage.bytes / usage.capBytes) * 100)}%` }} />
             </div>
             <div className="help">
-              About {gb(usage.bytes)} of the {gb(usage.capBytes)} cap (Cloudflare&apos;s free allowance is {gb(usage.freeBytes)}). {usage.blocked ? "Voice is off until next month." : "Voice stops by itself at the cap, so it never costs anything."}
+              About {gb(usage.bytes)} of the {gb(usage.capBytes)} cap (Cloudflare&apos;s free allowance is {gb(usage.freeBytes)}).{" "}
+              {usage.blocked ? "Voice is off until next month." : "Voice stops by itself at the cap, so it never costs anything."}
             </div>
           </div>
         ) : (
@@ -292,12 +300,16 @@ function RadioPage({ c }: { c: SiteConfig }) {
 
 /* ---------------- Integrations ---------------- */
 
-function ConnectionsPage({ c }: { c: SiteConfig }) {
+function StreamServerSections({ c }: { c: SiteConfig }) {
   const s = c.radioSecure;
   const set = (patch: Partial<SiteConfig["radioSecure"]>) => c.setRadioSecure({ ...s, ...patch });
   return (
     <>
-      <Section title="Icecast" aside={<Connected on={!!(s.icecastAdminUrl && s.icecastPassword)} />} desc="Optional. Lets the site read live listener counts and song details from the stream server. Stored encrypted, never sent to visitors.">
+      <Section
+        title="Icecast"
+        aside={<Connected on={!!(s.icecastAdminUrl && s.icecastPassword)} />}
+        desc="Optional. Lets the site read live listener counts and song details from the stream server. Stored encrypted, never sent to visitors."
+      >
         <div className="two">
           <Field label="Admin address">
             <input className="input" value={s.icecastAdminUrl} onChange={(e) => set({ icecastAdminUrl: e.target.value })} placeholder="http://127.0.0.1:8000" />
@@ -319,10 +331,10 @@ function ConnectionsPage({ c }: { c: SiteConfig }) {
         desc={
           <>
             A small service on the radio server changes the OBS password. Automatic changes are checked every hour. The current password is in{" "}
-            <Link href="/admin/settings/radio#obs" className="link">
-              Settings › Radio
-            </Link>
-            .
+            <a href="#obs" className="link">
+              Broadcasting from OBS
+            </a>{" "}
+            above.
           </>
         }
       >
@@ -347,8 +359,31 @@ function ConnectionsPage({ c }: { c: SiteConfig }) {
           </Field>
         </div>
         <Field label="Discord webhook for notices" help="Posts in Discord each time the password changes.">
-          <input className="input" type="password" value={s.discordWebhookUrl} onChange={(e) => set({ discordWebhookUrl: e.target.value })} placeholder="https://discord.com/api/webhooks/…" autoComplete="new-password" />
+          <input
+            className="input"
+            type="password"
+            value={s.discordWebhookUrl}
+            onChange={(e) => set({ discordWebhookUrl: e.target.value })}
+            placeholder="https://discord.com/api/webhooks/…"
+            autoComplete="new-password"
+          />
         </Field>
+      </Section>
+    </>
+  );
+}
+
+function ConnectionsPage({ c }: { c: SiteConfig }) {
+  const s = c.radioSecure;
+  const set = (patch: Partial<SiteConfig["radioSecure"]>) => c.setRadioSecure({ ...s, ...patch });
+  return (
+    <>
+      <Section title="YouTube and Twitch" desc="The channels FTN+ shows and their sync live with the rest of the FTN+ content.">
+        <Line label="Channels and sync" help="Add or remove YouTube channels and Twitch streamers, and sync videos now.">
+          <Link href="/admin/plus" className="btn sm">
+            Open FTN+ content
+          </Link>
+        </Line>
       </Section>
       <Section title="Album art" aside={<Connected on={!!(s.lastFmApiKey || s.fanartTvApiKey)} />} desc="Keys and lookup order for finding the cover of the song on air.">
         <div className="two">

@@ -158,6 +158,19 @@ export default function AdminSportsConsole() {
     if (!leagueId && data.leagues.length > 0) setLeagueId(data.leagues[0].id);
   }, [data.leagues, leagueId]);
 
+  // ?result=<event id> (from Today) opens that event's result editor in its league.
+  const [deepLinked, setDeepLinked] = useState(false);
+  useEffect(() => {
+    if (deepLinked || data.events.length === 0) return;
+    setDeepLinked(true);
+    const id = new URLSearchParams(window.location.search).get("result");
+    const ev = id ? data.events.find((e) => e.id === id) : null;
+    if (!ev) return;
+    setLeagueId(ev.leagueId);
+    setSheet({ kind: "result", id: ev.id });
+    window.history.replaceState(null, "", "/admin/sports");
+  }, [data.events, deepLinked]);
+
   const league = data.leagues.find((l) => l.id === leagueId);
   const racing = league?.kind === "racing";
   const perLeague = tab === "overview" || tab === "events" || tab === "roster";

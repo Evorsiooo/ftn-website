@@ -121,7 +121,7 @@
 .adm .pill.amber { background: var(--a-amber-soft); color: var(--a-amber); } .adm .pill.green { background: var(--a-green-soft); color: var(--a-green); }
 .adm .pill.red { background: var(--a-red-soft); color: var(--a-red); } .adm .pill.grey { background: var(--a-sunken); color: var(--a-muted); }
 .adm .pill.blue { background: var(--a-blue-soft); color: var(--a-blue); } .adm .pill.yellow { background: var(--a-accent-soft); color: var(--a-text); }
-.adm .field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; }
+.adm .field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; min-width: 0; align-content: start; }
 .adm .field > .seg, .adm .field > .btn, .adm .fsec > .seg, .adm .fsec > .btn { justify-self: start; }
 .adm .field > label, .adm .lbl { font-weight: 600; font-size: 13px; }
 .adm .help { font-size: 12px; color: var(--a-muted); }
