@@ -14,6 +14,8 @@ export function useOnAirVoice(opts: {
   personId: string | null;
   mic: MediaStream | null;
   report: (session: string, track: string) => Promise<void>;
+  /** Muted: nothing goes out (the track sent to the SFU is silenced, not only the page's own). */
+  muted?: boolean;
 }): { error: string | null; connected: boolean } {
   const { personId, mic } = opts;
   const radio = useRadio();
@@ -22,6 +24,12 @@ export function useOnAirVoice(opts: {
   reportRef.current = opts.report;
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  const sent = useRef<MediaStreamTrack | null>(null);
+  const mutedRef = useRef(!!opts.muted);
+  mutedRef.current = !!opts.muted;
+  useEffect(() => {
+    if (sent.current) sent.current.enabled = !opts.muted;
+  }, [opts.muted]);
 
   useEffect(() => {
     if (!personId || !mic) return;
@@ -37,7 +45,10 @@ export function useOnAirVoice(opts: {
         if (!alive) return link.close();
         link.onStop = (why) => alive && (setError(why), setConnected(false));
         // the link stops the tracks it sends when closed; send a clone so the page keeps its microphone
-        const name = await link.push(track.clone());
+        const out = track.clone();
+        out.enabled = !mutedRef.current;
+        sent.current = out;
+        const name = await link.push(out);
         await reportRef.current(link.session, name);
         if (!alive) return;
         setConnected(true);
@@ -54,6 +65,7 @@ export function useOnAirVoice(opts: {
       alive = false;
       recorder?.stop();
       link?.close();
+      sent.current = null;
       setOwn(null);
       setConnected(false);
     };

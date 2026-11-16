@@ -1,10 +1,7 @@
 "use client";
+// What listeners think of the songs (likes minus dislikes): the Ratings tab of the Song library.
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
-import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
-import { AdminPageHeader } from "@/components/gs/admin-header";
-import { canManageRadio } from "@/lib/rbac";
 
 interface Rated {
   artist: string;
@@ -45,7 +42,7 @@ function List({ title, empty, rows, tone }: { title: string; empty: string; rows
   );
 }
 
-export default function AdminSongRatingsPage() {
+export function SongRatings() {
   const [data, setData] = useState<{ best: Rated[]; worst: Rated[]; totalVotes: number; totalSongs: number } | null>(null);
   const [error, setError] = useState(false);
 
@@ -56,29 +53,17 @@ export default function AdminSongRatingsPage() {
       .catch(() => setError(true));
   }, []);
 
+  if (error) return <p className="text-sm text-red-600">Could not load ratings.</p>;
+  if (!data) return <p className="text-sm text-neutral-500">Loading…</p>;
   return (
-    <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Song ratings">
-      <div className="w-full space-y-6 text-neutral-900 dark:text-white">
-        <AdminPageHeader
-          title="Song ratings"
-          description={
-            data
-              ? `${data.totalVotes} vote${data.totalVotes === 1 ? "" : "s"} across ${data.totalSongs} song${data.totalSongs === 1 ? "" : "s"}. Score is likes minus dislikes.`
-              : "What listeners think of the songs on the webradio."
-          }
-          actions={<Link href="/admin/radio/library" className="gs-bar-link pb-0.5 text-sm font-bold">← Song library</Link>}
-        />
-        {error ? (
-          <p className="text-sm text-red-600">Could not load ratings.</p>
-        ) : !data ? (
-          <p className="text-sm text-neutral-500">Loading…</p>
-        ) : (
-          <div className="grid gap-6 lg:grid-cols-2">
-            <List title="Best rated" tone="good" rows={data.best} empty="No song has a positive score yet." />
-            <List title="Worst rated" tone="bad" rows={data.worst} empty="No song has a negative score yet." />
-          </div>
-        )}
+    <div className="space-y-4">
+      <p className="text-sm text-neutral-500">
+        {data.totalVotes} vote{data.totalVotes === 1 ? "" : "s"} across {data.totalSongs} song{data.totalSongs === 1 ? "" : "s"}. Score is likes minus dislikes.
+      </p>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <List title="Best rated" tone="good" rows={data.best} empty="No song has a positive score yet." />
+        <List title="Worst rated" tone="bad" rows={data.worst} empty="No song has a negative score yet." />
       </div>
-    </AdminAuthGuard>
+    </div>
   );
 }

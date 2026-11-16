@@ -14,7 +14,9 @@ import { canManageRadio } from "@/lib/rbac";
 import { useRadio } from "@/components/radio/radio-provider";
 import { useMicLevel, useOnAirVoice } from "@/components/radio/use-on-air-voice";
 import { getMic } from "@/components/radio/voice";
-import { labelClass, selectClass } from "@/components/admin/schedule/styles";
+import { labelClass } from "@/components/admin/schedule/styles";
+import { expandOccurrences, type Occurrence } from "@/lib/schedule-core";
+import { fmtTime, parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
 
 type Person = { id: string; name: string; avatar: string | null; role: "host" | "cohost" | "caller"; state: "waiting" | "on_air"; connected: boolean };
 type Queued = { id: string; label: string; state: string; ready: boolean };
@@ -27,7 +29,7 @@ type State = {
   cap: number;
   usage: Usage;
 };
-type Replay = { id: string; kind: string; title: string; hidden: boolean; startedAt: number; endedAt: number | null };
+type Replay = { id: string; kind: string; title: string; showId: string | null; hidden: boolean; startedAt: number; endedAt: number | null };
 type Show = { id: string; name: string };
 
 async function call<T = any>(url: string, init?: RequestInit): Promise<T> {
@@ -61,9 +63,8 @@ export default function StudioPage() {
   const [busy, setBusy] = useState(false);
   const [mic, setMic] = useState<MediaStream | null>(null);
   const [muted, setMuted] = useState(false);
-  const [shows, setShows] = useState<Show[]>([]);
-  const [showId, setShowId] = useState("");
-  const [title, setTitle] = useState("");
+  // the show this Studio was opened for, from the Schedule (?b=<broadcast>&at=<airing start, ms>)
+  const [occ, setOcc] = useState<Occurrence | null | undefined>(undefined);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<{ key: string; title: string; artist: string }[]>([]);
   const [url, setUrl] = useState("");
@@ -84,9 +85,18 @@ export default function StudioPage() {
   useEffect(() => {
     void load();
     void loadReplays();
-    call<{ shows: Show[] }>("/api/admin/broadcasts")
-      .then((d) => setShows(d.shows || []))
-      .catch(() => {});
+    const q = new URLSearchParams(window.location.search);
+    const bid = q.get("b");
+    const at = Number(q.get("at")) || Date.now();
+    if (!bid) setOcc(null);
+    else
+      call<{ shows: ShowRecord[]; broadcasts: ApiBroadcast[] }>("/api/admin/broadcasts")
+        .then((d) => {
+          const b = (d.broadcasts || []).map(parseBroadcast).filter((x) => x.id === bid);
+          const list = expandOccurrences(d.shows || [], b, new Date(at - 86400000), new Date(at + 8 * 86400000), false);
+          setOcc(list.find((o) => o.start.getTime() === at) ?? list.find((o) => o.end.getTime() > Date.now()) ?? null);
+        })
+        .catch(() => setOcc(null));
     // every 5 s while the tab is visible, every 20 s while it's hidden: still within the 45 s after
     // which the server takes a silent broadcaster off air, so switching tabs doesn't end the show
     let n = 0;
@@ -158,7 +168,7 @@ export default function StudioPage() {
   const report = useCallback(async (session: string, track: string) => {
     await post({ op: "track", session, track });
   }, []);
-  const voice = useOnAirVoice({ personId: onAir ? state!.me!.id : null, mic: onAir ? mic : null, report });
+  const voice = useOnAirVoice({ personId: onAir ? state!.me!.id : null, mic: onAir ? mic : null, report, muted });
 
   // library search
   useEffect(() => {
@@ -171,6 +181,9 @@ export default function StudioPage() {
     return () => clearTimeout(t);
   }, [query, onAir]);
 
+  // past episodes of this show (by its show, else its name); every replay when no show is open
+  const scope = occ ? { showId: occ.show?.id ?? null, title: occ.title } : state?.session ? { showId: null, title: state.session.title } : null;
+  const shown = scope ? replays.filter((r) => (scope.showId ? r.showId === scope.showId : r.title === scope.title)) : replays;
   const speaking = useMemo(() => new Set(radio.speaking), [radio.speaking]);
   const waiting = state?.people.filter((p) => p.state === "waiting") ?? [];
   const live = state?.people.filter((p) => p.state === "on_air") ?? [];
@@ -180,15 +193,22 @@ export default function StudioPage() {
   return (
     <AdminAuthGuard requiredPermission={canManageRadio} featureTitle="Studio">
       <div className="w-full space-y-6 text-neutral-900 dark:text-white">
-        <AdminPageHeader
-          title="Studio"
-          description="Run a show on the radio from here: talk, queue songs, take calls. Listeners hear the music mixed in their own browser, and your voices on top."
-          actions={
-            <Link href="/admin/radio" className="gs-bar-link pb-0.5 text-sm font-bold">
-              ← Schedule
-            </Link>
-          }
-        />
+        <div>
+          <nav aria-label="Breadcrumb" className="mb-1 text-sm text-neutral-500">
+            <Link href="/admin/schedule" className="font-bold underline">
+              Schedule
+            </Link>{" "}
+            / Studio
+          </nav>
+          <AdminPageHeader
+            title={state?.session?.title ?? occ?.title ?? "Studio"}
+            description={
+              occ
+                ? `${occ.start.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" })}, ${fmtTime(occ.start)} to ${fmtTime(occ.end)}${occ.presenter ? ` · with ${occ.presenter}` : ""}`
+                : "Run a show on the radio: talk, queue songs, take calls. Listeners hear the music mixed in their own browser, and your voices on top."
+            }
+          />
+        </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
         {voice.error && <p className="text-sm text-red-600">{voice.error}</p>}
@@ -196,30 +216,27 @@ export default function StudioPage() {
         {!state ? (
           <p className="text-sm text-neutral-500">Loading…</p>
         ) : !state.session ? (
-          <div className={card}>
-            <h2 className={h2}>Start a show</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className={labelClass}>Show</label>
-                <Select value={showId} onChange={(e) => setShowId(e.target.value)} className={selectClass}>
-                  <option value="">No show (give it a name)</option>
-                  {shows.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-              <div>
-                <label className={labelClass}>Name {showId ? "(optional)" : ""}</label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Friday Night Mix" />
-              </div>
+          occ === undefined ? (
+            <p className="text-sm text-neutral-500">Loading…</p>
+          ) : occ ? (
+            <div className={card}>
+              <h2 className={h2}>Ready when you are</h2>
+              <p className="text-sm text-neutral-500">
+                Your microphone goes on air as soon as you press it. Use headphones so the radio doesn&apos;t echo into it. Until then, the AutoDJ plays.
+              </p>
+              <Button className="mt-4 h-10 cursor-pointer px-5" disabled={busy || usage?.blocked} onClick={() => void goOnAir({ op: "start", showId: occ.show?.id ?? null, title: occ.title })}>
+                <Mic /> Go on air
+              </Button>
             </div>
-            <p className="mt-3 text-sm text-neutral-500">Your microphone goes on air as soon as you start. Use headphones so the radio doesn&apos;t echo into it.</p>
-            <Button className="mt-4 h-10 cursor-pointer px-5" disabled={busy || usage?.blocked} onClick={() => void goOnAir({ op: "start", showId: showId || null, title })}>
-              <Mic /> Go on air
-            </Button>
-          </div>
+          ) : (
+            <div className={card}>
+              <h2 className={h2}>Open a show to go on air</h2>
+              <p className="text-sm text-neutral-500">Shows are made on the Schedule. Click one there, then Open Studio.</p>
+              <Link href="/admin/schedule" className="mt-4 inline-flex h-10 items-center rounded-full bg-brand px-5 text-sm font-bold text-brand-ink hover:bg-brand-hover">
+                Go to the Schedule
+              </Link>
+            </div>
+          )
         ) : !state.me ? (
           <div className={card}>
             <h2 className={h2}>{state.session.title} is on air</h2>
@@ -431,12 +448,12 @@ export default function StudioPage() {
         )}
 
         <div className={card}>
-          <h2 className={h2}>Replays</h2>
-          {replays.length === 0 ? (
+          <h2 className={h2}>{scope ? `Past episodes of ${scope.title}` : "Replays"}</h2>
+          {shown.length === 0 ? (
             <p className="text-sm text-neutral-500">Shows run from the Studio, and playlist shows, are kept here to listen back to on FTN+.</p>
           ) : (
             <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
-              {replays.map((r) => (
+              {shown.map((r) => (
                 <li key={r.id} className="flex flex-wrap items-center gap-3 py-2">
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-bold">{r.title}</div>

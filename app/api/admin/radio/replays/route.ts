@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   try {
     const rows = await ctx.db.select().from(radioReplays).orderBy(desc(radioReplays.startedAt)).limit(100);
     return NextResponse.json({
-      replays: rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, hidden: r.hidden, startedAt: r.startedAt.getTime(), endedAt: r.endedAt?.getTime() ?? null })),
+      replays: rows.map((r) => ({ id: r.id, kind: r.kind, title: r.title, showId: r.showId, hidden: r.hidden, startedAt: r.startedAt.getTime(), endedAt: r.endedAt?.getTime() ?? null })),
     });
   } catch (err) {
     return failure(err, "Could not load replays");

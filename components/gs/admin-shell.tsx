@@ -149,13 +149,13 @@ function JumpBar({ modules, onClose }: { modules: typeof ADMIN_MODULES; onClose:
   const canStories = modules.some((m) => m.href === "/admin/articles");
   const canPeople = modules.some((m) => m.href === "/admin/roles");
   const [stories, setStories] = useState<{ title: string; slug: string; status: string }[] | null>(null);
-  const canShows = modules.some((m) => m.href === "/admin/radio");
+  const canShows = modules.some((m) => m.href === "/admin/schedule");
   const [shows, setShows] = useState<{ title: string; hint: string; href: string }[] | null>(null);
   useEffect(() => {
     if (!canShows || needle.length < 2 || shows) return;
     fetch("/api/admin/broadcasts")
       .then((r) => r.json() as Promise<{ shows?: any[] }>)
-      .then((d) => setShows((d.shows ?? []).map((sh) => ({ title: sh.name, hint: `Show${sh.presenter ? ` · ${sh.presenter}` : ""}`, href: "/admin/radio" }))))
+      .then((d) => setShows((d.shows ?? []).map((sh) => ({ title: sh.name, hint: `Show${sh.presenter ? ` · ${sh.presenter}` : ""}`, href: "/admin/schedule" }))))
       .catch(() => setShows([]));
   }, [canShows, needle, shows]);
   const [people, setPeople] = useState<{ title: string; hint: string; href: string }[]>([]);

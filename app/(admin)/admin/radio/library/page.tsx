@@ -1,11 +1,11 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { RefreshCw, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { AdminPageHeader, AdminTab } from "@/components/gs/admin-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SongRatings } from "@/components/admin/radio-library/ratings";
 import { canManageRadio } from "@/lib/rbac";
 import { AddSongs, ReviewMatches } from "@/components/admin/radio-library/add-songs";
 import { SongList, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
@@ -13,7 +13,7 @@ import { PlaylistList } from "@/components/admin/radio-library/playlists";
 import { useMetadataCheck } from "@/components/admin/radio-library/metadata-check";
 import { api, FINAL, type Import, type Playlist, type Review, type Song } from "@/components/admin/radio-library/types";
 
-type Tab = "songs" | "playlists" | "archived";
+type Tab = "songs" | "playlists" | "archived" | "ratings";
 
 export default function RadioLibraryPage() {
   const [songs, setSongs] = useState<Song[] | null>(null);
@@ -22,6 +22,10 @@ export default function RadioLibraryPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("songs");
+  // ?tab=ratings (the old Song ratings page redirects here)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("tab") === "ratings") setTab("ratings");
+  }, []);
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
   const preview = usePreview();
@@ -90,8 +94,6 @@ export default function RadioLibraryPage() {
           description="The songs the radio plays. Every song here that isn't archived can come up on the AutoDJ."
           actions={
             <>
-              <Link href="/admin/radio" className="gs-bar-link pb-0.5 text-sm font-bold">← Schedule</Link>
-              <Link href="/admin/radio/ratings" className="gs-bar-link pb-0.5 text-sm font-bold">Song ratings →</Link>
               <Button
                 size="sm"
                 variant="outline"
@@ -132,8 +134,9 @@ export default function RadioLibraryPage() {
               <AdminTab active={tab === "songs"} onClick={() => setTab("songs")}>Songs {songs ? `(${live.length})` : ""}</AdminTab>
               <AdminTab active={tab === "playlists"} onClick={() => setTab("playlists")}>Playlists ({playlists.length})</AdminTab>
               <AdminTab active={tab === "archived"} onClick={() => setTab("archived")}>Archived {songs ? `(${archived.length})` : ""}</AdminTab>
+              <AdminTab active={tab === "ratings"} onClick={() => setTab("ratings")}>Ratings</AdminTab>
             </div>
-            {tab !== "playlists" && (
+            {(tab === "songs" || tab === "archived") && (
               <div className="w-full pb-2 sm:w-72">
                 <label htmlFor="radio-library-search" className="sr-only">Search songs</label>
                 <Input id="radio-library-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search title, artist or album" />
@@ -141,7 +144,9 @@ export default function RadioLibraryPage() {
             )}
           </div>
 
-          {error ? (
+          {tab === "ratings" ? (
+            <SongRatings />
+          ) : error ? (
             <p className="text-sm text-red-600">{error}</p>
           ) : !songs ? (
             <p className="text-sm text-neutral-500">Loading…</p>

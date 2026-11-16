@@ -31,6 +31,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/plus/library", destination: "/plus/videos", permanent: true },
       { source: "/plus/watchlist", destination: "/plus/saved", permanent: true },
+      // the admin Schedule and Studio moved (2026-11): the Schedule is the hub, the Studio opens for a show
+      { source: "/admin/radio", destination: "/admin/schedule", permanent: true },
+      { source: "/admin/radio/studio", destination: "/admin/schedule/studio", permanent: true },
+      { source: "/admin/radio/ratings", destination: "/admin/radio/library?tab=ratings", permanent: true },
     ];
   },
   async headers() {

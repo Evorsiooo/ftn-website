@@ -24,6 +24,7 @@ import {
   startOfWeek,
 } from "@/lib/schedule-client";
 import { BroadcastForm, FormPreset } from "./broadcast-form";
+import { ShowPanel } from "./show-panel";
 import { selectClass } from "./styles";
 
 const HOUR_PX = 44;
@@ -112,7 +113,7 @@ function WeekGrid({
 }: {
   weekStart: Date;
   occs: Occurrence[];
-  onPick: (id: string) => void;
+  onPick: (o: Occurrence) => void;
   onCreate: (start: Date) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
@@ -174,7 +175,7 @@ function WeekGrid({
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onPick(o.broadcastId);
+                        onPick(o);
                       }}
                       title={`${o.title} · ${fmtRange(o.start, o.end)}`}
                       className={`absolute overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-[10px] leading-tight cursor-pointer hover:brightness-110 ${mediumClasses(o)} ${cancelled ? "opacity-50 line-through" : ""}`}
@@ -305,6 +306,8 @@ export function ScheduleTab({
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [panel, setPanel] = useState<{ broadcastId?: string; preset?: FormPreset } | null>(null);
+  // a show clicked in the week: its panel (Open Studio, Edit, OBS, past episodes)
+  const [picked, setPicked] = useState<Occurrence | null>(null);
   const [shiftHours, setShiftHours] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -480,13 +483,24 @@ export function ScheduleTab({
           <WeekGrid
             weekStart={weekStart}
             occs={occs}
-            onPick={(id) => setPanel({ broadcastId: id })}
+            onPick={setPicked}
             onCreate={(start) => setPanel({ preset: { start, end: new Date(start.getTime() + 2 * 3600000) } })}
           />
-          <p className="text-[11px] text-neutral-500">Click a block to edit it, or an empty spot to add a broadcast there. Use “All broadcasts” for bulk actions.</p>
+          <p className="text-[11px] text-neutral-500">Click a show to open it (Studio, edit, past episodes), or an empty spot to add a broadcast there. Use “All broadcasts” for bulk actions.</p>
         </>
       ) : (
         <BroadcastTable list={filtered} shows={shows} selected={selected} setSelected={setSelected} onEdit={(id) => setPanel({ broadcastId: id })} />
+      )}
+
+      {picked && !panel && (
+        <ShowPanel
+          occ={picked}
+          onClose={() => setPicked(null)}
+          onEdit={() => {
+            setPanel({ broadcastId: picked.broadcastId });
+            setPicked(null);
+          }}
+        />
       )}
 
       {panel && (
