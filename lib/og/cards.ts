@@ -13,7 +13,7 @@
 export const SITE_URL = "https://ftn.euno.cc";
 
 // Bump when scripts/og/cards.html changes how a card looks, so every card is drawn again.
-export const CARD_VERSION = 1;
+export const CARD_VERSION = 2;
 
 export type CardLayout = "news-item" | "plus-photo" | "plus-art";
 

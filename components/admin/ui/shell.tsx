@@ -100,7 +100,8 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
           {menu ? <X className="ic" /> : <Menu className="ic" />}
         </button>
         <Link href="/admin" aria-label="Admin home">
-          <img src="/logos/ftn_text_transparent.png" alt="FTN" className="dark:invert" />
+          <img src="/logos/ftn_text_transparent.png" alt="FTN" className="dark:hidden" />
+          <img src="/logos/ftn_textwhite_transparent.png" alt="FTN" className="hidden dark:block" />
         </Link>
         <button type="button" className="iconbtn" aria-label="Jump to" onClick={() => setJumpOpen(true)} style={{ marginLeft: onAir ? 0 : "auto" }}>
           <Search className="ic" />
@@ -115,7 +116,8 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
 
       <aside className="adm-side">
         <Link href="/admin" className="adm-side-top hide-m">
-          <img src="/logos/ftn_text_transparent.png" alt="FTN" className="dark:invert" />
+          <img src="/logos/ftn_text_transparent.png" alt="FTN" className="dark:hidden" />
+          <img src="/logos/ftn_textwhite_transparent.png" alt="FTN" className="hidden dark:block" />
           <span className="lbl">Admin</span>
         </Link>
         <button type="button" className="adm-jump" onClick={() => setJumpOpen(true)}>

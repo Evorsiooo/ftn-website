@@ -40,6 +40,9 @@ export function PlaylistList({
     }
   };
 
+  // On a computer the first playlist shows straight away; on a phone the list stays until one is tapped.
+  const shown = open ?? playlists[0]?.id ?? null;
+
   const syncing = new Set(imports.filter((i) => i.playlistId && !["done", "failed", "cancelled"].includes(i.state)).map((i) => i.playlistId));
 
   return (
@@ -53,7 +56,7 @@ export function PlaylistList({
         </button>
         {playlists.length === 0 && <div className="empty">No playlists yet. Importing an album or playlist link makes one.</div>}
         {playlists.map((p) => (
-          <button key={p.id} type="button" className={p.id === open ? "item on" : "item"} onClick={() => setOpen(p.id)}>
+          <button key={p.id} type="button" className={p.id === shown ? "item on" : "item"} onClick={() => setOpen(p.id)}>
             <span className="thumb" style={{ width: 40, height: 40, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <ListMusic className="ic faint" />
             </span>
@@ -71,8 +74,8 @@ export function PlaylistList({
         ))}
       </div>
       <div className="ld-pane">
-        {open ? (
-          <PlaylistDetail key={open} id={open} library={library} syncing={syncing.has(open)} onClose={() => setOpen(null)} onChange={onChange} preview={preview} />
+        {shown ? (
+          <PlaylistDetail key={shown} id={shown} library={library} syncing={syncing.has(shown)} onClose={() => setOpen(null)} onChange={onChange} preview={preview} />
         ) : (
           <div className="pane-empty">Pick a playlist to see and change its songs.</div>
         )}
@@ -287,7 +290,12 @@ function PlaylistDetail({
                   <button type="button" className="iconbtn" aria-label="Move down" disabled={i === songs.length - 1} onClick={() => move(i, 1)}>
                     <ArrowDown className="ic-sm" />
                   </button>
-                  <button type="button" className="iconbtn" aria-label={`Remove ${s.title} from the playlist`} onClick={() => (setSongs((l) => l.filter((x) => x.id !== s.id)), setDirty(true), setListDirty(true))}>
+                  <button
+                    type="button"
+                    className="iconbtn"
+                    aria-label={`Remove ${s.title} from the playlist`}
+                    onClick={() => (setSongs((l) => l.filter((x) => x.id !== s.id)), setDirty(true), setListDirty(true))}
+                  >
                     <X className="ic-sm" />
                   </button>
                 </li>
