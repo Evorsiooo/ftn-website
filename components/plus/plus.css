@@ -576,3 +576,10 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
   .fp .radio .info .ctrl .btn { height: 44px; padding: 0 16px; font-size: 15px; }
   .fp .radio .info .ctrl .gap { width: 0; }
 }
+/* (2026-11-16) the controls sit under the title and artist, left-aligned with them, instead of
+   pushed to the far right; the art gives up a little height so it all still fits the window */
+@media (min-width: 1001px) {
+  .fp .radio { --art: clamp(200px, calc(100vh - var(--nav-h) - 360px), 380px); }
+  .fp .radio .info { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 20px; }
+  .fp .radio .info .txt { width: 100%; }
+}

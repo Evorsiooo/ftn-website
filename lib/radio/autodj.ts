@@ -226,7 +226,42 @@ export function nowPlaying(tl: RadioTimeline, serverMs: number): { slot: Slot; p
   const k = slotIndexAt(tl, serverMs);
   if (k === null) return null;
   const slot = slotAt(tl, k)!;
-  return { slot, positionSec: slot.soloFromSec + (serverMs - slot.soloFromMs) / 1000 };
+  return { slot, positionSec: trackPositionSec(slot, serverMs) };
+}
+
+/**
+ * Where in its own track the song on [slot] really is at [serverMs]. While it plays alone that is a straight
+ * line at normal speed; while it mixes in or out it follows the mix's transport (the same points the decks
+ * are scheduled on), because a mix plays it tempo-matched or looped, so the line would run ahead or behind
+ * and the lyrics would rush, then wait for the song (BitChord follows the mix's playhead the same way).
+ */
+export function trackPositionSec(slot: Slot, serverMs: number): number {
+  const solo = slot.soloFromSec + (serverMs - slot.soloFromMs) / 1000;
+  const along = (mix: TimelineMix, t0Ms: number, el: 'inEl' | 'outEl', loop: 'inLoop' | 'outLoop') => {
+    const t = (serverMs - t0Ms) / 1000;
+    const atEl = pointAt(mix.program.transport.filter((p) => p.deck === el), t);
+    if (atEl?.active) return atEl.input + (t - atEl.output) * atEl.rate;
+    const atLoop = pointAt(mix.program.loops.filter((p) => p.deck === loop), t);
+    if (atLoop?.active) {
+      let pos = atLoop.input + (t - atLoop.output) * atLoop.rate;
+      if (atLoop.loop && atLoop.loop[1] > atLoop.loop[0] && pos >= atLoop.loop[1]) {
+        const [a, b] = atLoop.loop;
+        pos = a + ((pos - a) % (b - a));
+      }
+      return pos;
+    }
+    return atEl ? atEl.input : null;
+  };
+  if (slot.mixIn && serverMs < slot.soloFromMs) return along(slot.mixIn.mix, slot.mixIn.t0Ms, "inEl", "inLoop") ?? solo;
+  if (slot.mixOut && serverMs >= slot.mixOut.t0Ms) return along(slot.mixOut.mix, slot.mixOut.t0Ms, "outEl", "outLoop") ?? solo;
+  return solo;
+}
+
+/** The newest point at or before [t] (points in order of output time). */
+function pointAt<P extends { output: number }>(points: P[], t: number): P | null {
+  let at: P | null = null;
+  for (const p of points) if (p.output <= t) at = p;
+  return at;
 }
 
 /** When the running order runs out (the last song ends), in server ms. */

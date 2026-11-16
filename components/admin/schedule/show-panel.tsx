@@ -21,6 +21,8 @@ export function ShowPanel({ occ, onEdit, onClose }: { occ: Occurrence; onEdit: (
   const [obs, setObs] = useState(false);
   const live = hostedOnRadio(occ);
   const ended = occ.end.getTime() < Date.now();
+  // only Studio shows and playlist shows are kept as replays (lib/radio/studio.ts)
+  const recorded = occ.onRadio && occ.plays !== "stream";
 
   useEffect(() => {
     let alive = true;
@@ -99,6 +101,8 @@ export function ShowPanel({ occ, onEdit, onClose }: { occ: Occurrence; onEdit: (
             </div>
           )}
 
+          {/* a simulcast (another station's stream) or a video-only airing is never recorded, so it has no episodes */}
+          {recorded && (
           <div className="border-t border-border pt-4">
             <div className="font-bold">Past episodes</div>
             {replays === null ? (
@@ -121,6 +125,7 @@ export function ShowPanel({ occ, onEdit, onClose }: { occ: Occurrence; onEdit: (
               <div className="mt-2 text-sm text-neutral-500">None yet. Each episode is kept as a replay.</div>
             )}
           </div>
+          )}
         </div>
       </aside>
       {obs && <ObsPanel onClose={() => setObs(false)} />}

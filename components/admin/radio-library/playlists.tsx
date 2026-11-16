@@ -105,6 +105,8 @@ function PlaylistDrawer({
   const [name, setName] = useState("");
   const [songs, setSongs] = useState<PlaylistSong[]>([]);
   const [dirty, setDirty] = useState(false);
+  // only send the song list when it changed, so a rename is one small write
+  const [listDirty, setListDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -131,13 +133,15 @@ function PlaylistDrawer({
     next.splice(i + by, 0, s);
     setSongs(next);
     setDirty(true);
+    setListDirty(true);
   };
 
   const save = async () => {
     setBusy(true);
     try {
-      await api(`/api/admin/radio/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name: name.trim(), songIds: songs.map((s) => s.id) }) });
+      await api(`/api/admin/radio/playlists/${id}`, { method: "PATCH", body: JSON.stringify({ name: name.trim(), ...(listDirty ? { songIds: songs.map((s) => s.id) } : {}) }) });
       setDirty(false);
+      setListDirty(false);
       onChange();
       toast("Playlist saved.");
     } catch (err: any) {
@@ -179,6 +183,14 @@ function PlaylistDrawer({
         <p className="text-sm text-neutral-500">Loading…</p>
       ) : (
         <div className="space-y-6">
+          {/* Save and Delete stay pinned at the top while the song list scrolls */}
+          <div className="sticky top-0 z-10 -mx-6 -mt-6 flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-background px-6 py-3 dark:border-neutral-800">
+            <span className="text-xs text-neutral-500">{dirty ? "Unsaved changes" : "All changes saved"}</span>
+            <div className="flex gap-2">
+              <Button variant="outline" className="cursor-pointer text-red-600 hover:text-red-700 dark:text-red-400" onClick={remove}>Delete playlist</Button>
+              <Button className="cursor-pointer" onClick={save} disabled={busy || !dirty || !name.trim()}>{busy ? "Saving…" : "Save"}</Button>
+            </div>
+          </div>
           <AdminField label="Name">
             <Input value={name} onChange={(e) => (setName(e.target.value), setDirty(true))} maxLength={200} />
           </AdminField>
@@ -210,6 +222,7 @@ function PlaylistDrawer({
                       onClick={() => {
                         setSongs((l) => [...l, { id: s.id, key: s.key, title: s.title, artist: s.artist, durationSec: s.durationSec, thumbnail: s.thumbnail, archived: s.archived }]);
                         setDirty(true);
+                        setListDirty(true);
                       }}
                       className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800/60"
                     >
@@ -249,17 +262,12 @@ function PlaylistDrawer({
                     <div className="flex shrink-0">
                       <Button size="icon-sm" variant="ghost" className="cursor-pointer" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}><ArrowUp /></Button>
                       <Button size="icon-sm" variant="ghost" className="cursor-pointer" aria-label="Move down" disabled={i === songs.length - 1} onClick={() => move(i, 1)}><ArrowDown /></Button>
-                      <Button size="icon-sm" variant="ghost" className="cursor-pointer" aria-label={`Remove ${s.title} from the playlist`} onClick={() => (setSongs((l) => l.filter((x) => x.id !== s.id)), setDirty(true))}><X /></Button>
+                      <Button size="icon-sm" variant="ghost" className="cursor-pointer" aria-label={`Remove ${s.title} from the playlist`} onClick={() => (setSongs((l) => l.filter((x) => x.id !== s.id)), setDirty(true), setListDirty(true))}><X /></Button>
                     </div>
                   </li>
                 ))}
               </ol>
             )}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-800">
-            <Button variant="destructive" className="cursor-pointer" onClick={remove}>Delete playlist</Button>
-            <Button className="cursor-pointer" onClick={save} disabled={busy || !dirty || !name.trim()}>{busy ? "Saving…" : "Save"}</Button>
           </div>
         </div>
       )}
