@@ -84,7 +84,7 @@ function fit() {
   const t = document.querySelector("[data-fit]");
   if (!t) return;
   const col = t.closest(".col");
-  const room = () => col.clientHeight - 64 * 2 - 76 - 40;
+  const room = () => col.clientHeight - 64 * 2 - 76 - 64; // keep a clear gap under the logo
   let size = 80;
   while (size > 40 && t.closest(".txt").offsetHeight > room()) {
     size -= 4;
@@ -92,8 +92,11 @@ function fit() {
   }
 }
 
-window.draw = (data) => {
+// Fonts load only once something uses them, so wait for both before measuring the title.
+window.draw = async (data) => {
+  await Promise.all([document.fonts.load('800 80px B'), document.fonts.load('500 32px D'), document.fonts.load('600 28px D')]);
   document.getElementById("card").innerHTML = data.section ? section(SECTIONS[data.section]) : item(data);
+  await document.fonts.ready;
   fit();
 };
 window.SECTION_NAMES = Object.keys(SECTIONS);
