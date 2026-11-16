@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Link preview cards, drawn by scripts/og/render.mjs. One layout for every card (approved 2026-11-16):
+     - 64px top/bottom and 72px side margins; logo top left; text block bottom left.
+     - text block = title, optional line, info line, 20px apart.
+     - section cards: big title + the brand mark cropped at the right edge.
+     - item cards: smaller title + one picture: a 400px square with 28px corners, or a full-width photo behind a fade.
+     - FTN News = yellow and ink, FTN+ = warm black and cream; second lines at 72%.
+     Change CARD_VERSION in lib/og/cards.ts after changing how cards look, so every card is drawn again. -->
+<style>
+@font-face{font-family:B;src:url(__FONT_DISPLAY__) format("woff2");font-weight:100 900}
+@font-face{font-family:D;src:url(__FONT_BODY__) format("woff2");font-weight:100 900}
+html,body{margin:0;padding:0;background:#000}
+.c{width:1200px;height:630px;position:relative;overflow:hidden;display:flex;font-family:D;box-sizing:border-box}
+.news{background:#ffbb14;color:#16110a;--muted:rgba(22,17,10,.72)}
+.plus{background:#16110a;color:#fff8e6;--muted:rgba(255,248,230,.72)}
+.col{position:relative;display:flex;flex-direction:column;justify-content:space-between;padding:64px 72px;width:100%;box-sizing:border-box}
+.logo-news{height:60px;width:auto;align-self:flex-start}
+.logo-plus{height:76px;width:auto;align-self:flex-start;margin-top:-6px}
+.txt{display:flex;flex-direction:column;gap:20px;min-width:0}
+.t{font-family:B;font-weight:800;letter-spacing:-0.035em;line-height:.98;text-wrap:balance;overflow-wrap:anywhere}
+.t-sec{font-size:150px;line-height:.92}
+.sub{font:500 32px/1.3 D;color:var(--muted)}
+.meta{font:600 28px/1.25 D;color:var(--muted);display:flex;align-items:center;gap:14px}
+.meta img{width:44px;height:44px;border-radius:50%;flex:none;object-fit:cover}
+.mark-plus{position:absolute;right:-250px;top:55px;height:520px}
+.mark-news{position:absolute;right:-270px;top:150px;height:560px}
+.art{position:absolute;right:72px;top:115px;width:400px;height:400px;border-radius:28px;object-fit:cover}
+.news .art{background:#16110a;object-position:left top}
+.photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.fade{position:absolute;inset:0;background:linear-gradient(90deg,#16110a 0%,rgba(22,17,10,.9) 42%,rgba(22,17,10,.1) 100%)}
+.blur{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(40px) brightness(.4);transform:scale(1.2)}
+</style>
+</head>
+<body>
+<div id="card"></div>
+<script>
+const LOGO = {
+  news: "__ASSETS__/logos/ftn_text_transparent.png",
+  plus: "__ASSETS__/logos/ftnplus_textwhite_transparent.png",
+  newsMark: "__ASSETS__/logos/ftn_favicon_transparent.png",
+  plusMark: "__ASSETS__/logos/ftnplus_favicon.png",
+};
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const img = (src, cls) => (src ? `<img class="${cls}" src="${esc(src)}" alt="" onerror="this.remove()">` : "");
+
+// Fixed cards for section pages (public/og/<name>.jpg).
+const SECTIONS = {
+  home: { brand: "news", title: "Ro-State news, first.", size: 120, sub: "The #1 Roblox Ro-State news source, covering politics, sports, crime and more.", subWidth: 760 },
+  articles: { brand: "news", title: "Articles", sub: "Every story from the FTN newsroom." },
+  tips: { brand: "news", title: "Tipline", sub: "Send the FTN newsroom a tip. You can stay anonymous." },
+  plus: { brand: "plus", title: "Videos, livestreams, radio and sports.", size: 100, width: 860 },
+  "plus-videos": { brand: "plus", title: "Videos", sub: "Every video and stream from FTN's channels." },
+  "plus-radio": { brand: "plus", title: "Radio", sub: "FTN Radio, around the clock." },
+  "plus-schedule": { brand: "plus", title: "Schedule", sub: "Everything coming up on FTN Radio and FTN+." },
+  "plus-sports": { brand: "plus", title: "Sports", sub: "Fixtures, results and standings for every league." },
+};
+
+function section(s) {
+  const news = s.brand === "news";
+  return `<div class="c ${s.brand}">${img(news ? LOGO.newsMark : LOGO.plusMark, news ? "mark-news" : "mark-plus")}
+    <div class="col">${img(news ? LOGO.news : LOGO.plus, news ? "logo-news" : "logo-plus")}
+      <div class="txt"><div class="t t-sec" style="${s.size ? `font-size:${s.size}px;` : ""}${s.width ? `max-width:${s.width}px` : ""}">${esc(s.title)}</div>
+      ${s.sub ? `<div class="sub" ${s.subWidth ? `style="max-width:${s.subWidth}px"` : ""}>${esc(s.sub)}</div>` : ""}</div></div></div>`;
+}
+
+function item(d) {
+  const news = d.layout === "news-item";
+  const hasArt = d.layout === "plus-art" || (news && d.art);
+  const width = hasArt ? 600 : d.layout === "plus-photo" ? 780 : 1000;
+  const back = d.layout === "plus-photo" ? img(d.photo, "photo") + `<div class="fade"></div>` : d.layout === "plus-art" ? img(d.photo, "blur") : "";
+  return `<div class="c ${news ? "news" : "plus"}">${back}
+    <div class="col">${img(news ? LOGO.news : LOGO.plus, news ? "logo-news" : "logo-plus")}
+      <div class="txt" style="max-width:${width}px"><div class="t" data-fit style="font-size:80px">${esc(d.title)}</div>
+      ${d.sub ? `<div class="sub">${esc(d.sub)}</div>` : ""}
+      <div class="meta">${img(d.avatar, "")}<span>${esc(d.meta)}</span></div></div></div>
+    ${hasArt ? img(d.art, "art") : ""}</div>`;
+}
+
+// Long titles shrink until the text block fits under the logo.
+function fit() {
+  const t = document.querySelector("[data-fit]");
+  if (!t) return;
+  const col = t.closest(".col");
+  const room = () => col.clientHeight - 64 * 2 - 76 - 40;
+  let size = 80;
+  while (size > 40 && t.closest(".txt").offsetHeight > room()) {
+    size -= 4;
+    t.style.fontSize = size + "px";
+  }
+}
+
+window.draw = (data) => {
+  document.getElementById("card").innerHTML = data.section ? section(SECTIONS[data.section]) : item(data);
+  fit();
+};
+window.SECTION_NAMES = Object.keys(SECTIONS);
+</script>
+</body>
+</html>

@@ -1,6 +1,8 @@
 export const runtime = "edge";
 import React from "react";
 import type { Metadata } from "next";
+import { existingCardUrl, videoCard, type CardSpec } from "@/lib/og/cards";
+import { shareMeta } from "@/lib/og/meta";
 import { getDb } from "@/db";
 import { siteSettings, videos } from "@/db/schema";
 import { and, eq, like, or } from "drizzle-orm";
@@ -41,6 +43,7 @@ export async function generateMetadata({
   let videoDescription = "";
   let channelTitle = "";
   let thumbnailUrl = `https://img.youtube.com/vi/${targetYoutubeId}/hqdefault.jpg`;
+  let card: CardSpec | null = null;
 
   try {
     const d1 = (process.env as any).DB as D1Database;
@@ -64,6 +67,7 @@ export async function generateMetadata({
           videoDescription = rawDesc;
         }
         thumbnailUrl = match[0].thumbnailUrl || thumbnailUrl;
+        card = videoCard(match[0]);
       }
     }
   } catch {}
@@ -94,29 +98,15 @@ export async function generateMetadata({
       absolute: `${videoTitle} | FTN+`,
     },
     description: metaDescription,
-    openGraph: {
+    // The video's own card once it is drawn; until then its thumbnail.
+    ...shareMeta({
       title: `${videoTitle} | FTN+`,
       description: metaDescription,
-      siteName: "FTN News Network",
+      siteName: "FTN+",
       type: "video.other",
-      images: [
-        {
-          url: thumbnailUrl,
-          width: 1280,
-          height: 720,
-          alt: videoTitle,
-        },
-      ],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${videoTitle} | FTN+`,
-      description: metaDescription,
-      images: [thumbnailUrl],
-    },
-    other: {
-      "theme-color": "#FFBB14",
-    },
+      image: (await existingCardUrl(card)) || thumbnailUrl,
+      imageAlt: videoTitle,
+    }),
   };
 }
 
