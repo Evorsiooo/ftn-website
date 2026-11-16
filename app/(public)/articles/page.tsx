@@ -3,11 +3,13 @@ import React from "react";
 import type { Metadata } from "next";
 import { getDb } from "@/db";
 import { getPublishedArticles } from "@/lib/articles";
+import { SITE_URL } from "@/lib/seo";
 import { ArticlesClientView } from "@/components/articles/articles-client-view";
 
 export const metadata: Metadata = {
   title: "Articles & Archive",
   description: "Browse the complete archive of news, investigative reports, politics, and opinion pieces from FTN.",
+  alternates: { canonical: `${SITE_URL}/articles` },
 };
 
 export default async function ArticlesPage({
