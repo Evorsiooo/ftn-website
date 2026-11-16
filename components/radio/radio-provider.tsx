@@ -60,7 +60,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const isPopout = pathname.startsWith("/plus/radio/popout");
   const [started, setStarted] = useState(false);
   // checked once the radio has been started here, and on the radio pages
-  const watching = webradioEnabled && (started || pathname.startsWith("/plus/radio") || pathname.startsWith("/admin/radio"));
+  const watching = webradioEnabled && (started || pathname.startsWith("/plus/radio") || pathname.startsWith("/admin/radio") || pathname.startsWith("/admin/schedule/studio"));
   const icecast = useRadioSource(watching);
   const { program, airing } = useRadioProgram(watching);
   // an OBS show on Icecast wins; then a scheduled stream show; otherwise the AutoDJ (with any Studio show)

@@ -93,7 +93,7 @@ export default function AdminToday() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/admin/radio" className={cn(pillLink, "border border-neutral-300 hover:border-neutral-500 dark:border-neutral-700")}>
+                  <Link href="/admin/schedule" className={cn(pillLink, "border border-neutral-300 hover:border-neutral-500 dark:border-neutral-700")}>
                     Open schedule
                   </Link>
                 </div>

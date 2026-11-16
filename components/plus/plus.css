@@ -517,3 +517,62 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
   .fp .page-in, .fp .swap { animation: none; }
   .fp .xf img, .fp .lyrics, .fp .lyrics .rail { transition: none; }
 }
+
+/* ---- Radio page layout (2026-11-16): everything in view without scrolling --------------------------
+   The art and the column beside it (people on air, the call-in card, lyrics) share one height, sized
+   to the window; under both, one wide row: the title and artist on the left (the title runs the full
+   width instead of wrapping under the art), every control on the right. */
+.fp .radio {
+  --art: clamp(200px, calc(100vh - var(--nav-h) - 300px), 380px);
+  grid-template-columns: var(--art) minmax(0, 1fr);
+  grid-template-areas: "art side" "info info";
+  column-gap: 64px; row-gap: 28px;
+  padding: calc(var(--nav-h) + 36px) var(--pad) 36px;
+  min-height: 0;
+}
+.fp .radio .artcol { grid-area: art; }
+.fp .radio .art { width: var(--art); height: var(--art); }
+.fp .radio > .side { grid-area: side; height: var(--art); display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.fp .radio > .side > div:last-child:not(.call) { flex: 1 1 0; min-height: 0; }
+.fp .radio > .side .lyrics, .fp .radio > .side.staged .lyrics { height: 100%; }
+.fp .radio > .side > .call { margin-top: 0; flex: none; }
+.fp .radio .info { grid-area: info; display: flex; align-items: center; justify-content: space-between; gap: 40px; min-width: 0; }
+.fp .radio .info .txt { min-width: 0; flex: 1 1 auto; }
+.fp .radio .info .name { margin: 0; font-size: clamp(32px, 3.2vw, 48px); line-height: 1.04; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.fp .radio .info .by { margin-top: 6px; }
+.fp .radio .info .song { margin-top: 10px; }
+.fp .radio .info .rmeta { margin-top: 8px; }
+.fp .radio .info .ctrl { flex: none; margin-top: 0; flex-wrap: nowrap; }
+.fp .radio .ctrl .callbtn { margin-left: 2px; }
+@media (max-width: 1000px) {
+  .fp .radio { grid-template-columns: 1fr; grid-template-areas: "art" "info" "side"; row-gap: 24px; }
+  .fp .radio .artcol { justify-self: center; }
+  .fp .radio .art { width: min(var(--art), 100%); height: auto; aspect-ratio: 1; }
+  .fp .radio .info { flex-direction: column; align-items: center; gap: 20px; text-align: center; }
+  .fp .radio .info .song { justify-content: center; }
+  .fp .radio .info .ctrl { flex-wrap: wrap; justify-content: center; }
+  .fp .radio > .side { height: auto; }
+  .fp .radio > .side > div:last-child:not(.call) { flex: none; }
+  .fp .radio > .side .lyrics { height: 300px; }
+}
+@media (max-width: 720px) {
+  .fp .radio { --art: min(78vw, 340px); }
+  .fp .radio > .side .lyrics { height: 220px; }
+}
+/* the call-in card open beside the people on air: smaller avatars and a compact card, so all of it
+   stays within the art's height */
+.fp .radio > .side:has(> .call) { gap: 16px; }
+.fp .radio > .side:has(> .call) .stage li { width: 80px; gap: 6px; }
+.fp .radio > .side:has(> .call) .stage img, .fp .radio > .side:has(> .call) .stage .ini { width: 60px; height: 60px; }
+.fp .radio > .side:has(> .call) .stage .nm { font-size: 13px; }
+.fp .radio > .side > .call .callbox { padding: 16px 18px; }
+.fp .radio > .side > .call .callbox .acts { margin-top: 12px; }
+.fp .radio > .side > .call .select { margin-top: 10px; }
+.fp .radio > .side > .call .meter { margin-top: 10px; }
+@media (max-width: 720px) {
+  .fp .radio { --art: min(62vw, 260px); padding-top: calc(var(--nav-h) + 16px); row-gap: 18px; }
+  .fp .radio .info { gap: 14px; }
+  .fp .radio .info .ctrl { gap: 6px; row-gap: 8px; }
+  .fp .radio .info .ctrl .btn { height: 44px; padding: 0 16px; font-size: 15px; }
+  .fp .radio .info .ctrl .gap { width: 0; }
+}

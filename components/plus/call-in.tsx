@@ -1,7 +1,7 @@
 "use client";
 // Calling in, on the radio player (the approved mockups 08 and 10 to 14). Only there while the
 // host has calls open, or when someone opens the host's link (/plus/radio?call=1).
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
 import { useMicLevel, useOnAirVoice } from "@/components/radio/use-on-air-voice";
 import { getMic } from "@/components/radio/voice";
@@ -27,7 +27,24 @@ export function Meter({ lit, bars = 15 }: { lit: number; bars?: number }) {
   );
 }
 
-export function CallIn() {
+type Parts = { button: ReactNode; card: ReactNode };
+const Ctx = createContext<Parts>({ button: null, card: null });
+
+/**
+ * Calling in, split in two places on the radio page: the "Call in" button sits with Listen (always
+ * in view), and the card it opens (sign in, microphone check, the line, on air) sits beside the
+ * people on air. One state for both.
+ */
+export function CallInProvider({ children }: { children: ReactNode }) {
+  const parts = useCallInParts();
+  return <Ctx.Provider value={parts}>{children}</Ctx.Provider>;
+}
+export const CallInButton = () => <>{useContext(Ctx).button}</>;
+export const CallInCard = () => <>{useContext(Ctx).card}</>;
+
+const card = (node: ReactNode): Parts => ({ button: null, card: node });
+
+function useCallInParts(): Parts {
   const r = useRadio();
   const studio = r.program?.studio ?? null;
   const open = !!studio?.callIn;
@@ -115,7 +132,7 @@ export function CallIn() {
     if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as any)?.error || "Couldn't go on air.");
   }, []);
   const onAir = step === "queued" && me?.state === "on_air";
-  const voice = useOnAirVoice({ personId: onAir ? me!.id : null, mic: onAir ? mic : null, report });
+  const voice = useOnAirVoice({ personId: onAir ? me!.id : null, mic: onAir ? mic : null, report, muted });
 
   useEffect(() => {
     mic?.getAudioTracks().forEach((t) => (t.enabled = !muted));
@@ -156,23 +173,24 @@ export function CallIn() {
     []
   );
 
-  if (!studio && step === "idle") return null;
+  if (!studio && step === "idle") return { button: null, card: null };
   const show = studio?.title ?? "the show";
 
   if (step === "idle") {
-    if (!open) return null;
-    return (
-      <div className="call">
-        <button className="btn sec" onClick={() => setStep("mic")}>
+    if (!open) return { button: null, card: null };
+    return {
+      button: (
+        <button className="btn sec callbtn" onClick={() => setStep("mic")}>
           <I.Phone />
           Call in
         </button>
-      </div>
-    );
+      ),
+      card: null,
+    };
   }
 
   if (step === "closed" || ((step === "mic" || step === "signin") && !open && r.program !== null)) {
-    return (
+    return card(
       <div className="call">
         <div className="callbox">
           <div className="t">Calls are closed</div>
@@ -188,7 +206,7 @@ export function CallIn() {
   }
 
   if (step === "ended") {
-    return (
+    return card(
       <div className="call">
         <div className="callbox">
           <div className="t">Your call has ended</div>
@@ -204,7 +222,7 @@ export function CallIn() {
   }
 
   if (step === "signin") {
-    return (
+    return card(
       <div className="call">
         <div className="callbox">
           <div className="t">Call in to {show}</div>
@@ -223,7 +241,7 @@ export function CallIn() {
   }
 
   if (step === "mic") {
-    return (
+    return card(
       <div className="call">
         <div className="callbox">
           <div className="t">Check your microphone</div>
@@ -255,7 +273,7 @@ export function CallIn() {
   }
 
   // queued: waiting in line, or on air
-  return (
+  return card(
     <div className="call">
       <div className="callbox">
         {onAir ? (

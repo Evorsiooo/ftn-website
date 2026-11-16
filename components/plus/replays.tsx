@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
 import { RADIO_FILES } from "@/components/radio/use-radio-source";
+import { loadStationModule } from "@/components/radio/use-radio-player";
 import { TALK_DUCK, TalkDetector } from "@/components/radio/voice";
 import type { RadioTimeline } from "@/lib/radio/autodj";
 import * as I from "./icons";
@@ -109,7 +110,8 @@ export function ReplayPage({ id }: { id: string }) {
       stopAll();
       // the live radio stops while a replay plays
       if (radio.status !== "idle") radio.stop();
-      const mod = (await import(/* webpackIgnore: true */ new URL("/radio-engine/site.js", window.location.origin).href)) as ReplayModule;
+      // the same versioned engine URL as the live radio, so a browser never runs a cached old engine
+      const mod = (await loadStationModule()) as unknown as ReplayModule;
       const st = await mod.startReplay({ timelines, pauses: data.pauses, fromMs, volume: volRef.current });
       station.current = st;
       if (!detector.current) detector.current = new TalkDetector((talking) => station.current?.setVoiceDuck(talking ? TALK_DUCK : 1));

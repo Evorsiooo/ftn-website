@@ -8,7 +8,7 @@ import { useRadio } from "@/components/radio/radio-provider";
 import { useOnAir } from "@/components/radio/use-on-air";
 import { useNowPlaying, type ShowInfo } from "@/components/radio/use-now-playing";
 import { ListenButton, Volume } from "./radio-controls";
-import { CallIn } from "./call-in";
+import { CallInButton, CallInCard, CallInProvider } from "./call-in";
 import { Replays } from "./replays";
 import * as I from "./icons";
 
@@ -328,6 +328,7 @@ function Side({ songKey, lyrics, people, position }: { songKey?: string | null; 
   return (
     <div className={`side${people.length ? " staged" : ""}`}>
       {people.length > 0 && <Stage people={people} />}
+      <CallInCard />
       {lyrics && (
         <div className={anyoneTalking ? "dim" : undefined}>
           <Lyrics key={songKey ?? undefined} lines={lyrics} position={position} />
@@ -419,31 +420,34 @@ export function RadioPage() {
             {v.next && <div className="rmeta">{v.next}</div>}
           </div>
         ) : (
-          // One layout with or without lyrics: the song under its art, the lyrics (when there are some) beside it,
-          // level with the art's top and bottom.
-          <div className="radio">
-            <div>
-              {v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}
+          // The art with the lyrics (and the people on air) beside it, then one wide row under both:
+          // the title and artist on the left, every control on the right. All of it fits the window,
+          // so nothing needs a scroll.
+          <CallInProvider>
+            <div className="radio">
+              <div className="artcol">{v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}</div>
+              <Side songKey={v.songKey} lyrics={lyrics} people={people} position={v.position} />
               {v.mode !== "loading" && (
-                <>
-                  <h1 className="name swap" key={`n${v.songKey ?? v.name}`}>
-                    {v.name}
-                  </h1>
-                  <div className="by swap" key={`b${v.songKey ?? v.name}`}>
-                    {v.by}
+                <div className="info">
+                  <div className="txt">
+                    <h1 className="name swap" key={`n${v.songKey ?? v.name}`} title={v.name}>
+                      {v.name}
+                    </h1>
+                    <div className="by swap" key={`b${v.songKey ?? v.name}`}>
+                      {v.by}
+                    </div>
+                    <SongLine v={v} />
+                    {meta(v) && <div className="rmeta">{meta(v)}</div>}
                   </div>
-                  <SongLine v={v} />
                   <div className="ctrl">
                     <ListenButton />
+                    <CallInButton />
                     <Secondary v={v} />
                   </div>
-                  {meta(v) && <div className="rmeta">{meta(v)}</div>}
-                  <CallIn />
-                </>
+                </div>
               )}
             </div>
-            {(lyrics || people.length > 0) && <Side songKey={v.songKey} lyrics={lyrics} people={people} position={v.position} />}
-          </div>
+          </CallInProvider>
         )}
       </div>
       <Shows />
