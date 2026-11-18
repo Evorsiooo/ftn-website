@@ -34,16 +34,34 @@ function LibraryPage() {
   const [menu, setMenu] = useState(false);
   const preview = usePreview();
 
+  // One library load at a time; a call while one runs asks for one more afterwards. (Each load reads
+  // every song, so a burst of them used to push the site past its CPU allowance and answer 503.)
+  const libraryLoad = useRef<{ running: boolean; again: boolean }>({ running: false, again: false });
   const loadLibrary = useCallback(async () => {
+    const l = libraryLoad.current;
+    if (l.running) {
+      l.again = true;
+      return;
+    }
+    l.running = true;
     try {
-      const [s, p] = await Promise.all([api<{ songs: Song[] }>("/api/admin/radio/songs"), api<{ playlists: Playlist[] }>("/api/admin/radio/playlists")]);
-      setSongs(s.songs);
-      setPlaylists(p.playlists);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
+      do {
+        l.again = false;
+        try {
+          const [s, p] = await Promise.all([api<{ songs: Song[] }>("/api/admin/radio/songs"), api<{ playlists: Playlist[] }>("/api/admin/radio/playlists")]);
+          setSongs(s.songs);
+          setPlaylists(p.playlists);
+          setError(null);
+        } catch (err: any) {
+          setError(err.message);
+        }
+      } while (l.again);
+    } finally {
+      l.running = false;
     }
   }, []);
+  const patchSong = useCallback((id: string, patch: Partial<Song>) => setSongs((list) => list && list.map((s) => (s.id === id ? { ...s, ...patch } : s))), []);
+  const dropSong = useCallback((id: string) => setSongs((list) => list && list.filter((s) => s.id !== id)), []);
 
   // Imports: the GET also brings unfinished ones up to date with the downloader.
   const doneCount = useRef<string>("");
@@ -77,7 +95,7 @@ function LibraryPage() {
     return () => clearInterval(t);
   }, [running.length, loadImports]);
 
-  const meta = useMetadataCheck(songs, loadLibrary);
+  const meta = useMetadataCheck(songs, patchSong);
 
   const live = useMemo(() => (songs || []).filter((s) => !s.archived), [songs]);
   const archivedSongs = useMemo(() => (songs || []).filter((s) => s.archived), [songs]);
@@ -256,7 +274,10 @@ function LibraryPage() {
               <SongTable songs={shown} selectedId={selected} onSelect={setSelected} archivedView={archived} />
             </div>
             <div className="ld-pane">
-              {current ? <SongPane song={current} onChange={loadLibrary} onClose={() => setSelected(null)} preview={preview} /> : <div className="pane-empty">Pick a song to listen to it, edit it or archive it.</div>}
+              {current ? <SongPane song={current} onPatched={patchSong} onDeleted={(id) => {
+                    dropSong(id);
+                    loadLibrary();
+                  }} onClose={() => setSelected(null)} preview={preview} /> : <div className="pane-empty">Pick a song to listen to it, edit it or archive it.</div>}
             </div>
           </div>
         )}
