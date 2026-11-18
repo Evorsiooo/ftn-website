@@ -5,12 +5,12 @@ import { getSecureRadioSettings, isRotationDue, rotateBroadcastPassword } from "
 
 export const runtime = "edge";
 
-// Called hourly by the scheduled GitHub workflow. Rotates only when the configured
-// automatic schedule says a rotation is due.
+// Called hourly by the Cloudflare cron Worker (SCHEDULE_CRON_SECRET) and the GitHub workflow
+// (RADIO_CRON_SECRET). Rotates only when the configured automatic schedule says a rotation is due.
 export async function POST(request: NextRequest) {
-  const expected = process.env.RADIO_CRON_SECRET;
+  const accepted = [process.env.SCHEDULE_CRON_SECRET, process.env.RADIO_CRON_SECRET].filter(Boolean) as string[];
   const provided = request.headers.get("x-cron-secret");
-  if (!expected || !provided || !safeEqual(provided, expected)) {
+  if (!provided || !accepted.some((secret) => safeEqual(provided, secret))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const d1 = (process.env as any).DB as D1Database;
