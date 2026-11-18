@@ -94,7 +94,19 @@ export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs
 }
 
 /** The song picked in the table: listen, its facts, edit, archive, delete. */
-export function SongPane({ song, onChange, onClose, preview }: { song: Song; onChange: () => void; onClose: () => void; preview: ReturnType<typeof usePreview> }) {
+export function SongPane({
+  song,
+  onPatched,
+  onDeleted,
+  onClose,
+  preview,
+}: {
+  song: Song;
+  onPatched: (id: string, patch: Partial<Song>) => void;
+  onDeleted: (id: string) => void;
+  onClose: () => void;
+  preview: ReturnType<typeof usePreview>;
+}) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(song.title);
   const [artist, setArtist] = useState(song.artist);
@@ -109,7 +121,7 @@ export function SongPane({ song, onChange, onClose, preview }: { song: Song; onC
     try {
       await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify({ archived }) });
       toast(archived ? `“${song.title}” archived. The radio won't pick it any more.` : `“${song.title}” is back in the library.`);
-      onChange();
+      onPatched(song.id, { archived });
     } catch (err: any) {
       toast(err.message);
     }
@@ -119,7 +131,7 @@ export function SongPane({ song, onChange, onClose, preview }: { song: Song; onC
     try {
       await api(`/api/admin/radio/songs/${song.id}`, { method: "DELETE" });
       onClose();
-      onChange();
+      onDeleted(song.id);
     } catch (err: any) {
       toast(err.message);
     }
@@ -130,7 +142,7 @@ export function SongPane({ song, onChange, onClose, preview }: { song: Song; onC
     try {
       await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify({ title, artist }) });
       setEditing(false);
-      onChange();
+      onPatched(song.id, { title: title.trim(), artist: artist.trim() });
     } catch (err: any) {
       toast(err.message);
     } finally {

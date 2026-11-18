@@ -43,7 +43,9 @@ const sleep = (ms: number, stop: { current: boolean }) =>
     }, 250);
   });
 
-export function useMetadataCheck(songs: Song[] | null, onChange: () => void) {
+// onPatched updates the one song in the page's list: reloading the whole library after every match
+// cost the server more than its free-plan CPU allowance once the library grew past a thousand songs.
+export function useMetadataCheck(songs: Song[] | null, onPatched: (id: string, patch: Partial<Song>) => void) {
   const [state, setState] = useState<CheckState>({ running: false, all: false, done: 0, total: 0, updated: 0, note: null });
   const stopRef = useRef(false);
   const busy = useRef(false);
@@ -101,7 +103,7 @@ export function useMetadataCheck(songs: Song[] | null, onChange: () => void) {
             if (Object.keys(patch).length) {
               await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify(patch) });
               updated += 1;
-              onChange();
+              onPatched(song.id, patch as Partial<Song>);
             }
           }
           done += 1;
@@ -114,7 +116,7 @@ export function useMetadataCheck(songs: Song[] | null, onChange: () => void) {
         busy.current = false;
       }
     },
-    [onChange]
+    [onPatched]
   );
 
   // New songs (added in the last day, not yet given a catalog cover, not tried lately from this browser).
