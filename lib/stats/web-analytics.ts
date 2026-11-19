@@ -5,6 +5,9 @@
  */
 
 const HOST = "ftn.euno.cc";
+// FTN's Cloudflare account id (not a secret: it is in every dashboard link). A token with only
+// "Account Analytics: Read" can't list accounts, so the id can't be looked up from the token.
+const FTN_ACCOUNT = "766be096be2baa4677baf5d515e51c8d";
 let accountFromToken: string | null = null;
 
 /** The token's account, when no account id is set: the token is limited to FTN's account. */
@@ -47,7 +50,7 @@ export async function webStats(days: number): Promise<WebResult> {
   const hit = await cache?.match(cacheKey).catch(() => undefined);
   if (hit) return { ok: true, stats: (await hit.json()) as WebStats };
 
-  const account = process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || (await tokenAccount(token));
+  const account = process.env.CF_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID || FTN_ACCOUNT || (await tokenAccount(token));
   if (!account) return { ok: false, reason: "error", message: "The token can't see any Cloudflare account" };
   const end = new Date();
   const start = new Date(end.getTime() - days * 86_400_000);
