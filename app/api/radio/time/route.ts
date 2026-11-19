@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { radioDb } from "@/lib/radio/store";
+import { utcDay } from "@/lib/stats/collect";
 
 export const runtime = "edge";
 
@@ -18,7 +19,11 @@ async function countListeners(db: D1Database, id: string): Promise<number | null
     const now = Math.floor(Date.now() / 1000);
     const seen = await db.prepare("SELECT seen_at FROM radio_listeners WHERE id = ?").bind(id).first<{ seen_at: number }>();
     if (!seen || now - seen.seen_at >= WRITE_EVERY_SEC) {
-      await db.prepare("INSERT INTO radio_listeners (id, seen_at) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET seen_at = excluded.seen_at").bind(id, now).run();
+      // the listener's row, and (for the Stats page's unique listeners per day) today's row, in one round trip
+      await db.batch([
+        db.prepare("INSERT INTO radio_listeners (id, seen_at) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET seen_at = excluded.seen_at").bind(id, now),
+        db.prepare("INSERT INTO stat_listener_days (day, id, beats) VALUES (?, ?, 1) ON CONFLICT(day, id) DO UPDATE SET beats = beats + 1").bind(utcDay(now * 1000), id),
+      ]);
       // now and then, forget listeners gone for a day
       if (Math.random() < 0.02) await db.prepare("DELETE FROM radio_listeners WHERE seen_at < ?").bind(now - 86_400).run();
     }

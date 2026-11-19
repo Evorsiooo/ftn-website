@@ -1,7 +1,8 @@
 // Runs every minute on a Cloudflare cron trigger and calls the site's secret-protected endpoints:
 // sends scheduled posts whose time has come, refreshes Twitch live status, (every 5 minutes) syncs
 // YouTube and starts the link preview workflow when cards are missing, and (hourly) rotates the
-// radio password when due. GitHub's own scheduler runs only a few times a day on this repository,
+// radio password when due, and (every 5 minutes) saves the radio's listener count for the Stats
+// page. GitHub's own scheduler runs only a few times a day on this repository,
 // so this is what keeps these on time.
 //
 // Deploy: `npx wrangler deploy` here. Secrets (Cloudflare dashboard > Workers > ftn-post-scheduler >
@@ -20,6 +21,7 @@ export default {
     ctx.waitUntil(call(env, `/api/sync/live-cron${minute % 5 === 0 ? "?youtube=1" : ""}`));
     if (minute % 5 === 2) ctx.waitUntil(drawMissingCards(env));
     if (minute === 5) ctx.waitUntil(call(env, "/api/radio/rotate-cron"));
+    if (minute % 5 === 1) ctx.waitUntil(call(env, "/api/stats/cron"));
   },
   async fetch() {
     return new Response("ftn-post-scheduler", { status: 200 });

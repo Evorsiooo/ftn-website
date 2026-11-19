@@ -107,6 +107,21 @@ export function OTTPlayer({
     let duration = 0;
     let lastLocal = 0;
     let lastServer = 0;
+    // Watch time for the Stats page: seconds really played (small forward steps only, so seeking
+    // doesn't count) and the furthest point reached; sent once when the viewer leaves.
+    let played = 0;
+    let furthest = 0;
+    let sent = false;
+    const report = () => {
+      if (sent || played < 5) return;
+      sent = true;
+      const body = JSON.stringify({ youtubeId, seconds: Math.round(played), reached: duration ? furthest / duration : 0 });
+      try {
+        if (!navigator.sendBeacon?.("/api/plus/watched", new Blob([body], { type: "application/json" }))) throw new Error();
+      } catch {
+        fetch("/api/plus/watched", { method: "POST", body, keepalive: true }).catch(() => {});
+      }
+    };
     const save = (force?: boolean) => {
       if (!duration || position < 1) return;
       const now = Date.now();
@@ -135,7 +150,12 @@ export function OTTPlayer({
         const msg = JSON.parse(e.data);
         const info = msg?.info;
         if (msg?.event === "infoDelivery" && info) {
-          if (typeof info.currentTime === "number") position = info.currentTime;
+          if (typeof info.currentTime === "number") {
+            const step = info.currentTime - position;
+            if (step > 0 && step <= 3) played += step;
+            position = info.currentTime;
+            if (position > furthest) furthest = position;
+          }
           if (typeof info.duration === "number" && info.duration > 0) duration = info.duration;
           save();
         }
@@ -145,13 +165,17 @@ export function OTTPlayer({
       frame.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: "ftn-player", channel: "widget" }), "*");
     frame.addEventListener("load", listen);
     window.addEventListener("message", onMessage);
-    const onHide = () => save(true);
+    const onHide = () => {
+      save(true);
+      report();
+    };
     window.addEventListener("pagehide", onHide);
     return () => {
       frame.removeEventListener("load", listen);
       window.removeEventListener("message", onMessage);
       window.removeEventListener("pagehide", onHide);
       save(true);
+      report();
     };
   }, [youtubeId, isLive, startAt, title, channelId, channelTitle, channelLogoUrl]);
 

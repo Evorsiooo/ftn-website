@@ -1,3 +1,4 @@
+import { canSeeStats } from "@/lib/stats/access";
 import {
   canPublishArticles,
   canManageRadio,
@@ -32,6 +33,7 @@ export const ADMIN_MODULES: AdminModule[] = [
   { title: "FTN+ content", group: "Network", description: "YouTube and Twitch channels, the video catalog and the rows on FTN+.", href: "/admin/plus", allowed: canConfigureSite },
   { title: "Sports", group: "Network", description: "Leagues, teams, venues, schedule and results.", href: "/admin/sports", allowed: canManageSports },
   { title: "Ads", group: "Network", description: "Advertisers, their ads, and how they perform.", href: "/admin/ads", allowed: canManageAds },
+  { title: "Stats", group: "Site", description: "Radio listeners, visitors, FTN+ views, posts and ads over time.", href: "/admin/stats", allowed: canSeeStats },
   { title: "People", group: "Site", description: "Staff roles, staff accounts and muted users.", href: "/admin/people", also: ["/admin/roles"], allowed: (r) => canAssignRoles(r) || canModerateUsers(r) || canConfigureSite(r) },
   { title: "Settings", group: "Site", description: "Site, sign-in, radio and integrations.", href: "/admin/settings", allowed: canConfigureSite },
 ];
