@@ -34,6 +34,9 @@ export default function PrivacyPolicyPage() {
             <strong>Anonymous Tipline:</strong> Information submitted via the tipline is transmitted directly to our editorial inbox without tracking headers, IP addresses, or browser footprints, unless you explicitly choose to share your username.
           </p>
           <p>
+            <strong>Anonymous Statistics:</strong> We count visits with Cloudflare Web Analytics, which uses no cookies and does not identify you. The radio player and FTN+ video player report anonymous totals (how many people are listening, which songs played, how long a video was watched), so we can see what our audience enjoys. None of this is linked to your account.
+          </p>
+          <p>
             <strong>Session Cookies:</strong> We utilize secure, HttpOnly session cookies to maintain your login session and enforce security access controls.
           </p>
         </section>

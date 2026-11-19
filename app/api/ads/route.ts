@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { adCampaigns } from "@/db/schema";
 import { eq, and, lte, gte, or, isNull, sql } from "drizzle-orm";
+import { utcDay } from "@/lib/stats/collect";
 
 export const runtime = "edge";
 
@@ -53,11 +54,13 @@ export async function GET(request: NextRequest) {
     // Pick random active ad for rotation
     const chosen = activeAds[Math.floor(Math.random() * activeAds.length)];
 
-    // Atomic increment so concurrent views are not lost.
-    await db
-      .update(adCampaigns)
-      .set({ impressionsCount: sql`${adCampaigns.impressionsCount} + 1` })
-      .where(eq(adCampaigns.id, chosen.id));
+    // Atomic increments (all-time total, and today's row for the Stats page) in one round trip.
+    await d1.batch([
+      d1.prepare("UPDATE ad_campaigns SET impressions_count = impressions_count + 1 WHERE id = ?").bind(chosen.id),
+      d1
+        .prepare("INSERT INTO stat_ad_days (day, ad_id, impressions) VALUES (?, ?, 1) ON CONFLICT(day, ad_id) DO UPDATE SET impressions = impressions + 1")
+        .bind(utcDay(), chosen.id),
+    ]);
 
     return NextResponse.json({
       ad: {

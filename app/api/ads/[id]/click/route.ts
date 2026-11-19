@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
 import { adCampaigns } from "@/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { utcDay } from "@/lib/stats/collect";
 import { isSafeUrl } from "@/lib/admin-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
@@ -24,10 +25,11 @@ export async function GET(
       const ad = await db.select().from(adCampaigns).where(eq(adCampaigns.id, id)).limit(1);
       if (ad.length > 0) {
         if (rateLimit.allowed) {
-          await db
-            .update(adCampaigns)
-            .set({ clicksCount: sql`${adCampaigns.clicksCount} + 1` })
-            .where(eq(adCampaigns.id, id));
+          // all-time total and today's row (Stats page) in one round trip
+          await d1.batch([
+            d1.prepare("UPDATE ad_campaigns SET clicks_count = clicks_count + 1 WHERE id = ?").bind(id),
+            d1.prepare("INSERT INTO stat_ad_days (day, ad_id, clicks) VALUES (?, ?, 1) ON CONFLICT(day, ad_id) DO UPDATE SET clicks = clicks + 1").bind(utcDay(), id),
+          ]);
         }
 
         // Validate target URL against open redirect vulnerabilities
