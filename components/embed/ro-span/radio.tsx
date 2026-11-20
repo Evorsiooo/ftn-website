@@ -1,13 +1,13 @@
 "use client";
-// The FTN radio player for partner sites' sidebars (served at /embed/radio, shown in their iframe).
-// Styled to sit in RO-SPAN's sidebar boxes: Arial, navy #1a1a6e, square corners, dotted #bbb rules.
-// The partner pastes their own box and header around the iframe; this is the box's body.
+// RO-SPAN's FTN radio player (served at /embed/ro-span/radio, shown in an iframe in ro-span.org's sidebar).
+// Styled to sit in their sidebar boxes: Arial, navy #1a1a6e, square corners, dotted #bbb rules.
+// They paste their own box and header around the iframe; this is the box's body.
 import { useEffect } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
 import { loadStationModule } from "@/components/radio/use-radio-player";
 import { useNowPlaying } from "@/components/radio/use-now-playing";
 import { useStationView } from "@/components/plus/radio-ui";
-import "./radio-embed.css";
+import "./radio.css";
 
 const whenFmt = new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
 // "Tue 4:30 PM" (Intl puts a comma after the day)
@@ -40,7 +40,7 @@ const Bars = () => (
   </span>
 );
 
-export function EmbedPlayer() {
+export function RoSpanRadio() {
   const r = useRadio();
   const v = useStationView();
   const { info } = useNowPlaying(30_000);

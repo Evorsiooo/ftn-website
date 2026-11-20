@@ -45,7 +45,7 @@ const nextConfig: NextConfig = {
     return [
       // Everything but /embed/* refuses to be shown in another site's frame.
       { source: "/((?!embed/).*)", headers: securityHeaders },
-      // /embed/* is made for other sites' iframes (the radio player in partners' sidebars).
+      // /embed/<site>/* is made for partner sites' iframes (e.g. the radio player in RO-SPAN's sidebar).
       {
         source: "/embed/:path*",
         headers: [

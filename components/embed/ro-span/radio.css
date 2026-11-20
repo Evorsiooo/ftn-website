@@ -1,4 +1,4 @@
-/* /embed/radio: the FTN radio player inside a partner site's sidebar box (RO-SPAN's theme).
+/* /embed/ro-span/radio: the FTN radio player inside RO-SPAN's sidebar box, in their theme.
    Arial because RO-SPAN's sidebar renders in its sans-serif fallback (their Bahnschrift file is empty). */
 html:has(.rsx),
 html:has(.rsx) body { background: #fff !important; min-height: 0 !important; height: 100%; overflow: hidden; }
