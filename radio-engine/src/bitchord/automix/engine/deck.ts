@@ -41,6 +41,14 @@ const MAX_QUIET_NUDGE = 0.1;
 /** Seconds of error corrected per second of playback. */
 const SERVO_GAIN = 0.8;
 const SERVO_MS = 40;
+/**
+ * FTN radio: seeks that keep coming back (Safari on a Mac lands AAC seeks short of where it was
+ * asked, so the error is still over SEEK_ERROR_SEC and it seeks again, replaying the same bit
+ * over and over) put the deck in "loose" mode for a while: it only seeks when it's far off and
+ * otherwise drifts with rate nudges. Being a few hundred ms out is fine for a radio; audible
+ * repeats aren't.
+ */
+const SEEK_STORM = { count: 3, windowSec: 10, looseSec: 60, looseErrorSec: 3 };
 
 /**
  * One DJ deck: <audio> -> 3-band EQ -> gain (AutoMix's automation) -> fader
@@ -74,6 +82,8 @@ export class Deck {
   private leader: Deck | null = null;
   private errors: number[] = [];
   private seekingUntil = 0;
+  private seekTimes: number[] = [];
+  private looseUntil = 0;
 
   constructor(
     readonly id: string,
@@ -310,7 +320,15 @@ export class Deck {
     const rate = this.timeline.rateAt(at);
     if (expected === null || !this.timeline.activeAt(at) || audio.paused || audio.seeking || now < this.seekingUntil) return;
     const error = audio.currentTime - expected;
-    if (Math.abs(error) > SEEK_ERROR_SEC) {
+    const loose = now < this.looseUntil;
+    if (Math.abs(error) > (loose ? SEEK_STORM.looseErrorSec : SEEK_ERROR_SEC)) {
+      this.seekTimes = this.seekTimes.filter((t) => now - t < SEEK_STORM.windowSec);
+      this.seekTimes.push(now);
+      if (!loose && this.seekTimes.length >= SEEK_STORM.count) {
+        this.looseUntil = now + SEEK_STORM.looseSec;
+        this.seekTimes = [];
+        if (Math.abs(error) <= SEEK_STORM.looseErrorSec) return;
+      }
       audio.currentTime = expected + this.latencySec * rate;
       this.seekingUntil = now + 0.3;
       this.errors = [];
