@@ -2,7 +2,7 @@
 // The Studio (Broadcast role): run a show from the browser. Talk on air, queue songs (by link or
 // from the library), pause the music, open calling in and bring callers on, and let other
 // broadcasters join. Listeners' browsers do the playing and mixing; only voices go live.
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowDown, ArrowUp, Copy, Mic, MicOff, Pause, Play, Search, SkipForward, Trash2, UserPlus, X } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
@@ -16,7 +16,7 @@ import { expandOccurrences, type Occurrence } from "@/lib/schedule-core";
 import { parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
 import { hm as fmtTime } from "@/components/admin/ui";
 
-type Person = { id: string; name: string; avatar: string | null; role: "host" | "cohost" | "caller"; state: "waiting" | "on_air"; connected: boolean };
+type Person = { id: string; name: string; avatar: string | null; role: "host" | "cohost" | "caller"; state: "waiting" | "on_air"; connected: boolean; gain?: number };
 type Queued = { id: string; label: string; state: string; ready: boolean };
 type Usage = { bytes: number; capBytes: number; freeBytes: number; blocked: boolean; month: string };
 type State = {
@@ -56,6 +56,38 @@ function Levels({ level, off }: { level: number; off?: boolean }) {
         return <i key={i} style={{ height: `${30 + (i / (n - 1)) * 70}%`, background: on ? undefined : "var(--a-border-strong)" }} />;
       })}
     </span>
+  );
+}
+
+/**
+ * One person's volume on air, for every listener (0 to 200%, 100% = as levelled). Any broadcaster
+ * can set anyone's, their own included; callers can't (it isn't on their page). It's saved a
+ * moment after the slider stops, and the person's browser applies it within a few seconds.
+ */
+function VolumeSlider({ id, name, gain, onSave }: { id: string; name: string; gain: number; onSave: (id: string, gain: number) => Promise<void> }) {
+  const [v, setV] = useState(gain);
+  const editing = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    if (!editing.current) setV(gain);
+  }, [gain]);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const change = (next: number) => {
+    setV(next);
+    editing.current = true;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      void onSave(id, next).finally(() => {
+        editing.current = false;
+      });
+    }, 350);
+  };
+  return (
+    <label className="pvol t12 muted">
+      <span>Volume</span>
+      <input type="range" className="range" min={0} max={2} step={0.05} value={v} onChange={(e) => change(Number(e.target.value))} onDoubleClick={() => change(1)} aria-label={`${name}'s volume`} />
+      <span className="pvol-n">{Math.round(v * 100)}%</span>
+    </label>
   );
 }
 
@@ -120,6 +152,15 @@ export default function StudioPage() {
       document.removeEventListener("visibilitychange", tick);
     };
   }, [load, loadReplays]);
+
+  // a volume change: saved quietly (no busy state, so the slider stays usable)
+  const saveGain = useCallback(async (id: string, gain: number) => {
+    try {
+      await post({ op: "gain", id, gain });
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }, []);
 
   const act = async (body: Record<string, unknown>) => {
     setBusy(true);
@@ -339,6 +380,7 @@ export default function StudioPage() {
                             {roleName(p)}
                             {isMe ? (muted ? " · muted" : voice.connected ? " · mic live" : micAsk ? " · mic not connected" : " · connecting…") : p.connected ? "" : " · connecting"}
                           </div>
+                          <VolumeSlider id={p.id} name={isMe ? "Your" : p.name} gain={p.gain ?? 1} onSave={saveGain} />
                         </div>
                         {isMe && <Levels level={level} off={muted} />}
                         {!isMe && p.role !== "host" && (

@@ -46,7 +46,8 @@ export async function startStation(opts: StationOptions = {}): Promise<Station> 
   return {
     status(): StationStatus {
       const s = engine.status as Record<string, unknown>;
-      const state: StationState = s.state === 'playing' ? 'playing' : s.state === 'off air' ? 'off-air' : 'starting';
+      // paused by a Studio host: the radio is on (the voices carry on), just no song
+      const state: StationState = s.state === 'playing' || s.state === 'paused' ? 'playing' : s.state === 'off air' ? 'off-air' : 'starting';
       const tl = engine.timeline;
       const k = s.slot as number | undefined;
       const item = state === 'playing' && tl && k !== undefined ? tl.items[k - tl.firstK] : undefined;

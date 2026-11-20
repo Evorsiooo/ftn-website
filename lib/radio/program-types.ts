@@ -28,6 +28,8 @@ export interface ProgramVoice {
   /** Their voice on Cloudflare Realtime (pulled by listeners), once they are connected. */
   session: string | null;
   track: string | null;
+  /** Volume set by a host (1 = as levelled); the person's own browser applies it. */
+  gain?: number;
 }
 
 export interface ProgramStudio {

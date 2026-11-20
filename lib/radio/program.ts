@@ -57,7 +57,7 @@ export async function programStudio(db: DbClient): Promise<ProgramStudio | null>
     callIn: s.callIn,
     pausedAt: s.pausedAt ? s.pausedAt.getTime() : null,
     queue: queue.map((q) => q.key).filter((k): k is string => !!k),
-    voices: people.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, session: p.rtcSession, track: p.track })),
+    voices: people.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, session: p.rtcSession, track: p.track, gain: p.gain })),
   };
 }
 

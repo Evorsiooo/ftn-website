@@ -42,6 +42,8 @@ const LIBRARY_REFRESH_MS = 10 * 60_000;
 const TICK_MS = 250;
 /** Songs and loop decks are made ready this far ahead. */
 const HORIZON_MS = 45_000;
+/** How long the music takes to fade out when a host pauses it, before the decks stop. */
+const PAUSE_FADE_MS = 1500;
 /** Re-put the decks on the clock when the server-to-context mapping has moved this much. */
 const RETIME_SEC = 0.004;
 /** How often the running order is fetched again (another listener may have added a song). */
@@ -86,6 +88,9 @@ export class RadioEngine {
   private musicLevel = 1;
   private voiceDuck = 1;
   private paused = false;
+  /** When the host's pause began here (performance.now()), and whether the decks are at rest. */
+  private pausedSince = 0;
+  private rested = false;
   /** Shows, the Studio's queue and pause (radio/program.json). */
   program: RadioProgram | null = null;
   /** The running order being played (the live one, or a replay's at this moment). */
@@ -227,6 +232,8 @@ export class RadioEngine {
   private setPaused(paused: boolean): void {
     if (paused === this.paused) return;
     this.paused = paused;
+    this.pausedSince = performance.now();
+    if (!paused) this.rested = false;
     this.log(paused ? 'music paused by the host' : 'music back on');
     this.applyMusic();
   }
@@ -400,6 +407,14 @@ export class RadioEngine {
     if (replay) this.setPaused(replay.pauses.some((p) => p.start <= serverNow && p.end > serverNow));
     const tl = replay ? replayTimelineAt(replay.timelines, serverNow) : this.timeline;
     this.playing = tl;
+    // Live, paused by a host: once the music has faded out, the songs really stop (nothing plays
+    // or downloads). Playing again, the website puts out a fresh running order that starts the
+    // song where it stopped, and the decks pick it up from rest like any new song.
+    if (!replay && this.paused && performance.now() - this.pausedSince > PAUSE_FADE_MS) {
+      if (!this.rested) this.rest();
+      this.status = { state: 'paused' };
+      return;
+    }
     if (replay && !tl) {
       this.status = { state: 'between songs' };
       return;
@@ -414,11 +429,25 @@ export class RadioEngine {
       return;
     }
     // the songs sounding now or within the horizon: at most two, on alternate decks
+    const used = [false, false];
     for (const kk of [k - 1, k, k + 1]) {
       const slot = slotAt(tl, kk);
       if (!slot) continue;
       if (slot.endMs < serverNow - 500 || slot.startMs > serverNow + HORIZON_MS) continue;
-      this.hold(kk % 2 === 0 ? 0 : 1, slot, ctxAt, serverNow);
+      const d = kk % 2 === 0 ? 0 : 1;
+      used[d] = true;
+      this.hold(d, slot, ctxAt, serverNow);
+    }
+    // A deck still on a song the running order no longer has there (a fresh running order: the
+    // host's music back on after a pause, the AutoDJ starting over) stops, or two songs would play
+    // at once: the old one carrying on to its end under the new one.
+    for (const d of [0, 1] as const) {
+      const held = this.held[d];
+      if (used[d] || !held) continue;
+      const slot = slotAt(tl, held.k);
+      if (slot && slot.item.key === held.key && slot.endMs >= serverNow - 500) continue;
+      this.stopDeck(d);
+      this.log(`deck ${this.decks[d].id}: stopped (no longer in the running order)`);
     }
     // a loop mix coming up or under way
     for (const kk of [k - 1, k]) {
@@ -461,6 +490,27 @@ export class RadioEngine {
       rev: tl.rev,
       maxTickGapMs: Math.round(this.maxTickGapMs),
     };
+  }
+
+  /** Stops deck [d] now and forgets what it held. */
+  private stopDeck(d: 0 | 1): void {
+    const el = this.elements[d];
+    this.decks[d].follow([{ output: this.ctx.currentTime, input: el.currentTime || 0, rate: 1, active: false }]);
+    el.pause();
+    el.removeAttribute('src');
+    el.load();
+    this.held[d] = null;
+  }
+
+  /** Stops both decks and any loop mix, and forgets what they held. */
+  private rest(): void {
+    this.rested = true;
+    this.stopDeck(0);
+    this.stopDeck(1);
+    void this.loopDecks?.then((ds) => ds.forEach((d) => d.stop())).catch(() => {});
+    this.loopHeld = null;
+    this.lastSlotK = null;
+    this.log('decks at rest (paused)');
   }
 
   /** Puts deck [d] on song slot [slot]: its element timeline and its automation. */
