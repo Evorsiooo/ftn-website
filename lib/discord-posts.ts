@@ -13,6 +13,7 @@ import {
   siteUrl,
 } from "@/lib/discord";
 import { RO_STATES } from "@/lib/ro-states";
+import { parseRadioClipEdit } from "@/lib/radio-clips/model";
 
 type Post = typeof posts.$inferSelect;
 
@@ -36,6 +37,18 @@ export function timedExclusiveLine(createdAt: Date, publishedAt: Date): string |
 function learnMoreLine(post: Post): string | null {
   if (!post.organizationName || !post.messageLink) return null;
   return `🔗  Learn more about ${post.organizationName}\n${post.messageLink}`;
+}
+
+// A radio clip links to the webradio and to the show's replay, at the moment the clip starts.
+function radioLines(post: Post): string[] {
+  const clip = post.mediaType === "video" ? parseRadioClipEdit(post.videoEdit) : null;
+  if (!clip) return [];
+  const site = siteUrl();
+  const from = Math.max(0, Math.floor((clip.startMs - (clip.showStartedAt ?? clip.startMs)) / 1000));
+  return [
+    `${FTN_PLUS_EMOJI} [Listen to the webradio](<${site}/plus/radio>)`,
+    `${FTN_PLUS_EMOJI} [Listen to the replay](<${site}/plus/radio/replays/${clip.replayId}${from ? `?t=${from}` : ""}>)`,
+  ];
 }
 
 export function amendmentsOf(post: Post): string[] {
@@ -72,6 +85,8 @@ async function loadPostMedia(post: Post): Promise<DiscordFile> {
 export function buildPostMessage(post: Post, timedLine: string | null = null, amendments: string[] = []) {
   const lines: string[] = [];
   if (timedLine) lines.push(timedLine, "");
+  const radio = radioLines(post);
+  if (radio.length) lines.push(...radio, "");
   const learnMore = learnMoreLine(post);
   if (learnMore) lines.push(learnMore);
   for (const note of amendments) lines.push("", `*edit: ${note}*`);

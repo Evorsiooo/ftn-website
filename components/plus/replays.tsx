@@ -170,7 +170,10 @@ export function ReplayPage({ id }: { id: string }) {
       .then(async (d: ReplayData | "missing") => {
         setData(d);
         if (d === "missing") return;
-        setAt(d.replay.startedAt);
+        // ?t=<seconds> opens the replay at that point of the show (radio clips link to their moment)
+        const t = Number(new URLSearchParams(window.location.search).get("t"));
+        const from = Number.isFinite(t) && t > 0 ? Math.min(d.replay.endedAt - 1000, d.replay.startedAt + t * 1000) : d.replay.startedAt;
+        setAt(from);
         const tls = await Promise.all(d.timelines.map((k) => fetch(fileUrl(k)).then((r) => (r.ok ? (r.json() as Promise<RadioTimeline>) : null)).catch(() => null)));
         setTimelines(tls.filter((t): t is RadioTimeline => !!t));
       })

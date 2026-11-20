@@ -11,6 +11,8 @@ import { canManagePosts } from "@/lib/rbac";
 import { RO_STATES } from "@/lib/ro-states";
 import { PostLayers, PostLayout, TEMPLATE, buildPostLayers, loadImage, logoForRoState, renderPost } from "@/lib/post-template";
 import { VideoEditor, type VideoEditorHandle } from "@/components/admin/posts/video-editor";
+import { RadioClipCreator } from "@/components/admin/posts/radio-clips/radio-clip-creator";
+import { parseRadioClipEdit } from "@/lib/radio-clips/model";
 
 async function uploadToPosts(file: Blob, name: string): Promise<string> {
   const body = new FormData();
@@ -73,7 +75,9 @@ export function PostCreator({ editId }: { editId: string | null }) {
   const [focusX, setFocusX] = useState(0.5);
   const [focusY, setFocusY] = useState(0.5);
   const [uploadingBg, setUploadingBg] = useState(false);
-  const [mode, setMode] = useState<"image" | "video">("image");
+  const [mode, setMode] = useState<"image" | "video" | "radio">("image");
+  // A saved radio clip being changed (it opens in the Radio clip tab).
+  const [radioPost, setRadioPost] = useState<any | null>(null);
   const [videoLayers, setVideoLayers] = useState<PostLayers | null>(null);
   // Transparent animated WebP (no sound) instead of an MP4 on a dark backdrop.
   const [transparent, setTransparent] = useState(false);
@@ -234,6 +238,11 @@ export function PostCreator({ editId }: { editId: string | null }) {
 
   const startEditing = async (post: any) => {
     setEditingId(post.id);
+    if (post.mediaType === "video" && parseRadioClipEdit(post.videoEdit)) {
+      setRadioPost(post);
+      setMode("radio");
+      return;
+    }
     setMode(post.mediaType === "video" ? "video" : "image");
     setTransparent(typeof post.videoUrl === "string" && post.videoUrl.endsWith(".webp"));
     setHeadline(post.headline);
@@ -368,6 +377,32 @@ export function PostCreator({ editId }: { editId: string | null }) {
   }, [scheduleAt]);
   const headlineLines = layout?.headlineLines?.filter((l) => l.trim()).length ?? 0;
 
+  if (mode === "radio") {
+    return (
+      <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
+        <RadioClipCreator
+          seg={
+            <Seg
+              value={mode}
+              onChange={(m) => !editingId && setMode(m)}
+              options={[
+                { value: "image", label: "Image", disabled: !!editingId },
+                { value: "video", label: "Video", disabled: !!editingId },
+                { value: "radio", label: "Radio clip" },
+              ]}
+              label="Post type"
+            />
+          }
+          leave={() => router.push("/admin/posts")}
+          ads={ads}
+          suggestedAdId={suggestedAdId}
+          editPost={radioPost}
+          uploadPoster={(blob) => uploadToPosts(blob, "post.png")}
+        />
+      </AdminAuthGuard>
+    );
+  }
+
   return (
     <AdminAuthGuard requiredPermission={canManagePosts} featureTitle="Posts">
       <Screen>
@@ -388,6 +423,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
               options={[
                 { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
                 { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
+                { value: "radio", label: "Radio clip", disabled: !!editingId },
               ]}
               label="Post type"
             />
@@ -434,6 +470,7 @@ export function PostCreator({ editId }: { editId: string | null }) {
                 options={[
                   { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
                   { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
+                  { value: "radio", label: "Radio clip", disabled: !!editingId },
                 ]}
                 label="Post type"
               />
