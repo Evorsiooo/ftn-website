@@ -59,6 +59,10 @@ function Levels({ level, off }: { level: number; off?: boolean }) {
   );
 }
 
+/** This tab left a show by closing or reloading (sessionStorage), to rejoin it after a reload. */
+const LEFT_KEY = "ftn-studio-left";
+const REJOIN_MS = 20_000;
+
 /**
  * One person's volume on air, for every listener (0 to 200%, 100% = as levelled). Any broadcaster
  * can set anyone's, their own included; callers can't (it isn't on their page). It's saved a
@@ -219,6 +223,42 @@ export default function StudioPage() {
   const report = useCallback(async (session: string, track: string) => {
     await post({ op: "track", session, track });
   }, []);
+  // Closing the page (or going elsewhere) takes this broadcaster off air at once, like Leave. A
+  // reload comes straight back: the note left in this tab's sessionStorage rejoins the same show.
+  const onAirRef = useRef<{ session: string } | null>(null);
+  onAirRef.current = onAir ? { session: state!.session!.id } : null;
+  useEffect(() => {
+    const bye = () => {
+      const cur = onAirRef.current;
+      if (!cur) return;
+      onAirRef.current = null;
+      try {
+        sessionStorage.setItem(LEFT_KEY, JSON.stringify({ session: cur.session, at: Date.now() }));
+      } catch {
+        /* no rejoin after a reload, that's all */
+      }
+      void fetch("/api/admin/radio/studio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "leave", soft: true }), keepalive: true }).catch(() => {});
+    };
+    window.addEventListener("pagehide", bye);
+    return () => {
+      window.removeEventListener("pagehide", bye);
+      bye();
+    };
+  }, []);
+  const rejoinTried = useRef(false);
+  useEffect(() => {
+    if (!state || rejoinTried.current) return;
+    rejoinTried.current = true;
+    let note: { session?: string; at?: number } | null = null;
+    try {
+      note = JSON.parse(sessionStorage.getItem(LEFT_KEY) || "null");
+      sessionStorage.removeItem(LEFT_KEY);
+    } catch {
+      note = null;
+    }
+    if (note?.session && note.at && Date.now() - note.at < REJOIN_MS && state.session?.id === note.session && !state.me) void goOnAir({ op: "join" });
+  }, [state]);
+
   const voice = useOnAirVoice({ personId: onAir ? state!.me!.id : null, mic: onAir ? mic : null, report, muted });
 
   // library search

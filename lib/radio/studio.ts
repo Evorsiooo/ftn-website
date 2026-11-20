@@ -166,11 +166,15 @@ export async function setTrack(db: DbClient, p: Person, rtcSession: string, trac
  * unattended while its queue lasts (Adrien, 2026-11-20: a broadcaster leaving doesn't cut their
  * queue): see afterLeaving.
  */
-export async function leave(db: DbClient, personId: string): Promise<void> {
+export async function leave(db: DbClient, personId: string, opts: { soft?: boolean } = {}): Promise<void> {
   const [p] = await db.select().from(radioStudioPeople).where(eq(radioStudioPeople.id, personId));
   if (!p || p.state === "left") return;
   await db.update(radioStudioPeople).set({ state: "left" }).where(eq(radioStudioPeople.id, personId));
-  await afterLeaving(db, p.sessionId);
+  // A broadcaster's page closing (soft): off air at once, but if they were the last one the show
+  // waits for the next tidy (within a minute) before it ends or runs unattended, so a reload,
+  // which rejoins straight away, doesn't end the show.
+  const lastOne = opts.soft && !(await people(db, p.sessionId)).some((x) => isBroadcaster(x) && x.state === "on_air");
+  if (!lastOne) await afterLeaving(db, p.sessionId);
   await republish(db);
 }
 
@@ -227,9 +231,17 @@ export async function tidy(db: DbClient): Promise<boolean> {
     await resolveQueue(db, s).catch(() => {});
     // a queued song that can never play (or a link that never downloads) mustn't hold the
     // Studio for good: an unattended show stops at UNATTENDED_MAX_MS after it started at the latest
-    if ((await queueLeft(db, s.id)) && Date.now() - s.startedAt.getTime() < UNATTENDED_MAX_MS) return false;
-    await endSession(db, s.id);
-    return true;
+    if (Date.now() - s.startedAt.getTime() >= UNATTENDED_MAX_MS) {
+      await endSession(db, s.id);
+      return true;
+    }
+    // ends the show if its queue has played; otherwise (again) no callers, music not paused
+    if (here.length || s.callIn || s.pausedAt || !(await queueLeft(db, s.id))) {
+      await afterLeaving(db, s.id);
+      await republish(db);
+      return true;
+    }
+    return false;
   }
   const cutoff = new Date(Date.now() - STALE_MS);
   const stale = await db

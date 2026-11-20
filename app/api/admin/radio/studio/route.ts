@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
     if (!s) throw new StudioError("No show is on air.", 404);
     const mine = await me(db, s.id, user);
     if (op === "leave") {
-      if (mine) await leave(db, mine.id);
+      if (mine) await leave(db, mine.id, { soft: body.soft === true });
       return NextResponse.json({ ok: true });
     }
     // everything else: broadcasters of this show only
