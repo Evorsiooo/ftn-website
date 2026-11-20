@@ -273,7 +273,7 @@ export default function StudioPage() {
   }, [query, onAir]);
 
   // past episodes of this show (by its show, else its name); every replay when no show is open
-  const scope = occ ? { showId: occ.show?.id ?? null, title: occ.title } : state?.session ? { showId: null, title: state.session.title } : null;
+  const scope = occ ? { showId: occ.show && !occ.show.oneOff ? occ.show.id : null, title: occ.title } : state?.session ? { showId: null, title: state.session.title } : null;
   const shown = scope ? replays.filter((r) => (scope.showId ? r.showId === scope.showId : r.title === scope.title)) : replays;
   const speaking = useMemo(() => new Set(radio.speaking), [radio.speaking]);
   const waiting = state?.people.filter((p) => p.state === "waiting") ?? [];
@@ -362,7 +362,7 @@ export default function StudioPage() {
                         Your microphone goes on air as soon as you press the button. Use headphones so the radio doesn&apos;t echo into it. Until then, the AutoDJ plays.
                       </p>
                       <div>
-                        <button type="button" className="btn primary lg" disabled={busy || usage?.blocked} onClick={() => void goOnAir({ op: "start", showId: occ.show?.id ?? null, title: occ.title })}>
+                        <button type="button" className="btn primary lg" disabled={busy || usage?.blocked} onClick={() => void goOnAir({ op: "start", showId: occ.show && !occ.show.oneOff ? occ.show.id : null, title: occ.title, artUrl: occ.show?.oneOff ? occ.artUrl : null })}>
                           <Mic className="ic" /> Go on air
                         </button>
                       </div>

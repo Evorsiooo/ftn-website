@@ -31,6 +31,8 @@ export async function loadShowsAndBroadcasts(
       showId: b.showId ?? null,
       title: b.title ?? null,
       description: b.description ?? null,
+      presenter: b.presenter ?? null,
+      artUrl: b.artUrl ?? null,
       onRadio: b.onRadio,
       onStream: b.onStream,
       kind: b.kind,

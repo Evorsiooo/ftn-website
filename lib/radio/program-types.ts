@@ -13,7 +13,7 @@ export interface ProgramAiring {
   plays: "hosted" | "playlist" | "stream";
   title: string;
   art: string | null;
-  /** Playlist shows: the playlist's songs (R2 keys), in order. */
+  /** Playlist shows: the playlist's songs (R2 keys); the AutoDJ shuffles them. */
   playlist?: string[];
   /** Stream shows: the https stream to play. */
   stream?: string;
@@ -61,7 +61,9 @@ export function airingAt(p: RadioProgram | null, ms: number): ProgramAiring | nu
  * null to let the AutoDJ pick from the whole library.
  *
  * - A Studio show: the hosts' queue first.
- * - A playlist show: the playlist, in order, carrying on after the last of its songs that played.
+ * - A playlist show: a random song from the playlist, skipping the ones already played until all
+ *   of them have been (an AutoDJ shuffle, not the list order). The running order is shared, so the
+ *   first browser to line it up decides it for everyone.
  */
 export function programPick(p: RadioProgram | null, startMs: number, recent: string[], playable: Set<string>): string | null {
   if (!p) return null;
@@ -73,9 +75,11 @@ export function programPick(p: RadioProgram | null, startMs: number, recent: str
   if (a?.plays === "playlist" && a.playlist?.length) {
     const list = a.playlist.filter((k) => playable.has(k));
     if (!list.length) return null;
-    let last = -1;
-    for (let i = recent.length - 1; i >= 0 && last < 0; i--) last = list.indexOf(recent[i]!);
-    return list[(last + 1) % list.length]!;
+    const played = new Set(recent.slice(-(list.length - 1)));
+    let pool = list.filter((k) => !played.has(k));
+    if (!pool.length) pool = list.filter((k) => k !== recent[recent.length - 1]);
+    if (!pool.length) pool = list;
+    return pool[Math.floor(Math.random() * pool.length)]!;
   }
   return null;
 }

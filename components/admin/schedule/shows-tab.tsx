@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { Trash2, Loader2, Upload } from "lucide-react";
 import type { ShowRecord } from "@/lib/schedule-client";
 
-async function uploadArt(file: File): Promise<string> {
+export async function uploadArt(file: File): Promise<string> {
   const form = new FormData();
   form.append("file", file);
   form.append("folder", "radio");

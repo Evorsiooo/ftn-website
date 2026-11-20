@@ -10,6 +10,8 @@ export function recordToInput(b: BroadcastRecord): BroadcastInput {
     showId: b.showId,
     title: b.title,
     description: b.description,
+    presenter: b.presenter,
+    artUrl: b.artUrl,
     onRadio: b.onRadio,
     onStream: b.onStream,
     kind: b.kind,

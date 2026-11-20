@@ -228,7 +228,8 @@ export const radioShows = sqliteTable("radio_shows", {
 // A broadcast is one entry on the schedule: radio, a livestream, or both at once.
 // Weekly entries repeat: dayOfWeek (0=Sunday) and startMinute are wall-clock values in `timezone`
 // (an IANA zone), so they keep their local time across daylight-saving changes;
-// one-off entries use startsAt/endsAt instead. Radio entries need a show (presenter, art).
+// one-off entries use startsAt/endsAt instead. Radio entries either use a show (presenter, art)
+// or are a one-time broadcast with their own title, presenter and art.
 // Livestreams live on YouTube; youtubeId optionally links the entry to its watch page.
 // sportsEventId links a broadcast to a sports_events row (shows the Livestream / Radio badge on the event).
 export const broadcasts = sqliteTable("broadcasts", {
@@ -236,6 +237,9 @@ export const broadcasts = sqliteTable("broadcasts", {
   showId: text("show_id").references(() => radioShows.id, { onDelete: "set null" }),
   title: text("title"),
   description: text("description"),
+  // A one-time broadcast (no show): its own host and logo. Never listed under Shows & presenters.
+  presenter: text("presenter"),
+  artUrl: text("art_url"),
   onRadio: integer("on_radio", { mode: "boolean" }).notNull().default(true),
   onStream: integer("on_stream", { mode: "boolean" }).notNull().default(false),
   kind: text("kind", { enum: ["weekly", "once"] }).notNull().default("weekly"),
