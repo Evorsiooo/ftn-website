@@ -204,7 +204,14 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
       const key = audioKey(c);
       let p = audios.current.get(key);
       if (!p) {
-        p = renderClipAudio(show!, c.startMs, c.endMs, c.music);
+        p = (async () => {
+          const mix = await renderClipAudio(show!, c.startMs, c.endMs, c.music);
+          if (!c.music) return mix;
+          // The waveform follows the people talking (as in the mockups): the songs under them
+          // would turn it into an even comb. A clip of only music keeps the full mix's shape.
+          const voices = await renderClipAudio(show!, c.startMs, c.endMs, false, { channels: 1, sampleRate: 8000 }).catch(() => null);
+          return voices && voices.level > 0.005 ? { ...mix, peaks: voices.peaks } : mix;
+        })();
         p.catch(() => audios.current.delete(key));
         audios.current.set(key, p);
         while (audios.current.size > 8) audios.current.delete(audios.current.keys().next().value!);

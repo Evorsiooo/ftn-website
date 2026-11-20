@@ -172,6 +172,8 @@ export interface ClipAudio {
   buffer: AudioBuffer;
   /** Loudness of the clip in [bars] equal parts, 0 to 1. */
   peaks: number[];
+  /** The loudest part before scaling to 0 to 1 (RMS), to tell silence from sound. */
+  level: number;
 }
 
 /**
@@ -289,11 +291,11 @@ export async function renderClipAudio(
   }
 
   const buffer = await ctx.startRendering();
-  return { buffer, peaks: peaksOf(buffer, bars) };
+  return { buffer, ...peaksOf(buffer, bars) };
 }
 
 /** Loudness of each of [bars] equal parts of the buffer, scaled so the loudest is 1. */
-export function peaksOf(buffer: AudioBuffer, bars: number): number[] {
+export function peaksOf(buffer: AudioBuffer, bars: number): { peaks: number[]; level: number } {
   const l = buffer.getChannelData(0);
   const r = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : l;
   const per = Math.max(1, Math.floor(l.length / bars));
@@ -307,5 +309,5 @@ export function peaksOf(buffer: AudioBuffer, bars: number): number[] {
   }
   const max = Math.max(1e-4, ...out);
   // linear, so the quiet and loud parts stay apart (a square root flattened it into a comb)
-  return out.map((v) => v / max);
+  return { peaks: out.map((v) => v / max), level: Math.max(...out, 0) };
 }
