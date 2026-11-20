@@ -41,8 +41,9 @@ export function CallInProvider({ children }: { children: ReactNode }) {
 }
 export const CallInButton = () => <>{useContext(Ctx).button}</>;
 export const CallInCard = () => <>{useContext(Ctx).card}</>;
+/** The call-in card is open (it takes the lyrics' place beside the people on air). */
+export const useCallInOpen = () => !!useContext(Ctx).card;
 
-const card = (node: ReactNode): Parts => ({ button: null, card: node });
 
 function useCallInParts(): Parts {
   const r = useRadio();
@@ -184,12 +185,23 @@ function useCallInParts(): Parts {
 
   if (!studio && step === "idle") return { button: null, card: null };
   const show = studio?.title ?? "the show";
+  // The "Call in" button stays where it is while its card is open (pressed; pressing it again
+  // closes the card, except on the line, where Hang up does that), so the controls never move.
+  const card = (node: ReactNode): Parts => ({
+    button: (
+      <button className="btn sec callbtn" aria-pressed aria-expanded onClick={step === "queued" ? undefined : cancel}>
+        <I.Phone />
+        Call in
+      </button>
+    ),
+    card: node,
+  });
 
   if (step === "idle") {
     if (!open) return { button: null, card: null };
     return {
       button: (
-        <button className="btn sec callbtn" onClick={() => setStep("mic")}>
+        <button className="btn sec callbtn" aria-pressed={false} aria-expanded={false} onClick={() => setStep("mic")}>
           <I.Phone />
           Call in
         </button>

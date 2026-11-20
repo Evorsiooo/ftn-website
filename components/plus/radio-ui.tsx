@@ -3,12 +3,12 @@
 // and the popout. What's on air comes from useOnAir (the AutoDJ's shared running order, or this browser's own
 // player) and, during an OBS show on Icecast, from the now-playing poll and the schedule.
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
 import { useOnAir } from "@/components/radio/use-on-air";
 import { useNowPlaying, type ShowInfo } from "@/components/radio/use-now-playing";
 import { ListenButton, Volume } from "./radio-controls";
-import { CallInButton, CallInCard, CallInProvider } from "./call-in";
+import { CallInButton, CallInCard, CallInProvider, useCallInOpen } from "./call-in";
 import { Replays } from "./replays";
 import * as I from "./icons";
 
@@ -325,11 +325,14 @@ function Stage({ people }: { people: OnStage[] }) {
 
 function Side({ songKey, lyrics, people, position }: { songKey?: string | null; lyrics: Lyric[] | null; people: OnStage[]; position: () => number | null }) {
   const anyoneTalking = people.some((p) => p.talking);
+  // the call-in card takes the lyrics' place while it's open (the column keeps its size)
+  const calling = useCallInOpen();
+  const callable = !!useRadio().program?.studio?.callIn || calling;
   return (
-    <div className={`side${people.length ? " staged" : ""}`}>
+    <div className={`side${people.length ? " staged" : ""}${callable ? " callable" : ""}`}>
       {people.length > 0 && <Stage people={people} />}
       <CallInCard />
-      {lyrics && (
+      {lyrics && !calling && (
         <div className={anyoneTalking ? "dim" : undefined}>
           <Lyrics key={songKey ?? undefined} lines={lyrics} position={position} />
         </div>
@@ -407,6 +410,42 @@ function Shows() {
   );
 }
 
+/** The player sits centred in the window. Opening the call-in card makes it taller, which would
+ *  re-centre it and move everything up (phones, where the card goes under the player), so while the
+ *  card is open the player keeps the top it had when the card was closed. */
+function RadioGrid({ children }: { children: ReactNode }) {
+  const calling = useCallInOpen();
+  const ref = useRef<HTMLDivElement>(null);
+  const top = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (!calling) {
+      el.style.removeProperty("align-content");
+      el.style.removeProperty("padding-top");
+      const first = el.firstElementChild as HTMLElement | null;
+      top.current = first ? first.offsetTop : null;
+    } else if (top.current !== null) {
+      el.style.setProperty("align-content", "start");
+      el.style.setProperty("padding-top", `${top.current}px`);
+    }
+  });
+  useEffect(() => {
+    if (calling) return;
+    const measure = () => {
+      const first = ref.current?.firstElementChild as HTMLElement | null | undefined;
+      if (first) top.current = first.offsetTop;
+    };
+    addEventListener("resize", measure);
+    return () => removeEventListener("resize", measure);
+  }, [calling]);
+  return (
+    <div className="radio" ref={ref}>
+      {children}
+    </div>
+  );
+}
+
 export function RadioPage() {
   const v = useStationView();
   const lyrics = useLyrics(v);
@@ -425,7 +464,7 @@ export function RadioPage() {
           // the title and artist on the left, every control on the right. All of it fits the window,
           // so nothing needs a scroll.
           <CallInProvider>
-            <div className="radio">
+            <RadioGrid>
               <div className="artcol">{v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}</div>
               <Side songKey={v.songKey} lyrics={lyrics} people={people} position={v.position} />
               {v.mode !== "loading" && (
@@ -447,7 +486,7 @@ export function RadioPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </RadioGrid>
           </CallInProvider>
         )}
       </div>

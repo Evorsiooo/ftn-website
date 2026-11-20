@@ -8,6 +8,7 @@ import { watchPath } from "@/lib/plus-links";
 import { CardsLoading, ChannelLogo, VideoCard, toVideo, type PlusVideo } from "@/components/plus/cards";
 import { LiveMark } from "@/components/plus/live";
 import { RadioRow } from "@/components/plus/radio-row";
+import { ReplaysRow } from "@/components/plus/replays";
 import { useSaved } from "@/components/plus/saved";
 import * as I from "@/components/plus/icons";
 
@@ -91,6 +92,7 @@ export default function FTNPlusHomePage() {
       )}
 
       <RadioRow />
+      <ReplaysRow />
 
       {trending.length > 0 && (
         <>

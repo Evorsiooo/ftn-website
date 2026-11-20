@@ -501,6 +501,8 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 /* The replay player */
 .fp .seek { display: flex; align-items: center; gap: 12px; margin-top: 22px; max-width: 520px; font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .fp .seek input { flex: 1; accent-color: var(--yellow); }
+.fp .seek .t { flex: none; text-align: center; }
+.fp .seek input { min-width: 0; }
 
 /* Song changes: the art and its glow crossfade (FadeImg), the title and artist fade in. */
 .fp .xf { position: relative; overflow: hidden; }
@@ -559,12 +561,13 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
   .fp .radio { --art: min(78vw, 340px); }
   .fp .radio > .side .lyrics { height: 220px; }
 }
-/* the call-in card open beside the people on air: smaller avatars and a compact card, so all of it
-   stays within the art's height */
-.fp .radio > .side:has(> .call) { gap: 16px; }
-.fp .radio > .side:has(> .call) .stage li { width: 80px; gap: 6px; }
-.fp .radio > .side:has(> .call) .stage img, .fp .radio > .side:has(> .call) .stage .ini { width: 60px; height: 60px; }
-.fp .radio > .side:has(> .call) .stage .nm { font-size: 13px; }
+/* calls open: smaller avatars and a compact card, so the people on air and the call-in card fit
+   within the art's height. Sized by calls being open, not by the card, so opening the card moves
+   nothing. */
+.fp .radio > .side.callable { gap: 16px; }
+.fp .radio > .side.callable .stage li { width: 80px; gap: 6px; }
+.fp .radio > .side.callable .stage img, .fp .radio > .side.callable .stage .ini { width: 60px; height: 60px; }
+.fp .radio > .side.callable .stage .nm { font-size: 13px; }
 .fp .radio > .side > .call .callbox { padding: 16px 18px; }
 .fp .radio > .side > .call .callbox .acts { margin-top: 12px; }
 .fp .radio > .side > .call .select { margin-top: 10px; }
@@ -588,3 +591,12 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
    edge, the player sits centred in it, and Shows start below the fold */
 .fp .rtop { min-height: calc(100vh - var(--tabs-h, 0px)); min-height: calc(100svh - var(--tabs-h, 0px)); display: flex; flex-direction: column; }
 .fp .rtop > .radio, .fp .rtop > .offair { flex: 1 0 auto; width: 100%; align-content: center; }
+/* Home: radio replay cards (square show art on a blurred copy of itself, in the 16:9 frame) */
+.fp .th.rep .bg { position: absolute; inset: 0; filter: blur(24px) brightness(0.55); transform: scale(1.2); }
+.fp .th.rep .sq { position: absolute; top: 12%; bottom: 12%; left: 50%; width: auto; height: 76%; aspect-ratio: 1; transform: translateX(-50%); border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45); }
+.fp .th.rep .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); }
+.fp .th.rep .ph svg { width: 40px; height: 40px; }
+.fp .meta .logo-fallback svg { width: 16px; height: 16px; }
+/* the people on air keep their size when the call-in card opens under them */
+.fp .radio > .side > .stage { flex: none; }
+.fp .btn.sec.callbtn[aria-pressed="true"] { background: var(--surface-3); }

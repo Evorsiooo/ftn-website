@@ -10,6 +10,7 @@ import { loadStationModule } from "@/components/radio/use-radio-player";
 import { TALK_DUCK, TalkDetector } from "@/components/radio/voice";
 import type { RadioTimeline } from "@/lib/radio/autodj";
 import * as I from "./icons";
+import { Volume } from "./radio-controls";
 
 type ReplayCard = { id: string; title: string; show: string | null; art: string | null; startedAt: number; endedAt: number };
 
@@ -19,15 +20,34 @@ const dur = (ms: number) => {
   return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}` : `${m} min`;
 };
 
+/** Past shows, newest first, read again whenever a show starts or ends. */
+function useReplayList(): ReplayCard[] | null {
+  const [list, setList] = useState<ReplayCard[] | null>(null);
+  // read again whenever a show starts or ends (the Studio show, or a scheduled airing), so a show
+  // that just finished is there without a reload; a few seconds later too, as the replay is closed
+  // off by the same action that ends the show
+  const radio = useRadio();
+  const showKey = `${radio.program?.studio?.id ?? ""}|${radio.airing?.id ?? ""}`;
+  useEffect(() => {
+    let alive = true;
+    const read = () =>
+      fetch("/api/radio/replays", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d: any) => alive && setList(Array.isArray(d?.replays) ? d.replays.slice(0, 8) : []))
+        .catch(() => alive && setList((l) => l ?? []));
+    void read();
+    const again = setTimeout(read, 8000);
+    return () => {
+      alive = false;
+      clearTimeout(again);
+    };
+  }, [showKey]);
+  return list;
+}
+
 /** The radio page's list of past shows. */
 export function Replays() {
-  const [list, setList] = useState<ReplayCard[] | null>(null);
-  useEffect(() => {
-    fetch("/api/radio/replays")
-      .then((r) => r.json())
-      .then((d: any) => setList(Array.isArray(d?.replays) ? d.replays.slice(0, 8) : []))
-      .catch(() => setList([]));
-  }, []);
+  const list = useReplayList();
   if (!list?.length) return null;
   return (
     <div className="rsec">
@@ -46,6 +66,59 @@ export function Replays() {
         ))}
       </div>
     </div>
+  );
+}
+
+/** Hours:minutes:seconds, like a video's length. */
+const length = (ms: number) => {
+  const s = Math.round(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h ? `${h}:${String(m).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : `${m}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/**
+ * Home: the latest radio shows to listen back to, as a row of cards like the video rows (the
+ * show's square art on a blurred copy of itself, its length in the corner), under the Radio row.
+ */
+export function ReplaysRow() {
+  const list = useReplayList();
+  if (!list?.length) return null;
+  return (
+    <>
+      <div className="rowh">
+        <h2 className="h2">Radio replays</h2>
+        <Link href="/plus/radio">See all</Link>
+      </div>
+      <div className="cards one-row">
+        {list.slice(0, 6).map((r) => (
+          <Link key={r.id} href={`/plus/radio/replays/${r.id}`} className="card">
+            <div className="th rep">
+              {r.art ? (
+                <>
+                  <img className="bg" src={r.art} alt="" loading="lazy" />
+                  <img className="sq" src={r.art} alt="" loading="lazy" />
+                </>
+              ) : (
+                <div className="ph">
+                  <I.Radio />
+                </div>
+              )}
+              <span className="dur">{length(r.endedAt - r.startedAt)}</span>
+            </div>
+            <div className="meta">
+              <span className="logo-fallback" aria-hidden>
+                <I.Radio />
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div className="t">{r.title}</div>
+                <div className="s">Radio · {dateFmt.format(new Date(r.startedAt))}</div>
+              </div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -77,7 +150,14 @@ export function ReplayPage({ id }: { id: string }) {
   const [timelines, setTimelines] = useState<RadioTimeline[] | null>(null);
   const [playing, setPlaying] = useState(false);
   const [at, setAt] = useState(0);
+  // while the scrub bar is held: where it's at (the replay only jumps there when it's let go)
+  const [drag, setDrag] = useState<number | null>(null);
+  const dragRef = useRef<number | null>(null);
+  dragRef.current = drag;
   const station = useRef<ReplayStation | null>(null);
+  // bumped by every start and stop: a start that finishes after a newer one stops itself, so two
+  // replays never play over each other
+  const gen = useRef(0);
   const voices = useRef(new Map<string, HTMLAudioElement>());
   const detector = useRef<TalkDetector | null>(null);
   const volume = radio.muted ? 0 : radio.volume;
@@ -98,6 +178,7 @@ export function ReplayPage({ id }: { id: string }) {
   }, [id]);
 
   const stopAll = useCallback(() => {
+    gen.current++;
     station.current?.stop();
     station.current = null;
     for (const el of voices.current.values()) el.pause();
@@ -108,11 +189,14 @@ export function ReplayPage({ id }: { id: string }) {
     async (fromMs: number) => {
       if (!data || data === "missing" || !timelines) return;
       stopAll();
+      const mine = gen.current;
       // the live radio stops while a replay plays
       if (radio.status !== "idle") radio.stop();
       // the same versioned engine URL as the live radio, so a browser never runs a cached old engine
       const mod = (await loadStationModule()) as unknown as ReplayModule;
+      if (mine !== gen.current) return;
       const st = await mod.startReplay({ timelines, pauses: data.pauses, fromMs, volume: volRef.current });
+      if (mine !== gen.current) return st.stop();
       station.current = st;
       if (!detector.current) detector.current = new TalkDetector((talking) => station.current?.setVoiceDuck(talking ? TALK_DUCK : 1));
       setPlaying(true);
@@ -160,6 +244,7 @@ export function ReplayPage({ id }: { id: string }) {
 
   useEffect(
     () => () => {
+      gen.current++;
       station.current?.stop();
       for (const el of voices.current.values()) el.pause();
       detector.current?.close();
@@ -181,7 +266,17 @@ export function ReplayPage({ id }: { id: string }) {
   }
   const r = data?.replay;
   const total = r ? r.endedAt - r.startedAt : 0;
-  const pos = r ? at - r.startedAt : 0;
+  const pos = drag ?? (r ? at - r.startedAt : 0);
+  // both times as wide as the longest one, so the bar between them never changes width
+  const timeW = `${clock(total).length}ch`;
+  const letGo = () => {
+    const d = dragRef.current;
+    if (d === null || !r) return;
+    setDrag(null);
+    const ms = r.startedAt + d;
+    setAt(ms);
+    if (playing) void start(ms);
+  };
   return (
     <main>
       <div className="rtop">
@@ -203,22 +298,28 @@ export function ReplayPage({ id }: { id: string }) {
                   {pos > 1000 ? "Resume" : "Play"}
                 </button>
               )}
+              <span className="gap" />
+              <Volume />
             </div>
             <div className="seek">
-              <span>{clock(pos)}</span>
+              <span className="t" style={{ width: timeW }}>
+                {clock(pos)}
+              </span>
               <input
                 type="range"
                 min={0}
                 max={Math.max(1, Math.round(total / 1000))}
                 value={Math.round(pos / 1000)}
                 aria-label="Position in the show"
-                onChange={(e) => {
-                  const ms = r!.startedAt + Number(e.target.value) * 1000;
-                  setAt(ms);
-                  if (playing) void start(ms);
-                }}
+                onChange={(e) => setDrag(Number(e.target.value) * 1000)}
+                onPointerUp={letGo}
+                onKeyUp={letGo}
+                onBlur={letGo}
+                onTouchEnd={letGo}
               />
-              <span>{clock(total)}</span>
+              <span className="t" style={{ width: timeW }}>
+                {clock(total)}
+              </span>
             </div>
           </div>
         </div>
