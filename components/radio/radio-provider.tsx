@@ -8,6 +8,7 @@ import { useNowPlaying, type NowPlaying } from "./use-now-playing";
 import { useMediaSession } from "./use-media-session";
 import { useRadioProgram } from "./use-radio-program";
 import { useStudioVoices } from "./use-studio-voices";
+import { useOwnVoiceIds } from "./own-voice";
 import type { ProgramAiring, RadioProgram } from "@/lib/radio/program-types";
 import { FullScreen, PlayerBar } from "@/components/plus/radio-ui";
 
@@ -69,12 +70,16 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const player = useRadioPlayer(source === "stream" ? showStream! : streamUrl, undefined, { takeOver: isPopout, source });
   const [own, setOwn] = useState<{ id: string; mic: MediaStream } | null>(null);
   const playingHere = player.localStatus === "playing" || player.localStatus === "buffering";
+  // on air in this tab, or in another tab of this browser (the Studio open beside FTN+ or the popout)
+  const otherTabsOwn = useOwnVoiceIds();
+  const ownVoiceIds = useMemo(() => [...new Set([...(own ? [own.id] : []), ...otherTabsOwn])], [own, otherTabsOwn]);
   const { error: voiceError, speaking } = useStudioVoices({
     program,
     active: source === "autodj" && playingHere,
     volume: player.volume,
     muted: player.muted,
     ownVoiceId: own?.id ?? null,
+    ownVoiceIds,
     ownMic: own?.mic ?? null,
     voiceDuck: player.voiceDuck,
   });

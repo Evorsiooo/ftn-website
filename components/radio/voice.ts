@@ -30,8 +30,8 @@ export class VoiceLink {
   private closed = false;
   /** Called with each voice as it arrives (key "session/track"). */
   onTrack: (key: string, track: MediaStreamTrack) => void = () => {};
-  /** The usage cap was reached, or the connection failed for good. */
-  onStop: (why: string) => void = () => {};
+  /** The connection dropped (final false: worth a new one), or the usage cap was reached (final true). */
+  onStop: (why: string, final: boolean) => void = () => {};
 
   private constructor() {
     this.pc = new RTCPeerConnection({ iceServers: ICE, bundlePolicy: "max-bundle" });
@@ -45,7 +45,7 @@ export class VoiceLink {
       }
     };
     this.pc.onconnectionstatechange = () => {
-      if (this.pc.connectionState === "failed" && !this.closed) this.onStop("The voice connection dropped.");
+      if (this.pc.connectionState === "failed" && !this.closed) this.onStop("The voice connection dropped. Reconnecting…", false);
     };
   }
 
@@ -72,7 +72,7 @@ export class VoiceLink {
       const d = await rtc({ op: "beat", sessionId: this.sessionId, token: this.token, tracks: this.tracks() });
       if (d.stop) {
         this.close();
-        this.onStop("Voice is off for the rest of the month: the usage cap was reached.");
+        this.onStop("Voice is off for the rest of the month: the usage cap was reached.", true);
       }
     } catch {
       /* the next one will do */
