@@ -1,7 +1,7 @@
 "use client";
 // Calling in, on the radio player (the approved mockups 08 and 10 to 14). Only there while the
 // host has calls open, or when someone opens the host's link (/plus/radio?call=1).
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
 import { useMicLevel, useOnAirVoice } from "@/components/radio/use-on-air-voice";
 import { getMic } from "@/components/radio/voice";
@@ -165,13 +165,22 @@ function useCallInParts(): Parts {
     setStep("idle");
   };
 
-  // leaving the page hangs up
-  useEffect(
-    () => () => {
-      if (step === "queued") void fetch("/api/radio/call", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "leave" }), keepalive: true });
-    },
-    []
-  );
+  // leaving the page (closing the tab, or going elsewhere on the site) hangs up. The step is read
+  // through a ref: the cleanup below runs long after the first render, when the caller is in line.
+  const stepRef = useRef(step);
+  stepRef.current = step;
+  useEffect(() => {
+    const bye = () => {
+      if (stepRef.current !== "queued") return;
+      stepRef.current = "idle";
+      void fetch("/api/radio/call", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ op: "leave" }), keepalive: true }).catch(() => {});
+    };
+    window.addEventListener("pagehide", bye);
+    return () => {
+      window.removeEventListener("pagehide", bye);
+      bye();
+    };
+  }, []);
 
   if (!studio && step === "idle") return { button: null, card: null };
   const show = studio?.title ?? "the show";

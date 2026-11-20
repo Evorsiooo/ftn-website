@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRadio } from "./radio-provider";
 import { VoiceLink, VoiceRecorder, serverOffsetMs } from "./voice";
+import { OWN_REFRESH_MS, markOwnVoice } from "./own-voice";
 
 /**
  * While this browser is on air (a broadcaster in the Studio, or a caller put on air): sends the
@@ -24,6 +25,8 @@ export function useOnAirVoice(opts: {
   reportRef.current = opts.report;
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
+  // bumped to reconnect after the voice connection dropped
+  const [attempt, setAttempt] = useState(0);
   const sent = useRef<MediaStreamTrack | null>(null);
   const mutedRef = useRef(!!opts.muted);
   mutedRef.current = !!opts.muted;
@@ -36,14 +39,24 @@ export function useOnAirVoice(opts: {
     let alive = true;
     let link: VoiceLink | null = null;
     let recorder: VoiceRecorder | null = null;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     setOwn({ id: personId, mic });
+    // other tabs of this browser (FTN+ radio, the popout) must not play this voice back either
+    markOwnVoice(personId, true);
+    const mark = setInterval(() => markOwnVoice(personId, true), OWN_REFRESH_MS);
     void (async () => {
       try {
         const track = mic.getAudioTracks()[0];
         if (!track) throw new Error("No microphone.");
         link = await VoiceLink.open();
         if (!alive) return link.close();
-        link.onStop = (why) => alive && (setError(why), setConnected(false));
+        link.onStop = (why, final) => {
+          if (!alive) return;
+          setError(why);
+          setConnected(false);
+          // the connection dropped: send the voice again on a new one (not past the usage cap)
+          if (!final) retry = setTimeout(() => alive && setAttempt((n) => n + 1), 2000);
+        };
         // the link stops the tracks it sends when closed; send a clone so the page keeps its microphone
         const out = track.clone();
         out.enabled = !mutedRef.current;
@@ -58,18 +71,25 @@ export function useOnAirVoice(opts: {
         recorder = new VoiceRecorder(mic, () => Date.now() + offset);
         recorder.start();
       } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : "Couldn't connect your microphone.");
+        if (!alive) return;
+        const msg = e instanceof Error ? e.message : "Couldn't connect your microphone.";
+        setError(msg);
+        // a network blip shouldn't leave a host silent; refusals (not on air, cap) don't retry
+        if (!/not on air|usage cap|sign in/i.test(msg)) retry = setTimeout(() => alive && setAttempt((n) => n + 1), 5000);
       }
     })();
     return () => {
       alive = false;
+      clearTimeout(retry);
+      clearInterval(mark);
+      markOwnVoice(personId, false);
       recorder?.stop();
       link?.close();
       sent.current = null;
       setOwn(null);
       setConnected(false);
     };
-  }, [personId, mic, setOwn]);
+  }, [personId, mic, setOwn, attempt]);
 
   return { error, connected };
 }
