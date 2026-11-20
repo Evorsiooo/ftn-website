@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRadio } from "./radio-provider";
-import { VoiceLink, VoiceRecorder, serverOffsetMs } from "./voice";
+import { VoiceLeveller, VoiceLink, VoiceRecorder, serverOffsetMs } from "./voice";
 import { OWN_REFRESH_MS, markOwnVoice } from "./own-voice";
 
 /**
  * While this browser is on air (a broadcaster in the Studio, or a caller put on air): sends the
  * microphone to the SFU, tells the website which track it is (so listeners receive it), keeps
- * its own voice out of what it plays back, and records it for the replay.
+ * its own voice out of what it plays back, and records it for the replay. The voice is levelled
+ * first (VoiceLeveller), at the volume a broadcaster set for this person in the Studio.
  *
  * [report] posts { session, track } to the right endpoint (Studio or call-in).
  */
@@ -28,6 +29,14 @@ export function useOnAirVoice(opts: {
   // bumped to reconnect after the voice connection dropped
   const [attempt, setAttempt] = useState(0);
   const sent = useRef<MediaStreamTrack | null>(null);
+  // the volume a broadcaster set for this person (program.studio.voices), applied as it changes
+  const gain = radio.program?.studio?.voices.find((v) => v.id === personId)?.gain ?? 1;
+  const gainRef = useRef(gain);
+  gainRef.current = gain;
+  const leveller = useRef<VoiceLeveller | null>(null);
+  useEffect(() => {
+    leveller.current?.setGain(gain);
+  }, [gain]);
   const mutedRef = useRef(!!opts.muted);
   mutedRef.current = !!opts.muted;
   useEffect(() => {
@@ -39,6 +48,7 @@ export function useOnAirVoice(opts: {
     let alive = true;
     let link: VoiceLink | null = null;
     let recorder: VoiceRecorder | null = null;
+    let lev: VoiceLeveller | null = null;
     let retry: ReturnType<typeof setTimeout> | undefined;
     setOwn({ id: personId, mic });
     // other tabs of this browser (FTN+ radio, the popout) must not play this voice back either
@@ -46,8 +56,10 @@ export function useOnAirVoice(opts: {
     const mark = setInterval(() => markOwnVoice(personId, true), OWN_REFRESH_MS);
     void (async () => {
       try {
-        const track = mic.getAudioTracks()[0];
-        if (!track) throw new Error("No microphone.");
+        if (!mic.getAudioTracks()[0]) throw new Error("No microphone.");
+        lev = await VoiceLeveller.create(mic, gainRef.current);
+        if (!alive) return lev.close();
+        leveller.current = lev;
         link = await VoiceLink.open();
         if (!alive) return link.close();
         link.onStop = (why, final) => {
@@ -57,8 +69,8 @@ export function useOnAirVoice(opts: {
           // the connection dropped: send the voice again on a new one (not past the usage cap)
           if (!final) retry = setTimeout(() => alive && setAttempt((n) => n + 1), 2000);
         };
-        // the link stops the tracks it sends when closed; send a clone so the page keeps its microphone
-        const out = track.clone();
+        // the levelled voice (its own track: the link stops it when closed, the page keeps its microphone)
+        const out = lev.track;
         out.enabled = !mutedRef.current;
         sent.current = out;
         const name = await link.push(out);
@@ -68,7 +80,8 @@ export function useOnAirVoice(opts: {
         setError(null);
         const offset = await serverOffsetMs();
         if (!alive) return;
-        recorder = new VoiceRecorder(mic, () => Date.now() + offset);
+        // the replay keeps the voice as listeners heard it
+        recorder = new VoiceRecorder(lev.stream, () => Date.now() + offset);
         recorder.start();
       } catch (e) {
         if (!alive) return;
@@ -85,6 +98,8 @@ export function useOnAirVoice(opts: {
       markOwnVoice(personId, false);
       recorder?.stop();
       link?.close();
+      lev?.close();
+      if (leveller.current === lev) leveller.current = null;
       sent.current = null;
       setOwn(null);
       setConnected(false);

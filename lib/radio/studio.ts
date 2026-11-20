@@ -20,6 +20,8 @@ import { AUTODJ_KEY, radioBucket } from "./store";
 export const ON_AIR_CAP = 4;
 /** Someone whose page hasn't checked in for this long has left. */
 export const STALE_MS = 45_000;
+/** The longest a show runs (from its start) once nobody is left running it. */
+const UNATTENDED_MAX_MS = 6 * 3600_000;
 /** Check-ins are written at most this often per person. */
 const SEEN_WRITE_MS = 15_000;
 
@@ -160,7 +162,9 @@ export async function setTrack(db: DbClient, p: Person, rtcSession: string, trac
 
 /**
  * Someone leaves (or is taken off air). The show carries on while a broadcaster is left; the
- * longest-serving co-host takes over as host. With no broadcaster left, the show ends.
+ * longest-serving co-host takes over as host. With no broadcaster left, the show carries on
+ * unattended while its queue lasts (Adrien, 2026-11-20: a broadcaster leaving doesn't cut their
+ * queue): see afterLeaving.
  */
 export async function leave(db: DbClient, personId: string): Promise<void> {
   const [p] = await db.select().from(radioStudioPeople).where(eq(radioStudioPeople.id, personId));
@@ -174,7 +178,16 @@ async function afterLeaving(db: DbClient, sessionId: string): Promise<void> {
   const list = await people(db, sessionId);
   const broadcasters = list.filter((p) => isBroadcaster(p) && p.state === "on_air");
   if (!broadcasters.length) {
-    await endSession(db, sessionId, false);
+    // Nobody runs the show any more. With songs still queued, it carries on unattended until the
+    // queue has played (tidy ends it then): no callers without a host, and the music not left paused.
+    if (!(await queueLeft(db, sessionId))) {
+      await endSession(db, sessionId, false);
+      return;
+    }
+    const [s] = await db.select().from(radioStudioSessions).where(eq(radioStudioSessions.id, sessionId));
+    if (s?.pausedAt) await resumeMusic(db, s, false);
+    await db.update(radioStudioSessions).set({ callIn: false }).where(eq(radioStudioSessions.id, sessionId));
+    await db.update(radioStudioPeople).set({ state: "left" }).where(and(eq(radioStudioPeople.sessionId, sessionId), ne(radioStudioPeople.state, "left")));
     return;
   }
   if (!broadcasters.some((p) => p.role === "host")) {
@@ -193,10 +206,31 @@ export async function endSession(db: DbClient, sessionId: string, publish = true
   if (publish) await republish(db);
 }
 
-/** Drops people whose page stopped checking in; ends a show nobody runs any more. */
+/** Songs of the show's queue that haven't made it into the running order yet (or are downloading). */
+async function queueLeft(db: DbClient, sessionId: string): Promise<number> {
+  const rows = await db
+    .select({ id: radioStudioQueue.id })
+    .from(radioStudioQueue)
+    .where(and(eq(radioStudioQueue.sessionId, sessionId), eq(radioStudioQueue.state, "queued")));
+  return rows.length;
+}
+
+/**
+ * Drops people whose page stopped checking in. A show nobody runs any more (every broadcaster
+ * left) plays out its queue, following up links still downloading, and ends once it has.
+ */
 export async function tidy(db: DbClient): Promise<boolean> {
   const s = await liveStudio(db);
   if (!s) return false;
+  const here = await people(db, s.id);
+  if (!here.some((p) => isBroadcaster(p) && p.state === "on_air")) {
+    await resolveQueue(db, s).catch(() => {});
+    // a queued song that can never play (or a link that never downloads) mustn't hold the
+    // Studio for good: an unattended show stops at UNATTENDED_MAX_MS after it started at the latest
+    if ((await queueLeft(db, s.id)) && Date.now() - s.startedAt.getTime() < UNATTENDED_MAX_MS) return false;
+    await endSession(db, s.id);
+    return true;
+  }
   const cutoff = new Date(Date.now() - STALE_MS);
   const stale = await db
     .select({ id: radioStudioPeople.id })
@@ -244,6 +278,16 @@ export async function putOnAir(db: DbClient, s: Session, personId: string): Prom
   if (p.state === "on_air") return;
   if (list.filter((x) => x.state === "on_air").length >= ON_AIR_CAP) throw new StudioError(`${ON_AIR_CAP} people are already on air.`, 409);
   await db.update(radioStudioPeople).set({ state: "on_air" }).where(eq(radioStudioPeople.id, personId));
+  await republish(db);
+}
+
+/** A host sets someone's volume on air (0 to 2, 1 = as levelled). */
+export async function setGain(db: DbClient, s: Session, personId: string, gain: number): Promise<void> {
+  if (!Number.isFinite(gain)) throw new StudioError("Bad volume.");
+  const g = Math.round(Math.max(0, Math.min(2, gain)) * 100) / 100;
+  const list = await people(db, s.id);
+  if (!list.some((x) => x.id === personId && x.state === "on_air")) throw new StudioError("They're not on air.", 404);
+  await db.update(radioStudioPeople).set({ gain: g }).where(eq(radioStudioPeople.id, personId));
   await republish(db);
 }
 
@@ -409,7 +453,7 @@ function studioStateOf(s: Session | null, list: Person[], queue: QueueRow[], use
       replayId: s.replayId,
     },
     me: mine ? { id: mine.id, role: mine.role } : null,
-    people: list.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, state: p.state, connected: !!p.track, seenAgoMs: Date.now() - p.seenAt.getTime() })),
+    people: list.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, state: p.state, connected: !!p.track, gain: p.gain, seenAgoMs: Date.now() - p.seenAt.getTime() })),
     queue: queue.map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey })),
     cap: ON_AIR_CAP,
   };

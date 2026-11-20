@@ -509,6 +509,8 @@ export const radioStudioPeople = sqliteTable("radio_studio_people", {
   state: text("state", { enum: ["waiting", "on_air", "left"] }).notNull(),
   rtcSession: text("rtc_session"),
   track: text("track"),
+  /** Volume set by a host (1 = as levelled, 0 to 2), applied in this person's browser. */
+  gain: real("gain").notNull().default(1),
   joinedAt: integer("joined_at", { mode: "timestamp_ms" }).notNull(),
   seenAt: integer("seen_at", { mode: "timestamp_ms" }).notNull(),
 }, (t) => [index("radio_studio_people_session_idx").on(t.sessionId, t.state)]);

@@ -19,6 +19,7 @@ import {
   removeFromQueue,
   resumeMusic,
   setCallIn,
+  setGain,
   setTrack,
   startSession,
   studioPoll,
@@ -110,6 +111,9 @@ export async function POST(request: NextRequest) {
         break;
       case "onAir":
         await putOnAir(db, s, String(body.id ?? ""));
+        break;
+      case "gain":
+        await setGain(db, s, String(body.id ?? ""), Number(body.gain));
         break;
       case "takeOff":
         await leave(db, String(body.id ?? ""));

@@ -298,3 +298,112 @@ export async function serverOffsetMs(): Promise<number> {
 export function getMic(): Promise<MediaStream> {
   return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
 }
+
+// ------------------------------------------------------------------------------------- levelling
+
+/**
+ * Evens out a voice before it goes on air, so a quiet microphone and a loud one come out about
+ * as loud as each other for every listener (and in the replay). It's a slow automatic gain that
+ * only adapts while the person is talking, aiming at a steady speech level (TARGET_DB), followed by
+ * a compressor that catches shouts and sudden peaks. [gain] is an extra level on top (a host's
+ * slider), 1 = as levelled.
+ *
+ * If the browser won't run audio processing (no click on the page yet), [track] is the plain
+ * microphone, so the voice still goes out.
+ */
+export class VoiceLeveller {
+  readonly track: MediaStreamTrack;
+  readonly stream: MediaStream;
+  private ctx: AudioContext | null = null;
+  private auto: GainNode | null = null;
+  private manual: GainNode | null = null;
+  private timer: ReturnType<typeof setInterval> | undefined;
+  private src: MediaStreamAudioSourceNode | null = null;
+
+  static TARGET_DB = -20;
+  static MIN_GAIN = 0.35;
+  static MAX_GAIN = 6;
+  /** Below this the person isn't talking (room noise): the gain is left alone. */
+  static GATE_DB = -50;
+
+  private constructor(raw: MediaStreamTrack, ctx: AudioContext | null) {
+    if (!ctx) {
+      this.track = raw.clone();
+      this.stream = new MediaStream([this.track]);
+      return;
+    }
+    this.ctx = ctx;
+    const src = ctx.createMediaStreamSource(new MediaStream([raw]));
+    const an = ctx.createAnalyser();
+    an.fftSize = 2048;
+    const auto = ctx.createGain();
+    const comp = ctx.createDynamicsCompressor();
+    comp.threshold.value = -18;
+    comp.knee.value = 10;
+    comp.ratio.value = 6;
+    comp.attack.value = 0.004;
+    comp.release.value = 0.2;
+    const manual = ctx.createGain();
+    const out = ctx.createMediaStreamDestination();
+    src.connect(an);
+    src.connect(auto).connect(comp).connect(manual).connect(out);
+    this.src = src;
+    this.auto = auto;
+    this.manual = manual;
+    this.track = out.stream.getAudioTracks()[0]!;
+    this.stream = out.stream;
+
+    // the level of the last ~45 ms, every 50 ms; the gain moves a little toward the target while
+    // there is speech (about 2 dB a second up, faster down so a loud voice is tamed quickly)
+    const buf = new Float32Array(an.fftSize);
+    let g = 1;
+    this.timer = setInterval(() => {
+      an.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i]! * buf[i]!;
+      const db = 10 * Math.log10(sum / buf.length + 1e-12);
+      if (db < VoiceLeveller.GATE_DB) return;
+      const want = Math.min(VoiceLeveller.MAX_GAIN, Math.max(VoiceLeveller.MIN_GAIN, 10 ** ((VoiceLeveller.TARGET_DB - db) / 20)));
+      const step = want > g ? 1.012 : 0.96;
+      g = want > g ? Math.min(want, g * step) : Math.max(want, g * step);
+      auto.gain.setTargetAtTime(g, ctx.currentTime, 0.05);
+    }, 50);
+  }
+
+  /** Levels [mic]'s first audio track. Falls back to the plain track if audio can't run here. */
+  static async create(mic: MediaStream, gain = 1): Promise<VoiceLeveller> {
+    const raw = mic.getAudioTracks()[0];
+    if (!raw) throw new Error("No microphone.");
+    let ctx: AudioContext | null = null;
+    try {
+      ctx = new AudioContext();
+      if (ctx.state !== "running") await Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 800))]);
+      if (ctx.state !== "running") {
+        void ctx.close().catch(() => {});
+        ctx = null;
+      }
+    } catch {
+      ctx = null;
+    }
+    const l = new VoiceLeveller(raw, ctx);
+    l.setGain(gain);
+    return l;
+  }
+
+  /** Levelled: processing runs (false = the plain microphone goes out). */
+  get levelled(): boolean {
+    return !!this.ctx;
+  }
+
+  setGain(gain: number): void {
+    if (!this.manual || !this.ctx) return;
+    this.manual.gain.setTargetAtTime(Math.max(0, Math.min(3, gain)), this.ctx.currentTime, 0.05);
+  }
+
+  close(): void {
+    clearInterval(this.timer);
+    this.src?.disconnect();
+    this.track.stop();
+    void this.ctx?.close().catch(() => {});
+  }
+}
