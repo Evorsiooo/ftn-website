@@ -1,6 +1,6 @@
 import { and, asc, eq } from "drizzle-orm";
 import type { DbClient } from "@/db";
-import { radioPlaylistSongs, radioShows, radioSongs, radioStudioPeople, radioStudioQueue, radioStudioSessions } from "@/db/schema";
+import { radioPlaylistSongs, radioReplays, radioShows, radioSongs, radioStudioPeople, radioStudioQueue, radioStudioSessions } from "@/db/schema";
 import { expandOccurrences, loadShowsAndBroadcasts } from "@/lib/schedule";
 import { PROGRAM_KEY, type ProgramAiring, type ProgramStudio, type RadioProgram } from "./program-types";
 import { radioBucket } from "./store";
@@ -45,15 +45,17 @@ export async function liveStudio(db: DbClient) {
 export async function programStudio(db: DbClient): Promise<ProgramStudio | null> {
   const s = await liveStudio(db);
   if (!s) return null;
-  const [people, queue, show] = await Promise.all([
+  const [people, queue, show, replay] = await Promise.all([
     db.select().from(radioStudioPeople).where(and(eq(radioStudioPeople.sessionId, s.id), eq(radioStudioPeople.state, "on_air"))).orderBy(asc(radioStudioPeople.joinedAt)),
     db.select({ key: radioStudioQueue.songKey }).from(radioStudioQueue).where(and(eq(radioStudioQueue.sessionId, s.id), eq(radioStudioQueue.state, "queued"))).orderBy(asc(radioStudioQueue.position)),
     s.showId ? db.select({ art: radioShows.artUrl }).from(radioShows).where(eq(radioShows.id, s.showId)) : Promise.resolve([]),
+    // a one-time broadcast's logo is kept on its replay
+    !s.showId && s.replayId ? db.select({ art: radioReplays.artUrl }).from(radioReplays).where(eq(radioReplays.id, s.replayId)) : Promise.resolve([]),
   ]);
   return {
     id: s.id,
     title: s.title,
-    art: show[0]?.art ?? null,
+    art: show[0]?.art ?? replay[0]?.art ?? null,
     callIn: s.callIn,
     pausedAt: s.pausedAt ? s.pausedAt.getTime() : null,
     queue: queue.map((q) => q.key).filter((k): k is string => !!k),
