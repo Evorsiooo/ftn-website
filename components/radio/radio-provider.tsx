@@ -48,8 +48,9 @@ export function useRadio(): RadioContextValue {
   return ctx;
 }
 
-// The radio page is the player itself, so the bar stays hidden there (and in the popout under it).
-const HIDDEN_ON = ["/plus/radio", "/api"];
+// The radio page is the player itself, so the bar stays hidden there (and in the popout under it),
+// and in the player other sites embed.
+const HIDDEN_ON = ["/plus/radio", "/api", "/embed"];
 
 /**
  * Owns the one <audio> for the webradio. It lives in the root layout, so playback carries on
@@ -61,7 +62,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   const isPopout = pathname.startsWith("/plus/radio/popout");
   const [started, setStarted] = useState(false);
   // checked once the radio has been started here, and on the radio pages
-  const watching = webradioEnabled && (started || pathname.startsWith("/plus/radio") || pathname.startsWith("/admin/radio") || pathname.startsWith("/admin/schedule/studio"));
+  const watching = webradioEnabled && (started || pathname.startsWith("/plus/radio") || pathname.startsWith("/embed/radio") || pathname.startsWith("/admin/radio") || pathname.startsWith("/admin/schedule/studio"));
   const icecast = useRadioSource(watching);
   const { program, airing } = useRadioProgram(watching);
   // an OBS show on Icecast wins; then a scheduled stream show; otherwise the AutoDJ (with any Studio show)
