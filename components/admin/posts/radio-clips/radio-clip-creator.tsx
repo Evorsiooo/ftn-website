@@ -13,7 +13,7 @@ import { RO_STATES } from "@/lib/ro-states";
 import { loadImage } from "@/lib/post-template";
 import { uploadMedia } from "@/lib/post-video/upload";
 import { loadTimelines, renderClipAudio, songsIn, talkIn, type ClipAudio, type SongSpan } from "@/lib/radio-clips/audio";
-import { buildClipFrame, paintClipFrame, type ClipFrame } from "@/lib/radio-clips/frame";
+import { buildClipFrame, dateLine as longDate, paintClipFrame, type ClipFrame } from "@/lib/radio-clips/frame";
 import { exportClip } from "@/lib/radio-clips/export";
 import { DEFAULT_CLIP_MS, MAX_CLIP_MS, MIN_CLIP_MS, clipLen, clockOf, parseRadioClipEdit, type ClipDraft, type ClipShow, type RadioClipEdit } from "@/lib/radio-clips/model";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,7 @@ const NO_AD = "none";
 /** At this zoom or closer, the show's sound and who talks are loaded for the part shown. */
 const DETAIL_SPAN_MS = 10 * 60_000;
 
-type ShowCard = { id: string; title: string; show: string | null; art: string | null; startedAt: number; endedAt: number; people: { userId: string; name: string; avatar: string | null }[]; clips: number };
+type ShowCard = { id: string; title: string; show: string | null; art: string | null; startedAt: number; endedAt: number; people: { userId: string; name: string; avatar: string | null }[]; clips: { posted: number; inProgress: number } };
 
 interface Props {
   seg: React.ReactNode;
@@ -39,9 +39,11 @@ const pad2 = (n: number) => String(n).padStart(2, "0");
 const toLocalInput = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 const fromLocalInput = (v: string) => new Date(v).getTime();
 const newId = () => Math.random().toString(36).slice(2, 10);
-const dayFmt = new Intl.DateTimeFormat(undefined, { weekday: "short", day: "numeric", month: "short" });
-const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
-const longDate = (ms: number) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(ms));
+// "Thu 20 Nov" and "19:00", as in the mockups
+const dayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" });
+const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const clipsNote = (c: { posted: number; inProgress: number }) =>
+  [c.inProgress && `${c.inProgress} clip${c.inProgress === 1 ? "" : "s"} in progress`, c.posted && `${c.posted} clip${c.posted === 1 ? "" : "s"} posted`].filter(Boolean).join(" · ");
 const sendLabel = (c: ClipDraft) => (c.sendAt ? `${dayFmt.format(new Date(c.sendAt))} ${timeFmt.format(new Date(c.sendAt))}` : "Right away");
 const slug = (s: string) =>
   s
@@ -183,8 +185,9 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
           return next;
         });
         setWave({ start: a, span: b - a, peaks: sound.peaks });
-      } catch {
-        /* the lane says it could not load; the clips still render */
+      } catch (err) {
+        // the lane keeps saying it is loading; the clips still render
+        if (!ac.signal.aborted) console.warn("Could not load the show's sound:", err);
       }
     }, 400);
     setWave((w) => (w && w.start === view.start && w.span === view.span ? w : null));
@@ -509,7 +512,7 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
     return (shows ?? []).filter((s) => (!showFilter || (s.show ?? s.title) === showFilter) && (!q || `${s.title} ${s.show ?? ""}`.toLowerCase().includes(q)));
   }, [shows, query, showFilter]);
   const showNames = useMemo(() => [...new Set((shows ?? []).map((s) => s.show ?? s.title))].sort(), [shows]);
-  const adLabel = (a: any) => `${a.organizerName}: ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
+  const adLabel = (a: any) => `${a.organizerName} · ${a.title} (${a.impressionsLeft === null ? "unlimited" : `${a.impressionsLeft} left`})`;
 
   return (
     <Screen>
@@ -532,9 +535,9 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
                   {editPost ? "Save draft" : "Save drafts"}
                 </button>
               )}
-              <button type="button" className="btn has-lbl-m" disabled={!!busy || !selected} onClick={download} title="Download without saving">
+              <button type="button" className="btn hide-m" disabled={!!busy || !selected} onClick={download} title="Download without saving">
                 <Download className="ic" />
-                <span className="lbl-m">{selected ? `Download clip ${index + 1}` : "Download"}</span>
+                {selected ? `Download clip ${index + 1}` : "Download"}
               </button>
               <button type="button" className="btn primary lg hide-m" disabled={!!busy || !n} onClick={() => saveAll(false)}>
                 {sendText}
@@ -575,7 +578,7 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
                   <div key={s.id} className="rpick-row">
                     {s.art ? <img className="a" src={s.art} alt="" /> : <span className="a ph" />}
                     <div className="grow">
-                      <div className="b trunc">{s.title}</div>
+                      <div className="nm trunc">{s.title}</div>
                       <div className="t12 muted">
                         {dayFmt.format(new Date(s.startedAt))} · {timeFmt.format(new Date(s.startedAt))} · {clockOf(s.endedAt - s.startedAt)}
                       </div>
@@ -583,7 +586,7 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
                     <div className="ppl hide-m">
                       {s.people.slice(0, 5).map((p) => (p.avatar ? <img key={p.userId} src={p.avatar} alt={p.name} title={p.name} /> : <span key={p.userId} className="ini" title={p.name}>{p.name.slice(0, 1)}</span>))}
                     </div>
-                    <span className="t12 muted hide-m cnt">{s.clips ? `${s.clips} clip${s.clips === 1 ? "" : "s"} made` : ""}</span>
+                    <span className="t12 muted hide-m cnt">{clipsNote(s.clips)}</span>
                     <button type="button" className="btn sm" onClick={() => void openShow(s.id)}>
                       Clip
                     </button>
@@ -633,8 +636,8 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
                       onChange={(e) => patch({ headline: e.target.value.replace(/\s*\n+\s*/g, " ") })}
                       onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
                       rows={2}
-                      className="textarea field-sizing-content"
-                      style={{ resize: "none" }}
+                      className="textarea"
+                      style={{ resize: "vertical" }}
                       placeholder="What was said"
                     />
                   </Field>
@@ -704,7 +707,7 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
 
             <div className="vdock-host">
               <div className="vdock">
-                <div className="vbar">
+                <div className="vbar rc-vbar">
                   <div className="vbar-l">
                     {!editing && (
                       <button type="button" className="btn sm hide-m" onClick={() => (stop(), setShow(null), setClips([]), setSelectedId(null))}>

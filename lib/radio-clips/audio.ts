@@ -260,17 +260,31 @@ export async function renderClipAudio(
       const input = new Input({ source: new BufferSource(bytes), formats: ALL_FORMATS });
       const track = await input.getPrimaryAudioTrack();
       if (!track) continue;
+      // the decoded pieces are joined into one buffer: thousands of tiny sources make rendering crawl
       const sink = new AudioBufferSink(track);
-      for await (const { buffer, timestamp, duration } of sink.buffers(pos, pos + length)) {
+      const chunks: AudioBuffer[] = [];
+      let first: number | null = null;
+      for await (const { buffer, timestamp } of sink.buffers(pos, pos + length)) {
         aborted();
-        const skip = Math.max(0, pos - timestamp);
-        const usable = Math.min(duration - skip, pos + length - Math.max(timestamp, pos));
-        if (usable <= 0) continue;
-        const node = ctx.createBufferSource();
-        node.buffer = buffer;
-        node.connect(gain);
-        node.start(at(from) + Math.max(0, timestamp - pos), skip, usable);
+        if (first === null) first = timestamp;
+        chunks.push(buffer);
       }
+      if (!chunks.length || first === null) continue;
+      const rate = chunks[0]!.sampleRate;
+      const chans = Math.min(2, chunks[0]!.numberOfChannels);
+      const joined = new AudioBuffer({ length: chunks.reduce((n, c) => n + c.length, 0), sampleRate: rate, numberOfChannels: chans });
+      for (let ch = 0; ch < chans; ch++) {
+        let o = 0;
+        for (const c of chunks) {
+          joined.copyToChannel(c.getChannelData(Math.min(ch, c.numberOfChannels - 1)), ch, o);
+          o += c.length;
+        }
+      }
+      const skip = Math.max(0, pos - first);
+      const node = ctx.createBufferSource();
+      node.buffer = joined;
+      node.connect(gain);
+      node.start(at(from) + Math.max(0, first - pos), skip, Math.max(0, Math.min(joined.duration - skip, length)));
     }
   }
 
@@ -292,5 +306,6 @@ export function peaksOf(buffer: AudioBuffer, bars: number): number[] {
     out.push(Math.sqrt(sum / Math.max(1, (to - from) / 4)));
   }
   const max = Math.max(1e-4, ...out);
-  return out.map((v) => Math.sqrt(v / max));
+  // linear, so the quiet and loud parts stay apart (a square root flattened it into a comb)
+  return out.map((v) => v / max);
 }

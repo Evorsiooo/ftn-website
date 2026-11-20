@@ -26,7 +26,8 @@ const ART = 92;
 const HEADLINE = { size: 66, line: 67.3, maxLines: 3, top: 40, maxWidth: 920 };
 const WAVE = { height: 92, bars: 132, gap: 3, bottomGap: 30 };
 /** Ring: 5 px of background, then 5 px of green (box-shadow 0 0 0 5px bg, 0 0 0 10px green). */
-const RING = 5;
+/** The ring width on FTN+ (3 px gap, 3 px green) at its 96 px avatar size. */
+const RING = 3;
 /** How fast the ring comes and goes (the CSS transition: 60 ms on, 260 ms off). */
 const RING_ON_MS = 60;
 const RING_OFF_MS = 260;
@@ -116,7 +117,12 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.roundRect(x, y, w, h, r);
 }
 
-const dateLine = (ms: number) => new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(new Date(ms));
+/** "Thursday 20 November 2026". */
+export function dateLine(ms: number): string {
+  const parts = new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).formatToParts(new Date(ms));
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("weekday")} ${get("day")} ${get("month")} ${get("year")}`;
+}
 
 /** Draws everything that stays still for the whole clip. */
 export async function buildClipFrame(input: ClipFrameInput): Promise<ClipFrame> {
@@ -215,8 +221,11 @@ export async function buildClipFrame(input: ClipFrameInput): Promise<ClipFrame> 
   const size = n <= 3 ? 164 : n === 4 ? 140 : 118;
   const slotW = n <= 3 ? 190 : size + 26;
   const step = slotW + (n <= 3 ? 56 : 30);
-  const nameSize = n <= 3 ? 23 : 20;
-  const blockH = size + 16 + nameSize * 1.2;
+  // everything on the stage is FTN+'s .stage scaled up from its 96 px avatar
+  const k = size / 96;
+  const nameSize = Math.round(15 * k);
+  const nameGap = Math.round(10 * k);
+  const blockH = size + nameGap + nameSize * 1.2;
   const top = (headBottom + wave.y) / 2 - blockH / 2;
   const stage: ClipLayout["stage"] = [];
   let cx = width / 2 - ((n - 1) * step) / 2;
@@ -226,8 +235,8 @@ export async function buildClipFrame(input: ClipFrameInput): Promise<ClipFrame> 
     stage.push({ userId: p.userId, x: cx, y: cy, r });
     ctx.save();
     ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-    ctx.shadowBlur = 36;
-    ctx.shadowOffsetY = 16;
+    ctx.shadowBlur = 24 * k;
+    ctx.shadowOffsetY = 10 * k;
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = SURFACE_2;
@@ -253,7 +262,7 @@ export async function buildClipFrame(input: ClipFrameInput): Promise<ClipFrame> 
     ctx.font = `600 ${nameSize}px ${BODY_FONT}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.fillText(fit(ctx, p.name, slotW + 10), cx, cy + r + 16 + nameSize * 0.95);
+    ctx.fillText(fit(ctx, p.name, slotW + 10), cx, cy + r + nameGap + nameSize * 0.95);
     ctx.textAlign = "left";
     cx += step;
   });
@@ -307,14 +316,16 @@ export function paintClipFrame(
     if (on <= 0) continue;
     ctx.save();
     ctx.globalAlpha = on;
-    ctx.lineWidth = RING;
+    // FTN+: 0 0 0 3px var(--bg), 0 0 0 6px #23a55a around a 96 px avatar
+    const ring = (p.r * 2 * RING) / 96;
+    ctx.lineWidth = ring;
     ctx.strokeStyle = BG;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r + RING / 2, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, p.r + ring / 2, 0, Math.PI * 2);
     ctx.stroke();
     ctx.strokeStyle = TALK;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r + RING * 1.5, 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, p.r + ring * 1.5, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }

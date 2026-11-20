@@ -4,7 +4,7 @@ import { DateTimeInput } from "@/components/ui/date-time-input";
 import { toast, confirmDialog } from "@/components/gs/dialogs";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Download, Loader2, Shuffle, Upload } from "lucide-react";
+import { Download, Image as ImageIcon, Loader2, Radio, Shuffle, Upload, Video } from "lucide-react";
 import { Body, DT_CLASS, Field, Line, PageBar, Screen, Seg, Switch } from "@/components/admin/ui";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { canManagePosts } from "@/lib/rbac";
@@ -386,9 +386,9 @@ export function PostCreator({ editId }: { editId: string | null }) {
               value={mode}
               onChange={(m) => !editingId && setMode(m)}
               options={[
-                { value: "image", label: "Image", disabled: !!editingId },
-                { value: "video", label: "Video", disabled: !!editingId },
-                { value: "radio", label: "Radio clip" },
+                { value: "image", label: <><ImageIcon className="ic" aria-hidden />Image</>, disabled: !!editingId },
+                { value: "video", label: <><Video className="ic" aria-hidden />Video</>, disabled: !!editingId },
+                { value: "radio", label: <><Radio className="ic" aria-hidden />Radio clip</> },
               ]}
               label="Post type"
             />
@@ -421,9 +421,9 @@ export function PostCreator({ editId }: { editId: string | null }) {
               value={mode}
               onChange={(m) => !editingId && setMode(m)}
               options={[
-                { value: "image", label: "Image", disabled: !!editingId && mode !== "image" },
-                { value: "video", label: "Video", disabled: !!editingId && mode !== "video" },
-                { value: "radio", label: "Radio clip", disabled: !!editingId },
+                { value: "image", label: <><ImageIcon className="ic" aria-hidden />Image</>, disabled: !!editingId && mode !== "image" },
+                { value: "video", label: <><Video className="ic" aria-hidden />Video</>, disabled: !!editingId && mode !== "video" },
+                { value: "radio", label: <><Radio className="ic" aria-hidden />Radio clip</>, disabled: !!editingId },
               ]}
               label="Post type"
             />

@@ -627,7 +627,10 @@
 .adm .rpick-row .a { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; flex: none; background: var(--a-sunken); }
 .adm .rpick-row .ppl { display: flex; padding-left: 6px; }
 .adm .rpick-row .ppl img, .adm .rpick-row .ppl .ini { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--a-surface); margin-left: -6px; object-fit: cover; background: var(--a-sunken); display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--a-muted); }
-.adm .rpick-row .cnt { width: 130px; text-align: right; }
+.adm .rpick-row .cnt { min-width: 130px; text-align: right; white-space: nowrap; }
+.adm .rpick-row .nm { font-weight: 600; }
+.adm .creator.rclip .stage { padding: 14px; background-image: none; }
+.adm .creator.rclip .vplay .lucide-play, .adm .creator.rclip .vplay .lucide-pause { fill: currentColor; }
 .adm .rc-head { display: flex; align-items: center; gap: 10px; }
 .adm .rc-from { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--a-r-surf); background: var(--a-surface); border: 1px solid var(--a-border); min-width: 0; }
 .adm .rc-from img, .adm .rc-from .ph { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; flex: none; background: var(--a-sunken); }
@@ -636,7 +639,7 @@
 .adm .rc-zoom { width: 110px; margin-left: 6px; }
 .adm .rclip .stage canvas { aspect-ratio: auto; }
 .adm .rc-main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
-.adm .rc-list { border-left: 1px solid var(--a-border); display: flex; flex-direction: column; min-height: 0; max-height: 272px; }
+.adm .rc-list { border-left: 1px solid var(--a-border); display: flex; flex-direction: column; min-height: 200px; contain: size; } /* the timeline sets the dock's height, the list scrolls */
 .adm .rc-list-h { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--a-border); }
 .adm .rc-sched { display: grid; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--a-border); background: var(--a-surface); }
 .adm .rc-sched .select.sm { height: 28px; padding: 0 24px 0 8px; }
@@ -684,9 +687,15 @@
 @media (max-width: 760px) {
   .adm .creator.rclip .vdock-host { order: 2; }
   .adm .rc-main { display: block; }
-  .adm .rc-list { border-left: 0; max-height: none; border-top: 1px solid var(--a-border); }
+  .adm .rc-list { border-left: 0; min-height: 0; contain: none; border-top: 1px solid var(--a-border); }
   .adm .rcl { grid-template-columns: 40px minmax(0, 1fr); }
   .adm .rcl-h span { display: none; }
   .adm .rcl-ruler span:nth-child(even) { display: none; }
   .adm .rpick { padding: 16px 12px 40px; }
+  /* phone mockup: back, play, next and the time centred, then New clip here on its own row */
+  .adm .rc-vbar { flex-wrap: wrap; justify-content: center; height: auto; padding: 8px 12px; gap: 8px; }
+  .adm .rc-vbar .vbar-c { width: 100%; justify-content: center; }
+  .adm .rc-vbar .vbar-c .iconbtn { display: inline-flex; }
+  .adm .rc-vbar .vbar-r { width: 100%; justify-content: flex-start; }
+  .adm:has(.creator.rclip) .adm-mrow .seg .ic { display: none; }
 }

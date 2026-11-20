@@ -37,10 +37,15 @@ export async function GET(request: NextRequest) {
     .select({ edit: posts.videoEdit, status: posts.status })
     .from(posts)
     .where(like(posts.videoEdit, '%"v":"radio"%'));
-  const clips = new Map<string, number>();
+  // clips already posted (approved) and still in progress (drafts and posts waiting for approval)
+  const clips = new Map<string, { posted: number; inProgress: number }>();
   for (const c of clipRows) {
     const e = parseRadioClipEdit(c.edit);
-    if (e && c.status !== "denied") clips.set(e.replayId, (clips.get(e.replayId) ?? 0) + 1);
+    if (!e || c.status === "denied") continue;
+    const n = clips.get(e.replayId) ?? { posted: 0, inProgress: 0 };
+    if (c.status === "approved") n.posted++;
+    else n.inProgress++;
+    clips.set(e.replayId, n);
   }
   return NextResponse.json({
     shows: rows.map(({ r, showName, showArt }) => ({
@@ -51,7 +56,7 @@ export async function GET(request: NextRequest) {
       startedAt: r.startedAt.getTime(),
       endedAt: r.endedAt!.getTime(),
       people: heard.filter((h) => h.replayId === r.id).map((h) => ({ userId: h.userId, name: h.name, avatar: h.avatar })),
-      clips: clips.get(r.id) ?? 0,
+      clips: clips.get(r.id) ?? { posted: 0, inProgress: 0 },
     })),
   });
 }
