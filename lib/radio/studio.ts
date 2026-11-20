@@ -104,17 +104,19 @@ function personRow(sessionId: string, user: RobloxUser, role: Person["role"], st
   };
 }
 
-export async function startSession(db: DbClient, user: RobloxUser, input: { title?: unknown; showId?: unknown }): Promise<Session> {
+export async function startSession(db: DbClient, user: RobloxUser, input: { title?: unknown; showId?: unknown; artUrl?: unknown }): Promise<Session> {
   if (await liveStudio(db)) throw new StudioError("A show is already on air: join it instead.", 409);
   let showId = typeof input.showId === "string" && input.showId ? input.showId : null;
   let title = typeof input.title === "string" ? input.title.trim().slice(0, 120) : "";
-  let art: string | null = null;
+  // a one-time broadcast (no show) brings its own logo: an uploaded image
+  const ownArt = typeof input.artUrl === "string" ? input.artUrl.trim() : "";
+  let art: string | null = ownArt.length <= 1000 && (/^https:\/\//.test(ownArt) || /^\/(?!\/)/.test(ownArt)) ? ownArt : null;
   if (showId) {
     const [show] = await db.select().from(radioShows).where(eq(radioShows.id, showId));
     if (!show) showId = null;
     else {
       title ||= show.name;
-      art = show.artUrl ?? null;
+      art = show.artUrl ?? art;
     }
   }
   if (!title) throw new StudioError("Give the show a name, or pick one of the shows.");

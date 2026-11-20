@@ -9,7 +9,7 @@ import type { Occurrence } from "@/lib/schedule-core";
 import { hm as fmtTime } from "@/components/admin/ui";
 import { hostedOnRadio, studioHref } from "./on-air-strip";
 
-type Replay = { id: string; title: string; showId: string | null; hidden: boolean; startedAt: number; endedAt: number | null };
+type Replay = { id: string; kind: "studio" | "playlist"; airingKey: string | null; title: string; showId: string | null; hidden: boolean; startedAt: number; endedAt: number | null };
 
 const day = (d: Date) => d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
 
@@ -37,11 +37,21 @@ export function ShowPanel({ occ, onEdit, onClose }: { occ: Occurrence; onEdit: (
     };
   }, [occ.plays, occ.playlistId]);
 
-  const episodes = (replays ?? []).filter((r) => r.endedAt && r.endedAt <= Date.now() && (occ.show ? r.showId === occ.show.id : r.title === occ.title)).slice(0, 6);
+  // This broadcast's own episodes: a playlist show's airings are keyed "<broadcast id>:<start>"; a
+  // hosted show's Studio recordings carry its show (or, for a one-time broadcast, its name).
+  const realShow = occ.show && !occ.show.oneOff ? occ.show : null;
+  const episodes = (replays ?? [])
+    .filter((r) => r.endedAt && r.endedAt <= Date.now())
+    .filter((r) =>
+      occ.plays === "playlist"
+        ? r.kind === "playlist" && !!r.airingKey?.startsWith(`${occ.broadcastId}:`)
+        : r.kind === "studio" && (realShow ? r.showId === realShow.id : r.title === occ.title),
+    )
+    .slice(0, 6);
   const plays = !occ.onRadio
     ? ["Video stream only", "This broadcast isn't on the radio."]
     : occ.plays === "playlist"
-      ? [`Playlist${playlistName ? `: ${playlistName}` : ""}`, "The AutoDJ plays it in order. Nobody needs to be in the Studio."]
+      ? [`Playlist${playlistName ? `: ${playlistName}` : ""}`, "The AutoDJ shuffles its songs. Nobody needs to be in the Studio."]
       : occ.plays === "stream"
         ? ["A stream", occ.streamUrl ?? ""]
         : ["Live from the Studio", "The AutoDJ plays until you go on air."];

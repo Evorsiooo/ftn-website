@@ -2,7 +2,7 @@
 import { Select } from "@/components/ui/select";
 import { DateTimeInput } from "@/components/ui/date-time-input";
 import React, { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { DT_CLASS } from "@/components/admin/ui";
 import {
   BroadcastRecord,
@@ -16,6 +16,7 @@ import {
 } from "@/lib/schedule-client";
 import { RO_STATES } from "@/lib/ro-states";
 import { labelClass, selectClass } from "./styles";
+import { uploadArt } from "./shows-tab";
 
 export interface FormPreset {
   start?: Date;
@@ -43,6 +44,22 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
   const [showId, setShowId] = useState(broadcast?.showId ?? "");
   const [title, setTitle] = useState(broadcast?.title ?? "");
   const [description, setDescription] = useState(broadcast?.description ?? "");
+  // a one-time broadcast (no show): its own host and logo; it is never added to Shows & presenters
+  const [presenter, setPresenter] = useState(broadcast?.presenter ?? "");
+  const [artUrl, setArtUrl] = useState<string | null>(broadcast?.artUrl ?? null);
+  const [uploading, setUploading] = useState(false);
+  const pickArt = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      setArtUrl(await uploadArt(file));
+    } catch (err: any) {
+      setError(err?.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
   const [kind, setKind] = useState<"weekly" | "once">(broadcast?.kind ?? (preset ? "once" : "weekly"));
   const [tag, setTag] = useState(broadcast?.tag ?? "live");
   const [cancelled, setCancelled] = useState(broadcast?.status === "cancelled");
@@ -113,6 +130,8 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       showId: showId || null,
       title,
       description,
+      presenter: showId ? null : presenter,
+      artUrl: showId ? null : artUrl,
       kind,
       tag,
       timezone,
@@ -171,23 +190,54 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label className={labelClass}>Show</label>
+        <Select value={showId} onChange={(e) => setShowId(e.target.value)} className={selectClass}>
+          <option value="">{onRadio ? "No show: fill in name, host and logo" : "No show"}</option>
+          {shows.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name} — {s.presenter}
+            </option>
+          ))}
+        </Select>
+        {!showId && onRadio && (
+          <p className="help mt-1">For a one-time event. It airs like a show but isn&apos;t added to Shows &amp; presenters.</p>
+        )}
+      </div>
+
+      {showId ? (
         <div>
-          <label className={labelClass}>Show {onRadio ? "" : "(optional)"}</label>
-          <Select value={showId} onChange={(e) => setShowId(e.target.value)} className={selectClass}>
-            <option value="">{onRadio ? "Choose a show…" : "No show"}</option>
-            {shows.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name} — {s.presenter}
-              </option>
-            ))}
-          </Select>
-        </div>
-        <div>
-          <label className={labelClass}>Title {showId ? "(optional, replaces the show name)" : ""}</label>
+          <label className={labelClass}>Title (optional, replaces the show name)</label>
           <input className="input w-full" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Grand Prix live" />
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+          <div>
+            <label className={labelClass}>Name</label>
+            <input className="input w-full" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Election night special" required />
+          </div>
+          <div>
+            <label className={labelClass}>Host (optional)</label>
+            <input className="input w-full" value={presenter} onChange={(e) => setPresenter(e.target.value)} maxLength={80} placeholder="e.g. DJ Nova" />
+          </div>
+          <div>
+            <label className={labelClass}>Logo (optional)</label>
+            <div className="flex items-center gap-2">
+              {artUrl ? <img src={artUrl} alt="" className="thumb" style={{ width: 32, height: 32 }} /> : <span className="thumb" style={{ width: 32, height: 32 }} />}
+              <label className="btn sm">
+                {uploading ? <Loader2 className="ic-sm spin" /> : <Upload className="ic-sm" />}
+                {artUrl ? "Replace" : "Upload"}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={(e) => void pickArt(e.target.files?.[0])} />
+              </label>
+              {artUrl && (
+                <button type="button" className="btn sm ghost" onClick={() => setArtUrl(null)}>
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {onRadio && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -210,7 +260,7 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
                   </option>
                 ))}
               </Select>
-              <p className="help mt-1">The AutoDJ plays it in order, mixing in as the slot starts.</p>
+              <p className="help mt-1">The AutoDJ shuffles its songs for the whole slot, mixing in as the slot starts.</p>
             </div>
           )}
           {plays === "stream" && (
@@ -383,7 +433,7 @@ export function BroadcastForm({ shows, broadcast, preset, onSaved, onCancel, onD
       {error && <div className="err">{error}</div>}
 
       <div className="flex flex-wrap gap-2 border-t border-a-border pt-4">
-        <button type="submit" disabled={saving} className="btn primary">
+        <button type="submit" disabled={saving || uploading} className="btn primary">
           {saving && <Loader2 className="ic spin" />}
           {editing ? "Save changes" : "Add to schedule"}
         </button>

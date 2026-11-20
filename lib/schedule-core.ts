@@ -18,6 +18,8 @@ export interface ShowRecord {
   presenter: string;
   description: string | null;
   artUrl: string | null;
+  /** A stand-in for a one-time broadcast (no show): built from the broadcast, never stored as a show. */
+  oneOff?: boolean;
 }
 
 export interface BroadcastRecord {
@@ -25,6 +27,9 @@ export interface BroadcastRecord {
   showId: string | null;
   title: string | null;
   description: string | null;
+  /** One-time broadcasts (no show): the host and logo typed in for it. */
+  presenter: string | null;
+  artUrl: string | null;
   onRadio: boolean;
   onStream: boolean;
   kind: "weekly" | "once";
@@ -153,16 +158,20 @@ export function expandOccurrences(
 
   for (const b of list) {
     if (!includeCancelled && b.status === "cancelled") continue;
-    const show = b.showId ? showById.get(b.showId) ?? null : null;
-    if (b.onRadio && !show) continue; // radio entries need their show
+    let show = b.showId ? showById.get(b.showId) ?? null : null;
+    // a radio entry without a show is a one-time broadcast: its own name, host and logo stand in for one
+    if (b.onRadio && !show) {
+      if (b.showId || !b.title?.trim()) continue; // its show was deleted, or nothing to call it
+      show = { id: `once-${b.id}`, name: b.title.trim(), presenter: b.presenter ?? "", description: b.description, artUrl: b.artUrl, oneOff: true };
+    }
 
     const make = (start: Date, end: Date): Occurrence => ({
       broadcastId: b.id,
       title: broadcastTitle(b, show),
       // a playlist or another station's stream has nobody presenting it, whatever show it is filed under
-      presenter: (b.plays ?? "hosted") === "hosted" ? show?.presenter ?? null : null,
+      presenter: (b.plays ?? "hosted") === "hosted" ? (show ? show.presenter || null : b.presenter) : null,
       description: b.description ?? show?.description ?? null,
-      artUrl: show?.artUrl ?? null,
+      artUrl: show ? show.artUrl : b.artUrl,
       onRadio: b.onRadio,
       onStream: b.onStream,
       tag: b.tag,

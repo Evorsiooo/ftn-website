@@ -43,7 +43,7 @@ function applyFilters(list: BroadcastRecord[], shows: ShowRecord[], f: Filters):
     if (f.status === "cancelled" && b.status !== "cancelled") return false;
     if (q) {
       const show = b.showId ? showById.get(b.showId) : null;
-      if (!`${b.title ?? ""} ${show?.name ?? ""} ${show?.presenter ?? ""}`.toLowerCase().includes(q)) return false;
+      if (!`${b.title ?? ""} ${show?.name ?? ""} ${show?.presenter ?? b.presenter ?? ""}`.toLowerCase().includes(q)) return false;
     }
     return true;
   });
@@ -298,7 +298,7 @@ function BroadcastTable({
               </td>
               <td>
                 <span style={{ fontWeight: 600, textDecoration: b.status === "cancelled" ? "line-through" : undefined }}>{b.title?.trim() || show?.name || "Untitled"}</span>
-                {show && <span className="muted"> · {show.presenter}</span>}
+                {(show?.presenter || b.presenter) && <span className="muted"> · {show ? show.presenter : b.presenter}</span>}
               </td>
               <td title={describeWhen(b)}>
                 {describeWhen(b)}
@@ -555,7 +555,7 @@ function SchedulePage() {
             <Agenda weekStart={weekStart} occs={occs} onPick={setPicked} />
           </>
         ) : broadcasts.length === 0 ? (
-          <div className="empty">Nothing scheduled yet. Add a show under Shows &amp; presenters, then add a broadcast.</div>
+          <div className="empty">Nothing scheduled yet. Add a broadcast: pick one of your shows, or make it a one-time broadcast.</div>
         ) : (
           <BroadcastTable list={filtered} shows={shows} selected={selected} setSelected={setSelected} onEdit={(id) => setPanel({ broadcastId: id })} />
         )}

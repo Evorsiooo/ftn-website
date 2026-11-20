@@ -5,6 +5,8 @@ export interface BroadcastInput {
   showId?: string | null;
   title?: string | null;
   description?: string | null;
+  presenter?: string | null;
+  artUrl?: string | null;
   onRadio?: boolean;
   onStream?: boolean;
   kind?: string;
@@ -30,6 +32,8 @@ export interface BroadcastValues {
   showId: string | null;
   title: string | null;
   description: string | null;
+  presenter: string | null;
+  artUrl: string | null;
   onRadio: boolean;
   onStream: boolean;
   kind: "weekly" | "once";
@@ -71,10 +75,17 @@ export function validateBroadcastInput(body: BroadcastInput): { values: Broadcas
   if (!onRadio && !onStream) return { error: "Choose radio, livestream, or both." };
 
   const showId = typeof body.showId === "string" && body.showId ? body.showId : null;
-  if (onRadio && !showId) return { error: "Radio broadcasts need a show." };
-
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 160) : null;
-  if (!showId && !title) return { error: "Livestreams without a show need a title." };
+  if (!showId && !title) return { error: onRadio ? "Pick a show, or give this one-time broadcast a name." : "Livestreams without a show need a title." };
+
+  // A one-time broadcast (no show) carries its own host and logo; with a show, the show's are used.
+  const presenter = !showId && typeof body.presenter === "string" && body.presenter.trim() ? body.presenter.trim().slice(0, 80) : null;
+  let artUrl: string | null = null;
+  if (!showId && typeof body.artUrl === "string" && body.artUrl.trim()) {
+    const raw = body.artUrl.trim();
+    if (raw.length > 1000 || !(/^https:\/\//.test(raw) || /^\/(?!\/)/.test(raw))) return { error: "The logo must be an uploaded image." };
+    artUrl = raw;
+  }
 
   const description =
     typeof body.description === "string" && body.description.trim() ? body.description.trim().slice(0, 1000) : null;
@@ -115,7 +126,7 @@ export function validateBroadcastInput(body: BroadcastInput): { values: Broadcas
   }
 
   const common = {
-    timezone, showId, title, description, onRadio, onStream, tag, status, youtubeId, sportsEventId,
+    timezone, showId, title, description, presenter, artUrl, onRadio, onStream, tag, status, youtubeId, sportsEventId,
     notify, notifyMessage, notifyRoStates: notify ? notifyRoStates : [], plays, playlistId, streamUrl,
   };
 
