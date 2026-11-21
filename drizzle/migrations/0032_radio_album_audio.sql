@@ -13,6 +13,10 @@ ALTER TABLE `radio_songs` ADD `audio_checked_at` integer;
 --> statement-breakpoint
 ALTER TABLE `radio_songs` ADD `audio_check_note` text;
 --> statement-breakpoint
+-- The library title and artist the check last searched with (title, newline, artist): an unmatched
+-- song is checked again once its names in the library change.
+ALTER TABLE `radio_songs` ADD `audio_check_names` text;
+--> statement-breakpoint
 CREATE INDEX `radio_songs_audio_check_idx` ON `radio_songs` (`audio_check`);
 --> statement-breakpoint
 -- One row per re-check batch sent to the downloader (id = its job id). applied: item indexes already

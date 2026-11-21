@@ -3,6 +3,7 @@ import type { DbClient } from "@/db";
 import { radioAudioRechecks, radioReplayParts, radioSongs, radioStudioQueue } from "@/db/schema";
 import {
   audioCheckNote,
+  audioCheckNamesOf,
   catalogCover,
   DownloaderError,
   getJob,
@@ -37,6 +38,9 @@ interface BatchSong {
   id: string;
   key: string;
   videoId: string;
+  /** The library's names, for the downloader's second search attempt (older batches have none). */
+  title?: string;
+  artist?: string;
 }
 
 interface RecheckItem {
@@ -68,18 +72,26 @@ export async function runAlbumAudioCheck(db: DbClient): Promise<Record<string, u
 
   const retryBefore = new Date(Date.now() - RETRY_FAILED_MS);
   const due = await db
-    .select({ id: radioSongs.id, key: radioSongs.r2Key, videoId: radioSongs.sourceId })
+    .select({ id: radioSongs.id, key: radioSongs.r2Key, videoId: radioSongs.sourceId, title: radioSongs.title, artist: radioSongs.artist })
     .from(radioSongs)
     .where(
       and(
         eq(radioSongs.source, "youtube"),
         isNotNull(radioSongs.sourceId),
-        or(isNull(radioSongs.audioCheck), and(eq(radioSongs.audioCheck, "failed"), lt(radioSongs.audioCheckedAt, retryBefore)))
+        or(
+          isNull(radioSongs.audioCheck),
+          and(eq(radioSongs.audioCheck, "failed"), lt(radioSongs.audioCheckedAt, retryBefore)),
+          // kept as a video, and its library names haven't been searched yet (new, or renamed since)
+          and(
+            eq(radioSongs.audioCheck, "unmatched"),
+            or(isNull(radioSongs.audioCheckNames), sql`${radioSongs.audioCheckNames} != ${radioSongs.title} || char(10) || ${radioSongs.artist}`)
+          )
+        )
       )
     )
     .orderBy(asc(radioSongs.createdAt))
     .limit(BATCH);
-  const songs = due.filter((s): s is BatchSong => !!s.videoId && /^[\w-]{11}$/.test(s.videoId));
+  const songs = due.filter((s): s is typeof s & BatchSong & { videoId: string } => !!s.videoId && /^[\w-]{11}$/.test(s.videoId));
 
   if (!songs.length) {
     // Everything is checked: replaced files that were still in use are tried again now and then.
@@ -95,7 +107,7 @@ export async function runAlbumAudioCheck(db: DbClient): Promise<Record<string, u
 
   const now = new Date();
   try {
-    const { jobId, job } = await startRecheck(db, songs.map((s) => ({ videoId: s.videoId, songId: s.id })));
+    const { jobId, job } = await startRecheck(db, songs.map((s) => ({ videoId: s.videoId, songId: s.id, title: s.title ?? "", artist: s.artist ?? "" })));
     await db.insert(radioAudioRechecks).values({ id: jobId, state: job.state, songs: JSON.stringify(songs), applied: "[]", oldKeys: null, error: null, createdAt: now, updatedAt: now });
     return { started: jobId, songs: songs.length };
   } catch (err: any) {
@@ -153,6 +165,8 @@ async function applyItem(db: DbClient, ref: BatchSong, item: RecheckItem): Promi
   if (!row || row.r2Key !== ref.key) return null;
   const now = new Date();
   const note = audioCheckNote(item.resolve);
+  // the names this check searched with: an unmatched song isn't checked again until they change
+  const audioCheckNames = ref.title ? audioCheckNamesOf(ref.title, ref.artist) : null;
 
   if (item.state === "failed" || item.outcome === "failed") {
     await db.update(radioSongs).set({ audioCheck: "failed", audioCheckedAt: now, audioCheckNote: item.error?.slice(0, 300) || null, updatedAt: now }).where(eq(radioSongs.id, row.id));
@@ -176,7 +190,10 @@ async function applyItem(db: DbClient, ref: BatchSong, item: RecheckItem): Promi
   }
 
   if (item.outcome === "no-match") {
-    await db.update(radioSongs).set({ audioCheck: "unmatched", musicVideo: item.musicVideo === true, audioCheckedAt: now, audioCheckNote: note, updatedAt: now }).where(eq(radioSongs.id, row.id));
+    await db
+      .update(radioSongs)
+      .set({ audioCheck: "unmatched", musicVideo: item.musicVideo === true, audioCheckedAt: now, audioCheckNote: note, audioCheckNames, updatedAt: now })
+      .where(eq(radioSongs.id, row.id));
     return null;
   }
 

@@ -436,6 +436,8 @@ export const radioSongs = sqliteTable("radio_songs", {
   audioCheck: text("audio_check"),
   audioCheckedAt: integer("audio_checked_at", { mode: "timestamp" }),
   audioCheckNote: text("audio_check_note"),
+  // The library names (title, newline, artist) the check last searched with; renamed unmatched songs are checked again.
+  audioCheckNames: text("audio_check_names"),
   addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),

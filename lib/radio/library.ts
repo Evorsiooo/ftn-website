@@ -63,10 +63,18 @@ export interface AudioResolve {
   requestedIsVideo: boolean | null;
   outcome: ResolveOutcome;
   query: string | null;
+  /** "library-names": found by the second attempt, with our library's names (not BitChord's). */
+  via?: string | null;
+  /** The names that second attempt searched with, and whether it searched anything. */
+  names?: { title: string; artist: string | null } | null;
+  namesTried?: boolean;
   error: string | null;
   audioId: string;
   checkedAt: string;
 }
+
+/** The audio_check_names value for a song's library title and artist. */
+export const audioCheckNamesOf = (title: string, artist: string | null | undefined) => `${title}\n${artist ?? ""}`;
 
 /** The library's audio_check value for a resolveAudio outcome (null: ask again later). */
 export function audioCheckOf(resolve: AudioResolve | null | undefined): "album" | "swapped" | "unmatched" | null {
@@ -86,7 +94,7 @@ export function audioCheckNote(resolve: AudioResolve | null | undefined): string
       return `Album version of ${from} (YouTube Music's own pairing)`;
     case "search":
     case "search-drift":
-      return `Album version of ${from} (found searching “${resolve.query ?? ""}”)`;
+      return `Album version of ${from} (found searching “${resolve.query ?? ""}”${resolve.via === "library-names" ? ", with the library's names" : ""})`;
     case "no-match":
       return `No album version of ${from} on YouTube Music`;
     default:
@@ -214,7 +222,7 @@ export const startJob = (db: DbClient, url: string, meta: unknown) =>
   downloader<{ jobId: string; job: Job }>(db, "/api/download", { method: "POST", body: JSON.stringify({ url, meta }) });
 
 /** The album-audio check of songs already in the library (lib/radio/album-audio.ts). */
-export const startRecheck = (db: DbClient, songs: { videoId: string; songId: string }[]) =>
+export const startRecheck = (db: DbClient, songs: { videoId: string; songId: string; title: string; artist: string }[]) =>
   downloader<{ jobId: string; job: Job }>(db, "/api/download", { method: "POST", body: JSON.stringify({ recheck: songs, meta: { kind: "album-audio-check" } }) });
 
 export const getJob = (db: DbClient, jobId: string) => downloader<{ job: Job }>(db, `/api/download/${encodeURIComponent(jobId)}`);
@@ -279,6 +287,7 @@ function songRow(song: DownloaderSong, spotifyId: string | null, userId: string 
     audioCheck: audioCheckOf(song.resolve),
     audioCheckedAt: song.resolve && audioCheckOf(song.resolve) ? now : null,
     audioCheckNote: audioCheckNote(song.resolve),
+    audioCheckNames: song.resolve?.names?.title ? audioCheckNamesOf(song.resolve.names.title, song.resolve.names.artist) : null,
     addedBy: userId,
     createdAt: now,
     updatedAt: now,
