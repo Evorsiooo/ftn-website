@@ -5,6 +5,8 @@ import { syncAllConfiguredChannels } from "@/lib/youtube";
 import { syncRadioLive } from "@/lib/radio/live";
 import { syncOpenImports } from "@/lib/radio/library";
 import { runAlbumAudioCheck } from "@/lib/radio/album-audio";
+import { refreshAnalysisIndex } from "@/lib/radio/analysis-index";
+import { radioBucket } from "@/lib/radio/store";
 import { publishProgram } from "@/lib/radio/program";
 import { ensurePlaylistReplays, tidy } from "@/lib/radio/studio";
 
@@ -69,6 +71,16 @@ export async function POST(request: NextRequest) {
     if (albumAudio) out.albumAudio = albumAudio;
   } catch (err: any) {
     out.albumAudioError = err?.message || "Album audio check failed";
+  }
+  // The AutoDJ's next-song picker reads key, tempo and energy from this index of the shared analyses.
+  try {
+    const bucket = radioBucket();
+    if (bucket) {
+      const idx = await refreshAnalysisIndex(bucket);
+      if (idx.added || idx.removed || idx.waiting) out.radioAnalysisIndex = idx;
+    }
+  } catch (err: any) {
+    out.radioAnalysisIndexError = err?.message || "Analysis index failed";
   }
   return NextResponse.json(out);
 }
