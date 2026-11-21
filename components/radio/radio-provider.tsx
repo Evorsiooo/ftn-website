@@ -9,8 +9,10 @@ import { useMediaSession } from "./use-media-session";
 import { useRadioProgram } from "./use-radio-program";
 import { useStudioVoices } from "./use-studio-voices";
 import { useOwnVoiceIds } from "./own-voice";
+import { useReplayPlayer, type ReplayPlayer } from "./use-replay-player";
 import type { ProgramAiring, RadioProgram } from "@/lib/radio/program-types";
 import { FullScreen, PlayerBar } from "@/components/plus/radio-ui";
+import { ReplayBar } from "@/components/plus/replays";
 
 type RadioPlayer = ReturnType<typeof useRadioPlayer>;
 export interface RadioContextValue extends RadioPlayer {
@@ -41,6 +43,15 @@ export interface RadioContextValue extends RadioPlayer {
 }
 
 const RadioContext = createContext<RadioContextValue | null>(null);
+// its own context: its position changes every quarter second while it plays
+const ReplayContext = createContext<ReplayPlayer | null>(null);
+
+/** The radio replay player (a past show played back), which carries on across pages like the radio. */
+export function useReplay(): ReplayPlayer {
+  const ctx = useContext(ReplayContext);
+  if (!ctx) throw new Error("useReplay must be used inside <RadioProvider>");
+  return ctx;
+}
 
 export function useRadio(): RadioContextValue {
   const ctx = useContext(RadioContext);
@@ -86,6 +97,19 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   });
   const [dismissed, setDismissed] = useState(false);
   const [full, setFull] = useState(false);
+  const replay = useReplayPlayer({
+    volume: player.muted ? 0 : player.volume,
+    beforePlay: () => {
+      if (player.status !== "idle") player.stop();
+    },
+  });
+  // the live radio taking over (Listen pressed anywhere) takes the replay out of the player
+  const radioOn = player.localStatus === "playing" || player.localStatus === "buffering" || player.localStatus === "connecting";
+  const closeReplay = replay.close;
+  const hasReplay = !!replay.current;
+  useEffect(() => {
+    if (radioOn && hasReplay) closeReplay();
+  }, [radioOn, hasReplay, closeReplay]);
 
   const live = player.status !== "idle" && player.status !== "error";
   useEffect(() => {
@@ -97,7 +121,10 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
 
   const hiddenHere = HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(p + "/"));
   const sessionActive = webradioEnabled && started && !dismissed;
-  const showMini = sessionActive && !hiddenHere;
+  // a replay in the player shows in the bar everywhere but on its own page (and the popout and embeds)
+  const replayId = replay.current?.replay.id;
+  const replayBar = !!replayId && !radioOn && pathname !== `/plus/radio/replays/${replayId}` && !isPopout && !pathname.startsWith("/embed") && !pathname.startsWith("/api");
+  const showMini = sessionActive && !hiddenHere && !replayBar;
   // Poll what is on air only while something is shown or playing; the radio page does its own.
   const { info: polled } = useNowPlaying(10000, showMini);
   // On the AutoDJ the song comes from this browser's own player; the schedule's shows still come from the poll.
@@ -115,12 +142,12 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
   // The mini player lifts other bottom-anchored UI (see PlusMiniBar) out of its way.
   useEffect(() => {
     const el = document.documentElement;
-    if (showMini) el.setAttribute("data-radio-mini", "");
+    if (showMini || replayBar) el.setAttribute("data-radio-mini", "");
     else el.removeAttribute("data-radio-mini");
     return () => {
       el.removeAttribute("data-radio-mini");
     };
-  }, [showMini]);
+  }, [showMini, replayBar]);
 
   const value = useMemo<RadioContextValue>(
     () => ({
@@ -128,7 +155,7 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
       streamUrl,
       info,
       sessionActive,
-      barShown: showMini,
+      barShown: showMini || replayBar,
       dismissMini: () => {
         if (live) player.stop();
         setDismissed(true);
@@ -148,18 +175,21 @@ export function RadioProvider({ children }: { children: React.ReactNode }) {
         setDismissed(true);
       },
     }),
-    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live, full, program, airing, voiceError, speaking.join(",")]
+    [player.status, player.localStatus, player.remotePlaying, player.pendingSince, player.volume, player.muted, player.source, player.song, player.listeners, player.ducked, streamUrl, info, sessionActive, showMini, live, full, program, airing, voiceError, speaking.join(","), replayBar]
   );
 
   return (
     <RadioContext.Provider value={value}>
+      <ReplayContext.Provider value={replay}>
       {children}
-      {(showMini || full) && (
+      {(showMini || replayBar || full) && (
         <div className={`fp fp-lite${pathname.startsWith("/plus") ? "" : " fp-site"}`}>
           {showMini && <PlayerBar />}
+          {replayBar && <ReplayBar />}
           {full && <FullScreen />}
         </div>
       )}
+      </ReplayContext.Provider>
     </RadioContext.Provider>
   );
 }

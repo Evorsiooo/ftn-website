@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const ids = rows.map((r) => r.r.id);
   const heard = ids.length
     ? await db
-        .selectDistinct({ replayId: radioReplayParts.replayId, userId: radioReplayParts.userId, name: users.displayName, avatar: users.avatarUrl })
+        .selectDistinct({ replayId: radioReplayParts.replayId, userId: radioReplayParts.userId, name: users.robloxUsername, avatar: users.avatarUrl })
         .from(radioReplayParts)
         .innerJoin(users, eq(users.id, radioReplayParts.userId))
         .where(and(inArray(radioReplayParts.replayId, ids), eq(radioReplayParts.kind, "voice")))

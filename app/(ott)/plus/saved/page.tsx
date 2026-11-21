@@ -5,7 +5,8 @@ import { useMemo } from "react";
 import { useFTNPlus } from "@/lib/ftnplus-context";
 import { useContinueWatching } from "@/lib/watch-progress";
 import { VideoCard, toVideo, type PlusVideo } from "@/components/plus/cards";
-import { useSavedList } from "@/components/plus/saved";
+import { useSavedList, useSavedReplays } from "@/components/plus/saved";
+import { ReplayCard } from "@/components/plus/replays";
 
 /** Where you left off, and what you saved for later. */
 export default function SavedPage() {
@@ -13,11 +14,12 @@ export default function SavedPage() {
   const byId = useMemo(() => new Map(allVideos.map((v: any) => [v.youtubeId || v.id, v])), [allVideos]);
   const resume = useContinueWatching();
   const saved = useSavedList();
+  const replays = useSavedReplays();
   const known = (id: string, fallback: any): PlusVideo => toVideo(byId.get(id) ?? fallback);
 
-  if (saved === null) return <main className="page" />;
+  if (saved === null || replays === null) return <main className="page" />;
   const later = saved.map((s) => known(s.youtubeId || s.id, s));
-  const empty = resume.length === 0 && later.length === 0;
+  const empty = resume.length === 0 && later.length === 0 && replays.length === 0;
 
   return (
     <main className="page">
@@ -25,7 +27,7 @@ export default function SavedPage() {
       {empty ? (
         <div className="empty">
           <h2 className="h2">Nothing saved yet</h2>
-          <div>Press Save on any video to watch it later.</div>
+          <div>Press Save on any video or radio replay to come back to it later.</div>
           <div style={{ marginTop: 20 }}>
             <Link href="/plus/videos" className="btn sec">
               Browse videos
@@ -59,6 +61,18 @@ export default function SavedPage() {
               <div className="grid-v">
                 {later.map((v) => (
                   <VideoCard key={v.id} v={v} />
+                ))}
+              </div>
+            </>
+          )}
+          {replays.length > 0 && (
+            <>
+              <h2 className="h2" style={{ margin: "40px 0 16px" }}>
+                Radio replays
+              </h2>
+              <div className="grid-v">
+                {replays.map((r) => (
+                  <ReplayCard key={r.id} r={r} />
                 ))}
               </div>
             </>

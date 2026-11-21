@@ -95,7 +95,7 @@ function personRow(sessionId: string, user: RobloxUser, role: Person["role"], st
     id: crypto.randomUUID(),
     sessionId,
     userId: user.id,
-    name: (user.displayName || user.robloxUsername || "Someone").slice(0, 60),
+    name: (user.robloxUsername || user.displayName || "Someone").slice(0, 60),
     avatar: user.avatarUrl ?? null,
     role,
     state,

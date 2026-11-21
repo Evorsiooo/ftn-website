@@ -554,6 +554,13 @@ export const radioReplays = sqliteTable("radio_replays", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 }, (t) => [uniqueIndex("radio_replays_airing_idx").on(t.airingKey), index("radio_replays_started_idx").on(t.startedAt)]);
 
+/** Radio replays saved for later (FTN+ Saved), like videos in watchlists. */
+export const radioReplaySaves = sqliteTable("radio_replay_saves", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  replayId: text("replay_id").notNull(),
+  addedAt: integer("added_at", { mode: "timestamp_ms" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.replayId] })]);
+
 export const radioReplayParts = sqliteTable("radio_replay_parts", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   replayId: text("replay_id").notNull(),
