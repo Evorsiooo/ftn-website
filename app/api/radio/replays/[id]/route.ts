@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
   // the people heard on the show, in the order they were first heard (their avatars on the replay)
   const userIds = [...new Set(parts.filter((p) => p.kind === "voice").map((p) => p.userId).filter((u): u is string => !!u))];
   const found = userIds.length
-    ? await db.select({ id: users.id, name: users.displayName, avatar: users.avatarUrl }).from(users).where(inArray(users.id, userIds))
+    ? await db.select({ id: users.id, name: users.robloxUsername, avatar: users.avatarUrl }).from(users).where(inArray(users.id, userIds))
     : [];
   const people = userIds.map((u) => found.find((p) => p.id === u)).filter((p): p is (typeof found)[number] => !!p);
   return NextResponse.json(
