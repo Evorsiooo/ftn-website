@@ -29,7 +29,7 @@ export type OnAir =
 const POLL_MS = 15_000;
 
 let library: Promise<LibrarySong[]> | null = null;
-function loadLibrary() {
+export function loadLibrary() {
   library ??= fetch("/api/radio/library")
     .then((r) => (r.ok ? r.json() : { songs: [] }))
     .then((b: any) => (Array.isArray(b?.songs) ? b.songs : []))
@@ -42,7 +42,7 @@ function loadLibrary() {
 
 /** Server ms minus this device's ms, from one quick ping (good to ~the round trip, plenty for a display). */
 let offset: Promise<number> | null = null;
-function serverOffset() {
+export function serverOffset() {
   offset ??= (async () => {
     const sent = Date.now();
     const r = await fetch(`/api/radio/time?c=${sent}`, { cache: "no-store" });

@@ -21,6 +21,7 @@ import {
   setCallIn,
   setGain,
   setTrack,
+  skipSong,
   startSession,
   studioPoll,
 } from "@/lib/radio/studio";
@@ -102,6 +103,9 @@ export async function POST(request: NextRequest) {
         break;
       case "queueUrl":
         await queueUrl(db, s, user, String(body.url ?? "").trim());
+        break;
+      case "skip":
+        await skipSong(db, s, Number(body.k), String(body.key ?? ""));
         break;
       case "remove":
         await removeFromQueue(db, s, String(body.id ?? ""));

@@ -4,13 +4,14 @@
 // broadcasters join. Listeners' browsers do the playing and mixing; only voices go live.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Copy, Mic, MicOff, Pause, Play, Search, SkipForward, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Mic, MicOff, Music, Pause, Play, Search, SkipForward, Trash2, UserPlus, X } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { Body, PageBar, Pill, Screen, Switch } from "@/components/admin/ui";
 import { confirmDialog } from "@/components/gs/dialogs";
 import { canManageRadio } from "@/lib/rbac";
 import { useRadio } from "@/components/radio/radio-provider";
 import { useMicLevel, useOnAirVoice } from "@/components/radio/use-on-air-voice";
+import { useLineup, type LinedUp } from "@/components/radio/use-lineup";
 import { getMic } from "@/components/radio/voice";
 import { expandOccurrences, type Occurrence } from "@/lib/schedule-core";
 import { parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
@@ -24,6 +25,7 @@ type State = {
   me: { id: string; role: string } | null;
   people: Person[];
   queue: Queued[];
+  queuedKeys: string[];
   cap: number;
   usage: Usage;
 };
@@ -258,6 +260,11 @@ export default function StudioPage() {
     }
     if (note?.session && note.at && Date.now() - note.at < REJOIN_MS && state.session?.id === note.session && !state.me) void goOnAir({ op: "join" });
   }, [state]);
+
+  // the running order: the song on air and the songs lined up after it, each of them skippable
+  const lineup = useLineup(onAir);
+  const skip = (song: LinedUp) => void act({ op: "skip", k: song.k, key: song.key }).then(() => setTimeout(lineup.reload, 300));
+  const from = (key: string) => (state?.queuedKeys?.includes(key) ? "Queued" : "AutoDJ");
 
   const voice = useOnAirVoice({ personId: onAir ? state!.me!.id : null, mic: onAir ? mic : null, report, muted });
 
@@ -506,21 +513,54 @@ export default function StudioPage() {
                 </div>
                 <div className="col-body">
                   <div className="np">
-                    <span className="cover" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
-                      {state.session!.paused ? <Pause className="ic" /> : <SkipForward className="ic faint" />}
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="t12 muted">{state.session!.paused ? "Paused" : "Playing now"}</div>
+                    {lineup.onAir?.art && !state.session!.paused ? (
+                      <img className="cover" src={lineup.onAir.art} alt="" />
+                    ) : (
+                      <span className="cover" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                        {state.session!.paused ? <Pause className="ic" /> : <Music className="ic faint" />}
+                      </span>
+                    )}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="t12 muted">{state.session!.paused ? "Paused" : lineup.onAir ? `Playing now · ${from(lineup.onAir.key)}` : "Playing now"}</div>
                       <div className="trunc" style={{ fontWeight: 600 }}>
-                        {radio.song ? radio.song.title : "AutoDJ"}
+                        {lineup.onAir ? lineup.onAir.title : radio.song ? radio.song.title : "AutoDJ"}
                       </div>
-                      <div className="trunc muted">{radio.song ? radio.song.artist : "Picks from the library or the show's playlist"}</div>
+                      <div className="trunc muted">{lineup.onAir ? lineup.onAir.artist : radio.song ? radio.song.artist : "Picks from the library or the show's playlist"}</div>
                     </div>
+                    {lineup.onAir && !state.session!.paused && (
+                      <button type="button" className="btn sm" disabled={busy} onClick={() => skip(lineup.onAir!)} title="Skip this song for everyone: the next one starts in a couple of seconds">
+                        <SkipForward className="ic-sm" /> Skip
+                      </button>
+                    )}
                   </div>
 
                   <div className="sublabel">Up next</div>
+                  {lineup.next.length === 0 ? (
+                    <p className="muted" style={{ margin: 0 }}>{state.session!.paused ? "Nothing lined up: the music picks up again where it stopped." : "The AutoDJ is lining up the next song…"}</p>
+                  ) : (
+                    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
+                      {lineup.next.map((n) => (
+                        <li key={n.k} className="song">
+                          {n.art ? <img className="cover" src={n.art} alt="" /> : <span className="cover" />}
+                          <span style={{ flex: 1, minWidth: 0 }}>
+                            <span className="trunc" style={{ display: "block" }}>
+                              {n.title} <span className="muted">· {n.artist}</span>
+                            </span>
+                            <span className="t12 muted">
+                              {from(n.key)} · {fmtTime(new Date(n.startMs - lineup.serverNow() + Date.now()))}
+                            </span>
+                          </span>
+                          <button type="button" className="iconbtn" aria-label={`Skip ${n.title}`} title="Skip this song" disabled={busy || state.session!.paused} onClick={() => skip(n)}>
+                            <SkipForward className="ic-sm" />
+                          </button>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+
+                  <div className="sublabel">Your queue</div>
                   {state.queue.length === 0 ? (
-                    <p className="muted" style={{ margin: 0 }}>Nothing queued: the AutoDJ picks from the library (or the show&apos;s playlist).</p>
+                    <p className="muted" style={{ margin: 0 }}>Nothing queued: after Up next, the AutoDJ picks from the library (or the show&apos;s playlist).</p>
                   ) : (
                     <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
                       {state.queue.map((q, i) => (
@@ -545,7 +585,7 @@ export default function StudioPage() {
                       ))}
                     </ol>
                   )}
-                  <p className="help" style={{ margin: 0 }}>A queued song plays within two songs: the next two are already lined up and mixed.</p>
+                  <p className="help" style={{ margin: 0 }}>Up next is already lined up and mixed; your queue plays after it. Skip a song and the next one takes its place, for everyone.</p>
 
                   <div className="sublabel">Add a song</div>
                   <div className="search">
