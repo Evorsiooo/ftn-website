@@ -10,6 +10,9 @@ import { useNowPlaying, type ShowInfo } from "@/components/radio/use-now-playing
 import { ListenButton, Volume } from "./radio-controls";
 import { CallInButton, CallInCard, CallInProvider, useCallInOpen } from "./call-in";
 import { Replays } from "./replays";
+import { MotionArtwork } from "@/components/radio/motion-artwork";
+import { useRadioShortcuts } from "@/components/radio/use-radio-shortcuts";
+import { useTrackMotion } from "@/lib/radio/apple/motionArt";
 import * as I from "./icons";
 
 // ---------------------------------------------------------------------------------------------- what's on air
@@ -35,6 +38,8 @@ export type StationView = {
   next: string | null;
   /** Shown only when more than 2 people are listening at once. */
   listening: string | null;
+  /** The song whose cover `art` is, for its animated Apple Music cover (null when `art` is a show's). */
+  cover: { title: string; artist: string } | null;
 };
 
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
@@ -65,7 +70,7 @@ export function useStationView(enabled = true): StationView {
 
   return useMemo<StationView>(() => {
     const none = () => null;
-    const blank = { songKey: null, songTitle: "", songArtist: "", song: null, durationSec: 0, position: none };
+    const blank = { songKey: null, songTitle: "", songArtist: "", song: null, durationSec: 0, position: none, cover: null };
     if (radio.source === "stream" && airing) {
       return { ...blank, mode: "hosted", name: airing.title, by: slotLine(airing.start, airing.end), art: airing.art, next, listening };
     }
@@ -80,6 +85,7 @@ export function useStationView(enabled = true): StationView {
         by: show ? [show.presenter ? `with ${show.presenter}` : null, slot].filter(Boolean).join(" · ") : info?.track?.artist ?? "",
         art: show?.artUrl ?? info?.artUrl ?? null,
         ...blank,
+        cover: !show && info?.track ? { title: info.track.title, artist: info.track.artist } : null,
         next,
         listening,
       };
@@ -90,11 +96,12 @@ export function useStationView(enabled = true): StationView {
     const showName = studio?.title ?? (airing && airing.plays !== "stream" ? airing.title : null);
     const showBy = studio ? (hosts.length ? `with ${hosts.join(", ")}` : "") : airing ? slotLine(airing.start, airing.end) : "";
     const songLine = `${onAir.title} · ${onAir.artist}`;
+    const showArt = showName ? studio?.art ?? airing?.art : null;
     return {
       mode: "autodj",
       name: showName ?? onAir.title,
       by: showName ? showBy : onAir.artist,
-      art: (showName ? studio?.art ?? airing?.art : null) ?? onAir.art,
+      art: showArt ?? onAir.art,
       song: showName ? (studio?.pausedAt ? null : songLine) : null,
       songTitle: onAir.title,
       songArtist: onAir.artist,
@@ -103,6 +110,7 @@ export function useStationView(enabled = true): StationView {
       position: () => (playingHere ? positionNow() : positionSec == null ? null : positionSec + (Date.now() - at) / 1000),
       next,
       listening,
+      cover: showArt ? null : { title: onAir.title, artist: onAir.artist },
     };
   }, [onAir, info, next, listening, playingHere, positionNow, radio.source, studio, airing]);
 }
@@ -207,7 +215,7 @@ export function Lyrics({ lines, position }: { lines: Lyric[]; position: () => nu
 }
 
 /** An image that crossfades to the next one once it has loaded, instead of switching at once. */
-export function FadeImg({ src, className }: { src: string | null; className: string }) {
+export function FadeImg({ src, className, children }: { src: string | null; className: string; children?: ReactNode }) {
   const [layers, setLayers] = useState<{ src: string; shown: boolean }[]>(() => (src ? [{ src, shown: true }] : []));
   useEffect(() => {
     setLayers((ls) => {
@@ -235,7 +243,22 @@ export function FadeImg({ src, className }: { src: string | null; className: str
           onLoad={() => !l.shown && loaded(l.src)}
         />
       ))}
+      {children}
     </div>
+  );
+}
+
+/** The cover, with Apple Music's animated one over it once it plays (BitChord's full-screen player). It moves
+ *  while the radio plays in this window and holds its frame when stopped, as BitChord's does when paused. */
+export function Cover({ v, className = "art" }: { v: StationView; className?: string }) {
+  const r = useRadio();
+  const motion = useTrackMotion(v.cover?.title, v.cover?.artist, null);
+  const playing = r.status !== "idle" && r.status !== "error" && r.status !== "off-air";
+  return (
+    <FadeImg className={className} src={v.art}>
+      {/* Apple's motion artwork, over the cover once it's playing. */}
+      {motion && <MotionArtwork key={motion.url} motion={motion} className="motion" playing={playing} />}
+    </FadeImg>
   );
 }
 
@@ -447,6 +470,7 @@ function RadioGrid({ children }: { children: ReactNode }) {
 }
 
 export function RadioPage() {
+  useRadioShortcuts();
   const v = useStationView();
   const lyrics = useLyrics(v);
   const people = useOnStage();
@@ -465,7 +489,7 @@ export function RadioPage() {
           // so nothing needs a scroll.
           <CallInProvider>
             <RadioGrid>
-              <div className="artcol">{v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}</div>
+              <div className="artcol">{v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <Cover v={v} /> : <div className="art ph-art" />}</div>
               <Side songKey={v.songKey} lyrics={lyrics} people={people} position={v.position} />
               {v.mode !== "loading" && (
                 <div className="info">
@@ -504,6 +528,7 @@ export function FullScreen() {
   const lyrics = useLyrics(v);
   const people = useOnStage();
   const close = r.setFull;
+  useRadioShortcuts();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close(false);
     window.addEventListener("keydown", onKey);
@@ -520,7 +545,7 @@ export function FullScreen() {
       </button>
       <div className={`grid${lyrics || people.length ? "" : " solo"}`}>
         <section aria-label="On air">
-          {v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}
+          {v.art ? <Cover v={v} /> : <div className="art ph-art" />}
           <div className="name">{v.name}</div>
           <div className="by">{v.by}</div>
           <SongLine v={v} />
@@ -591,6 +616,7 @@ export function PopoutPage() {
   const v = useStationView();
   const [size, setSize] = useState<Size>("tall");
   const [blocked, setBlocked] = useState(false);
+  useRadioShortcuts();
   useEffect(() => {
     const fit = () => setSize(window.innerWidth < 220 ? "tiny" : window.innerHeight < 260 ? "small" : "tall");
     fit();
@@ -637,7 +663,7 @@ export function PopoutPage() {
         </div>
       ) : (
         <div className="tall">
-          {v.art && <FadeImg className="art" src={v.art} />}
+          {v.art && <Cover v={v} />}
           <div className="name">{v.name}</div>
           <div className="by">{v.by}</div>
           <div className="ctrl" style={{ marginTop: 18 }}>
