@@ -42,7 +42,18 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      // Everything but /embed/* refuses to be shown in another site's frame.
+      { source: "/((?!embed/).*)", headers: securityHeaders },
+      // /embed/<site>/* is made for partner sites' iframes (e.g. the radio player in RO-SPAN's sidebar).
+      {
+        source: "/embed/:path*",
+        headers: [
+          ...securityHeaders.filter((h) => h.key !== "X-Frame-Options"),
+          { key: "Content-Security-Policy", value: "frame-ancestors *" },
+        ],
+      },
+    ];
   },
   images: {
     remotePatterns: [

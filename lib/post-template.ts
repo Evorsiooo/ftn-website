@@ -63,7 +63,7 @@ export function logoForRoState(roState: string): string {
   return RO_STATE_LOGOS[roState] ?? DEFAULT_LOGO;
 }
 
-const ASSET_PATHS = {
+export const ASSET_PATHS = {
   box: "/post-template/BOX.png?v=2",
   boilerplate: "/post-template/BOILERPLATE_ADVERT.png",
   notice: "/post-template/ADVERT_NOTICE.png",
@@ -210,7 +210,7 @@ export function drawCover(
 }
 
 // Draws the advert strip with its four corners cut by the rounding shape.
-function drawAd(ctx: CanvasRenderingContext2D, ad: HTMLImageElement | null, boilerplate: HTMLImageElement, rounding: HTMLImageElement) {
+export function drawAd(ctx: CanvasRenderingContext2D, ad: HTMLImageElement | null, boilerplate: HTMLImageElement, rounding: HTMLImageElement) {
   const { x, y, w, h } = TEMPLATE.ad;
   const strip = document.createElement("canvas");
   strip.width = w;
