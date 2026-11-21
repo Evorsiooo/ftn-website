@@ -26,6 +26,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   env: { RADIO_ENGINE_VERSION: radioEngineVersion },
+  // Lint and type checks run in GitHub Actions (.github/workflows/checks.yml) on every PR and push to
+  // main, so the Cloudflare build skips them (about 15 to 35 seconds per deploy).
+  eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
   // FTN+'s old page names (renamed in the 2026 redesign)
   async redirects() {
     return [
