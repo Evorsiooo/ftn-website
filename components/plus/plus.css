@@ -22,6 +22,7 @@
   --bar-h: 76px;
   --cols: 4;
   position: relative;
+  box-sizing: border-box;
   min-height: 100dvh;
   background: var(--bg);
   color: var(--text);
@@ -458,7 +459,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 
 /* The player bar and full screen, outside the FTN+ shell (components/radio/radio-provider.tsx). On the FTN site
    there are no tabs under the bar, and the page leaves room for it. */
-.fp.fp-lite { min-height: 0; background: none; position: static; }
+.fp.fp-lite { min-height: 0; background: none; position: static; padding: 0; }
 .fp.fp-site .pbar { bottom: 0; }
 body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .radio .art.ph-art, .fp .full .art.ph-art { background: var(--surface-2); }
@@ -600,3 +601,12 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 /* the people on air keep their size when the call-in card opens under them */
 .fp .radio > .side > .stage { flex: none; }
 .fp .btn.sec.callbtn[aria-pressed="true"] { background: var(--surface-3); }
+
+/* The replay page: the radio page's layout, with the scrub bar as one wide row under the title and
+   controls (on phones, under the controls and above the people on air). */
+.fp .radio.replay { grid-template-areas: "art side" "info info" "seek seek"; }
+.fp .radio.replay > .seek { grid-area: seek; margin-top: -8px; max-width: none; }
+@media (max-width: 1000px) {
+  .fp .radio.replay { grid-template-areas: "art" "info" "seek" "side"; }
+  .fp .radio.replay > .seek { margin-top: 0; width: 100%; max-width: 560px; justify-self: center; }
+}
