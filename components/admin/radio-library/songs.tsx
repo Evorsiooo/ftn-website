@@ -5,6 +5,7 @@ import { BackButton, Facts, Sheet } from "@/components/admin/ui";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from "@/lib/radio/loudness";
 import { api, duration, fileUrl, type Song } from "./types";
+import { SongLyrics } from "./song-lyrics";
 
 const SOURCE_LABEL: Record<Song["source"], string> = { youtube: "YouTube", soundcloud: "SoundCloud", upload: "Uploaded" };
 
@@ -31,7 +32,14 @@ export function usePreview() {
     audio.current.play().catch(() => setPlaying(null));
     setPlaying(key);
   };
-  return { playing, toggle };
+  /** Plays [key] from [sec] (the lyrics preview's lines jump there, as in BitChord). */
+  const playFrom = (key: string, sec: number) => {
+    if (playing !== key) toggle(key);
+    if (audio.current) audio.current.currentTime = Math.max(0, sec);
+  };
+  /** The preview's element, for the lyrics preview to read where the song is. */
+  const element = () => audio.current;
+  return { playing, toggle, playFrom, element };
 }
 
 export function Cover({ src, size = 40 }: { src: string | null; size?: number }) {
@@ -235,6 +243,7 @@ export function SongPane({
             </button>
           </div>
         )}
+        <SongLyrics song={song} preview={preview} onPatched={onPatched} />
       </div>
     </>
   );

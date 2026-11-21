@@ -423,6 +423,10 @@ export const radioSongs = sqliteTable("radio_songs", {
   spotifyId: text("spotify_id"),
   bytes: integer("bytes"),
   contentType: text("content_type"),
+  // Lyrics, set in the admin for every listener: the provider to use (null = best available, or "none" for no
+  // lyrics) and an offset in ms (positive = the lyrics later), as BitChord's provider picker and lyrics offset.
+  lyricsSource: text("lyrics_source"),
+  lyricsOffsetMs: integer("lyrics_offset_ms").notNull().default(0),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
   addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),

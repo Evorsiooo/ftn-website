@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 
 // The radio engine's entry file (public/radio-engine/site.js) keeps the same name on every build, and
 // static files are cached for hours, so browsers kept an old engine after a deploy. The page loads it
-// as site.js?v=<hash of the file>: a new engine is a new URL.
+// as site.js?v=<hash of the files>: a new engine is a new URL. The same goes for lyrics.js.
 const radioEngineVersion = (() => {
   try {
-    return createHash("sha256").update(readFileSync("public/radio-engine/site.js")).digest("hex").slice(0, 12);
+    return createHash("sha256").update(readFileSync("public/radio-engine/site.js")).update(readFileSync("public/radio-engine/lyrics.js")).digest("hex").slice(0, 12);
   } catch {
     return String(Date.now());
   }

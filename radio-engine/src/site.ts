@@ -18,6 +18,8 @@ export interface StationStatus {
 
 export interface Station {
   status(): StationStatus;
+  /** The song heard right now and where it is (seconds), read at the moment of asking: for the lyrics. */
+  playhead(): { key: string; sec: number } | null;
   setVolume(volume: number): void;
   setDuck(level: number): void;
   /** Lowers the music while someone on air talks (1 = full). */
@@ -58,6 +60,7 @@ export async function startStation(opts: StationOptions = {}): Promise<Station> 
         listeners: engine.listeners,
       };
     },
+    playhead: () => engine.playhead(),
     setVolume: (v) => engine.setVolume(v),
     setDuck: (l) => engine.setDuck(l),
     setVoiceDuck: (l) => engine.setVoiceDuck(l),
@@ -96,6 +99,7 @@ export async function startReplay(opts: ReplayOptions): Promise<ReplayStation> {
       const s = engine.status as Record<string, unknown>;
       return { state: s.state === 'playing' ? 'playing' : 'starting', song: null, positionSec: typeof s.positionSec === 'number' ? s.positionSec : null, listeners: null };
     },
+    playhead: () => engine.playhead(),
     setVolume: (v) => engine.setVolume(v),
     setDuck: (l) => engine.setDuck(l),
     setVoiceDuck: (l) => engine.setVoiceDuck(l),

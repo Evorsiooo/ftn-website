@@ -10,6 +10,7 @@ import { useNowPlaying, type ShowInfo } from "@/components/radio/use-now-playing
 import { ListenButton, Volume } from "./radio-controls";
 import { CallInButton, CallInCard, CallInProvider, useCallInOpen } from "./call-in";
 import { Replays } from "./replays";
+import { LyricsView, useSongLyrics, type Playhead, type SongLyrics } from "./lyrics-view";
 import * as I from "./icons";
 
 // ---------------------------------------------------------------------------------------------- what's on air
@@ -29,8 +30,11 @@ export type StationView = {
   /** During a show: "Song · Artist" under the show's name. */
   song: string | null;
   durationSec: number;
-  /** Where the song is now, in seconds (null when unknown). */
-  position: () => number | null;
+  /** Where the song is now, read when asked (the lyrics read it every frame); null when unknown. While this
+   *  browser plays the radio, the engine's own playhead (what is heard right now). */
+  position: () => Playhead;
+  /** A Studio host has paused the music. */
+  musicPaused: boolean;
   /** "Next: Ridgeway Review, Wednesday at 03:00". */
   next: string | null;
   /** Shown only when more than 2 people are listening at once. */
@@ -57,7 +61,7 @@ export function useStationView(enabled = true): StationView {
   const airing = radio.airing;
   const onAir = useOnAir(enabled);
   const { info } = useNowPlaying(30_000, enabled);
-  const positionNow = radio.positionNow;
+  const playheadNow = radio.playheadNow;
   const playingHere = radio.source === "autodj" && radio.localStatus === "playing";
   const n = radio.status === "playing" ? radio.listeners : null;
   const listening = n != null && n > 2 ? `${n} listening` : null;
@@ -65,7 +69,7 @@ export function useStationView(enabled = true): StationView {
 
   return useMemo<StationView>(() => {
     const none = () => null;
-    const blank = { songKey: null, songTitle: "", songArtist: "", song: null, durationSec: 0, position: none };
+    const blank = { songKey: null, songTitle: "", songArtist: "", song: null, durationSec: 0, position: none, musicPaused: false };
     if (radio.source === "stream" && airing) {
       return { ...blank, mode: "hosted", name: airing.title, by: slotLine(airing.start, airing.end), art: airing.art, next, listening };
     }
@@ -90,6 +94,7 @@ export function useStationView(enabled = true): StationView {
     const showName = studio?.title ?? (airing && airing.plays !== "stream" ? airing.title : null);
     const showBy = studio ? (hosts.length ? `with ${hosts.join(", ")}` : "") : airing ? slotLine(airing.start, airing.end) : "";
     const songLine = `${onAir.title} · ${onAir.artist}`;
+    const key = onAir.key;
     return {
       mode: "autodj",
       name: showName ?? onAir.title,
@@ -100,110 +105,25 @@ export function useStationView(enabled = true): StationView {
       songArtist: onAir.artist,
       songKey: onAir.key,
       durationSec: onAir.durationSec,
-      position: () => (playingHere ? positionNow() : positionSec == null ? null : positionSec + (Date.now() - at) / 1000),
+      position: () => {
+        if (!playingHere) return positionSec == null ? null : { sec: positionSec + (Date.now() - at) / 1000, paused: false };
+        const p = playheadNow();
+        return p && p.key === key ? { sec: p.sec, paused: false } : null;
+      },
+      musicPaused: !!studio?.pausedAt,
       next,
       listening,
     };
-  }, [onAir, info, next, listening, playingHere, positionNow, radio.source, studio, airing]);
+  }, [onAir, info, next, listening, playingHere, playheadNow, radio.source, studio, airing]);
 }
 
 // ---------------------------------------------------------------------------------------------------- lyrics
 
-type Lyric = { timeMs: number; text: string };
-type LyricsModule = { findLyrics: (song: { key: string; title: string; artist: string; durationSec: number }) => Promise<{ synced: boolean; lines: Lyric[] } | null> };
-
-let lyricsModule: Promise<LyricsModule> | null = null;
-function loadLyricsModule() {
-  // Built by radio-engine (BitChord's lookup), loaded at run time so the site's bundler leaves it alone.
-  lyricsModule ??= import(/* webpackIgnore: true */ new URL("/radio-engine/lyrics.js", window.location.origin).href).catch((e) => {
-    lyricsModule = null;
-    throw e;
-  });
-  return lyricsModule;
-}
-
-const lyricsCache = new Map<string, Lyric[] | null>();
-
-/** Timed lyrics for the song on air, or null (none found, not timed, or not the AutoDJ). */
-export function useLyrics(v: StationView): Lyric[] | null {
-  const key = v.mode === "autodj" ? v.songKey : null;
-  const [got, setGot] = useState<{ key: string; lines: Lyric[] | null } | null>(null);
-  const song = useRef(v);
-  song.current = v;
-  useEffect(() => {
-    if (!key) return;
-    if (lyricsCache.has(key)) return setGot({ key, lines: lyricsCache.get(key)! });
-    let alive = true;
-    const s = song.current;
-    loadLyricsModule()
-      .then((m) => m.findLyrics({ key, title: s.songTitle, artist: s.songArtist, durationSec: s.durationSec }))
-      .then((found) => {
-        const lines = found?.synced ? found.lines : null;
-        lyricsCache.set(key, lines);
-        if (alive) setGot({ key, lines });
-      })
-      .catch(() => alive && setGot({ key, lines: null }));
-    return () => {
-      alive = false;
-    };
-  }, [key]);
-  return key && got?.key === key ? got.lines : null;
-}
-
-/** Synced lyrics: the current line bright and held a little above the middle. Opens on the line being sung
- *  (no scroll from the top), and only scrolls smoothly once placed. Key it by song so each song fades in. */
-export function Lyrics({ lines, position }: { lines: Lyric[]; position: () => number | null }) {
-  const box = useRef<HTMLDivElement>(null);
-  const rail = useRef<HTMLDivElement>(null);
-  const find = () => {
-    const p = position();
-    if (p == null) return null;
-    const ms = p * 1000;
-    let i = -1;
-    for (let k = 0; k < lines.length; k++) if (lines[k]!.timeMs <= ms) i = k;
-    return i;
-  };
-  // null until the position is known: nothing is shown before the rail is in place
-  const [cur, setCur] = useState<number | null>(find);
-  const [y, setY] = useState(0);
-  const [smooth, setSmooth] = useState(false);
-  useEffect(() => {
-    const tick = () => {
-      const i = find();
-      if (i != null) setCur(i);
-    };
-    tick();
-    const t = setInterval(tick, 200);
-    return () => clearInterval(t);
-  }, [lines, position]);
-  useLayoutEffect(() => {
-    if (cur == null) return;
-    const el = rail.current?.children[Math.max(0, cur)] as HTMLElement | undefined;
-    const h = box.current?.clientHeight ?? 0;
-    if (el) setY(h * 0.4 - el.offsetTop - el.offsetHeight / 2);
-  }, [cur, lines]);
-  // Turn the scroll animation on only after the first placement has been painted.
-  const placed = cur != null;
-  useEffect(() => {
-    if (!placed || smooth) return;
-    let b = 0;
-    const a = requestAnimationFrame(() => (b = requestAnimationFrame(() => setSmooth(true))));
-    return () => {
-      cancelAnimationFrame(a);
-      cancelAnimationFrame(b);
-    };
-  }, [placed, smooth]);
-  return (
-    <div className={`lyrics${placed ? " in" : ""}`} ref={box} aria-label="Lyrics">
-      <div className={`rail${smooth ? "" : " still"}`} ref={rail} style={{ transform: `translateY(${y}px)` }}>
-        {lines.map((l, i) => (
-          <p key={i} className={cur == null ? undefined : i === cur ? "now" : i < cur ? "past" : undefined}>
-            {l.text || "\u266a"}
-          </p>
-        ))}
-      </div>
-    </div>
-  );
+/** The lyrics of the song on air (components/plus/lyrics-view.tsx): every song the radio plays from its running
+ *  order (the AutoDJ, scheduled shows and Studio shows alike), hidden while a Studio host has the music paused. */
+export function useLyrics(v: StationView): SongLyrics | null {
+  const on = v.mode === "autodj" && !!v.songKey && !v.musicPaused;
+  return useSongLyrics(on ? { key: v.songKey!, title: v.songTitle, artist: v.songArtist, durationSec: v.durationSec } : null);
 }
 
 /** An image that crossfades to the next one once it has loaded, instead of switching at once. */
@@ -323,7 +243,7 @@ export function Stage({ people }: { people: OnStage[] }) {
   );
 }
 
-function Side({ songKey, lyrics, people, position }: { songKey?: string | null; lyrics: Lyric[] | null; people: OnStage[]; position: () => number | null }) {
+function Side({ lyrics, people, position }: { lyrics: SongLyrics | null; people: OnStage[]; position: () => Playhead }) {
   const anyoneTalking = people.some((p) => p.talking);
   // the call-in card takes the lyrics' place while it's open (the column keeps its size)
   const calling = useCallInOpen();
@@ -334,7 +254,7 @@ function Side({ songKey, lyrics, people, position }: { songKey?: string | null; 
       <CallInCard />
       {lyrics && !calling && (
         <div className={anyoneTalking ? "dim" : undefined}>
-          <Lyrics key={songKey ?? undefined} lines={lyrics} position={position} />
+          <LyricsView key={lyrics.key} ttml={lyrics.ttml} offsetMs={lyrics.offsetMs} playhead={position} />
         </div>
       )}
     </div>
@@ -466,7 +386,7 @@ export function RadioPage() {
           <CallInProvider>
             <RadioGrid>
               <div className="artcol">{v.mode === "loading" ? <div className="art ph-box" aria-label="Loading" /> : v.art ? <FadeImg className="art" src={v.art} /> : <div className="art ph-art" />}</div>
-              <Side songKey={v.songKey} lyrics={lyrics} people={people} position={v.position} />
+              <Side lyrics={lyrics} people={people} position={v.position} />
               {v.mode !== "loading" && (
                 <div className="info">
                   <div className="txt">
@@ -532,7 +452,7 @@ export function FullScreen() {
           </div>
           {meta(v) && <div className="rmeta">{meta(v)}</div>}
         </section>
-        {(lyrics || people.length > 0) && <Side songKey={v.songKey} lyrics={lyrics} people={people} position={v.position} />}
+        {(lyrics || people.length > 0) && <Side lyrics={lyrics} people={people} position={v.position} />}
       </div>
     </div>
   );

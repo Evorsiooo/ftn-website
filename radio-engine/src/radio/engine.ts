@@ -259,6 +259,18 @@ export class RadioEngine {
     return this.opts.replay ? true : this.clock.synced;
   }
 
+  /**
+   * The song heard at this moment and where it is in it, worked out when asked rather than at the
+   * last tick (up to 250 ms old): what the lyrics' LyricClock reads every frame. serverNow() is
+   * the instant being heard (ctxBase lines the decks up with the speaker, output latency included),
+   * and nowPlaying follows loop mixes and tempo ramps. Null while nothing is playing.
+   */
+  playhead(): { key: string; sec: number } | null {
+    if (this.status.state !== 'playing' || !this.playing || !this.synced()) return null;
+    const np = nowPlaying(this.playing, this.serverNow());
+    return np ? { key: np.slot.item.key, sec: np.positionSec } : null;
+  }
+
   serverNow(): number {
     return this.opts.replay ? this.opts.replay.clock(performance.now()) : this.clock.serverNowMs()!;
   }

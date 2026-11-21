@@ -29,8 +29,35 @@ export interface GetOptions {
   patient?: boolean;
 }
 
+/**
+ * Every lyric host BitChord's extension may reach (web/extension/lib/lyricHosts.ts LYRIC_ORIGINS, without Genius):
+ * a direct request the browser refuses (a host that allows some sites and not others, like lyrics.paxsenix.org on
+ * this one) is tried again through the proxy, as BitChord retries it through its extension.
+ */
+export const LYRIC_FALLBACK_ORIGINS = [
+  'https://lrc.red',
+  'https://lyrics-api.binimum.org',
+  'https://lyrics-api.boidu.dev',
+  'https://unison.boidu.dev',
+  'https://lyrics.paxsenix.org',
+  'https://api.paxsenix.org',
+  'https://lyricsplus.prjktla.my.id',
+  'https://lyricsplus.atomix.one',
+  'https://lyricsplus.binimum.org',
+  'https://lyricsplus.prjktla.workers.dev',
+  'https://lyricsplus-seven.vercel.app',
+  'https://lyrics-plus-backend.vercel.app',
+  'https://lrclib.net',
+  'https://mobileservice.kugou.com',
+  'https://lyrics.kugou.com',
+  'https://apic.musixmatch.com',
+  'https://www.musixmatch.com',
+  'https://music.apple.com',
+  'https://amp-api.music.apple.com',
+];
+
 async function viaProxy(url: string, headers: Record<string, string> | undefined): Promise<string | null> {
-  if (!LYRIC_PROXY_ORIGINS.includes(new URL(url).origin)) return null;
+  if (!LYRIC_FALLBACK_ORIGINS.includes(new URL(url).origin)) return null;
   try {
     const auth = headers?.Authorization ?? headers?.authorization;
     const response = await fetch(`${PROXY}?url=${encodeURIComponent(url)}`, {

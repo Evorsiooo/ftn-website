@@ -3,17 +3,19 @@ import { eq } from "drizzle-orm";
 import { radioSongs } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
 import { isLinedUp, radioBucket } from "@/lib/radio/library";
+import { isLyricsOffset, isLyricsSource } from "@/lib/radio/lyrics-choice";
 
 export const runtime = "edge";
 
 type Params = { params: Promise<{ id: string }> };
 
-// Edit a song's title, artist, album, year and cover (by hand, or from the music catalog), or archive it (hidden from the AutoDJ and the library list) and back.
+// Edit a song's title, artist, album, year and cover (by hand, or from the music catalog), its lyrics (provider and
+// offset, for every listener), or archive it (hidden from the AutoDJ and the library list) and back.
 export async function PATCH(request: NextRequest, { params }: Params) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
   const { id } = await params;
-  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown; lyricsSource?: unknown; lyricsOffsetMs?: unknown } | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const set: Partial<typeof radioSongs.$inferInsert> = {};
@@ -40,6 +42,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const t = body.thumbnail;
     if (typeof t !== "string" || !/^https:\/\/[^\s"'<>]+$/.test(t) || t.length > 500) return NextResponse.json({ error: "thumbnail must be an https link" }, { status: 400 });
     set.thumbnailUrl = t;
+  }
+  if (body.lyricsSource !== undefined) {
+    if (!isLyricsSource(body.lyricsSource)) return NextResponse.json({ error: "lyricsSource must be a lyrics provider, \"none\" or null" }, { status: 400 });
+    set.lyricsSource = body.lyricsSource;
+  }
+  if (body.lyricsOffsetMs !== undefined) {
+    if (!isLyricsOffset(body.lyricsOffsetMs)) return NextResponse.json({ error: "lyricsOffsetMs must be -5000 to 5000, in steps of 100" }, { status: 400 });
+    set.lyricsOffsetMs = body.lyricsOffsetMs;
   }
   if (body.archived !== undefined) {
     if (typeof body.archived !== "boolean") return NextResponse.json({ error: "archived must be true or false" }, { status: 400 });

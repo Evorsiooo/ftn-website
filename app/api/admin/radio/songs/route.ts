@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
       loudnessDb: radioSongs.loudnessDb,
       thumbnail: radioSongs.thumbnailUrl,
       archived: radioSongs.archived,
+      lyricsSource: radioSongs.lyricsSource,
+      lyricsOffsetMs: radioSongs.lyricsOffsetMs,
       createdAt: radioSongs.createdAt,
     })
     .from(radioSongs)

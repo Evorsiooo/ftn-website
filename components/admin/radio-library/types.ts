@@ -17,6 +17,9 @@ export interface Song {
   loudnessDb: number | null;
   thumbnail: string | null;
   archived: boolean;
+  /** Lyrics for every listener: null = best available, a provider id, or "none"; and the offset in ms. */
+  lyricsSource: string | null;
+  lyricsOffsetMs: number;
   createdAt: string;
 }
 

@@ -13,16 +13,28 @@ export const runtime = "edge";
  * Use: GET /api/radio/lyrics?url=<encoded URL>, optionally with an Authorization header, which is
  * passed on (PaxSenix and Apple Music tokens, as in BitChord's providers).
  */
+// BitChord's extension hosts (web/extension/lib/lyricHosts.ts LYRIC_ORIGINS), without Genius: the ones a page
+// can never reach itself, and the ones that refuse some sites (radio-engine/src/lyrics/http.ts falls back to here).
 const ORIGINS = new Set([
+  "https://lrc.red",
+  "https://lyrics-api.binimum.org",
+  "https://lyrics-api.boidu.dev",
+  "https://unison.boidu.dev",
+  "https://lyrics.paxsenix.org",
+  "https://api.paxsenix.org",
+  "https://lyricsplus.prjktla.my.id",
+  "https://lyricsplus.atomix.one",
+  "https://lyricsplus.binimum.org",
+  "https://lyricsplus.prjktla.workers.dev",
+  "https://lyricsplus-seven.vercel.app",
+  "https://lyrics-plus-backend.vercel.app",
+  "https://lrclib.net",
   "https://mobileservice.kugou.com",
   "https://lyrics.kugou.com",
   "https://apic.musixmatch.com",
   "https://www.musixmatch.com",
   "https://music.apple.com",
   "https://amp-api.music.apple.com",
-  "https://api.paxsenix.org",
-  "https://lyrics-api.boidu.dev",
-  "https://unison.boidu.dev",
 ]);
 
 /** BitChord's extension rules (lyricsFetch.ts RULES). */
