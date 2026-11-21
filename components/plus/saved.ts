@@ -77,3 +77,65 @@ export function useSavedList() {
   }, []);
   return items;
 }
+
+// ------------------------------------------------------------------------------------- radio replays
+
+/** A saved radio replay, as its card shows it. */
+export type SavedReplay = { id: string; title: string; show: string | null; art: string | null; startedAt: number; endedAt: number };
+
+const REPLAYS_KEY = "ftn_saved_replays";
+
+function readReplays(): SavedReplay[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(REPLAYS_KEY) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeReplays(list: SavedReplay[]) {
+  try {
+    localStorage.setItem(REPLAYS_KEY, JSON.stringify(list));
+  } catch {}
+}
+
+/** Whether [replay] is saved, and a toggle (the account's list when signed in, else this device's). */
+export function useSavedReplay(replay: SavedReplay | null) {
+  const id = replay?.id;
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (!id) return;
+    setSaved(readReplays().some((x) => x.id === id));
+    fetch(`/api/plus/saved-replays?replayId=${encodeURIComponent(id)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: any) => d?.signedIn && typeof d.saved === "boolean" && setSaved(d.saved))
+      .catch(() => {});
+  }, [id]);
+  const toggle = useCallback(() => {
+    if (!replay) return;
+    const next = !saved;
+    setSaved(next);
+    const rest = readReplays().filter((x) => x.id !== replay.id);
+    const { id, title, show, art, startedAt, endedAt } = replay;
+    writeReplays(next ? [{ id, title, show, art, startedAt, endedAt }, ...rest] : rest);
+    fetch("/api/plus/saved-replays", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ replayId: replay.id, action: next ? "add" : "remove" }),
+    }).catch(() => {});
+  }, [replay, saved]);
+  return { saved, toggle };
+}
+
+/** Every saved replay: the account's list when signed in, else this device's. */
+export function useSavedReplays() {
+  const [items, setItems] = useState<SavedReplay[] | null>(null);
+  useEffect(() => {
+    fetch("/api/plus/saved-replays", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: any) => setItems(d?.signedIn && Array.isArray(d.replays) ? d.replays : readReplays()))
+      .catch(() => setItems(readReplays()));
+  }, []);
+  return items;
+}

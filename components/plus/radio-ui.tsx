@@ -296,7 +296,7 @@ export function Votes({ songKey }: { songKey: string | null }) {
 
 // ------------------------------------------------------------------------------------------- on stage
 
-type OnStage = { id: string; name: string; avatar: string | null; talking: boolean };
+export type OnStage = { id: string; name: string; avatar: string | null; talking: boolean };
 
 /** The people on air in a Studio show, with who is talking now. */
 export function useOnStage(): OnStage[] {
@@ -310,7 +310,7 @@ export function useOnStage(): OnStage[] {
  * Who's on air, Discord-style: each person's avatar with their name under it, a green ring
  * while they talk. Above the lyrics, which dim while someone talks over the music.
  */
-function Stage({ people }: { people: OnStage[] }) {
+export function Stage({ people }: { people: OnStage[] }) {
   return (
     <ul className="stage" aria-label="On air">
       {people.map((p) => (
