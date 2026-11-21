@@ -510,6 +510,9 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .glow.xf { position: absolute; overflow: visible; }
 .fp .xf img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 600ms ease; }
 .fp .xf img.on { opacity: 1; }
+/* Apple Music's animated cover over the still one, faded in once it plays (BitChord's full-screen player). */
+.fp .xf video.motion { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; opacity: 0; transition: opacity 600ms ease-in; }
+.fp .xf video.motion[data-ready] { opacity: 1; }
 .fp .swap { animation: fp-swap 500ms ease both; }
 @keyframes fp-swap { from { opacity: 0; transform: translateY(6px); } }
 
