@@ -402,7 +402,7 @@ export function RadioClipCreator({ seg, leave, ads, suggestedAdId, editPost, upl
     const name = clips.length > 1 ? `Clip ${i + 1}: ` : "";
     if (!c.headline.trim()) return `${name}write a headline.`;
     if (!c.roState) return `${name}choose a Ro-State.`;
-    if (clipLen(c) > MAX_CLIP_MS + 1) return `${name}a clip can be at most ${MAX_CLIP_MS / 1000} seconds.`;
+    if (clipLen(c) > MAX_CLIP_MS + 1) return `${name}a clip can be at most ${MAX_CLIP_MS / 60_000} minutes.`;
     if (c.sendAt && !(fromLocalInput(c.sendAt) > Date.now() + 60_000)) return `${name}pick a time in the future, or choose Right away.`;
     const ad = c.adId && c.adId !== NO_AD ? ads.find((a) => a.id === c.adId) : null;
     if (c.adId && c.adId !== NO_AD && !ad) return `${name}its ad is no longer available. Pick another.`;
