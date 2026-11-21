@@ -10,17 +10,23 @@
 // - Nobody listening: nothing runs. The first listener back starts a fresh
 //   running order from "now".
 import type { TrackAnalysis } from '../bitchord/automix/analysis/types';
-import { AUTODJ_KEY, AUTODJ_WRITE_URL, LIBRARY_URL, analysisKey, analysisWriteUrl, fileUrl } from './config';
+import { ANALYSIS_INDEX_KEY, AUTODJ_KEY, AUTODJ_WRITE_URL, LIBRARY_URL, analysisKey, analysisWriteUrl, fileUrl } from './config';
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from './loudness';
 import { analyse, decodeForPlan, DEFAULT_BARS, planMix } from './planner';
+import { rankCandidates } from '../bitchord/automix/engine/selector';
 import {
   ANALYSIS_VERSION,
   checkMix,
   endOfTimelineMs,
+  playHistory,
   rebase,
+  seeded,
+  summarizeAnalysis,
   slotAt,
   slotIndexAt,
   TIMELINE_VERSION,
+  type AnalysisIndex,
+  type AnalysisSummary,
   type LibrarySong,
   type RadioTimeline,
   type TimelineItem,
@@ -34,8 +40,6 @@ const LOOKAHEAD = 2;
 const PLAN_MARGIN_MS = 28_000;
 /** With an analysis still running, the plain crossfade is sent at the latest this far ahead of its start. */
 const FALLBACK_DEADLINE_MS = 45_000;
-/** Songs not repeated within this many places. */
-const NO_REPEAT = 3;
 
 /** The songs the AutoDJ may play. Empty: the radio is off air. */
 export async function loadLibrary(): Promise<LibrarySong[]> {
@@ -57,7 +61,8 @@ export async function fetchTimeline(): Promise<RadioTimeline | null> {
 
 /** The song's analysis if a listener has shared it, else null. */
 async function storedAnalysis(song: LibrarySong): Promise<TrackAnalysis | null> {
-  const r = await fresh(analysisKey(song.key));
+  const r = await fresh(analysisKey(song.key)).catch(() => null);
+  if (!r) return null;
   if (!r.ok) return null;
   const a = (await r.json()) as TrackAnalysis;
   return a.analysisVersion === ANALYSIS_VERSION ? a : null;
@@ -98,12 +103,87 @@ async function makeItem(song: LibrarySong, buffer: AudioBuffer): Promise<Timelin
   return { key: song.key, title: song.title, artist: song.artist, durationSec: Math.round(buffer.duration * 1e6) / 1e6, loudnessDb };
 }
 
-function pick(library: LibrarySong[], recent: string[], prefer?: Set<string>): LibrarySong {
-  const fresh = library.filter((s) => !recent.slice(-NO_REPEAT).includes(s.key));
-  const pool = fresh.length ? fresh : library;
-  const preferred = prefer ? pool.filter((s) => prefer.has(s.key)) : [];
-  const from = preferred.length ? preferred : pool;
-  return from[Math.floor(Math.random() * from.length)]!;
+/**
+ * Songs not played again within this many (Adrien, 2026-11-21). Passed to AutoMix's selector as its
+ * own excludeFileKeys; the selector's built-in rules (nothing from the last 10, the last 3 artists
+ * scored down) apply as they are.
+ */
+const REPEAT_WINDOW = 200;
+/** Every this-many songs is one the selector can't place yet (not analysed, or no tempo found), while there are any. */
+const UNPLACED_EVERY = 3;
+
+/** The key, tempo and energy of every shared analysis (empty if the index can't be read). */
+async function fetchAnalysisIndex(): Promise<AnalysisIndex['songs']> {
+  try {
+    const r = await fresh(ANALYSIS_INDEX_KEY);
+    if (!r.ok) return {};
+    const body = (await r.json()) as AnalysisIndex;
+    return body.analysisVersion === ANALYSIS_VERSION ? body.songs : {};
+  } catch {
+    return {};
+  }
+}
+
+/** What AutoMix's selector reads of a song: its analysis in short, with the library's title and artist. */
+function asAnalysis(song: LibrarySong, s: AnalysisSummary): TrackAnalysis {
+  return { fileKey: song.key, tags: { title: song.title, artist: song.artist }, ...s } as unknown as TrackAnalysis;
+}
+
+const byKey = (a: LibrarySong, b: LibrarySong) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+
+/**
+ * The AutoDJ's next song, picked the way AutoMix's AutoDJ picks it: AutoMix's selector
+ * (engine/selector.ts, verbatim) ranks the analysed library against the song it follows (Camelot
+ * key, tempo, energy, recent songs and artists) and the first candidate plays, with AutoMix's
+ * default energy direction (steady). Every input comes from the stored running order and the shared
+ * index, and ties fall to the song key, so every listener would pick the same song.
+ *
+ * Songs the selector can't place (not analysed yet, or no tempo found) still get every
+ * UNPLACED_EVERY-th place, so new songs are heard and analysed and none is left out for good.
+ */
+export async function pickNext(library: LibrarySong[], current: RadioTimeline, after: LibrarySong, k: number, log: (s: string) => void): Promise<LibrarySong> {
+  const index = await fetchAnalysisIndex();
+  const songs = [...library].sort(byKey);
+  const history = playHistory(current);
+  const recent = new Set(history.slice(0, REPEAT_WINDOW));
+  const rand = seeded(k * 2654435761);
+  const placeable = (s: LibrarySong) => Boolean(index[s.key]?.bpm);
+  const pool = songs.filter(placeable).map((s) => asAnalysis(s, index[s.key]!));
+  const unplaced = songs.filter((s) => !placeable(s) && s.key !== after.key);
+  const unplacedFresh = unplaced.filter((s) => !recent.has(s.key));
+
+  if (unplacedFresh.length && (pool.length < 2 || k % UNPLACED_EVERY === 0)) {
+    const song = unplacedFresh[Math.floor(rand() * unplacedFresh.length)]!;
+    log(`next: ${song.title} (not analysed yet: one in ${UNPLACED_EVERY} songs is)`);
+    return song;
+  }
+
+  // the song it follows: from the index, else its shared analysis (made moments ago, not indexed yet)
+  let cur = index[after.key] ?? null;
+  if (!cur) cur = summarizeAnalysis(await storedAnalysis(after));
+  if (cur?.bpm) {
+    const opts = { energyDirection: 0 as const, recentFileKeys: history };
+    let ranked = rankCandidates(asAnalysis(after, cur), pool, { ...opts, excludeFileKeys: [...recent] });
+    // a library too small for the window: AutoMix's own repeat rules only
+    if (!ranked.length) ranked = rankCandidates(asAnalysis(after, cur), pool, opts);
+    const best = ranked[0];
+    if (best) {
+      const song = songs.find((s) => s.key === best.analysis.fileKey)!;
+      const r = best.reasons;
+      log(`next: ${song.title} (${best.harmonic ? 'harmonic' : 'not harmonic'}, score ${best.score.toFixed(2)}: key ${r.camelot.toFixed(2)}, tempo ${r.bpm.toFixed(2)}, energy ${r.energy.toFixed(2)}, artist ${r.repeat})`);
+      return song;
+    }
+  }
+
+  // nothing to rank against (the song it follows has no tempo) or nothing ranked: as AutoMix starts,
+  // any analysed song, here one not played lately
+  const notLately = (list: string[]) => list.filter((key) => key !== after.key && !recent.has(key));
+  const from = [notLately(pool.map((a) => a.fileKey)), notLately(unplaced.map((s) => s.key)), notLately(songs.map((s) => s.key))].find((l) => l.length)
+    ?? songs.map((s) => s.key).filter((key) => key !== after.key);
+  const key = from.length ? from[Math.floor(rand() * from.length)]! : after.key;
+  const song = songs.find((s) => s.key === key)!;
+  log(`next: ${song.title} (no key/tempo match possible)`);
+  return song;
 }
 
 /** Whether this running order needs another song (or a fresh start). */
@@ -170,7 +250,7 @@ export async function extend(
   const recent = current.items.map((i) => i.key);
   // a show's song (the Studio queue, a playlist show) when one is due as this song starts
   const showKey = programPick(program, endOfTimelineMs(current), recent, new Set(library.map((s) => s.key)));
-  const next = (showKey && library.find((s) => s.key === showKey)) || pick(library, recent);
+  const next = (showKey && library.find((s) => s.key === showKey)) || (await pickNext(library, current, lastSong, lastK + 1, log));
   log(`lining up ${next.title} after ${lastSong.title}`);
   const [bLast, bNext, storedLast, storedNext] = await Promise.all([
     decodeForPlan(lastSong.key),

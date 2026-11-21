@@ -15,6 +15,8 @@ export const MODEL_BASE = `${FILES_BASE}/models`;
 /** Keep in step with lib/radio/store.ts (the website writes these objects). */
 export const AUTODJ_KEY = 'radio/autodj.json';
 export const analysisKey = (songKey: string) => `analysis/${songKey}.json`;
+/** Key, tempo and energy of every shared analysis (kept by the website's every-minute cron). */
+export const ANALYSIS_INDEX_KEY = 'radio/analysis-index.json';
 
 export const TIME_URL = '/api/radio/time';
 /** The songs the AutoDJ may play (the library, managed in the admin panel). */

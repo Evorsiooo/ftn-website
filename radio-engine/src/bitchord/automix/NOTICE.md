@@ -68,6 +68,9 @@ lyrics, video, Listen Together and Media Session code all read. So:
   if they aren't ready in time the song plays to its end and crossfades
   there. AutoMix's harmonic selector (`engine/selector.ts`) is kept but not
   used: the user asked for only the next song to be analysed.
+  FTN radio: the 24/7 AutoDJ does use it, as AutoMix's AutoDJ does (first
+  candidate plays), over an index of the shared analyses
+  (`radio/autodj.ts` pickNext; docs/timeline.md section 6a).
 - `engine/transition-scheduler.ts` adds the phone's DJ_FILTER for a pair
   that can't be beatmatched (no incoming grid, or tempos too far apart:
   the next song slowed past 10% or sped up past 25%): phrase-aligned on the outgoing beat, a rising high-pass out, an

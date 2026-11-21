@@ -99,6 +99,62 @@ export interface RadioTimeline {
   items: TimelineItem[];
   mixes: TimelineMix[];
   plannedWith: { bars: number; analysisVersion: number; engine: string };
+  /**
+   * Songs that have left the running order, most recent first (at most PLAYED_MAX). The website
+   * fills it in when it stores a change (withPlayed), so the next-song picker knows what played.
+   */
+  played?: string[];
+}
+
+/** How many songs the running order remembers having played. */
+export const PLAYED_MAX = 200;
+
+/**
+ * [next] with its play history: the songs [current] had that [next] drops, most recent first, ahead of
+ * [current]'s own history. A fresh start counts every song of the old running order.
+ */
+export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, nowMs: number): RadioTimeline {
+  if (!current) return { ...next, played: [] };
+  const fresh = endOfTimelineMs(current) < nowMs;
+  const dropped = fresh ? current.items.length : Math.max(0, next.firstK - current.firstK);
+  const left = current.items.slice(0, dropped).map((i) => i.key).reverse();
+  return { ...next, played: [...left, ...(current.played ?? [])].slice(0, PLAYED_MAX) };
+}
+
+/** Everything the running order has played or lined up, most recent first. */
+export function playHistory(tl: RadioTimeline): string[] {
+  return [...tl.items.map((i) => i.key).reverse(), ...(tl.played ?? [])];
+}
+
+// ---- The analysed songs, in short ---------------------------------------------------------------
+// What the next-song picker (AutoMix's selector) reads of each analysis. The full analyses are about
+// 100 KB each, so the website keeps this index of every shared one (lib/radio/analysis-index.ts).
+
+export interface AnalysisSummary {
+  bpm: number | null;
+  camelot: { num: number; letter: 'A' | 'B' } | null;
+  energy: number;
+  gridConfidence: number;
+}
+export interface AnalysisIndex {
+  analysisVersion: number;
+  /** Song key -> summary. */
+  songs: Record<string, AnalysisSummary>;
+}
+
+const round4 = (x: number) => Math.round(x * 1e4) / 1e4;
+
+/** The index entry for a shared analysis (null when it isn't this analysis version). */
+export function summarizeAnalysis(a: unknown): AnalysisSummary | null {
+  if (!isObj(a) || a.analysisVersion !== ANALYSIS_VERSION) return null;
+  const c = a.camelot;
+  const camelot = isObj(c) && within(c.num, 1, 12) && (c.letter === 'A' || c.letter === 'B') ? { num: c.num, letter: c.letter as 'A' | 'B' } : null;
+  return {
+    bpm: finite(a.bpm) && a.bpm > 0 ? round4(a.bpm) : null,
+    camelot,
+    energy: finite(a.energy) ? round4(a.energy) : 0,
+    gridConfidence: finite(a.gridConfidence) ? round4(a.gridConfidence) : 0,
+  };
 }
 
 export interface Slot {
@@ -484,7 +540,8 @@ const VIRTUAL_BLOCK_MS = 3_600_000;
 const VIRTUAL_NO_REPEAT = 8;
 const VIRTUAL_DEFAULT_SEC = 210;
 
-function seeded(seed: number) {
+/** A small seeded random generator (mulberry32): the same seed gives the same numbers in every browser. */
+export function seeded(seed: number) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
