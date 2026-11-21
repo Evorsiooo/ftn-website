@@ -31,11 +31,67 @@ export interface DownloaderSong {
   audio: { r2Key: string; bytes?: number; contentType?: string };
   metaKey?: string;
   // How sure title and artist are, and the raw fields behind them (download-api.md; absent on older songs).
-  metadataSource?: "tagged" | "topic-channel" | "spotify" | "video" | null;
+  metadataSource?: "tagged" | "topic-channel" | "spotify" | "video" | "ytmusic" | null;
   track?: string | null;
   artists?: string[] | null;
   rawTitle?: string | null;
   channel?: string | null;
+  /** BitChord's music-video flag (wide picture); absent on songs stored before the album-audio check. */
+  musicVideo?: boolean;
+  /** What BitChord's resolveAudio decided for the link (YouTube; absent on older songs). */
+  resolve?: AudioResolve | null;
+  /** The YouTube Music catalogue row the audio is, when it is one. */
+  catalog?: { videoId: string; title: string; artist: string; album: string | null; thumbnail: string | null } | null;
+}
+
+/**
+ * YouTube Music's square cover for a catalogue song, at 544 px (BitChord's artworkAtPixels:
+ * googleusercontent resizes on demand). Null when the song has none.
+ */
+export function catalogCover(song: Pick<DownloaderSong, "catalog">): string | null {
+  const url = song.catalog?.thumbnail;
+  if (!url || !url.startsWith("https://")) return null;
+  return /googleusercontent\.com|ggpht\.com/.test(url) ? `${url.replace(/=[^/=]*$/, "")}=w544-h544-l90-rj` : url;
+}
+
+export type ResolveOutcome = "song" | "official-pair" | "search" | "search-drift" | "no-match" | "lookup-failed";
+
+export interface AudioResolve {
+  requestedId: string;
+  requestedTitle: string | null;
+  requestedArtist: string | null;
+  requestedIsVideo: boolean | null;
+  outcome: ResolveOutcome;
+  query: string | null;
+  error: string | null;
+  audioId: string;
+  checkedAt: string;
+}
+
+/** The library's audio_check value for a resolveAudio outcome (null: ask again later). */
+export function audioCheckOf(resolve: AudioResolve | null | undefined): "album" | "swapped" | "unmatched" | null {
+  if (!resolve) return null;
+  if (resolve.outcome === "song") return "album";
+  if (resolve.outcome === "no-match") return "unmatched";
+  if (resolve.outcome === "lookup-failed") return null;
+  return resolve.requestedId === resolve.audioId ? "album" : "swapped";
+}
+
+/** One line on how a song's audio was found, for the song pane. */
+export function audioCheckNote(resolve: AudioResolve | null | undefined): string | null {
+  if (!resolve) return null;
+  const from = resolve.requestedTitle ? `“${resolve.requestedTitle}”${resolve.requestedArtist ? ` by ${resolve.requestedArtist}` : ""}` : resolve.requestedId;
+  switch (resolve.outcome) {
+    case "official-pair":
+      return `Album version of ${from} (YouTube Music's own pairing)`;
+    case "search":
+    case "search-drift":
+      return `Album version of ${from} (found searching “${resolve.query ?? ""}”)`;
+    case "no-match":
+      return `No album version of ${from} on YouTube Music`;
+    default:
+      return null;
+  }
 }
 
 export interface Candidate {
@@ -157,6 +213,10 @@ async function downloader<T>(db: DbClient, path: string, init: RequestInit = {})
 export const startJob = (db: DbClient, url: string, meta: unknown) =>
   downloader<{ jobId: string; job: Job }>(db, "/api/download", { method: "POST", body: JSON.stringify({ url, meta }) });
 
+/** The album-audio check of songs already in the library (lib/radio/album-audio.ts). */
+export const startRecheck = (db: DbClient, songs: { videoId: string; songId: string }[]) =>
+  downloader<{ jobId: string; job: Job }>(db, "/api/download", { method: "POST", body: JSON.stringify({ recheck: songs, meta: { kind: "album-audio-check" } }) });
+
 export const getJob = (db: DbClient, jobId: string) => downloader<{ job: Job }>(db, `/api/download/${encodeURIComponent(jobId)}`);
 
 export const cancelJob = (db: DbClient, jobId: string) =>
@@ -209,11 +269,16 @@ function songRow(song: DownloaderSong, spotifyId: string | null, userId: string 
     releaseYear: num(song.releaseYear),
     durationSec: num(song.durationSec) ?? 0,
     loudnessDb: num(song.loudnessDb),
-    thumbnailUrl: typeof song.thumbnail === "string" && song.thumbnail.startsWith("https://") ? song.thumbnail : null,
+    thumbnailUrl: catalogCover(song) ?? (typeof song.thumbnail === "string" && song.thumbnail.startsWith("https://") ? song.thumbnail : null),
     spotifyId,
     bytes: num(song.audio.bytes),
     contentType: clampText(song.audio.contentType, 100) || null,
     archived: false,
+    musicVideo: song.musicVideo === true,
+    metadataSource: song.metadataSource ?? null,
+    audioCheck: audioCheckOf(song.resolve),
+    audioCheckedAt: song.resolve && audioCheckOf(song.resolve) ? now : null,
+    audioCheckNote: audioCheckNote(song.resolve),
     addedBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -315,9 +380,9 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
     if (bucket && copies.length) await bucket.delete(copies).catch(() => {});
   }
   const rows = [...fresh.values()];
-  // 21 columns: D1 allows 100 bound parameters per statement, so 4 rows per insert.
-  for (let i = 0; i < rows.length; i += 4) {
-    await db.insert(radioSongs).values(rows.slice(i, i + 4)).onConflictDoNothing();
+  // 26 columns: D1 allows 100 bound parameters per statement, so 3 rows per insert.
+  for (let i = 0; i < rows.length; i += 3) {
+    await db.insert(radioSongs).values(rows.slice(i, i + 3)).onConflictDoNothing();
   }
   if (rows.length) {
     const back = await db.select({ id: radioSongs.id, r2Key: radioSongs.r2Key }).from(radioSongs).where(inArray(radioSongs.r2Key, rows.map((r) => r.r2Key)));
@@ -449,15 +514,29 @@ export interface LibrarySong {
   key: string;
   title: string;
   artist: string;
+  album: string | null;
   durationSec: number;
   loudnessDb: number | null;
   thumbnail: string | null;
+  /** BitChord's flag: a music video, which Automix's loop mixes skip. */
+  musicVideo: boolean;
 }
+
+const librarySongColumns = {
+  key: radioSongs.r2Key,
+  title: radioSongs.title,
+  artist: radioSongs.artist,
+  album: radioSongs.album,
+  durationSec: radioSongs.durationSec,
+  loudnessDb: radioSongs.loudnessDb,
+  thumbnail: radioSongs.thumbnailUrl,
+  musicVideo: radioSongs.musicVideo,
+};
 
 /** Every song that isn't archived, in the shape the radio engine reads. */
 export async function playableSongs(db: DbClient): Promise<LibrarySong[]> {
   const rows = await db
-    .select({ key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, loudnessDb: radioSongs.loudnessDb, thumbnail: radioSongs.thumbnailUrl })
+    .select(librarySongColumns)
     .from(radioSongs)
     .where(eq(radioSongs.archived, false))
     .orderBy(radioSongs.createdAt);
@@ -470,7 +549,7 @@ export async function songsByKeys(db: DbClient, keys: string[]): Promise<Map<str
   const unique = [...new Set(keys)];
   for (let i = 0; i < unique.length; i += 90) {
     const rows = await db
-      .select({ key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, loudnessDb: radioSongs.loudnessDb, thumbnail: radioSongs.thumbnailUrl })
+      .select(librarySongColumns)
       .from(radioSongs)
       .where(and(inArray(radioSongs.r2Key, unique.slice(i, i + 90)), eq(radioSongs.archived, false)));
     rows.forEach((r) => out.set(r.key, r));

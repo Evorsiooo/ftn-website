@@ -8,6 +8,25 @@ import { api, duration, fileUrl, type Song } from "./types";
 
 const SOURCE_LABEL: Record<Song["source"], string> = { youtube: "YouTube", soundcloud: "SoundCloud", upload: "Uploaded" };
 
+/** What the album-audio check found (BitChord's resolveAudio, run by the downloader). */
+function audioLabel(song: Song): string | null {
+  if (song.source !== "youtube") return null;
+  switch (song.audioCheck) {
+    case "album":
+      return "Album version";
+    case "swapped":
+      return "Album version, swapped in for the video";
+    case "unmatched":
+      return song.musicVideo ? "Music video: no album version found" : "No album version found";
+    case "duplicate":
+      return "Archived: its album version is already in the library";
+    case "failed":
+      return "Not checked: YouTube Music didn't answer (tried again later)";
+    default:
+      return "Not checked yet";
+  }
+}
+
 /** One shared <audio> for listening to songs on the page. */
 export function usePreview() {
   const audio = useRef<HTMLAudioElement | null>(null);
@@ -216,6 +235,17 @@ export function SongPane({
                 SOURCE_LABEL[song.source]
               ),
             ],
+            ...(audioLabel(song)
+              ? [
+                  [
+                    "Audio",
+                    <span key="a">
+                      {audioLabel(song)}
+                      {song.audioCheckNote && <span className="muted t12" style={{ display: "block" }}>{song.audioCheckNote}</span>}
+                    </span>,
+                  ] as [string, React.ReactNode],
+                ]
+              : []),
             ["Loudness", song.loudnessDb == null ? "Not known (no levelling)" : `${song.loudnessDb > 0 ? "+" : ""}${song.loudnessDb.toFixed(1)} dB`],
             ["Added", added(song.createdAt)],
             ["File", <span key="f" className="t12" style={{ fontFamily: "ui-monospace, monospace", overflowWrap: "anywhere" }}>{song.key}</span>],

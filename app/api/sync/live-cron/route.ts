@@ -4,6 +4,7 @@ import { syncConfiguredTwitchLives } from "@/lib/twitch";
 import { syncAllConfiguredChannels } from "@/lib/youtube";
 import { syncRadioLive } from "@/lib/radio/live";
 import { syncOpenImports } from "@/lib/radio/library";
+import { runAlbumAudioCheck } from "@/lib/radio/album-audio";
 import { publishProgram } from "@/lib/radio/program";
 import { ensurePlaylistReplays, tidy } from "@/lib/radio/studio";
 
@@ -60,6 +61,14 @@ export async function POST(request: NextRequest) {
     if (imports.checked) out.radioImports = imports;
   } catch (err: any) {
     out.radioImportsError = err?.message || "Radio import sync failed";
+  }
+  // The album-audio check of the library's songs (BitChord's resolveAudio, on the downloader):
+  // one batch at a time; one cheap query once every song is checked.
+  try {
+    const albumAudio = await runAlbumAudioCheck(db);
+    if (albumAudio) out.albumAudio = albumAudio;
+  } catch (err: any) {
+    out.albumAudioError = err?.message || "Album audio check failed";
   }
   return NextResponse.json(out);
 }

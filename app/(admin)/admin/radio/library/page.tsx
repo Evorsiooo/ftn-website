@@ -1,7 +1,7 @@
 "use client";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { MoreHorizontal, Plus, RefreshCw, Search, Upload } from "lucide-react";
+import { Disc3, MoreHorizontal, Plus, RefreshCw, Search, Upload } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { Body, PageBar, Screen, Seg, Sheet } from "@/components/admin/ui";
 import { SongRatings } from "@/components/admin/radio-library/ratings";
@@ -10,7 +10,7 @@ import { AddSongs, ReviewMatches } from "@/components/admin/radio-library/add-so
 import { SongPane, SongTable, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
 import { PlaylistList } from "@/components/admin/radio-library/playlists";
 import { useMetadataCheck } from "@/components/admin/radio-library/metadata-check";
-import { api, FINAL, type Import, type Playlist, type Review, type Song } from "@/components/admin/radio-library/types";
+import { api, FINAL, type AlbumAudio, type Import, type Playlist, type Review, type Song } from "@/components/admin/radio-library/types";
 import { refreshAdminSummary } from "@/lib/admin-summary";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +28,8 @@ function LibraryPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [archived, setArchived] = useState(false);
+  const [albumAudio, setAlbumAudio] = useState<AlbumAudio | null>(null);
+  const [videosOnly, setVideosOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [sheet, setSheet] = useState<"add" | "review" | "upload" | null>(null);
@@ -67,9 +69,10 @@ function LibraryPage() {
   const doneCount = useRef<string>("");
   const loadImports = useCallback(async () => {
     try {
-      const d = await api<{ imports: Import[]; reviews: Review[] }>("/api/admin/radio/imports");
+      const d = await api<{ imports: Import[]; reviews: Review[]; albumAudio?: AlbumAudio | null }>("/api/admin/radio/imports");
       setImports(d.imports);
       setReviews(d.reviews);
+      setAlbumAudio(d.albumAudio ?? null);
       const sig = d.imports.map((i) => `${i.id}:${i.done}:${i.state}`).join("|");
       if (doneCount.current && sig !== doneCount.current) loadLibrary();
       doneCount.current = sig;
@@ -99,11 +102,26 @@ function LibraryPage() {
 
   const live = useMemo(() => (songs || []).filter((s) => !s.archived), [songs]);
   const archivedSongs = useMemo(() => (songs || []).filter((s) => s.archived), [songs]);
+  // The album-audio check (BitChord's resolveAudio on the downloader): progress and the songs it
+  // couldn't find an album version for, which stay music videos.
+  const audio = useMemo(() => {
+    const yt = (songs || []).filter((s) => s.source === "youtube");
+    const count = (c: Song["audioCheck"]) => yt.filter((s) => s.audioCheck === c).length;
+    const unmatched = yt.filter((s) => s.audioCheck === "unmatched");
+    const checked = count("album") + count("swapped") + unmatched.length + count("duplicate");
+    return { total: yt.length, checked, swapped: count("swapped"), duplicates: count("duplicate"), unmatched };
+  }, [songs]);
+  // Polls while the check runs so its numbers move.
+  useEffect(() => {
+    if (!albumAudio?.running) return;
+    const t = setInterval(loadLibrary, 30_000);
+    return () => clearInterval(t);
+  }, [albumAudio?.running, loadLibrary]);
   const shown = useMemo(() => {
-    const list = archived ? archivedSongs : live;
+    const list = videosOnly ? audio.unmatched : archived ? archivedSongs : live;
     const q = query.trim().toLowerCase();
     return q ? list.filter((s) => `${s.title} ${s.artist} ${s.album || ""}`.toLowerCase().includes(q)) : list;
-  }, [archived, live, archivedSongs, query]);
+  }, [archived, live, archivedSongs, query, videosOnly, audio.unmatched]);
   const current = (songs || []).find((s) => s.id === selected) ?? null;
 
   useEffect(() => {
@@ -230,6 +248,39 @@ function LibraryPage() {
           {running.length > 0 && (
             <button type="button" className="btn sm ghost" onClick={() => setSheet("add")}>
               See imports
+            </button>
+          )}
+        </div>
+      )}
+      {tab === "songs" && songs && audio.total > 0 && (audio.checked < audio.total || audio.unmatched.length > 0) && (
+        <div className="notice" role="status">
+          <Disc3 className={cn("ic-sm", albumAudio?.running && "spin")} />
+          <span className="trunc" style={{ flex: 1 }}>
+            {audio.checked < audio.total ? (
+              <>
+                {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
+                {audio.swapped > 0 && `, ${audio.swapped} swapped`}
+                {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
+                {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
+                {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
+              </>
+            ) : (
+              <>
+                {audio.unmatched.length} {audio.unmatched.length === 1 ? "song has" : "songs have"} no album version on YouTube Music and {audio.unmatched.length === 1 ? "stays a" : "stay"} music video{audio.unmatched.length === 1 ? "" : "s"}
+              </>
+            )}
+          </span>
+          {audio.unmatched.length > 0 && (
+            <button
+              type="button"
+              className="btn sm"
+              aria-pressed={videosOnly}
+              onClick={() => {
+                setVideosOnly((v) => !v);
+                setSelected(null);
+              }}
+            >
+              {videosOnly ? "Show all songs" : `Show ${audio.unmatched.length}`}
             </button>
           )}
         </div>

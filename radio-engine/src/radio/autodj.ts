@@ -12,6 +12,7 @@
 import type { TrackAnalysis } from '../bitchord/automix/analysis/types';
 import { AUTODJ_KEY, AUTODJ_WRITE_URL, LIBRARY_URL, analysisKey, analysisWriteUrl, fileUrl } from './config';
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from './loudness';
+import { setMusicVideos } from './fetchAudio';
 import { analyse, decodeForPlan, DEFAULT_BARS, planMix } from './planner';
 import {
   ANALYSIS_VERSION,
@@ -42,8 +43,18 @@ export async function loadLibrary(): Promise<LibrarySong[]> {
   const r = await fetch(LIBRARY_URL, { cache: 'no-cache' });
   if (!r.ok) throw new Error(`library: HTTP ${r.status}`);
   const body = (await r.json()) as LibrarySong[] | { songs: LibrarySong[] };
-  return Array.isArray(body) ? body : body.songs;
+  const songs = Array.isArray(body) ? body : body.songs;
+  setMusicVideos(songs);
+  return songs;
 }
+
+/**
+ * The library's music-video flag wins over the one in an analysis: analyses
+ * made before the downloader set it all say false, and the flag describes
+ * the file, not anything the analysis measures.
+ */
+const withFlag = (a: TrackAnalysis, song: LibrarySong): TrackAnalysis =>
+  !!a.musicVideo === !!song.musicVideo ? a : { ...a, musicVideo: !!song.musicVideo };
 
 /** No-store fetch of a bucket object; the query keeps any cache in between out of it. */
 const fresh = (key: string, init?: RequestInit) => fetch(`${fileUrl(key)}?t=${Date.now()}`, { cache: 'no-store', ...init });
@@ -60,7 +71,7 @@ async function storedAnalysis(song: LibrarySong): Promise<TrackAnalysis | null> 
   const r = await fresh(analysisKey(song.key));
   if (!r.ok) return null;
   const a = (await r.json()) as TrackAnalysis;
-  return a.analysisVersion === ANALYSIS_VERSION ? a : null;
+  return a.analysisVersion === ANALYSIS_VERSION ? withFlag(a, song) : null;
 }
 
 /**
@@ -82,11 +93,11 @@ export async function sharedAnalysis(song: LibrarySong, log: (s: string) => void
   const r = await fresh(analysisKey(song.key));
   if (r.ok) {
     const a = (await r.json()) as TrackAnalysis;
-    if (a.analysisVersion === ANALYSIS_VERSION) return a;
+    if (a.analysisVersion === ANALYSIS_VERSION) return withFlag(a, song);
   }
   const started = performance.now();
   log(`analysing ${song.title} here (nobody has yet)…`);
-  const a = await analyse(song.key, song);
+  const a = withFlag(await analyse(song.key, song), song);
   log(`analysed ${song.title} in ${((performance.now() - started) / 1000).toFixed(0)} s; sharing it`);
   const put = await fetch(analysisWriteUrl(song.key), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a) });
   if (!put.ok) log(`sharing the analysis was refused: ${await put.text()}`);

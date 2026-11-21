@@ -17,7 +17,22 @@ export interface Song {
   loudnessDb: number | null;
   thumbnail: string | null;
   archived: boolean;
+  /** BitChord's flag: the file is a music video (Automix's loop mixes skip it). */
+  musicVideo?: boolean;
+  /** Where title and artist came from; "ytmusic" = YouTube Music's catalogue (the album song). */
+  metadataSource?: string | null;
+  /** The album-audio check: null (not yet), album, swapped, unmatched, failed, duplicate. */
+  audioCheck?: "album" | "swapped" | "unmatched" | "failed" | "duplicate" | null;
+  audioCheckNote?: string | null;
   createdAt: string;
+}
+
+/** The album-audio check's state, from GET /api/admin/radio/imports. */
+export interface AlbumAudio {
+  counts: Record<string, number>;
+  running: boolean;
+  /** Why the downloader refused the last batch (e.g. the VPS isn't updated), or null. */
+  refused: string | null;
 }
 
 export interface Playlist {

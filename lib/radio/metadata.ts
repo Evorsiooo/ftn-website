@@ -22,7 +22,7 @@ export interface SongFacts {
   releaseYear?: number | null;
   durationSec: number;
   thumbnail?: string | null;
-  metadataSource?: "tagged" | "topic-channel" | "spotify" | "video" | null;
+  metadataSource?: "tagged" | "topic-channel" | "spotify" | "video" | "ytmusic" | null;
   track?: string | null;
   artists?: string[] | null;
   rawTitle?: string | null;
@@ -55,11 +55,12 @@ function channelName(channel: string): string {
 
 /**
  * The best title and artist the downloader's fields allow, before any catalog lookup.
- * tagged and spotify are trusted; topic-channel trusts the artist; video splits "Artist - Title".
+ * tagged, spotify and ytmusic are trusted; topic-channel trusts the artist; video splits "Artist - Title".
  */
 export function guessTitleArtist(s: SongFacts): { title: string; artist: string; sure: boolean } {
   const source = s.metadataSource || "video";
-  if (source === "tagged" || source === "spotify") return { title: s.title, artist: s.artist, sure: true };
+  // ytmusic: YouTube Music's catalogue names for the album song (BitChord's resolveAudio match)
+  if (source === "tagged" || source === "spotify" || source === "ytmusic") return { title: s.title, artist: s.artist, sure: true };
   if (source === "topic-channel") return { title: cleanTitle(s.track || s.title), artist: s.artist, sure: false };
   const raw = s.rawTitle || s.title;
   const uploader = channelName(s.channel || s.artist || "");

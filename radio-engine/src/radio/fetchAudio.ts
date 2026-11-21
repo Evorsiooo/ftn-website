@@ -25,6 +25,21 @@ export function songBytes(key: string): Promise<ArrayBuffer> {
   return held;
 }
 
+/**
+ * Songs whose file is a music video. BitChord reads this off the YouTube
+ * stream (a picture wider than 1.2:1); the radio's files are audio only, so
+ * the downloader reads it with the same rule and the library carries it.
+ */
+const musicVideos = new Set<string>();
+
+/** Called with the library each time it is loaded. */
+export function setMusicVideos(songs: { key: string; musicVideo?: boolean }[]): void {
+  musicVideos.clear();
+  for (const s of songs) if (s.musicVideo) musicVideos.add(s.key);
+}
+
+export const isMusicVideo = (key: string): boolean => musicVideos.has(key);
+
 export async function fetchTrackAudio(key: string): Promise<TrackAudio> {
-  return { bytes: await songBytes(key), musicVideo: false };
+  return { bytes: await songBytes(key), musicVideo: musicVideos.has(key) };
 }

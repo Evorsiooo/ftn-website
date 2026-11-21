@@ -379,6 +379,10 @@ export interface LibrarySong {
   loudnessDb?: number | null;
   /** Cover art URL, when the library has one. */
   thumbnail?: string | null;
+  /** Album name, when the library has one. */
+  album?: string | null;
+  /** BitChord's flag: a music video, which Automix's loop mixes skip. */
+  musicVideo?: boolean;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
