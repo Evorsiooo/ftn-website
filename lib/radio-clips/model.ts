@@ -2,8 +2,11 @@
 // A clip is saved on its post (in videoEdit) as the replay and the stretch of the show it covers,
 // so it can be opened in the editor again and so its Discord message can link to the replay.
 
-/** Longest clip. 60 s of a mostly still picture fits Discord's 20 MB at a good quality. */
-export const MAX_CLIP_MS = 60_000;
+/**
+ * Longest clip. The picture is mostly still, so 5 minutes fit Discord's 20 MB with a sharp
+ * picture and clear sound (see encodePlan in export.ts).
+ */
+export const MAX_CLIP_MS = 5 * 60_000;
 export const MIN_CLIP_MS = 3_000;
 /** Length of a new clip made at the playhead. */
 export const DEFAULT_CLIP_MS = 30_000;
