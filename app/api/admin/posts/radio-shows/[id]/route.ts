@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: Params) {
   const parts = await db.select().from(radioReplayParts).where(eq(radioReplayParts.replayId, id)).orderBy(asc(radioReplayParts.startMs));
   const userIds = [...new Set(parts.map((p) => p.userId).filter((u): u is string => !!u))];
   const people = userIds.length
-    ? await db.select({ userId: users.id, name: users.displayName, avatar: users.avatarUrl }).from(users).where(inArray(users.id, userIds))
+    ? await db.select({ userId: users.id, name: users.robloxUsername, avatar: users.avatarUrl }).from(users).where(inArray(users.id, userIds))
     : [];
   const endedAt = row.r.endedAt.getTime();
   const show: ClipShow = {
