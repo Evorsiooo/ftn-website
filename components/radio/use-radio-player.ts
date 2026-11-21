@@ -28,6 +28,8 @@ interface StationStatus {
 }
 interface Station {
   status(): StationStatus;
+  /** The song heard right now and where it is, read when asked (an engine built before this was added has none). */
+  playhead?(): { key: string; sec: number } | null;
   setVolume(volume: number): void;
   setDuck(level: number): void;
   setVoiceDuck(level: number): void;
@@ -552,10 +554,19 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
   const shownStatus: PlayerStatus = status === "idle" && remotePlaying ? "playing" : status;
   /** Where the song on air is right now in this browser's AutoDJ (for lyrics), or null. */
   const positionNow = useCallback(() => stationRef.current?.status().positionSec ?? null, []);
+  /** The song heard in this browser's AutoDJ right now and where it is, read at the moment of asking (the
+   *  lyrics' clock reads it every frame), or null. */
+  const playheadNow = useCallback((): { key: string; sec: number } | null => {
+    const st = stationRef.current;
+    if (!st) return null;
+    if (st.playhead) return st.playhead();
+    const s = st.status();
+    return s.song && s.positionSec != null ? { key: s.song.key, sec: s.positionSec } : null;
+  }, []);
   /** Lowers the music while someone on air talks (Studio shows); 1 = full. */
   const voiceDuck = useCallback((level: number) => {
     voiceDuckRef.current = level;
     stationRef.current?.setVoiceDuck(level);
   }, []);
-  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow, voiceDuck };
+  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow, playheadNow, voiceDuck };
 }

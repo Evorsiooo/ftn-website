@@ -24,6 +24,9 @@ export interface Song {
   /** The album-audio check: null (not yet), album, swapped, unmatched, failed, duplicate. */
   audioCheck?: "album" | "swapped" | "unmatched" | "failed" | "duplicate" | null;
   audioCheckNote?: string | null;
+  /** Lyrics for every listener: null = best available, a provider id, or "none"; and the offset in ms. */
+  lyricsSource: string | null;
+  lyricsOffsetMs: number;
   createdAt: string;
 }
 
