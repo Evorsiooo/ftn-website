@@ -7,6 +7,7 @@ import "@/components/plus/plus.css";
 import { SiteConfigProvider } from "@/lib/site-config-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { RadioProvider } from "@/components/radio/radio-provider";
+import { MaintenanceBanner } from "@/components/maintenance-banner";
 
 const geistSans = localFont({
   src: "../node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2",
@@ -91,6 +92,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} ${gsDisplay.variable} ${gsBody.variable} ${manrope.variable} font-sans antialiased bg-background text-foreground min-h-screen`} suppressHydrationWarning>
+        <MaintenanceBanner />
         <ThemeProvider>
           <SiteConfigProvider>
             <RadioProvider>{children}</RadioProvider>
