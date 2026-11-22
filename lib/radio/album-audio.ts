@@ -333,13 +333,24 @@ const ETA_WINDOW_MS = 20 * 60_000;
 /** Below this many results in the window, no time left is given (too little to go on). */
 const ETA_MIN_EVENTS = 10;
 
+/** Below this many checked songs, a day's imports use the whole library's share of downloads. */
+const ETA_MIN_GROUP = 10;
+
+/** One day's imports (songs grouped by the day they were added): checked, needing a download, unchecked. */
+interface ImportGroup {
+  checked: number;
+  needDownload: number;
+  unchecked: number;
+}
+
 /**
  * Approximate minutes left, from the last 20 minutes: checks and downloads run side by side, so it
- * is the longer of (unchecked / check rate) and (downloads still to come / download rate), where the
- * downloads still to come are the queued ones plus the unchecked songs times the share of checked
- * songs that needed one. Null when there is too little recent data.
+ * is the longer of (unchecked / check rate) and (downloads still to come / download rate). The
+ * downloads still to come are the queued ones plus, for each day's imports, its unchecked songs times
+ * the share of its checked songs that needed one (imports differ a lot: a playlist of music videos
+ * against one of album tracks). Null when there is too little recent data.
  */
-function minutesLeft(counts: Record<string, number>, recent: Record<string, number>, spanMs: number): number | null {
+function minutesLeft(counts: Record<string, number>, recent: Record<string, number>, spanMs: number, groups: ImportGroup[]): number | null {
   const unchecked = counts.unchecked ?? 0;
   const queued = counts.downloading ?? 0;
   if (!unchecked && !queued) return null;
@@ -349,8 +360,9 @@ function minutesLeft(counts: Record<string, number>, recent: Record<string, numb
   const downloads = recent.swapped ?? 0;
   if (checks + downloads < ETA_MIN_EVENTS) return null;
   const checked = (counts.album ?? 0) + (counts.unmatched ?? 0) + (counts.duplicate ?? 0) + (counts.swapped ?? 0) + queued;
-  const needDownload = checked ? ((counts.swapped ?? 0) + (counts.duplicate ?? 0) + queued) / checked : 0;
-  const toDownload = queued + unchecked * needDownload;
+  const overall = checked ? ((counts.swapped ?? 0) + (counts.duplicate ?? 0) + queued) / checked : 0;
+  const share = (g: ImportGroup) => (g.checked >= ETA_MIN_GROUP ? g.needDownload / g.checked : overall);
+  const toDownload = queued + groups.reduce((sum, g) => sum + g.unchecked * share(g), 0);
   const checkMin = unchecked ? (checks ? unchecked / (checks / minutes) : null) : 0;
   const downloadMin = toDownload >= 1 ? (downloads ? toDownload / (downloads / minutes) : null) : 0;
   if (checkMin === null || downloadMin === null) return null;
@@ -375,6 +387,16 @@ export async function albumAudioSummary(db: DbClient) {
     .from(radioAudioRechecks)
     .orderBy(desc(radioAudioRechecks.updatedAt), desc(radioAudioRechecks.createdAt))
     .limit(1);
+  const groupRows = await db
+    .select({
+      checked: sql<number>`sum(${radioSongs.audioCheck} in ('album', 'unmatched', 'duplicate', 'swapped', 'downloading'))`,
+      needDownload: sql<number>`sum(${radioSongs.audioCheck} in ('duplicate', 'swapped', 'downloading'))`,
+      unchecked: sql<number>`sum(${radioSongs.audioCheck} is null)`,
+    })
+    .from(radioSongs)
+    .where(eq(radioSongs.source, "youtube"))
+    .groupBy(sql`date(${radioSongs.createdAt}, 'unixepoch')`);
+  const groups = groupRows.map((g) => ({ checked: Number(g.checked) || 0, needDownload: Number(g.needDownload) || 0, unchecked: Number(g.unchecked) || 0 }));
   const counts: Record<string, number> = Object.fromEntries(rows.map((r) => [r.check ?? "unchecked", Number(r.n)]));
   const recent: Record<string, number> = Object.fromEntries(recentRows.map((r) => [r.check ?? "unchecked", Number(r.n)]));
   const firstSec = Math.min(...recentRows.map((r) => Number(r.first)).filter((t) => Number.isFinite(t) && t > 0));
@@ -382,7 +404,7 @@ export async function albumAudioSummary(db: DbClient) {
   return {
     counts,
     running: !!open,
-    minutesLeft: open ? minutesLeft(counts, recent, spanMs) : null,
+    minutesLeft: open ? minutesLeft(counts, recent, spanMs, groups) : null,
     refused: last?.state === "refused" ? last.error : null,
   };
 }
