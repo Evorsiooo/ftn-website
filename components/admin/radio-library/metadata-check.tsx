@@ -3,6 +3,8 @@
 // connection keeps well inside its ~20 searches a minute) and saves the exact title, artist, album, year and
 // square cover. New songs are checked on their own while the library is open; "Re-check titles" goes
 // through the whole library. A song is changed only when the catalog has the same song at the same length.
+// Songs named by YouTube Music's catalogue (the album-audio check, metadataSource "ytmusic") are left
+// alone: as in BitChord, those names come first and this lookup is the fallback.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CatalogError, findInCatalog, guessTitleArtist, tidyName } from "@/lib/radio/metadata";
 import { api, type Song } from "./types";
@@ -127,6 +129,7 @@ export function useMetadataCheck(songs: Song[] | null, onPatched: (id: string, p
     const fresh = songs.filter(
       (s) =>
         s.source !== "upload" &&
+        s.metadataSource !== "ytmusic" &&
         !s.archived &&
         !isCatalogArt(s.thumbnail) &&
         !queued.current.has(s.id) &&
@@ -145,8 +148,11 @@ export function useMetadataCheck(songs: Song[] | null, onPatched: (id: string, p
 
   return {
     state,
-    /** Every song that came from a link (uploads keep what was typed in). */
-    recheckAll: () => songs && void check(songs.filter((s) => s.source !== "upload"), true),
+    /**
+     * Every song that came from a link (uploads keep what was typed in), except the ones named by
+     * YouTube Music's catalogue (their album song, as BitChord names it): the catalog is the fallback.
+     */
+    recheckAll: () => songs && void check(songs.filter((s) => s.source !== "upload" && s.metadataSource !== "ytmusic"), true),
     stop: () => {
       stopRef.current = true;
     },

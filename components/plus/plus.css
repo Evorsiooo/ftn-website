@@ -148,16 +148,13 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 .fp .offair .name { font: 800 72px/1 var(--title); letter-spacing: -0.035em; margin: 0; }
 .fp .offair .rmeta { font-size: 16px; color: var(--text-2); }
 
-/* Lyrics, beside the song as in BitChord's full-screen player: the current line bright, the rest dimmed. */
-.fp .lyrics { height: 480px; overflow: hidden; position: relative; mask-image: linear-gradient(180deg, transparent 0, #000 24%, #000 72%, transparent 100%); }
+/* Lyrics, beside the song as in BitChord's full-screen player, drawn by am-lyrics (components/plus/lyrics-view.tsx):
+   sung words fill in FTN+ cream, the rest dimmed. --lyric-size sets the line size (am-lyrics reads it). */
+.fp .lyrics { --lyric-size: 30px; height: 480px; overflow: hidden; position: relative; display: flex; font-family: var(--body); letter-spacing: -0.01em; mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 72%, transparent 100%); }
+.fp .lyrics > am-lyrics { flex: 1; min-width: 0; min-height: 0; }
 .fp .lyrics { opacity: 0; transition: opacity 500ms; }
 .fp .lyrics.in { opacity: 1; }
 .fp .radio .lyrics { height: 360px; }
-.fp .lyrics .rail { position: absolute; left: 0; right: 0; top: 0; transition: transform 600ms cubic-bezier(0.2, 0.7, 0.2, 1); }
-.fp .lyrics .rail.still { transition: none; }
-.fp .lyrics p { margin: 0 0 22px; font: 700 30px/1.25 var(--body); letter-spacing: -0.01em; color: rgba(255, 248, 230, 0.3); text-wrap: balance; transition: color 400ms; }
-.fp .lyrics p.past { color: rgba(255, 248, 230, 0.2); }
-.fp .lyrics p.now { color: var(--text); }
 
 /* Calling in, inside the player */
 .fp .call { margin-top: 24px; max-width: 460px; }
@@ -207,7 +204,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 .fp .full .name { font: 800 34px/1.05 var(--title); letter-spacing: -0.03em; margin-top: 28px; }
 .fp .full .by { font-size: 18px; color: var(--text-2); margin-top: 6px; }
 .fp .full .lyrics { height: min(70vh, 640px); }
-.fp .full .lyrics p { font-size: clamp(28px, 2.4vw, 40px); }
+.fp .full .lyrics { --lyric-size: clamp(28px, 2.4vw, 40px); }
 
 /* Popout: one page that fits the window it's in. */
 .fp.pop { min-height: 100dvh; display: grid; padding: 0; overflow: hidden; }
@@ -313,7 +310,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
   .fp .radio .call { margin-left: auto; margin-right: auto; }
   .fp .radio .callbox { text-align: left; }
   .fp .radio .lyrics { height: 300px; }
-  .fp .radio .lyrics p { font-size: 26px; }
+  .fp .radio .lyrics { --lyric-size: 26px; }
   .fp .offair { text-align: center; }
 }
 
@@ -349,7 +346,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
   .fp .radio .name { font-size: 34px; margin-top: 16px; }
   .fp .radio .vol { display: none; }
   .fp .radio .lyrics, .fp .lyrics { height: 220px; }
-  .fp .radio .lyrics p, .fp .lyrics p { font-size: 22px; margin-bottom: 14px; }
+  .fp .radio .lyrics, .fp .lyrics { --lyric-size: 22px; }
   .fp .offair { padding-top: calc(var(--nav-h) + 64px); text-align: center; }
   .fp .offair .name { font-size: 44px; }
   .fp .watch { grid-template-columns: 1fr; padding-top: var(--nav-h); }
@@ -378,7 +375,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
   .fp .full .art { margin: 0 auto; }
   .fp .full .art { max-width: 280px; }
   .fp .full .lyrics { height: 30vh; }
-  .fp .full .lyrics p { font-size: 22px; }
+  .fp .full .lyrics { --lyric-size: 22px; }
 }
 
 /* Account menu */
@@ -510,6 +507,9 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .glow.xf { position: absolute; overflow: visible; }
 .fp .xf img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 600ms ease; }
 .fp .xf img.on { opacity: 1; }
+/* Apple Music's animated cover over the still one, faded in once it plays (BitChord's full-screen player). */
+.fp .xf video.motion { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; opacity: 0; transition: opacity 600ms ease-in; }
+.fp .xf video.motion[data-ready] { opacity: 1; }
 .fp .swap { animation: fp-swap 500ms ease both; }
 @keyframes fp-swap { from { opacity: 0; transform: translateY(6px); } }
 
@@ -518,7 +518,7 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 @keyframes fp-page { from { opacity: 0; transform: translateY(10px); } }
 @media (prefers-reduced-motion: reduce) {
   .fp .page-in, .fp .swap { animation: none; }
-  .fp .xf img, .fp .lyrics, .fp .lyrics .rail { transition: none; }
+  .fp .xf img, .fp .lyrics { transition: none; }
 }
 
 /* ---- Radio page layout (2026-11-16): everything in view without scrolling --------------------------

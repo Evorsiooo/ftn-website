@@ -423,14 +423,41 @@ export const radioSongs = sqliteTable("radio_songs", {
   spotifyId: text("spotify_id"),
   bytes: integer("bytes"),
   contentType: text("content_type"),
+  // Lyrics, set in the admin for every listener: the provider to use (null = best available, or "none" for no
+  // lyrics) and an offset in ms (positive = the lyrics later), as BitChord's provider picker and lyrics offset.
+  lyricsSource: text("lyrics_source"),
+  lyricsOffsetMs: integer("lyrics_offset_ms").notNull().default(0),
   archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+  // BitChord's flag: the file is a music video (wide picture), so Automix's loop mixes skip it.
+  musicVideo: integer("music_video", { mode: "boolean" }).notNull().default(false),
+  // Where title/artist came from (download-api.md metadataSource; 'ytmusic' = YouTube Music's catalogue).
+  metadataSource: text("metadata_source"),
+  // The album-audio check (lib/radio/album-audio.ts): null, album, swapped, unmatched, failed, duplicate.
+  audioCheck: text("audio_check"),
+  audioCheckedAt: integer("audio_checked_at", { mode: "timestamp" }),
+  audioCheckNote: text("audio_check_note"),
+  // The library names (title, newline, artist) the check last searched with; renamed unmatched songs are checked again.
+  audioCheckNames: text("audio_check_names"),
   addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 }, (t) => [
   uniqueIndex("radio_songs_r2_key_idx").on(t.r2Key),
   index("radio_songs_archived_idx").on(t.archived),
+  index("radio_songs_audio_check_idx").on(t.audioCheck),
 ]);
+
+// Album-audio re-check batches sent to the downloader (lib/radio/album-audio.ts); id = its job id.
+export const radioAudioRechecks = sqliteTable("radio_audio_rechecks", {
+  id: text("id").primaryKey(),
+  state: text("state").notNull(),
+  songs: text("songs").notNull(),
+  applied: text("applied"),
+  oldKeys: text("old_keys"),
+  error: text("error"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
 
 // Playlists made by hand, or linked to a YouTube / SoundCloud / Spotify source (sourceUrl) that
 // can be re-synced to pick up songs added there since.

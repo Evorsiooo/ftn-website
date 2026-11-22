@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import type { DbClient } from "@/db";
 import type { RobloxUser } from "@/lib/auth";
 import {
@@ -11,8 +11,8 @@ import {
   radioStudioQueue,
   radioStudioSessions,
 } from "@/db/schema";
-import { endOfTimelineMs, nowPlaying, type RadioTimeline } from "./autodj";
-import { FINAL_STATES, getJob, linkKind, startJob, syncImport } from "./library";
+import { endOfTimelineMs, nowPlaying, slotAt, trackPositionSec, type RadioTimeline, type TimelineItem } from "./autodj";
+import { FINAL_STATES, getJob, linkKind, playableSongs, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
 
@@ -438,6 +438,117 @@ export async function markQueuedPlayed(db: DbClient, keys: string[]): Promise<vo
   await republish(db);
 }
 
+// ---- Skipping songs -----------------------------------------------------------------------------------
+
+/** A skipped song gives way to the next one this long after the click (listeners pick it up within 10 s). */
+const SKIP_LEAD_MS = 2_000;
+/**
+ * Dropping a song that is lined up but not playing yet: the song before it then needs a new mix out,
+ * which listeners' browsers plan (they start a mix no sooner than 28 s ahead, after decoding both songs).
+ * It has to have at least this long left.
+ */
+const DROP_MARGIN_MS = 60_000;
+
+/**
+ * A broadcaster skips song number [k] of the running order (the AutoDJ's or one from the queue).
+ * - The song on air: a fresh running order starts the next song lined up (where it already is, if
+ *   it was mixing in) in a couple of seconds, keeping the songs and mixes lined up after it; with
+ *   nothing lined up, the next queued song or a song from the library.
+ * - A song lined up after it: the running order stops before it, so listeners' browsers line up a
+ *   new song (queued songs lined up after it go back to the queue, first in line).
+ * Like the pause, the website writes this running order itself: the client still plans every mix.
+ */
+export async function skipSong(db: DbClient, s: Session, k: number, key: string): Promise<void> {
+  if (s.pausedAt) throw new StudioError("The music is paused: play it first.", 409);
+  const bucket = radioBucket();
+  if (!bucket) throw new StudioError("Radio storage unavailable.", 503);
+  if (!Number.isInteger(k)) throw new StudioError("Which song?");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const stored = await bucket.get(AUTODJ_KEY);
+    const tl = stored ? ((await stored.json().catch(() => null)) as RadioTimeline | null) : null;
+    const now = Date.now();
+    const np = tl && endOfTimelineMs(tl) > now ? nowPlaying(tl, now) : null;
+    if (!tl || !stored || !np) throw new StudioError("Nothing is playing right now.", 409);
+    const target = slotAt(tl, k);
+    if (k < np.slot.k) throw new StudioError("That song has already played.", 409);
+    if (!target) throw new StudioError("That song isn't lined up any more.", 409);
+    if (target.item.key !== key) throw new StudioError("The songs lined up just changed: try again.", 409);
+
+    let next: RadioTimeline;
+    let fromQueue: string[] = [];
+    let backToQueue: string[] = [];
+    if (k === np.slot.k) {
+      const at = now + SKIP_LEAD_MS;
+      const j = k + 1 - tl.firstK;
+      let items = tl.items.slice(j);
+      let mixes = tl.mixes.slice(j);
+      let startSec = 0;
+      if (items.length) {
+        // the next song already mixing in carries on from where it is
+        const following = slotAt(tl, k + 1)!;
+        if (following.startMs < now) startSec = Math.max(0, trackPositionSec(following, at));
+        const outSec = mixes[0]?.outSec ?? items[0]!.durationSec;
+        if (startSec > Math.min(outSec - 1, items[0]!.durationSec - 75)) startSec = 0;
+      } else {
+        const item = await skipTo(db, s, tl.items.map((i) => i.key));
+        if (!item) throw new StudioError("There's no other song to play.", 409);
+        if (item.fromQueue) fromQueue = [item.key];
+        items = [{ key: item.key, title: item.title, artist: item.artist, durationSec: item.durationSec, loudnessDb: item.loudnessDb }];
+        mixes = [];
+      }
+      next = { ...tl, rev: tl.rev + 1, firstK: k + 1, anchorMs: at, startSec: Math.round(startSec * 1000) / 1000, repeat: false, items, mixes };
+    } else {
+      const j = k - tl.firstK;
+      const cut: RadioTimeline = { ...tl, rev: tl.rev + 1, items: tl.items.slice(0, j), mixes: tl.mixes.slice(0, j - 1) };
+      const last = slotAt(cut, k - 1)!;
+      if (last.endMs - now < DROP_MARGIN_MS) throw new StudioError("Too close to the mix to drop it now: skip it once it plays.", 409);
+      backToQueue = tl.items.slice(j + 1).map((i) => i.key);
+      next = cut;
+    }
+    const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), { httpMetadata: { contentType: "application/json" }, onlyIf: { etagMatches: stored.etag } });
+    if (!put) continue; // a listener's browser lined up a song at the same moment: look again
+    if (fromQueue.length) await markQueuedPlayed(db, fromQueue);
+    if (backToQueue.length) await requeue(db, s, backToQueue);
+    if (s.replayId) await saveTimelinePart(db, s.replayId, next).catch(() => {});
+    return;
+  }
+  throw new StudioError("The songs lined up kept changing: try again.", 409);
+}
+
+/** The song to play after a skip when nothing is lined up: the queue's next song, else one from the library. */
+async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(TimelineItem & { fromQueue: boolean }) | null> {
+  const songs = await playableSongs(db);
+  const byKey = new Map(songs.map((x) => [x.key, x]));
+  const queued = await db
+    .select({ key: radioStudioQueue.songKey })
+    .from(radioStudioQueue)
+    .where(and(eq(radioStudioQueue.sessionId, s.id), eq(radioStudioQueue.state, "queued"), sql`${radioStudioQueue.songKey} IS NOT NULL`))
+    .orderBy(asc(radioStudioQueue.position));
+  const q = queued.map((r) => byKey.get(r.key!)).find((x) => x && x.durationSec > 1);
+  if (q) return { ...q, fromQueue: true };
+  const fresh = songs.filter((x) => x.durationSec > 1 && !recent.includes(x.key));
+  const pool = fresh.length ? fresh : songs.filter((x) => x.durationSec > 1 && x.key !== recent[recent.length - 1]);
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  return pick ? { ...pick, fromQueue: false } : null;
+}
+
+/** Queued songs that were lined up, then dropped by a skip: back in the queue, ahead of the rest. */
+async function requeue(db: DbClient, s: Session, keys: string[]): Promise<void> {
+  const all = await db
+    .select()
+    .from(radioStudioQueue)
+    .where(and(eq(radioStudioQueue.sessionId, s.id), eq(radioStudioQueue.state, "played"), inArray(radioStudioQueue.songKey, keys)))
+    .orderBy(desc(radioStudioQueue.createdAt));
+  // a song queued twice in the show: only its latest queueing was lined up
+  const seenKeys = new Set<string>();
+  const rows = all.filter((r) => !seenKeys.has(r.songKey!) && !!seenKeys.add(r.songKey!)).sort((a, b) => keys.indexOf(a.songKey!) - keys.indexOf(b.songKey!));
+  if (!rows.length) return;
+  const [first] = await db.select({ min: sql<number | null>`min(${radioStudioQueue.position})` }).from(radioStudioQueue).where(eq(radioStudioQueue.sessionId, s.id));
+  let pos = Number(first?.min ?? 0) - rows.length;
+  for (const r of rows) await db.update(radioStudioQueue).set({ state: "queued", position: pos++ }).where(eq(radioStudioQueue.id, r.id));
+  await republish(db);
+}
+
 // ---- What the Studio page shows ----------------------------------------------------------------------
 
 export async function studioState(db: DbClient, user: RobloxUser) {
@@ -449,12 +560,13 @@ export async function studioState(db: DbClient, user: RobloxUser) {
 
 type QueueRow = typeof radioStudioQueue.$inferSelect;
 
+/** The show's queue, every row (played ones too: the Studio tells songs lined up from it apart). */
 function openQueue(db: DbClient, sessionId: string): Promise<QueueRow[]> {
-  return db.select().from(radioStudioQueue).where(and(eq(radioStudioQueue.sessionId, sessionId), ne(radioStudioQueue.state, "played"))).orderBy(asc(radioStudioQueue.position));
+  return db.select().from(radioStudioQueue).where(eq(radioStudioQueue.sessionId, sessionId)).orderBy(asc(radioStudioQueue.position));
 }
 
 function studioStateOf(s: Session | null, list: Person[], queue: QueueRow[], user: RobloxUser) {
-  if (!s) return { session: null, me: null, people: [], queue: [], cap: ON_AIR_CAP };
+  if (!s) return { session: null, me: null, people: [], queue: [], queuedKeys: [] as string[], cap: ON_AIR_CAP };
   const mine = list.find((p) => p.userId === user.id && isBroadcaster(p)) ?? null;
   return {
     session: {
@@ -468,7 +580,9 @@ function studioStateOf(s: Session | null, list: Person[], queue: QueueRow[], use
     },
     me: mine ? { id: mine.id, role: mine.role } : null,
     people: list.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, state: p.state, connected: !!p.track, gain: p.gain, seenAgoMs: Date.now() - p.seenAt.getTime() })),
-    queue: queue.map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey })),
+    queue: queue.filter((q) => q.state !== "played").map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey })),
+    /** Songs of the queue already lined up (or played): the Studio marks them in the running order. */
+    queuedKeys: [...new Set(queue.filter((q) => q.state === "played" && q.songKey).map((q) => q.songKey!))],
     cap: ON_AIR_CAP,
   };
 }

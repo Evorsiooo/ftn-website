@@ -699,3 +699,15 @@
   .adm .rc-vbar .vbar-r { width: 100%; justify-content: flex-start; }
   .adm:has(.creator.rclip) .adm-mrow .seg .ic { display: none; }
 }
+
+/* ---------- radio library: a song's lyrics (components/admin/radio-library/song-lyrics.tsx) ---------- */
+/* The preview is the radio's own lyrics as FTN+ draws them (am-lyrics, DM Sans, cream on FTN+'s warm black). */
+.adm .song-lyrics { display: grid; gap: 10px; min-width: 0; padding-top: 16px; border-top: 1px solid var(--a-border); }
+.adm .lyrics-preview { height: 280px; border-radius: var(--a-r-surf); background: #16110a; color: #fff8e6; padding: 0 16px; overflow: hidden; display: flex; min-width: 0; }
+.adm .lyrics-preview .note { margin: auto; text-align: center; color: rgba(255, 248, 230, 0.68); font-size: 14px; padding: 0 8px; }
+.adm .lyrics-preview .lyrics { --lyric-size: 20px; flex: 1; min-width: 0; height: 100%; display: flex; font-family: var(--font-gs-body), "DM Sans", system-ui, sans-serif; letter-spacing: -0.01em; mask-image: linear-gradient(180deg, transparent 0, #000 18%, #000 72%, transparent 100%); opacity: 0; transition: opacity 500ms; }
+.adm .lyrics-preview .lyrics.in { opacity: 1; }
+.adm .lyrics-preview .lyrics > am-lyrics { flex: 1; min-width: 0; min-height: 0; }
+.adm .lyrics-offset { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.adm .lyrics-offset .range { flex: 1; min-width: 60px; }
+.adm .lyrics-offset .off { width: 52px; text-align: right; font-weight: 600; }

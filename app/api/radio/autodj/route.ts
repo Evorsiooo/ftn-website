@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { checkTimelineChange, type RadioTimeline } from "@/lib/radio/autodj";
+import { checkTimelineChange, withPlayed, type RadioTimeline } from "@/lib/radio/autodj";
 import { songsByKeys } from "@/lib/radio/library";
 import { AUTODJ_KEY, noStore, radioBucket, radioDb } from "@/lib/radio/store";
 import { logTimeline, markQueuedPlayed } from "@/lib/radio/studio";
@@ -37,6 +37,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error }, { status: stale ? 409 : 422, headers: noStore });
   }
   // only over the revision that was checked: two listeners sending at once can't both win
+  // the play history is the website's to keep (the next-song picker reads it), whatever was sent
+  next = withPlayed(current, next as RadioTimeline, Date.now());
   const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), {
     httpMetadata: { contentType: "application/json" },
     onlyIf: stored ? { etagMatches: stored.etag } : { uploadedBefore: new Date(0) },

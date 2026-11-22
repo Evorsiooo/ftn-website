@@ -24,7 +24,7 @@ export type ReplayData = {
 /** A replay with its running orders fetched, ready to play. */
 export type LoadedReplay = ReplayData & { tls: RadioTimeline[] };
 
-type ReplayStation = { nowMs(): number; setVolume(v: number): void; setVoiceDuck(l: number): void; stop(): void; status(): { state: string } };
+type ReplayStation = { nowMs(): number; playhead?(): { key: string; sec: number } | null; setVolume(v: number): void; setVoiceDuck(l: number): void; stop(): void; status(): { state: string } };
 type ReplayModule = {
   startReplay(o: { timelines: RadioTimeline[]; pauses: { start: number; end: number }[]; fromMs: number; volume?: number }): Promise<ReplayStation>;
 };
@@ -49,17 +49,24 @@ export function loadReplay(id: string): Promise<LoadedReplay | "missing"> {
   return p;
 }
 
-/** The song heard at ms ("Song · Artist"), as the running order that was playing then had it; none while the music was paused. */
-export function songAt(d: LoadedReplay, ms: number): string | null {
+/** The song heard at ms and where it was in it, as the running order that was playing then had it; none while the music was paused. */
+export function songInfoAt(d: LoadedReplay, ms: number): { key: string; title: string; artist: string; durationSec: number; positionSec: number } | null {
   if (d.pauses.some((p) => ms >= p.start && ms < p.end)) return null;
   let tl: RadioTimeline | null = null;
-  // the latest revision that covers ms, as the engine plays it
   for (const t of d.tls) {
     if (slotIndexAt(t, ms) === null || endOfTimelineMs(t) <= ms) continue;
     if (!tl || t.rev > tl.rev) tl = t;
   }
   const on = tl && nowPlaying(tl, ms);
-  return on ? `${on.slot.item.title} · ${on.slot.item.artist}` : null;
+  if (!on) return null;
+  const it = on.slot.item;
+  return { key: it.key, title: it.title, artist: it.artist, durationSec: it.durationSec, positionSec: on.positionSec };
+}
+
+/** The song heard at ms ("Song · Artist"), as the running order that was playing then had it; none while the music was paused. */
+export function songAt(d: LoadedReplay, ms: number): string | null {
+  const on = songInfoAt(d, ms);
+  return on ? `${on.title} · ${on.artist}` : null;
 }
 
 /** A gap shorter than this between two of someone's recorded pieces still counts as them on air. */
@@ -87,6 +94,8 @@ export interface ReplayPlayer {
   seek: (ms: number) => void;
   /** Stops and takes the replay out of the player. */
   close: () => void;
+  /** The song heard right now and where it is (seconds), read when asked: what the lyrics follow. Null when paused. */
+  playheadNow: () => { key: string; sec: number } | null;
 }
 
 export function useReplayPlayer({ volume, beforePlay }: { volume: number; beforePlay: () => void }): ReplayPlayer {
@@ -226,5 +235,7 @@ export function useReplayPlayer({ volume, beforePlay }: { volume: number; before
     []
   );
 
-  return useMemo(() => ({ current, playing, at, speaking, play, pause, seek, close }), [current, playing, at, speaking, play, pause, seek, close]);
+  const playheadNow = useCallback(() => station.current?.playhead?.() ?? null, []);
+
+  return useMemo(() => ({ current, playing, at, speaking, play, pause, seek, close, playheadNow }), [current, playing, at, speaking, play, pause, seek, close, playheadNow]);
 }

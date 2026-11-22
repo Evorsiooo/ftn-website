@@ -44,6 +44,8 @@ const TICK_MS = 250;
 const HORIZON_MS = 45_000;
 /** How long the music takes to fade out when a host pauses it, before the decks stop. */
 const PAUSE_FADE_MS = 1500;
+/** How long a skipped song takes to fade out. */
+const SKIP_FADE_MS = 800;
 /** Re-put the decks on the clock when the server-to-context mapping has moved this much. */
 const RETIME_SEC = 0.004;
 /** How often the running order is fetched again (another listener may have added a song). */
@@ -259,6 +261,18 @@ export class RadioEngine {
     return this.opts.replay ? true : this.clock.synced;
   }
 
+  /**
+   * The song heard at this moment and where it is in it, worked out when asked rather than at the
+   * last tick (up to 250 ms old): what the lyrics' LyricClock reads every frame. serverNow() is
+   * the instant being heard (ctxBase lines the decks up with the speaker, output latency included),
+   * and nowPlaying follows loop mixes and tempo ramps. Null while nothing is playing.
+   */
+  playhead(): { key: string; sec: number } | null {
+    if (this.status.state !== 'playing' || !this.playing || !this.synced()) return null;
+    const np = nowPlaying(this.playing, this.serverNow());
+    return np ? { key: np.slot.item.key, sec: np.positionSec } : null;
+  }
+
   serverNow(): number {
     return this.opts.replay ? this.opts.replay.clock(performance.now()) : this.clock.serverNowMs()!;
   }
@@ -446,8 +460,8 @@ export class RadioEngine {
       if (used[d] || !held) continue;
       const slot = slotAt(tl, held.k);
       if (slot && slot.item.key === held.key && slot.endMs >= serverNow - 500) continue;
-      this.stopDeck(d);
-      this.log(`deck ${this.decks[d].id}: stopped (no longer in the running order)`);
+      this.fadeOutDeck(d);
+      this.log(`deck ${this.decks[d].id}: fading out (no longer in the running order)`);
     }
     // a loop mix coming up or under way
     for (const kk of [k - 1, k]) {
@@ -460,7 +474,11 @@ export class RadioEngine {
     }
     if (this.loopHeld && this.loopHeld.scheduledFor !== null) {
       const slot = slotAt(tl, this.loopHeld.k);
-      if (!slot) this.loopHeld = null;
+      if (!slot) {
+        // its song left the running order (a host skipped it): the loop mix stops with it
+        void this.loopDecks?.then((ds) => ds.forEach((d) => d.stop()));
+        this.loopHeld = null;
+      }
       else if (slot.mixOut && serverNow > slot.mixOut.t0Ms + slot.mixOut.mix.settleSec * 1000 + 500) {
         void this.loopDecks?.then((ds) => ds.forEach((d) => d.stop()));
         this.loopHeld = null;
@@ -502,6 +520,22 @@ export class RadioEngine {
     this.held[d] = null;
   }
 
+  /**
+   * A song taken out of the running order while it plays (a host skipped it): a short fade, then the
+   * deck stops, unless a new song has been put on it meanwhile.
+   */
+  private fadeOutDeck(d: 0 | 1): void {
+    const fader = this.decks[d].fader.gain;
+    const t = this.ctx.currentTime;
+    fader.cancelScheduledValues(t);
+    fader.setValueAtTime(fader.value, t);
+    fader.linearRampToValueAtTime(0, t + SKIP_FADE_MS / 1000);
+    this.held[d] = null;
+    setTimeout(() => {
+      if (this.held[d] === null && !this.stopped) this.stopDeck(d);
+    }, SKIP_FADE_MS + 50);
+  }
+
   /** Stops both decks and any loop mix, and forgets what they held. */
   private rest(): void {
     this.rested = true;
@@ -532,6 +566,7 @@ export class RadioEngine {
       el.src = url;
       el.load();
     }
+    deck.fader.gain.cancelScheduledValues(0);
     deck.fader.gain.setValueAtTime(loudnessGain(slot.item.loudnessDb), this.ctx.currentTime);
     deck.follow(this.elementPoints(slot, ctxAt));
     // automation: the mix that brings it in, then the one that takes it out

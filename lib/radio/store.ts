@@ -6,6 +6,8 @@
  */
 export const AUTODJ_KEY = "radio/autodj.json";
 export const analysisKey = (songKey: string) => `analysis/${songKey}.json`;
+/** Key, tempo and energy of every shared analysis, for the AutoDJ's next-song picker. */
+export const ANALYSIS_INDEX_KEY = "radio/analysis-index.json";
 
 export function radioBucket(): R2Bucket | null {
   return (process.env as unknown as { ftn_radio?: R2Bucket }).ftn_radio ?? null;

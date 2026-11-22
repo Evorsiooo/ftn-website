@@ -5,7 +5,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRadio, useReplay } from "@/components/radio/radio-provider";
-import { loadReplay, songAt, stageAt, type LoadedReplay } from "@/components/radio/use-replay-player";
+import { loadReplay, songAt, songInfoAt, stageAt, type LoadedReplay } from "@/components/radio/use-replay-player";
+import { LyricsView, useSongLyrics, type Playhead } from "./lyrics-view";
 import * as I from "./icons";
 import { Volume } from "./radio-controls";
 import { Stage } from "./radio-ui";
@@ -138,8 +139,8 @@ const clock = (ms: number) => {
 };
 
 /**
- * One replay, laid out like the radio page: the art with the people on air beside it (a green ring
- * on whoever is talking), then the title, the song playing and the controls, and the scrub bar.
+ * One replay, laid out like the radio page: the art with the people on air and the song's lyrics beside it
+ * (a green ring on whoever is talking), then the title, the song playing and the controls, and the scrub bar.
  * Playback is the site-wide replay player's, so it carries on in the player bar on other pages.
  */
 export function ReplayPage({ id }: { id: string }) {
@@ -174,6 +175,25 @@ export function ReplayPage({ id }: { id: string }) {
 
   const r = data && data !== "missing" ? data.replay : null;
   const { saved, toggle } = useSavedReplay(r);
+
+  // the song at the playhead (or where the scrub bar is held), and its lyrics, as on the live radio
+  const mineNow = player.current?.replay.id === id;
+  const playingNow = mineNow && player.playing;
+  const atMs = r ? (drag !== null ? r.startedAt + drag : mineNow ? player.at : localAt) : 0;
+  const songNow = data && data !== "missing" ? songInfoAt(data, atMs) : null;
+  const lyrics = useSongLyrics(songNow);
+  const lyricKey = songNow?.key ?? null;
+  const stillAt = songNow?.positionSec ?? null;
+  const lyricsAt = useRef<() => Playhead>(() => null);
+  lyricsAt.current = () => {
+    if (playingNow && drag === null) {
+      const p = player.playheadNow();
+      return p && p.key === lyricKey ? { sec: p.sec, paused: false } : null;
+    }
+    // paused, or the scrub bar held: the lyrics wait on that moment of the song
+    return stillAt === null ? null : { sec: stillAt, paused: true };
+  };
+  const readLyricsAt = useRef(() => lyricsAt.current()).current;
 
   if (data === "missing") {
     return (
@@ -214,7 +234,14 @@ export function ReplayPage({ id }: { id: string }) {
             song playing and the controls in one wide row, the scrub bar under them */}
         <div className="radio replay">
           <div className="artcol">{r?.art ? <img className="art" src={r.art} alt="" /> : <div className="art ph-art" />}</div>
-          <div className={`side${people.length ? " staged" : ""}`}>{people.length > 0 && <Stage people={people} />}</div>
+          <div className={`side${people.length ? " staged" : ""}`}>
+            {people.length > 0 && <Stage people={people} />}
+            {lyrics && (
+              <div className={people.some((p) => p.talking) ? "dim" : undefined}>
+                <LyricsView key={lyrics.key} ttml={lyrics.ttml} offsetMs={lyrics.offsetMs} playhead={readLyricsAt} />
+              </div>
+            )}
+          </div>
           <div className="info">
             <div className="txt">
               <h1 className="name" title={r?.title}>

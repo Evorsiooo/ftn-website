@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { radioImports, radioPlaylists } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
 import { linkKind, parseReview, startJob, syncOpenImports } from "@/lib/radio/library";
+import { albumAudioSummary } from "@/lib/radio/album-audio";
 
 export const runtime = "edge";
 
@@ -23,7 +24,8 @@ export async function GET(request: NextRequest) {
       const review = parseReview(imp.review);
       return { ...imp, review: review.open, sourceTotal: review.sourceTotal ?? null, playlistName };
     });
-    return NextResponse.json({ imports: imports.slice(0, 30), reviews: imports.flatMap((i) => i.review.map((r) => ({ importId: i.id, playlistName: i.playlistName, ...r }))), syncErrors: errors });
+    const albumAudio = await albumAudioSummary(ctx.db).catch(() => null);
+    return NextResponse.json({ imports: imports.slice(0, 30), reviews: imports.flatMap((i) => i.review.map((r) => ({ importId: i.id, playlistName: i.playlistName, ...r }))), syncErrors: errors, albumAudio });
   } catch (err) {
     return failure(err, "Could not load imports");
   }

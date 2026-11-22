@@ -165,8 +165,8 @@ Nobody plans it ahead. The listeners who are on keep it going:
 
 1. Every listener plays the stored running order (sections 2 to 4).
 2. When fewer than 2 songs are lined up after the one on air, a listener
-   (after a random 0 to 4 s wait and a fresh read) picks the next song from
-   the library (no repeat within 3 songs), gets both songs' analyses, plans
+   (after a random 0 to 4 s wait and a fresh read) picks the next song
+   (section 6a), gets both songs' analyses, plans
    the mix with BitChord's Automix from the end of the last one (or 35 s
    from now, whichever is later) and sends the longer running order with
    `rev + 1`. Songs that are over are dropped from the front, keeping the
@@ -182,6 +182,33 @@ Nobody plans it ahead. The listeners who are on keep it going:
    `firstK` past the old songs, `rev + 1`.
 5. Several listeners at once: the website keeps the first valid write for a
    revision; the others get 409, read the new one and play it.
+
+### 6a. The next song
+
+AutoMix's AutoDJ picks by key, tempo and energy, and so does the radio:
+AutoMix's selector (`bitchord/automix/engine/selector.ts`, verbatim; BitChord
+keeps it but plays its queue instead) ranks the analysed library against the
+last song lined up, and the first candidate is the next song. Its inputs:
+
+- `recentFileKeys`: the running order's songs, newest first, then its
+  `played` history (the songs it has dropped, newest first, at most 200),
+  which the website fills in on every write (`withPlayed`). The selector's
+  own rules apply: nothing from the last 10, the last 3 artists scored down.
+- `excludeFileKeys`: those same 200 songs (Adrien, 2026-11-21: no song again
+  within 200). A library too small for that falls back to the selector's own
+  rules.
+- `energyDirection`: 0 (steady), AutoMix's default.
+- The pool: `radio/analysis-index.json`, key/tempo/energy/grid confidence of
+  every shared analysis, kept by the every-minute cron
+  (`lib/radio/analysis-index.ts`, 25 new analyses a run) because the full
+  analyses are about 100 KB each. The song being followed, if not indexed
+  yet, is read from its own analysis.
+
+Songs the selector can't place (not analysed yet, or no tempo found) get
+every third place (`k % 3 === 0`) while there are any not played lately, so
+new songs are heard and analysed. With nothing to rank against, the pick is
+any analysed song not played lately. Random picks are seeded by `k` and the
+library is sorted by key, so every listener picks the same song.
 
 Analysis decodes at 44.1 kHz so every browser measures the same samples.
 Shows (a host's planned programme) use the same format, written by the
