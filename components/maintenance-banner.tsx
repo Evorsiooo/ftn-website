@@ -1,6 +1,7 @@
-// Site-wide "Under maintenance" banner. It reads nothing (no database, no API): to turn it off or
-// change the text, edit MAINTENANCE below and deploy.
-export const MAINTENANCE: string | null = "FTN is under maintenance. Some pages and the radio may not work right now. We'll be back shortly.";
+// Maintenance mode. While MAINTENANCE is set, middleware.ts answers every page with a full-screen
+// "Under maintenance" page (and every API with 503), reading nothing. To turn it off, set it to
+// null and deploy.
+export const MAINTENANCE: string | null = "FTN is undergoing maintenance. We'll be back shortly.";
 
 export function MaintenanceBanner() {
   if (!MAINTENANCE) return null;
