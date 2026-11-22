@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // 1. Users (Roblox OAuth & Password Authenticated)
@@ -30,7 +31,7 @@ export const userRoles = sqliteTable("user_roles", {
   }).notNull(),
   assignedBy: text("assigned_by").references(() => users.id),
   assignedAt: integer("assigned_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("user_roles_user_idx").on(t.userId)]);
 
 // 3. Articles (Digital Publishing Division)
 export const articles = sqliteTable("articles", {
@@ -106,7 +107,11 @@ export const videos = sqliteTable("videos", {
   isLive: integer("is_live", { mode: "boolean" }).notNull().default(false),
   durationSeconds: integer("duration_seconds").default(0),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-}, (t) => [index("videos_published_idx").on(t.publishedAt), index("videos_is_live_idx").on(t.isLive)]);
+}, (t) => [
+  index("videos_published_idx").on(t.publishedAt),
+  index("videos_is_live_idx").on(t.isLive),
+  index("videos_channel_idx").on(t.channelId),
+]);
 
 // 6. User Watchlists (FTN+)
 export const watchlists = sqliteTable("watchlists", {
@@ -318,7 +323,7 @@ export const tips = sqliteTable("tips", {
     enum: ["unread", "investigating", "dismissed", "published"],
   }).notNull().default("unread"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-});
+}, (t) => [index("tips_created_idx").on(t.createdAt), index("tips_status_idx").on(t.status)]);
 
 // 13. Persistent Site Settings (Cloudflare D1 Stored Configuration)
 export const siteSettings = sqliteTable("site_settings", {
@@ -385,7 +390,7 @@ export const posts = sqliteTable("posts", {
   ftnPlusMessageId: text("ftn_plus_message_id"),
   feedChannelId: text("feed_channel_id"),
   feedMessageId: text("feed_message_id"),
-});
+}, (t) => [index("posts_scheduled_idx").on(t.scheduledAt), index("posts_status_idx").on(t.status)]);
 
 // Radio song ratings: one vote per listener per song. voter_id is a random id kept in the listener's
 // cookie, so no sign-in is needed. value is 1 (up) or -1 (down).
@@ -471,6 +476,9 @@ export const radioPlaylists = sqliteTable("radio_playlists", {
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  // How many songs the playlist has. Kept by database triggers on radio_playlist_songs (migration 0034),
+  // so the Library page doesn't count every playlist's songs on each load.
+  songCount: integer("song_count").notNull().default(0),
 });
 
 export const radioPlaylistSongs = sqliteTable("radio_playlist_songs", {
@@ -500,7 +508,12 @@ export const radioImports = sqliteTable("radio_imports", {
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
-}, (t) => [index("radio_imports_state_idx").on(t.state)]);
+}, (t) => [
+  index("radio_imports_state_idx").on(t.state),
+  index("radio_imports_created_idx").on(t.createdAt),
+  // only the imports with songs waiting for someone to pick a match (the admin sidebar's count)
+  index("radio_imports_review_idx").on(t.id).where(sql`review LIKE '%"open":[{%'`),
+]);
 
 // Radio listeners: each listener's random id, upserted about every 10 minutes from the player.
 // The listener count is the rows seen in the last 11 minutes (shown only above 2).
@@ -597,3 +610,11 @@ export const radioReplayParts = sqliteTable("radio_replay_parts", {
   endMs: integer("end_ms"),
   userId: text("user_id"),
 }, (t) => [index("radio_replay_parts_replay_idx").on(t.replayId, t.startMs)]);
+
+// Change counters kept by database triggers (migration 0034). name "songs": moves on every insert, update or
+// delete in radio_songs. The Library page's "anything changed?" check reads this one row instead of counting
+// the whole song table.
+export const radioVersions = sqliteTable("radio_versions", {
+  name: text("name").primaryKey(),
+  version: integer("version").notNull().default(0),
+});

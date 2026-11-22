@@ -12,7 +12,7 @@ import {
   radioStudioSessions,
 } from "@/db/schema";
 import { endOfTimelineMs, nowPlaying, slotAt, trackPositionSec, type RadioTimeline, type TimelineItem } from "./autodj";
-import { FINAL_STATES, getJob, linkKind, playableSongs, startJob, syncImport } from "./library";
+import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
 
@@ -517,7 +517,7 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
 
 /** The song to play after a skip when nothing is lined up: the queue's next song, else one from the library. */
 async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(TimelineItem & { fromQueue: boolean }) | null> {
-  const songs = await playableSongs(db);
+  const songs = await cachedPlayableSongs(db);
   const byKey = new Map(songs.map((x) => [x.key, x]));
   const queued = await db
     .select({ key: radioStudioQueue.songKey })

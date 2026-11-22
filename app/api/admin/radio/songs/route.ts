@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { desc, sql } from "drizzle-orm";
-import { radioSongs } from "@/db/schema";
+import { desc, eq } from "drizzle-orm";
+import { radioSongs, radioVersions } from "@/db/schema";
 import { radioAdmin } from "@/lib/radio/admin-route";
 
 export const runtime = "edge";
@@ -10,12 +10,11 @@ export async function GET(request: NextRequest) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
   // The whole library is over a thousand songs, and reading + sending it all costs more CPU than the
-  // free plan allows a request. A version tag from one cheap query lets the browser keep its copy
-  // (304) when nothing changed since its last load. Any add, edit or delete moves one of the numbers.
-  const [v] = await ctx.db
-    .select({ n: sql<number>`count(*)`, created: sql<number>`max(${radioSongs.createdAt})`, updated: sql<number>`max(${radioSongs.updatedAt})` })
-    .from(radioSongs);
-  const etag = `W/"songs-${v?.n ?? 0}-${v?.created ?? 0}-${v?.updated ?? 0}"`;
+  // free plan allows a request. A version tag lets the browser keep its copy (304) when nothing changed
+  // since its last load. The tag is the "songs" counter in radio_versions, which database triggers move
+  // on every add, edit or delete (migration 0034): one row read, where counting the songs read them all.
+  const [v] = await ctx.db.select({ version: radioVersions.version }).from(radioVersions).where(eq(radioVersions.name, "songs"));
+  const etag = `W/"songs-v${v?.version ?? 0}"`;
   const headers = { ETag: etag, "Cache-Control": "private, no-cache" };
   if (request.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers });
   const songs = await ctx.db
