@@ -95,7 +95,7 @@ export const articleTools: ToolDef[] = [
   {
     name: "delete_article",
     title: "Delete an article",
-    description: "Deletes an article for good. Needs the person's approval on the site.",
+    description: "Deletes an article for good.",
     input: { slug: S.str("The article's slug") },
     required: ["slug"],
     kind: "danger",
@@ -115,7 +115,7 @@ export const articleTools: ToolDef[] = [
   {
     name: "delete_article_comment",
     title: "Delete a reader comment",
-    description: "Removes a reader's comment. Needs the person's approval on the site.",
+    description: "Removes a reader's comment.",
     input: { slug: S.str("The article's slug"), commentId: S.str("From list_article_comments") },
     required: ["slug", "commentId"],
     kind: "danger",

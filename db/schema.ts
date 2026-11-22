@@ -647,21 +647,20 @@ export const oauthGrants = sqliteTable("oauth_grants", {
   index("oauth_grants_user_idx").on(t.userId),
 ]);
 
-// Risky AI actions wait here until the person approves them on the website.
-export const aiConfirmations = sqliteTable("ai_confirmations", {
+// An image an AI asked the person for (ask_for_image): they pick the file on the website.
+export const aiImageRequests = sqliteTable("ai_image_requests", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   grantId: text("grant_id").notNull(),
   clientName: text("client_name").notNull(),
-  tool: text("tool").notNull(),
-  args: text("args").notNull(), // JSON
-  summary: text("summary").notNull(),
-  status: text("status", { enum: ["pending", "done", "failed", "cancelled"] }).notNull(),
-  result: text("result"), // JSON, shown on the confirmation page
+  folder: text("folder").notNull(),
+  note: text("note").notNull(),
+  status: text("status", { enum: ["pending", "done", "cancelled"] }).notNull(),
+  url: text("url"),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
   decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
-}, (t) => [index("ai_confirmations_user_idx").on(t.userId, t.createdAt)]);
+}, (t) => [index("ai_image_requests_user_idx").on(t.userId, t.createdAt)]);
 
 // Who did what in the admin. actor_label is the Roblox username for a person, or
 // "<username>'s <AI name>" (e.g. "adrien's Claude") for an AI acting for them.

@@ -86,7 +86,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "delete_broadcast",
     title: "Remove an airing",
-    description: "Deletes an airing from the schedule (to keep it visible but crossed out, use update_broadcast with status cancelled). Needs the person's approval on the site.",
+    description: "Deletes an airing from the schedule (to keep it visible but crossed out, use update_broadcast with status cancelled).",
     input: { id: S.str("The airing's id") },
     required: ["id"],
     kind: "danger",
@@ -97,7 +97,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "bulk_change_broadcasts",
     title: "Change many airings at once",
-    description: "cancel / restore / delete several airings, move them by N minutes (shift), or set their tag. delete needs the person's approval on the site.",
+    description: "cancel / restore / delete several airings, move them by N minutes (shift), or set their tag.",
     input: {
       ids: S.strArr("Airing ids (up to 200)"),
       action: S.enum(["cancel", "restore", "delete", "shift", "setTag"], "What to do"),
@@ -144,7 +144,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "delete_radio_show",
     title: "Delete a show",
-    description: "Deletes a show. Needs the person's approval on the site.",
+    description: "Deletes a show.",
     input: { id: S.str("The show's id") },
     required: ["id"],
     kind: "danger",
@@ -165,7 +165,7 @@ export const radioTools: ToolDef[] = [
     name: "studio_control",
     title: "Control the live Studio",
     description:
-      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueUrl {url}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end. end and takeOff need the person's approval on the site.",
+      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueUrl {url}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end.",
     input: {
       action: S.enum(STUDIO_ACTIONS, "What to do"),
       key: S.str("queueSong / skip: the song's key"),
@@ -255,7 +255,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "cancel_import",
     title: "Cancel an import",
-    description: "Stops an import that is still running. Needs the person's approval on the site.",
+    description: "Stops an import that is still running.",
     input: { id: S.str("The import's id") },
     required: ["id"],
     kind: "danger",
@@ -294,7 +294,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "delete_song",
     title: "Delete a song",
-    description: "Deletes a song and its file for good (archive it with update_song to only stop it playing). Needs the person's approval on the site.",
+    description: "Deletes a song and its file for good (archive it with update_song to only stop it playing).",
     input: { id: S.str("The song's id") },
     required: ["id"],
     kind: "danger",
@@ -365,7 +365,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "delete_playlist",
     title: "Delete a playlist",
-    description: "Deletes a playlist (its songs stay in the library). Needs the person's approval on the site.",
+    description: "Deletes a playlist (its songs stay in the library).",
     input: { id: S.str("The playlist's id") },
     required: ["id"],
     kind: "danger",
@@ -396,7 +396,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "delete_replay",
     title: "Delete a replay",
-    description: "Deletes a replay and its recording. Needs the person's approval on the site.",
+    description: "Deletes a replay and its recording.",
     input: { id: S.str("The replay's id") },
     required: ["id"],
     kind: "danger",

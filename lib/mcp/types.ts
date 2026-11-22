@@ -36,9 +36,9 @@ export interface ToolDef {
   description: string;
   input: Record<string, JsonSchema>;
   required?: string[];
-  /** read: looks only. write: changes something, runs at once. danger: waits for the person's OK on the site. */
+  /** read: looks only. write: changes something. danger: hard to undo or public (marked destructive, so the AI app asks the person first). */
   kind: ToolKind;
-  /** For write tools that are risky only with some arguments (e.g. a bulk action that deletes). */
+  /** For write tools that are risky only with some arguments (e.g. a bulk action that deletes): also marked destructive. */
   dangerIf?: (args: any) => boolean;  
   /** Reaches outside FTN (Discord, YouTube, the downloader). */
   openWorld?: boolean;
@@ -46,6 +46,10 @@ export interface ToolDef {
   refs?: Record<string, RefKind>;
   /** One line describing this call, for the audit log and the approval page. */
   summary?: (args: any) => string;  
+  /** Its result holds a new password meant for the person: sent to the AI unredacted. */
+  showsSecret?: boolean;
+  /** Inputs that take a file the person attached in the chat (ChatGPT's openai/fileParams). */
+  fileParams?: string[];
   run: (ctx: ToolCtx, args: any) => Promise<unknown>;  
 }
 

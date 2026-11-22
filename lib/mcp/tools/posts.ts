@@ -65,7 +65,7 @@ export const postTools: ToolDef[] = [
   {
     name: "send_post_now",
     title: "Send a scheduled post now",
-    description: "Sends a scheduled post to Discord (#ftn-plus and leadership) right away. Needs the person's approval on the site.",
+    description: "Sends a scheduled post to Discord (#ftn-plus and leadership) right away.",
     input: { id: S.str("The post's id") },
     required: ["id"],
     kind: "danger",
@@ -77,7 +77,7 @@ export const postTools: ToolDef[] = [
   {
     name: "publish_post_draft",
     title: "Publish a draft post",
-    description: "Publishes a draft post: sends it to Discord now, or schedules it when `at` is given. Needs the person's approval on the site.",
+    description: "Publishes a draft post: sends it to Discord now, or schedules it when `at` is given.",
     input: { id: S.str("The draft's id"), at: S.str("Optional time to schedule it for, ISO 8601") },
     required: ["id"],
     kind: "danger",
@@ -90,7 +90,7 @@ export const postTools: ToolDef[] = [
   {
     name: "amend_post",
     title: "Add an edit note to a post",
-    description: "Adds an edit note to a sent post; its Discord messages are edited to show it. Needs the person's approval on the site.",
+    description: "Adds an edit note to a sent post; its Discord messages are edited to show it.",
     input: { id: S.str("The post's id"), note: S.str("The correction, as readers will see it") },
     required: ["id", "note"],
     kind: "danger",
@@ -103,7 +103,7 @@ export const postTools: ToolDef[] = [
     name: "decide_post",
     title: "Approve or deny a post",
     description:
-      "Leadership decision on a pending post. approve publishes it to its Ro-State's Discord feed; deny needs a reason. Needs the person's approval on the site.",
+      "Leadership decision on a pending post. approve publishes it to its Ro-State's Discord feed; deny needs a reason.",
     input: { id: S.str("The post's id"), decision: S.enum(["approve", "deny"], "approve or deny"), reason: S.str("Why it was denied (deny only)") },
     required: ["id", "decision"],
     kind: "danger",
@@ -116,7 +116,7 @@ export const postTools: ToolDef[] = [
   {
     name: "resend_post",
     title: "Resend a post to Discord",
-    description: "Sends a post's Discord messages again (when one failed or was deleted). Needs the person's approval on the site.",
+    description: "Sends a post's Discord messages again (when one failed or was deleted).",
     input: { id: S.str("The post's id") },
     required: ["id"],
     kind: "danger",
@@ -128,7 +128,7 @@ export const postTools: ToolDef[] = [
   {
     name: "delete_post",
     title: "Delete a post",
-    description: "Deletes a post and removes its messages from Discord. Needs the person's approval on the site.",
+    description: "Deletes a post and removes its messages from Discord.",
     input: { id: S.str("The post's id") },
     required: ["id"],
     kind: "danger",

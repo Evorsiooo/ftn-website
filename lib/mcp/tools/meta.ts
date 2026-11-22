@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { aiConfirmations, auditLog } from "@/db/schema";
+import { auditLog } from "@/db/schema";
 import { S, ToolDef, ToolError } from "../types";
 import { aiActorLabel } from "../oauth";
 
@@ -13,32 +13,8 @@ export const metaTools: ToolDef[] = [
     run: async (ctx) => ({
       user: { id: ctx.user.id, robloxUsername: ctx.user.robloxUsername, displayName: ctx.user.displayName, roles: ctx.user.roles },
       auditLabel: aiActorLabel(ctx.user, ctx.aiName),
-      note: "Public content (articles, posts, Discord messages) shows this person. Risky actions return an approval link the person must open.",
+      note: "Public content (articles, posts, Discord messages) shows this person. Risky tools are marked destructive, so your app asks the person before running them.",
     }),
-  },
-  {
-    name: "get_approval",
-    title: "Check an approval",
-    description: "Whether the person approved a risky action (from its approvalId), and its result once it ran.",
-    input: { approvalId: S.str("The approvalId a risky tool returned") },
-    required: ["approvalId"],
-    kind: "read",
-    run: async (ctx, a) => {
-      const rows = await ctx.db
-        .select()
-        .from(aiConfirmations)
-        .where(and(eq(aiConfirmations.id, String(a.approvalId)), eq(aiConfirmations.userId, ctx.user.id)))
-        .limit(1);
-      const r = rows[0];
-      if (!r) throw new ToolError("No such approval.");
-      const expired = r.status === "pending" && r.expiresAt.getTime() < Date.now();
-      return {
-        status: expired ? "expired" : r.status,
-        summary: r.summary,
-        result: r.result ? JSON.parse(r.result) : null,
-        approveUrl: r.status === "pending" && !expired ? `${ctx.origin}/admin/ai/confirm/${r.id}` : undefined,
-      };
-    },
   },
   {
     name: "get_audit_log",

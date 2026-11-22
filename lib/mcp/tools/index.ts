@@ -10,10 +10,6 @@ import { siteTools } from "./site";
 export const TOOLS: ToolDef[] = [...metaTools, ...articleTools, ...postTools, ...radioTools, ...adTools, ...siteTools];
 export const TOOL_MAP = new Map(TOOLS.map((t) => [t.name, t]));
 
-export function isDangerous(tool: ToolDef, args: Record<string, unknown>): boolean {
-  return tool.kind === "danger" || (!!tool.dangerIf && tool.dangerIf(args));
-}
-
 export function toolListing() {
   return TOOLS.map((t) => {
     const risky = t.kind === "danger" || !!t.dangerIf;
@@ -29,7 +25,10 @@ export function toolListing() {
         idempotentHint: t.kind === "read",
         openWorldHint: !!t.openWorld,
       },
-      _meta: { securitySchemes: [{ type: "oauth2", scopes: ["admin"] }] },
+      _meta: {
+        securitySchemes: [{ type: "oauth2", scopes: ["admin"] }],
+        ...(t.fileParams ? { "openai/fileParams": t.fileParams } : {}),
+      },
     };
   });
 }

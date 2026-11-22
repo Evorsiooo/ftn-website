@@ -53,7 +53,7 @@ export const adTools: ToolDef[] = [
   {
     name: "delete_ad",
     title: "Delete an ad",
-    description: "Deletes an ad for good. Needs the person's approval on the site.",
+    description: "Deletes an ad for good.",
     input: { id: S.str("The ad's id") },
     required: ["id"],
     kind: "danger",
@@ -93,7 +93,7 @@ export const adTools: ToolDef[] = [
   {
     name: "delete_organization",
     title: "Delete an ad organization",
-    description: "Deletes an organization. Needs the person's approval on the site.",
+    description: "Deletes an organization.",
     input: { id: S.str("The organization's id") },
     required: ["id"],
     kind: "danger",

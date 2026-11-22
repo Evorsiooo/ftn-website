@@ -46,23 +46,22 @@ CREATE UNIQUE INDEX `oauth_grants_refresh_idx` ON `oauth_grants` (`refresh_hash`
 --> statement-breakpoint
 CREATE INDEX `oauth_grants_user_idx` ON `oauth_grants` (`user_id`);
 --> statement-breakpoint
-CREATE TABLE `ai_confirmations` (
+CREATE TABLE `ai_image_requests` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
 	`grant_id` text NOT NULL,
 	`client_name` text NOT NULL,
-	`tool` text NOT NULL,
-	`args` text NOT NULL,
-	`summary` text NOT NULL,
+	`folder` text NOT NULL,
+	`note` text NOT NULL,
 	`status` text NOT NULL,
-	`result` text,
+	`url` text,
 	`created_at` integer NOT NULL,
 	`expires_at` integer NOT NULL,
 	`decided_at` integer,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `ai_confirmations_user_idx` ON `ai_confirmations` (`user_id`,`created_at`);
+CREATE INDEX `ai_image_requests_user_idx` ON `ai_image_requests` (`user_id`,`created_at`);
 --> statement-breakpoint
 CREATE TABLE `audit_log` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,

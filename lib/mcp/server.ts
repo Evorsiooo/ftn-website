@@ -13,10 +13,9 @@ import { redactSecrets, writeAudit } from "@/lib/audit";
 import { getClientIp } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 import { callRoute, shortSession } from "./call";
-import { requestConfirmation } from "./confirm";
 import { readableSummary } from "./names";
 import { aiActorLabel, canUseAi, corsHeaders, loadUser, mcpResource, protectedResourceMetadataUrl, sha256Hex, siteOrigin } from "./oauth";
-import { TOOLS, TOOL_MAP, isDangerous, toolListing } from "./tools";
+import { TOOLS, TOOL_MAP, toolListing } from "./tools";
 import { ToolCtx, ToolError } from "./types";
 
 export const MODERN_VERSIONS = ["2026-07-28"];
@@ -28,8 +27,9 @@ const MAX_TEXT = 150_000;
 const INSTRUCTIONS =
   "FTN (ftn.euno.cc) is a news site with a radio station and FTN+ video. These tools operate its admin panel as the person who connected you, " +
   "with their permissions. Public content (articles, posts, Discord messages) is credited to them; the audit log shows you as their AI. " +
-  "Read before you write (list_/get_ tools give ids). Risky tools (deleting, publishing to Discord, roles, settings) don't run at once: they return an " +
-  "approveUrl that the person must open and approve; tell them, then check with get_approval. Times are ISO 8601 with a time zone.";
+  "Read before you write (list_/get_ tools give ids). Tools marked destructive (deleting, publishing to Discord, roles, settings) can't be undone: " +
+  "make sure the person wants it before calling one. Times are ISO 8601 with a time zone. " +
+  "Images: upload_image (an attached file, base64 or a URL), or ask_for_image when the image is only on the person's device.";
 
 type Json = Record<string, any>;  
 
@@ -97,8 +97,8 @@ async function authenticate(db: DbClient, request: Request, origin: string) {
   return { grant, user };
 }
 
-function textResult(value: unknown, isError = false) {
-  let text = typeof value === "string" ? value : JSON.stringify(redactSecrets(value), null, 1);
+function textResult(value: unknown, isError = false, showSecrets = false) {
+  let text = typeof value === "string" ? value : JSON.stringify(showSecrets ? value : redactSecrets(value), null, 1);
   if (text.length > MAX_TEXT) text = text.slice(0, MAX_TEXT) + "\n… (cut: ask for less, e.g. with a search or limit)";
   return { content: [{ type: "text", text }], ...(isError ? { isError: true } : {}) };
 }
@@ -213,8 +213,6 @@ async function callTool(
     call: (handler, opts) => callRoute(handler, opts, { origin, ip, session }) as Promise<any>,  
   };
 
-  if (isDangerous(tool, args)) return textResult(await requestConfirmation(ctx, tool, args));
-
   const label = aiActorLabel(user, grant.clientName);
   // named before running: after a change the old name may be gone
   const summary = tool.kind === "read" ? "" : await readableSummary(db, tool.summary?.(args) ?? tool.title, tool.refs, args);
@@ -223,7 +221,7 @@ async function callTool(
     if (tool.kind !== "read") {
       await writeAudit(db, { userId: user.id, actorLabel: label, via: "ai", action: tool.name, summary, status: "ok", detail: { args } });
     }
-    return textResult(result ?? { ok: true });
+    return textResult(result ?? { ok: true }, false, tool.showsSecret);
   } catch (err) {
     const message = err instanceof ToolError ? err.message : err instanceof Error ? `Something went wrong: ${err.message}` : "Something went wrong";
     if (tool.kind !== "read") {

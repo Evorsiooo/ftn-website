@@ -130,22 +130,23 @@ export default function AiAccessPage() {
                       </ul>
                       <p className="help">
                         The app sends you to an FTN page to sign in and click Allow. What it publishes shows your name; this log shows it as
-                        &ldquo;your username&rsquo;s Claude&rdquo;. Deleting, publishing to Discord, roles and settings wait for you to approve them here.
+                        &ldquo;your username&rsquo;s Claude&rdquo;. Deleting, publishing to Discord, roles and settings are marked as risky, so the app
+                        asks you before running them (you can change that per tool in the app&rsquo;s connector settings).
                       </p>
                     </Section>
 
                     {data.pending.length > 0 && (
-                      <Section title="Waiting for your approval" aside={<Pill tone="amber">{data.pending.length}</Pill>}>
+                      <Section title="Images an AI is waiting for" aside={<Pill tone="amber">{data.pending.length}</Pill>}>
                         <div className="rows">
                           {data.pending.map((p) => (
-                            <Link key={p.id} href={`/admin/ai/confirm/${p.id}`} className="r">
+                            <Link key={p.id} href={`/admin/ai/image/${p.id}`} className="r">
                               <div className="grow">
                                 <div className="trunc" style={{ fontWeight: 600 }}>{p.summary}</div>
                                 <div className="t12 muted">
                                   Asked by {p.app} {ago(p.createdAt)}
                                 </div>
                               </div>
-                              <span className="btn sm">Review</span>
+                              <span className="btn sm">Choose image</span>
                             </Link>
                           ))}
                         </div>

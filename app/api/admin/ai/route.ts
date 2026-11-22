@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { aiConfirmations, auditLog, oauthGrants, users } from "@/db/schema";
+import { aiImageRequests, auditLog, oauthGrants, users } from "@/db/schema";
 import { requireStaff } from "@/lib/admin-auth";
 import { writeAudit } from "@/lib/audit";
 import { canUseAi, mcpResource, siteOrigin } from "@/lib/mcp/oauth";
 
 export const runtime = "edge";
 
-// Settings > AI access: the MCP address, connected AI apps, actions waiting for approval, audit log.
+// Settings > AI access: the MCP address, connected AI apps, images an AI is waiting for, audit log.
 export async function GET(request: NextRequest) {
   const auth = await requireStaff(request, canUseAi, "Forbidden: Site Administrator role required");
   if ("error" in auth) return auth.error;
@@ -26,9 +26,9 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(oauthGrants.createdAt)),
     db
       .select()
-      .from(aiConfirmations)
-      .where(and(eq(aiConfirmations.userId, auth.user.id), eq(aiConfirmations.status, "pending"), gt(aiConfirmations.expiresAt, now)))
-      .orderBy(desc(aiConfirmations.createdAt)),
+      .from(aiImageRequests)
+      .where(and(eq(aiImageRequests.userId, auth.user.id), eq(aiImageRequests.status, "pending"), gt(aiImageRequests.expiresAt, now)))
+      .orderBy(desc(aiImageRequests.createdAt)),
     db
       .select()
       .from(auditLog)
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       createdAt: grant.createdAt,
       lastUsedAt: grant.lastUsedAt,
     })),
-    pending: pending.map((p) => ({ id: p.id, app: p.clientName, summary: p.summary, createdAt: p.createdAt, expiresAt: p.expiresAt })),
+    pending: pending.map((p) => ({ id: p.id, app: p.clientName, summary: p.note || "An image", createdAt: p.createdAt, expiresAt: p.expiresAt })),
     audit: audit.map((a) => ({ id: a.id, at: a.at, who: a.actorLabel, via: a.via, action: a.action, summary: a.summary, status: a.status })),
   });
 }
