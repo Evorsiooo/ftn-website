@@ -281,7 +281,7 @@ function LibraryPage() {
                 setSelected(null);
               }}
             >
-              {videosOnly ? "Show all songs" : `Show the ${audio.unmatched.length} kept as videos`}
+              {videosOnly ? "Show all songs" : `Show ${audio.unmatched.length}`}
             </button>
           )}
         </div>
