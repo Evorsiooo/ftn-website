@@ -22,7 +22,7 @@ export interface Song {
   /** Where title and artist came from; "ytmusic" = YouTube Music's catalogue (the album song). */
   metadataSource?: string | null;
   /** The album-audio check: null (not yet), album, swapped, unmatched, failed, duplicate. */
-  audioCheck?: "album" | "swapped" | "unmatched" | "failed" | "duplicate" | null;
+  audioCheck?: "album" | "swapped" | "unmatched" | "failed" | "duplicate" | "downloading" | null;
   audioCheckNote?: string | null;
   /** Lyrics for every listener: null = best available, a provider id, or "none"; and the offset in ms. */
   lyricsSource: string | null;

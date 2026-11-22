@@ -62,16 +62,22 @@ const parse = <T>(raw: string | null, fallback: T): T => {
   }
 };
 
-/** Runs one step of the check: follows the open batch, or starts the next one. Null when idle. */
+/**
+ * Runs one step of the check: follows the open batches, and starts the next one once none is still
+ * checking. A batch whose songs are all checked may still be downloading album versions (the
+ * downloader's download lane): the next batch's checks run meanwhile. Null when idle.
+ */
 export async function runAlbumAudioCheck(db: DbClient): Promise<Record<string, unknown> | null> {
-  const [open] = await db.select().from(radioAudioRechecks).where(notInArray(radioAudioRechecks.state, [...FINAL, "refused"])).limit(1);
-  if (open) {
-    const step = await followBatch(db, open);
-    if (!step.closed) return step;
-    // That batch is over: the next one starts now rather than at the next minute's run.
-    const next = await runAlbumAudioCheck(db);
-    return next ? { ...step, next } : step;
-  }
+  const open = await db.select().from(radioAudioRechecks).where(notInArray(radioAudioRechecks.state, [...FINAL, "refused"]));
+  const steps: Record<string, unknown>[] = [];
+  for (const row of open) steps.push(await followBatch(db, row));
+  if (steps.some((s) => s.checking)) return { batches: steps };
+  const next = await startBatch(db);
+  return steps.length ? { batches: steps, ...(next ? { next } : {}) } : next;
+}
+
+/** Sends the next songs to check. Null when there is nothing to send. */
+async function startBatch(db: DbClient): Promise<Record<string, unknown> | null> {
 
   const [last] = await db.select().from(radioAudioRechecks).orderBy(desc(radioAudioRechecks.createdAt)).limit(1);
   if (last?.state === "refused" && Date.now() - last.updatedAt.getTime() < RETRY_START_MS) return null;
@@ -87,6 +93,8 @@ export async function runAlbumAudioCheck(db: DbClient): Promise<Record<string, u
         or(
           isNull(radioSongs.audioCheck),
           and(eq(radioSongs.audioCheck, "failed"), lt(radioSongs.audioCheckedAt, retryBefore)),
+          // an album version found but never downloaded (its batch was lost)
+          and(eq(radioSongs.audioCheck, "downloading"), lt(radioSongs.audioCheckedAt, retryBefore)),
           // kept as a video, and its library names haven't been searched yet (new, or renamed since)
           and(
             eq(radioSongs.audioCheck, "unmatched"),
@@ -135,7 +143,7 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
     if (err instanceof DownloaderError && err.upstream === 404) {
       // the VPS keeps jobs 14 days: songs not written yet are simply asked again in a later batch
       await db.update(radioAudioRechecks).set({ state: "failed", error: "The downloader no longer has this job.", updatedAt: new Date() }).where(eq(radioAudioRechecks.id, row.id));
-      return { lost: row.id, closed: true };
+      return { lost: row.id };
     }
     throw err;
   }
@@ -143,6 +151,17 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
   const applied = new Set(parse<number[]>(row.applied, []));
   const oldKeys = parse<string[]>(row.oldKeys, []);
   let wrote = 0;
+  // Checked, with the album version waiting for (or in) the download lane: shown as checked meanwhile.
+  const downloading = (job.items ?? [])
+    .filter((i) => !applied.has(i.index) && (i.state === "download_queued" || i.state === "downloading"))
+    .map((i) => songs[i.index])
+    .filter((s): s is BatchSong => !!s);
+  if (downloading.length) {
+    await db
+      .update(radioSongs)
+      .set({ audioCheck: "downloading", audioCheckedAt: new Date(), audioCheckNote: "Album version found on YouTube Music: downloading it" })
+      .where(and(inArray(radioSongs.id, downloading.map((s) => s.id)), or(isNull(radioSongs.audioCheck), sql`${radioSongs.audioCheck} != 'downloading'`)));
+  }
   for (const item of job.items ?? []) {
     if (applied.has(item.index) || (item.state !== "done" && item.state !== "failed")) continue;
     const song = songs[item.index];
@@ -154,16 +173,15 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
     applied.add(item.index);
   }
   const final = FINAL.includes(job.state);
-  if (!wrote && !final && job.state === row.state) return { following: row.id, done: applied.size };
+  // an older downloader has no checksDone: its batch counts as checking until it is over
+  const checking = !final && !(job as { checksDone?: boolean }).checksDone;
+  if (!wrote && !final && job.state === row.state) return { following: row.id, done: applied.size, checking };
   await db
     .update(radioAudioRechecks)
     .set({ state: job.state, applied: JSON.stringify([...applied]), oldKeys: oldKeys.length ? JSON.stringify(oldKeys) : null, error: job.error ?? null, updatedAt: new Date() })
     .where(eq(radioAudioRechecks.id, row.id));
-  const out: Record<string, unknown> = { following: row.id, done: applied.size, wrote };
-  if (final) {
-    out.deleted = await deleteReplacedFiles(db);
-    out.closed = true;
-  }
+  const out: Record<string, unknown> = { following: row.id, done: applied.size, wrote, checking };
+  if (final) out.deleted = await deleteReplacedFiles(db);
   return out;
 }
 
