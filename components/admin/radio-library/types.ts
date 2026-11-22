@@ -32,7 +32,7 @@ export interface Song {
 
 /** The album-audio check's state, from GET /api/admin/radio/imports. */
 export interface AlbumAudio {
-  counts: Record<string, number>;
+  counts: Record<string, number> | null;
   running: boolean;
   /** Approximate minutes left, from the last 20 minutes' pace (null: too little recent data). */
   minutesLeft?: number | null;

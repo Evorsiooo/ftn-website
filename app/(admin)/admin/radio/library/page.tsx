@@ -65,25 +65,38 @@ function LibraryPage() {
   const patchSong = useCallback((id: string, patch: Partial<Song>) => setSongs((list) => list && list.map((s) => (s.id === id ? { ...s, ...patch } : s))), []);
   const dropSong = useCallback((id: string) => setSongs((list) => list && list.filter((s) => s.id !== id)), []);
 
-  // Imports: the GET also brings unfinished ones up to date with the downloader.
+  // Imports: the GET also brings unfinished ones up to date with the downloader. withAudio also asks
+  // for the album-audio check's state (left out of the 4 s import poll, which doesn't need it).
+  // A changed import reloads the library at most once a minute (each load reads every song), and
+  // always when an import finishes.
   const doneCount = useRef<string>("");
-  const loadImports = useCallback(async () => {
+  const finished = useRef<string>("");
+  const lastLibraryLoad = useRef(0);
+  const loadImports = useCallback(async (withAudio = false) => {
     try {
-      const d = await api<{ imports: Import[]; reviews: Review[]; albumAudio?: AlbumAudio | null }>("/api/admin/radio/imports");
+      const d = await api<{ imports: Import[]; reviews: Review[]; albumAudio?: AlbumAudio | null }>(`/api/admin/radio/imports${withAudio ? "?audio=1" : ""}`);
       setImports(d.imports);
       setReviews(d.reviews);
-      setAlbumAudio(d.albumAudio ?? null);
+      if (d.albumAudio !== undefined) setAlbumAudio(d.albumAudio);
       const sig = d.imports.map((i) => `${i.id}:${i.done}:${i.state}`).join("|");
-      if (doneCount.current && sig !== doneCount.current) loadLibrary();
+      const fin = d.imports.filter((i) => FINAL.includes(i.state)).map((i) => i.id).join("|");
+      const changed = doneCount.current && sig !== doneCount.current;
+      const justFinished = finished.current && fin !== finished.current;
+      if (justFinished || (changed && Date.now() - lastLibraryLoad.current >= 60_000)) {
+        lastLibraryLoad.current = Date.now();
+        loadLibrary();
+      }
       doneCount.current = sig;
+      finished.current = fin;
     } catch {
       // the downloader can be down; the library still works
     }
   }, [loadLibrary]);
 
   const reload = useCallback(() => {
+    lastLibraryLoad.current = Date.now();
     loadLibrary();
-    loadImports();
+    loadImports(true);
     refreshAdminSummary();
   }, [loadLibrary, loadImports]);
 
@@ -94,7 +107,7 @@ function LibraryPage() {
   const running = imports.filter((i) => !FINAL.includes(i.state));
   useEffect(() => {
     if (!running.length) return;
-    const t = setInterval(loadImports, 4000);
+    const t = setInterval(() => loadImports(), 4000);
     return () => clearInterval(t);
   }, [running.length, loadImports]);
 
@@ -104,18 +117,28 @@ function LibraryPage() {
   const archivedSongs = useMemo(() => (songs || []).filter((s) => s.archived), [songs]);
   // The album-audio check (BitChord's resolveAudio on the downloader): progress and the songs it
   // couldn't find an album version for, which stay music videos.
+  // While a batch runs, the banner's numbers come from the server's counts (polled once a minute),
+  // so the whole library isn't re-read to move them.
   const audio = useMemo(() => {
     const yt = (songs || []).filter((s) => s.source === "youtube");
-    const count = (c: Song["audioCheck"]) => yt.filter((s) => s.audioCheck === c).length;
     const unmatched = yt.filter((s) => s.audioCheck === "unmatched");
-    const checked = count("album") + count("swapped") + unmatched.length + count("duplicate") + count("downloading");
-    return { total: yt.length, checked, swapped: count("swapped"), downloading: count("downloading"), duplicates: count("duplicate"), unmatched };
-  }, [songs]);
-  // Polls while the check runs so its numbers move.
+    const c = albumAudio?.counts;
+    const count = (k: NonNullable<Song["audioCheck"]>) => (c ? c[k] ?? 0 : yt.filter((s) => s.audioCheck === k).length);
+    const total = c ? Object.values(c).reduce((a, b) => a + b, 0) : yt.length;
+    const kept = count("unmatched");
+    const checked = count("album") + count("swapped") + kept + count("duplicate") + count("downloading");
+    return { total, checked, swapped: count("swapped"), downloading: count("downloading"), duplicates: count("duplicate"), kept, unmatched };
+  }, [songs, albumAudio?.counts]);
   useEffect(() => {
     if (!albumAudio?.running) return;
-    const t = setInterval(loadLibrary, 30_000);
+    const t = setInterval(() => loadImports(true), 60_000);
     return () => clearInterval(t);
+  }, [albumAudio?.running, loadImports]);
+  // When a check finishes, load the library once to show its results.
+  const wasRunning = useRef(false);
+  useEffect(() => {
+    if (wasRunning.current && !albumAudio?.running) loadLibrary();
+    wasRunning.current = !!albumAudio?.running;
   }, [albumAudio?.running, loadLibrary]);
   const shown = useMemo(() => {
     const list = videosOnly ? audio.unmatched : archived ? archivedSongs : live;
@@ -279,7 +302,7 @@ function LibraryPage() {
             {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
             {audio.swapped > 0 && `, ${audio.swapped} swapped`}
             {audio.downloading > 0 && `, ${audio.downloading} queued`}
-            {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
+            {audio.kept > 0 && `, ${audio.kept} kept as videos`}
             {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
             {!albumAudio?.refused && albumAudio?.minutesLeft != null && <span className="muted"> · {timeLeft(albumAudio.minutesLeft)}</span>}
             {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
