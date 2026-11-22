@@ -23,6 +23,8 @@ function audioLabel(song: Song): string | null {
       return "Archived: its album version is already in the library";
     case "failed":
       return "Not checked: YouTube Music didn't answer (tried again later)";
+    case "downloading":
+      return "Album version found: downloading it";
     default:
       return "Not checked yet";
   }

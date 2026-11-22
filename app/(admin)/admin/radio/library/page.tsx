@@ -108,8 +108,8 @@ function LibraryPage() {
     const yt = (songs || []).filter((s) => s.source === "youtube");
     const count = (c: Song["audioCheck"]) => yt.filter((s) => s.audioCheck === c).length;
     const unmatched = yt.filter((s) => s.audioCheck === "unmatched");
-    const checked = count("album") + count("swapped") + unmatched.length + count("duplicate");
-    return { total: yt.length, checked, swapped: count("swapped"), duplicates: count("duplicate"), unmatched };
+    const checked = count("album") + count("swapped") + unmatched.length + count("duplicate") + count("downloading");
+    return { total: yt.length, checked, swapped: count("swapped"), downloading: count("downloading"), duplicates: count("duplicate"), unmatched };
   }, [songs]);
   // Polls while the check runs so its numbers move.
   useEffect(() => {
@@ -252,14 +252,15 @@ function LibraryPage() {
           )}
         </div>
       )}
-      {tab === "songs" && songs && audio.total > 0 && (audio.checked < audio.total || audio.unmatched.length > 0) && (
+      {tab === "songs" && songs && audio.total > 0 && (audio.checked < audio.total || audio.downloading > 0 || audio.unmatched.length > 0) && (
         <div className="notice" role="status">
           <Disc3 className={cn("ic-sm", albumAudio?.running && "spin")} />
           <span className="trunc" style={{ flex: 1 }}>
-            {audio.checked < audio.total ? (
+            {audio.checked < audio.total || audio.downloading > 0 ? (
               <>
                 {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
                 {audio.swapped > 0 && `, ${audio.swapped} swapped`}
+                {audio.downloading > 0 && `, ${audio.downloading} downloading`}
                 {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
                 {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
                 {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
