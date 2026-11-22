@@ -65,7 +65,13 @@ const parse = <T>(raw: string | null, fallback: T): T => {
 /** Runs one step of the check: follows the open batch, or starts the next one. Null when idle. */
 export async function runAlbumAudioCheck(db: DbClient): Promise<Record<string, unknown> | null> {
   const [open] = await db.select().from(radioAudioRechecks).where(notInArray(radioAudioRechecks.state, [...FINAL, "refused"])).limit(1);
-  if (open) return followBatch(db, open);
+  if (open) {
+    const step = await followBatch(db, open);
+    if (!step.closed) return step;
+    // That batch is over: the next one starts now rather than at the next minute's run.
+    const next = await runAlbumAudioCheck(db);
+    return next ? { ...step, next } : step;
+  }
 
   const [last] = await db.select().from(radioAudioRechecks).orderBy(desc(radioAudioRechecks.createdAt)).limit(1);
   if (last?.state === "refused" && Date.now() - last.updatedAt.getTime() < RETRY_START_MS) return null;
@@ -129,7 +135,7 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
     if (err instanceof DownloaderError && err.upstream === 404) {
       // the VPS keeps jobs 14 days: songs not written yet are simply asked again in a later batch
       await db.update(radioAudioRechecks).set({ state: "failed", error: "The downloader no longer has this job.", updatedAt: new Date() }).where(eq(radioAudioRechecks.id, row.id));
-      return { lost: row.id };
+      return { lost: row.id, closed: true };
     }
     throw err;
   }
@@ -154,7 +160,10 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
     .set({ state: job.state, applied: JSON.stringify([...applied]), oldKeys: oldKeys.length ? JSON.stringify(oldKeys) : null, error: job.error ?? null, updatedAt: new Date() })
     .where(eq(radioAudioRechecks.id, row.id));
   const out: Record<string, unknown> = { following: row.id, done: applied.size, wrote };
-  if (final) out.deleted = await deleteReplacedFiles(db);
+  if (final) {
+    out.deleted = await deleteReplacedFiles(db);
+    out.closed = true;
+  }
   return out;
 }
 
