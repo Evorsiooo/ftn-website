@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth";
-import { FORCE_MAINTENANCE, MAINTENANCE_MESSAGE, databaseDown } from "@/lib/maintenance";
+import { FORCE_MAINTENANCE, MAINTENANCE_MESSAGE, databaseState } from "@/lib/maintenance";
 
 export const config = {
   // Everything but build assets, logos, fonts and the favicon (the maintenance page covers every page and API).
@@ -22,12 +22,18 @@ img{height:40px;width:auto;margin-bottom:32px}h1{margin:0 0 8px;font-size:28px;f
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (FORCE_MAINTENANCE || (await databaseDown())) {
-    const headers = { "Cache-Control": "no-store", "Retry-After": "3600" };
+  // x-ftn-db says what the health probe saw (up, down or unknown), to check it from outside.
+  const db = FORCE_MAINTENANCE ? "forced" : await databaseState();
+  if (db === "forced" || db === "down") {
+    const headers = { "Cache-Control": "no-store", "Retry-After": "3600", "x-ftn-db": db };
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Under maintenance" }, { status: 503, headers });
     return new NextResponse(maintenancePage(MAINTENANCE_MESSAGE), { status: 503, headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } });
   }
-  if (!/^\/(api\/)?admin(\/|$)/.test(pathname)) return NextResponse.next();
+  if (!/^\/(api\/)?admin(\/|$)/.test(pathname)) {
+    const res = NextResponse.next();
+    res.headers.set("x-ftn-db", db);
+    return res;
+  }
 
   const token =
     request.cookies.get("ftn_session")?.value ||
