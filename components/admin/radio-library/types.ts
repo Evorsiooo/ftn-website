@@ -34,6 +34,8 @@ export interface Song {
 export interface AlbumAudio {
   counts: Record<string, number>;
   running: boolean;
+  /** Approximate minutes left, from the last 20 minutes' pace (null: too little recent data). */
+  minutesLeft?: number | null;
   /** Why the downloader refused the last batch (e.g. the VPS isn't updated), or null. */
   refused: string | null;
 }
