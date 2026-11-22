@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, notInArray, or, sql } from "drizzle-orm";
 import type { DbClient } from "@/db";
 import { radioAudioRechecks, radioReplayParts, radioSongs, radioStudioQueue } from "@/db/schema";
 import {
@@ -159,7 +159,7 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
   if (downloading.length) {
     await db
       .update(radioSongs)
-      .set({ audioCheck: "downloading", audioCheckedAt: new Date(), audioCheckNote: "Album version found on YouTube Music: downloading it" })
+      .set({ audioCheck: "downloading", audioCheckedAt: new Date(), audioCheckNote: "Album version found on YouTube Music: queued for download" })
       .where(and(inArray(radioSongs.id, downloading.map((s) => s.id)), or(isNull(radioSongs.audioCheck), sql`${radioSongs.audioCheck} != 'downloading'`)));
   }
   for (const item of job.items ?? []) {
@@ -328,11 +328,46 @@ async function deleteReplacedFiles(db: DbClient): Promise<number> {
 }
 
 /** Counts for the library page. */
+/** The rates the time left is measured over: recent enough to reflect the downloader as it runs now. */
+const ETA_WINDOW_MS = 20 * 60_000;
+/** Below this many results in the window, no time left is given (too little to go on). */
+const ETA_MIN_EVENTS = 10;
+
+/**
+ * Approximate minutes left, from the last 20 minutes: checks and downloads run side by side, so it
+ * is the longer of (unchecked / check rate) and (downloads still to come / download rate), where the
+ * downloads still to come are the queued ones plus the unchecked songs times the share of checked
+ * songs that needed one. Null when there is too little recent data.
+ */
+function minutesLeft(counts: Record<string, number>, recent: Record<string, number>, spanMs: number): number | null {
+  const unchecked = counts.unchecked ?? 0;
+  const queued = counts.downloading ?? 0;
+  if (!unchecked && !queued) return null;
+  const minutes = Math.max(spanMs, 2 * 60_000) / 60_000;
+  // a swapped song's time is its download's end, so only the others count as checks here
+  const checks = (recent.album ?? 0) + (recent.unmatched ?? 0) + (recent.duplicate ?? 0) + (recent.downloading ?? 0) + (recent.failed ?? 0);
+  const downloads = recent.swapped ?? 0;
+  if (checks + downloads < ETA_MIN_EVENTS) return null;
+  const checked = (counts.album ?? 0) + (counts.unmatched ?? 0) + (counts.duplicate ?? 0) + (counts.swapped ?? 0) + queued;
+  const needDownload = checked ? ((counts.swapped ?? 0) + (counts.duplicate ?? 0) + queued) / checked : 0;
+  const toDownload = queued + unchecked * needDownload;
+  const checkMin = unchecked ? (checks ? unchecked / (checks / minutes) : null) : 0;
+  const downloadMin = toDownload >= 1 ? (downloads ? toDownload / (downloads / minutes) : null) : 0;
+  if (checkMin === null || downloadMin === null) return null;
+  return Math.max(1, Math.round(Math.max(checkMin, downloadMin)));
+}
+
 export async function albumAudioSummary(db: DbClient) {
   const rows = await db
     .select({ check: radioSongs.audioCheck, n: sql<number>`count(*)` })
     .from(radioSongs)
     .where(eq(radioSongs.source, "youtube"))
+    .groupBy(radioSongs.audioCheck);
+  const since = new Date(Date.now() - ETA_WINDOW_MS);
+  const recentRows = await db
+    .select({ check: radioSongs.audioCheck, n: sql<number>`count(*)`, first: sql<number>`min(${radioSongs.audioCheckedAt})` })
+    .from(radioSongs)
+    .where(and(eq(radioSongs.source, "youtube"), gte(radioSongs.audioCheckedAt, since)))
     .groupBy(radioSongs.audioCheck);
   const [open] = await db.select({ id: radioAudioRechecks.id }).from(radioAudioRechecks).where(notInArray(radioAudioRechecks.state, [...FINAL, "refused"])).limit(1);
   const [last] = await db
@@ -340,9 +375,14 @@ export async function albumAudioSummary(db: DbClient) {
     .from(radioAudioRechecks)
     .orderBy(desc(radioAudioRechecks.updatedAt), desc(radioAudioRechecks.createdAt))
     .limit(1);
+  const counts: Record<string, number> = Object.fromEntries(rows.map((r) => [r.check ?? "unchecked", Number(r.n)]));
+  const recent: Record<string, number> = Object.fromEntries(recentRows.map((r) => [r.check ?? "unchecked", Number(r.n)]));
+  const firstSec = Math.min(...recentRows.map((r) => Number(r.first)).filter((t) => Number.isFinite(t) && t > 0));
+  const spanMs = Number.isFinite(firstSec) ? Date.now() - firstSec * 1000 : 0;
   return {
-    counts: Object.fromEntries(rows.map((r) => [r.check ?? "unchecked", Number(r.n)])),
+    counts,
     running: !!open,
+    minutesLeft: open ? minutesLeft(counts, recent, spanMs) : null,
     refused: last?.state === "refused" ? last.error : null,
   };
 }

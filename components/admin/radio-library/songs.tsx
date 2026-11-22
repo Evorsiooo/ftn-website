@@ -24,7 +24,7 @@ function audioLabel(song: Song): string | null {
     case "failed":
       return "Not checked: YouTube Music didn't answer (tried again later)";
     case "downloading":
-      return "Album version found: downloading it";
+      return "Album version found: queued for download";
     default:
       return "Not checked yet";
   }

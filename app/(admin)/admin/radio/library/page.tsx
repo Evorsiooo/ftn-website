@@ -260,9 +260,10 @@ function LibraryPage() {
               <>
                 {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
                 {audio.swapped > 0 && `, ${audio.swapped} swapped`}
-                {audio.downloading > 0 && `, ${audio.downloading} downloading`}
+                {audio.downloading > 0 && `, ${audio.downloading} queued`}
                 {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
                 {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
+                {!albumAudio?.refused && albumAudio?.minutesLeft != null && <span className="muted"> · {timeLeft(albumAudio.minutesLeft)}</span>}
                 {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
               </>
             ) : (
@@ -347,6 +348,15 @@ function LibraryPage() {
       {sheet === "upload" && <UploadSong onClose={() => setSheet(null)} onDone={loadLibrary} />}
     </Screen>
   );
+}
+
+/** "about 2 h 10 min left (done around 15:40)": an estimate from the recent pace, so it says "about". */
+function timeLeft(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const span = h ? `${h} h${m ? ` ${m} min` : ""}` : `${m} min`;
+  const at = new Date(Date.now() + minutes * 60_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `about ${span} left (done around ${at})`;
 }
 
 export default function RadioLibraryPage() {
