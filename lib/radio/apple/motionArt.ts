@@ -19,9 +19,9 @@ export type { AppleMotion };
 
 const AMP = 'https://amp-api.music.apple.com/v1/catalog';
 
-/** Motion artwork is per storefront: the browser's region when it names one. */
+/** Motion artwork is per storefront: the browser's region when it names one (Cloudflare's server has a navigator without a language). */
 const storefront = (() => {
-  const region = typeof navigator === 'undefined' ? '' : (navigator.language.split('-')[1] ?? '');
+  const region = typeof navigator === 'undefined' ? '' : (navigator.language?.split('-')[1] ?? '');
   return /^[a-z]{2}$/i.test(region) ? region.toLowerCase() : 'us';
 })();
 
