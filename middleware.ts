@@ -3,20 +3,20 @@ import { verifySessionToken } from "@/lib/auth";
 import { MAINTENANCE } from "@/components/maintenance-banner";
 
 export const config = {
-  // Everything but build assets and the favicon (the maintenance screen covers every page and API).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  // Everything but build assets, logos, fonts and the favicon (the maintenance screen covers every page and API).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|logos/|fonts/).*)"],
 };
 
 const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 // Full-screen maintenance page. Static HTML: no database, no API, no page code runs.
 function maintenancePage(message: string) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Under maintenance · FTN</title>
-<style>html,body{margin:0;height:100%;background:#07080b;color:#f5f6f8;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Under maintenance · FTN</title><link rel="icon" href="/logos/ftn_favicon_transparent.png">
+<style>@font-face{font-family:Geist;src:url(/fonts/geist.woff2) format("woff2");font-weight:100 900;font-display:swap}
+html,body{margin:0;height:100%;background:#07080b;color:#f5f6f8;font-family:Geist,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 16px;box-sizing:border-box}
-.dot{width:14px;height:14px;border-radius:50%;background:#ffbb14;box-shadow:0 0 24px #ffbb14;margin-bottom:24px;animation:p 1.6s ease-in-out infinite}
-@keyframes p{50%{opacity:.35}}h1{margin:0 0 12px;font-size:clamp(26px,6vw,44px);letter-spacing:-.02em}p{margin:0;max-width:480px;color:#aab0bc;font-size:16px;line-height:1.5}</style></head>
-<body><main><div class="dot"></div><h1>Under maintenance</h1><p>${esc(message)}</p></main></body></html>`;
+img{height:40px;width:auto;margin-bottom:32px}h1{margin:0 0 8px;font-size:28px;font-weight:600;letter-spacing:-.01em}p{margin:0;max-width:440px;color:#aab0bc;font-size:16px;line-height:1.5}</style></head>
+<body><main><img src="/logos/ftn_textwhite_transparent.png" alt="FTN"><h1>Under maintenance</h1><p>${esc(message)}</p></main></body></html>`;
 }
 
 export async function middleware(request: NextRequest) {
