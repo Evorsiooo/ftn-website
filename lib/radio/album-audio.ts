@@ -185,6 +185,9 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
   return out;
 }
 
+/** The downloader's answer when YouTube Music has no entry for a video at all (resolveAudio). */
+const NOT_LISTED = /YouTube Music did not list this video/i;
+
 /** Writes one song's result. Returns the files it no longer uses (to delete once nothing plays them). */
 async function applyItem(db: DbClient, ref: BatchSong, item: RecheckItem): Promise<string[] | null> {
   const [row] = await db.select().from(radioSongs).where(eq(radioSongs.id, ref.id));
@@ -196,6 +199,14 @@ async function applyItem(db: DbClient, ref: BatchSong, item: RecheckItem): Promi
   const audioCheckNames = ref.title ? audioCheckNamesOf(ref.title, ref.artist) : null;
 
   if (item.state === "failed" || item.outcome === "failed") {
+    // YouTube Music not listing the video a second time: it never will, so the song stays the video.
+    if (NOT_LISTED.test(item.error ?? "") && row.audioCheck === "failed" && NOT_LISTED.test(row.audioCheckNote ?? "")) {
+      await db
+        .update(radioSongs)
+        .set({ audioCheck: "unmatched", audioCheckedAt: now, audioCheckNote: "YouTube Music doesn't list this video (twice): kept as it is", audioCheckNames, updatedAt: now })
+        .where(eq(radioSongs.id, row.id));
+      return null;
+    }
     await db.update(radioSongs).set({ audioCheck: "failed", audioCheckedAt: now, audioCheckNote: item.error?.slice(0, 300) || null, updatedAt: now }).where(eq(radioSongs.id, row.id));
     return null;
   }

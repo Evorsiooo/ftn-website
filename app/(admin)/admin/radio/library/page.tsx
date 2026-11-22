@@ -154,6 +154,20 @@ function LibraryPage() {
         />
         Archived ({archivedSongs.length})
       </label>
+      {audio.unmatched.length > 0 && (
+        <label className="t12 muted" style={{ display: "inline-flex", gap: 6, alignItems: "center", whiteSpace: "nowrap", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            className="check"
+            checked={videosOnly}
+            onChange={(e) => {
+              setVideosOnly(e.target.checked);
+              setSelected(null);
+            }}
+          />
+          Kept as videos ({audio.unmatched.length})
+        </label>
+      )}
     </>
   );
 
@@ -225,6 +239,12 @@ function LibraryPage() {
             <input type="checkbox" className="check" checked={archived} onChange={(e) => setArchived(e.target.checked)} />
             Archived
           </label>
+          {audio.unmatched.length > 0 && (
+            <label className="t12 muted" style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+              <input type="checkbox" className="check" checked={videosOnly} onChange={(e) => setVideosOnly(e.target.checked)} />
+              Kept as videos ({audio.unmatched.length})
+            </label>
+          )}
         </div>
       )}
       {(running.length > 0 || reviews.length > 0) && (
@@ -252,39 +272,18 @@ function LibraryPage() {
           )}
         </div>
       )}
-      {tab === "songs" && songs && audio.total > 0 && (audio.checked < audio.total || audio.downloading > 0 || audio.unmatched.length > 0) && (
+      {tab === "songs" && songs && audio.total > 0 && (albumAudio?.running || albumAudio?.refused || audio.downloading > 0) && (
         <div className="notice" role="status">
           <Disc3 className={cn("ic-sm", albumAudio?.running && "spin")} />
           <span className="trunc" style={{ flex: 1 }}>
-            {audio.checked < audio.total || audio.downloading > 0 ? (
-              <>
-                {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
-                {audio.swapped > 0 && `, ${audio.swapped} swapped`}
-                {audio.downloading > 0 && `, ${audio.downloading} queued`}
-                {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
-                {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
-                {!albumAudio?.refused && albumAudio?.minutesLeft != null && <span className="muted"> · {timeLeft(albumAudio.minutesLeft)}</span>}
-                {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
-              </>
-            ) : (
-              <>
-                {audio.unmatched.length} {audio.unmatched.length === 1 ? "song has" : "songs have"} no album version on YouTube Music and {audio.unmatched.length === 1 ? "stays a" : "stay"} music video{audio.unmatched.length === 1 ? "" : "s"}
-              </>
-            )}
+            {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
+            {audio.swapped > 0 && `, ${audio.swapped} swapped`}
+            {audio.downloading > 0 && `, ${audio.downloading} queued`}
+            {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
+            {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
+            {!albumAudio?.refused && albumAudio?.minutesLeft != null && <span className="muted"> · {timeLeft(albumAudio.minutesLeft)}</span>}
+            {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
           </span>
-          {audio.unmatched.length > 0 && (
-            <button
-              type="button"
-              className="btn sm"
-              aria-pressed={videosOnly}
-              onClick={() => {
-                setVideosOnly((v) => !v);
-                setSelected(null);
-              }}
-            >
-              {videosOnly ? "Show all songs" : `Show ${audio.unmatched.length}`}
-            </button>
-          )}
         </div>
       )}
       {checking && (
