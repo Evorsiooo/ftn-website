@@ -159,7 +159,7 @@ async function followBatch(db: DbClient, row: BatchRow): Promise<Record<string, 
   if (downloading.length) {
     await db
       .update(radioSongs)
-      .set({ audioCheck: "downloading", audioCheckedAt: new Date(), audioCheckNote: "Album version found on YouTube Music: downloading it" })
+      .set({ audioCheck: "downloading", audioCheckedAt: new Date(), audioCheckNote: "Album version found on YouTube Music: queued for download" })
       .where(and(inArray(radioSongs.id, downloading.map((s) => s.id)), or(isNull(radioSongs.audioCheck), sql`${radioSongs.audioCheck} != 'downloading'`)));
   }
   for (const item of job.items ?? []) {

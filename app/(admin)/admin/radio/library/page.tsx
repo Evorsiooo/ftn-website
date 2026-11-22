@@ -260,7 +260,7 @@ function LibraryPage() {
               <>
                 {albumAudio?.refused ? "Album versions: paused" : "Swapping music videos for their album versions"}: {audio.checked} of {audio.total} checked
                 {audio.swapped > 0 && `, ${audio.swapped} swapped`}
-                {audio.downloading > 0 && `, ${audio.downloading} downloading`}
+                {audio.downloading > 0 && `, ${audio.downloading} queued`}
                 {audio.unmatched.length > 0 && `, ${audio.unmatched.length} kept as videos`}
                 {audio.duplicates > 0 && `, ${audio.duplicates} archived as copies`}
                 {albumAudio?.refused && <span className="muted"> · {albumAudio.refused}</span>}
