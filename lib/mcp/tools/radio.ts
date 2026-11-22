@@ -1,0 +1,407 @@
+import * as broadcastsRoute from "@/app/api/admin/broadcasts/route";
+import * as broadcastRoute from "@/app/api/admin/broadcasts/[id]/route";
+import * as bulkRoute from "@/app/api/admin/broadcasts/bulk/route";
+import * as showsRoute from "@/app/api/admin/radio/shows/route";
+import * as showRoute from "@/app/api/admin/radio/shows/[id]/route";
+import * as studioRoute from "@/app/api/admin/radio/studio/route";
+import * as songsRoute from "@/app/api/admin/radio/songs/route";
+import * as songRoute from "@/app/api/admin/radio/songs/[id]/route";
+import * as importsRoute from "@/app/api/admin/radio/imports/route";
+import * as importRoute from "@/app/api/admin/radio/imports/[id]/route";
+import * as reviewRoute from "@/app/api/admin/radio/imports/[id]/review/route";
+import * as checkRoute from "@/app/api/admin/radio/imports/check/route";
+import * as playlistsRoute from "@/app/api/admin/radio/playlists/route";
+import * as playlistRoute from "@/app/api/admin/radio/playlists/[id]/route";
+import * as resyncRoute from "@/app/api/admin/radio/playlists/[id]/resync/route";
+import * as ratingsRoute from "@/app/api/admin/radio/ratings/route";
+import * as replaysRoute from "@/app/api/admin/radio/replays/route";
+import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
+import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
+import { S, ToolDef, ToolError, pick } from "../types";
+
+const RO_STATE_KEYS = ["harrison", "ridgeway", "madison", "clark", "firestone", "international"];
+
+const broadcastFields = {
+  kind: S.enum(["weekly", "once"], "weekly: repeats every week (dayOfWeek + startTime + durationMinutes in timezone). once: a single airing (startsAt + endsAt)."),
+  showId: S.str("The show it belongs to (list_radio_shows). Leave out for a one-off with its own title."),
+  title: S.str("Title, for one-offs without a show"),
+  description: S.str("Description"),
+  presenter: S.str("Presenter / DJ, for one-offs without a show"),
+  artUrl: S.str("Cover art URL (upload_image with folder radio first)"),
+  onRadio: S.bool("Airs on the radio"),
+  onStream: S.bool("Airs on the FTN+ video stream"),
+  tag: S.enum(["live", "simulcast", "rebroadcast"], "Label on the schedule"),
+  status: S.enum(["scheduled", "cancelled"], "cancelled keeps it on the schedule, crossed out"),
+  timezone: S.str("IANA time zone for weekly times, e.g. Europe/Paris or America/New_York"),
+  dayOfWeek: S.int("Weekly: 0 = Sunday ... 6 = Saturday", { minimum: 0, maximum: 6 }),
+  startTime: S.str("Weekly: start time HH:MM in `timezone`"),
+  durationMinutes: S.int("Weekly: length in minutes"),
+  startsAt: S.str("Once: start, ISO 8601 with time zone"),
+  endsAt: S.str("Once: end, ISO 8601 (at most 24 hours after the start)"),
+  youtubeId: S.str("YouTube video/stream id, for stream airings"),
+  sportsEventId: S.str("Linked sports event id"),
+  plays: S.enum(["hosted", "playlist", "stream"], "Radio airings: hosted (someone in the Studio), playlist (automatic), stream (relays an https stream)"),
+  playlistId: S.str("plays=playlist: the playlist (list_playlists)"),
+  streamUrl: S.str("plays=stream: the https stream URL"),
+  notify: S.bool("Post a go-live message to Discord when it starts"),
+  notifyMessage: S.str("Go-live message text"),
+  notifyRoStates: { type: "array", items: { type: "string", enum: RO_STATE_KEYS }, description: "Which Ro-State feeds get the go-live message" },
+};
+const BROADCAST_KEYS = Object.keys(broadcastFields);
+
+const STUDIO_ACTIONS = ["queueSong", "queueUrl", "skip", "remove", "move", "onAir", "gain", "pause", "resume", "callIn", "end", "takeOff"] as const;
+
+export const radioTools: ToolDef[] = [
+  // ── schedule ──
+  {
+    name: "get_schedule",
+    title: "Radio and stream schedule",
+    description: "All shows and their airings (weekly and one-off), with ids, times, what the radio plays and Discord go-live settings.",
+    input: {},
+    kind: "read",
+    run: (ctx) => ctx.call(broadcastsRoute.GET, { path: "/api/admin/broadcasts" }),
+  },
+  {
+    name: "create_broadcast",
+    title: "Schedule a show",
+    description: "Adds an airing to the schedule: weekly (kind weekly) or a one-off (kind once).",
+    input: broadcastFields,
+    required: ["kind"],
+    kind: "write",
+    refs: { showId: "show", playlistId: "playlist" },
+    summary: (a) => `Schedule ${a.kind === "once" ? `a one-off at ${a.startsAt}` : `weekly on day ${a.dayOfWeek} at ${a.startTime}`}${a.title ? ` "${a.title}"` : ""}`,
+    run: (ctx, a) => ctx.call(broadcastsRoute.POST, { method: "POST", path: "/api/admin/broadcasts", body: pick(a, BROADCAST_KEYS) }),
+  },
+  {
+    name: "update_broadcast",
+    title: "Change a scheduled airing",
+    description: "Changes an airing: only the fields given (the rest stay).",
+    input: { id: S.str("The airing's id (get_schedule)"), ...broadcastFields },
+    required: ["id"],
+    kind: "write",
+    refs: { id: "broadcast", showId: "show", playlistId: "playlist" },
+    summary: (a) => `Change airing ${a.id}`,
+    run: (ctx, a) => ctx.call(broadcastRoute.PATCH, { method: "PATCH", path: `/api/admin/broadcasts/${a.id}`, params: { id: a.id }, body: pick(a, BROADCAST_KEYS) }),
+  },
+  {
+    name: "delete_broadcast",
+    title: "Remove an airing",
+    description: "Deletes an airing from the schedule (to keep it visible but crossed out, use update_broadcast with status cancelled). Needs the person's approval on the site.",
+    input: { id: S.str("The airing's id") },
+    required: ["id"],
+    kind: "danger",
+    refs: { id: "broadcast" },
+    summary: (a) => `Delete airing ${a.id}`,
+    run: (ctx, a) => ctx.call(broadcastRoute.DELETE, { method: "DELETE", path: `/api/admin/broadcasts/${a.id}`, params: { id: a.id } }),
+  },
+  {
+    name: "bulk_change_broadcasts",
+    title: "Change many airings at once",
+    description: "cancel / restore / delete several airings, move them by N minutes (shift), or set their tag. delete needs the person's approval on the site.",
+    input: {
+      ids: S.strArr("Airing ids (up to 200)"),
+      action: S.enum(["cancel", "restore", "delete", "shift", "setTag"], "What to do"),
+      minutes: S.int("shift: minutes to move by (negative = earlier, at most 7 days)"),
+      tag: S.enum(["live", "simulcast", "rebroadcast"], "setTag: the new tag"),
+    },
+    required: ["ids", "action"],
+    kind: "write",
+    refs: { ids: "broadcast" },
+    dangerIf: (a) => a.action === "delete",
+    summary: (a) => `${a.action} ${Array.isArray(a.ids) ? a.ids.length : 0} airing(s)${a.action === "shift" ? ` by ${a.minutes} min` : ""}`,
+    run: (ctx, a) => ctx.call(bulkRoute.POST, { method: "POST", path: "/api/admin/broadcasts/bulk", body: pick(a, ["ids", "action", "minutes", "tag"]) }),
+  },
+  {
+    name: "list_radio_shows",
+    title: "List radio shows",
+    description: "Shows (name, presenter, description, art) that airings belong to.",
+    input: {},
+    kind: "read",
+    run: (ctx) => ctx.call(showsRoute.GET, { path: "/api/admin/radio/shows" }),
+  },
+  {
+    name: "create_radio_show",
+    title: "Create a show",
+    description: "Creates a show. Then schedule it with create_broadcast.",
+    input: { name: S.str("Show name"), presenter: S.str("Presenter / DJ"), description: S.str("Description"), artUrl: S.str("Cover art URL") },
+    required: ["name", "presenter"],
+    kind: "write",
+    summary: (a) => `Create show "${a.name}"`,
+    run: (ctx, a) => ctx.call(showsRoute.POST, { method: "POST", path: "/api/admin/radio/shows", body: pick(a, ["name", "presenter", "description", "artUrl"]) }),
+  },
+  {
+    name: "update_radio_show",
+    title: "Edit a show",
+    description: "Changes a show: only the fields given.",
+    input: { id: S.str("The show's id"), name: S.str("Show name"), presenter: S.str("Presenter / DJ"), description: S.str("Description"), artUrl: S.str("Cover art URL") },
+    required: ["id"],
+    kind: "write",
+    refs: { id: "show" },
+    summary: (a) => `Edit show ${a.name || a.id}`,
+    run: (ctx, a) =>
+      ctx.call(showRoute.PATCH, { method: "PATCH", path: `/api/admin/radio/shows/${a.id}`, params: { id: a.id }, body: pick(a, ["name", "presenter", "description", "artUrl"]) }),
+  },
+  {
+    name: "delete_radio_show",
+    title: "Delete a show",
+    description: "Deletes a show. Needs the person's approval on the site.",
+    input: { id: S.str("The show's id") },
+    required: ["id"],
+    kind: "danger",
+    refs: { id: "show" },
+    summary: (a) => `Delete show ${a.id}`,
+    run: (ctx, a) => ctx.call(showRoute.DELETE, { method: "DELETE", path: `/api/admin/radio/shows/${a.id}`, params: { id: a.id } }),
+  },
+  // ── Studio (live show) ──
+  {
+    name: "get_studio",
+    title: "Live Studio state",
+    description: "The show on air now (if any): who is on air, the song queue, call-ins and this month's voice usage.",
+    input: {},
+    kind: "read",
+    run: (ctx) => ctx.call(studioRoute.GET, { path: "/api/admin/radio/studio" }),
+  },
+  {
+    name: "studio_control",
+    title: "Control the live Studio",
+    description:
+      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueUrl {url}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end. end and takeOff need the person's approval on the site.",
+    input: {
+      action: S.enum(STUDIO_ACTIONS, "What to do"),
+      key: S.str("queueSong / skip: the song's key"),
+      url: S.str("queueUrl: a YouTube/Spotify/SoundCloud link"),
+      k: S.int("skip: the playing song's position (from get_studio)"),
+      id: S.str("remove / move / onAir / gain / takeOff: the queue item or person id"),
+      dir: S.int("move: -1 up, 1 down"),
+      gain: S.num("gain: volume for that person"),
+      on: S.bool("callIn: open (true) or close (false) call-ins"),
+    },
+    required: ["action"],
+    kind: "write",
+    dangerIf: (a) => a.action === "end" || a.action === "takeOff",
+    summary: (a) => `Studio: ${a.action}${a.url ? ` ${a.url}` : ""}${a.key ? ` ${a.key}` : ""}`,
+    run: (ctx, a) => {
+      if (!(STUDIO_ACTIONS as readonly string[]).includes(a.action)) throw new ToolError("Unknown Studio action.");
+      return ctx.call(studioRoute.POST, { method: "POST", path: "/api/admin/radio/studio", body: { op: a.action, ...pick(a, ["key", "url", "k", "id", "dir", "gain", "on"]) } });
+    },
+  },
+  // ── song library ──
+  {
+    name: "search_songs",
+    title: "Search the song library",
+    description: "Finds songs in the radio library by title, artist or album. Returns id, key, names, length, archived and lyrics settings.",
+    input: {
+      query: S.str("Words to look for in title, artist or album (leave out to list)"),
+      archived: S.bool("true: only archived songs, false: only live ones"),
+      limit: S.int("How many (default 50, at most 500)"),
+      offset: S.int("Skip this many (paging)"),
+    },
+    kind: "read",
+    run: async (ctx, a) => {
+      const data = await ctx.call(songsRoute.GET, { path: "/api/admin/radio/songs" });
+      let songs = (data.songs || []) as Array<Record<string, unknown>>;
+      const q = String(a.query || "").toLowerCase().trim();
+      if (q) songs = songs.filter((s) => [s.title, s.artist, s.album].some((v) => String(v || "").toLowerCase().includes(q)));
+      if (typeof a.archived === "boolean") songs = songs.filter((s) => !!s.archived === a.archived);
+      const limit = Math.min(Math.max(Number(a.limit) || 50, 1), 500);
+      const offset = Math.max(Number(a.offset) || 0, 0);
+      return { total: songs.length, songs: songs.slice(offset, offset + limit) };
+    },
+  },
+  {
+    name: "add_songs",
+    title: "Add songs to the library",
+    description:
+      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews.",
+    input: { url: S.str("The link") },
+    required: ["url"],
+    kind: "write",
+    openWorld: true,
+    summary: (a) => `Add songs from ${a.url}`,
+    run: (ctx, a) => ctx.call(importsRoute.POST, { method: "POST", path: "/api/admin/radio/imports", body: { url: a.url } }),
+  },
+  {
+    name: "check_link",
+    title: "Check a music link",
+    description: "Says what a link is (song or playlist, how many tracks) and which of its songs the library already has, before adding it.",
+    input: { url: S.str("The link") },
+    required: ["url"],
+    kind: "read",
+    openWorld: true,
+    run: (ctx, a) => ctx.call(checkRoute.GET, { path: "/api/admin/radio/imports/check", query: { url: a.url } }),
+  },
+  {
+    name: "list_imports",
+    title: "Song imports in progress",
+    description: "Recent imports with their progress, and Spotify tracks waiting for someone to choose the right match (reviews).",
+    input: {},
+    kind: "read",
+    openWorld: true,
+    run: (ctx) => ctx.call(importsRoute.GET, { path: "/api/admin/radio/imports" }),
+  },
+  {
+    name: "answer_import_review",
+    title: "Choose a match for a Spotify track",
+    description: "For a review from list_imports: download one of its candidate links, or skip the track (url null).",
+    input: { importId: S.str("The import's id"), index: S.int("The review's index"), url: { type: ["string", "null"], description: "One of the review's candidate URLs, or null to skip" } },
+    required: ["importId", "index", "url"],
+    kind: "write",
+    refs: { importId: "import" },
+    openWorld: true,
+    summary: (a) => (a.url ? `Pick ${a.url} for import ${a.importId}` : `Skip a track of import ${a.importId}`),
+    run: (ctx, a) =>
+      ctx.call(reviewRoute.POST, { method: "POST", path: `/api/admin/radio/imports/${a.importId}/review`, params: { id: a.importId }, body: { index: a.index, url: a.url } }),
+  },
+  {
+    name: "cancel_import",
+    title: "Cancel an import",
+    description: "Stops an import that is still running. Needs the person's approval on the site.",
+    input: { id: S.str("The import's id") },
+    required: ["id"],
+    kind: "danger",
+    refs: { id: "import" },
+    openWorld: true,
+    summary: (a) => `Cancel import ${a.id}`,
+    run: (ctx, a) => ctx.call(importRoute.DELETE, { method: "DELETE", path: `/api/admin/radio/imports/${a.id}`, params: { id: a.id } }),
+  },
+  {
+    name: "update_song",
+    title: "Edit a song",
+    description: "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing.",
+    input: {
+      id: S.str("The song's id (search_songs)"),
+      title: S.str("Title"),
+      artist: S.str("Artist"),
+      album: S.str("Album"),
+      releaseYear: S.int("Release year"),
+      thumbnail: S.str("Cover image URL"),
+      lyricsSource: { type: ["string", "null"], enum: [...LYRIC_SOURCE_IDS, "none", null], description: "A lyrics provider to always use, 'none' for no lyrics, or null for automatic" },
+      lyricsOffsetMs: S.int("Lyrics timing shift: -5000 to 5000 ms in steps of 100 (positive = later)"),
+      archived: S.bool("true archives it, false brings it back"),
+    },
+    required: ["id"],
+    kind: "write",
+    refs: { id: "song" },
+    summary: (a) => `Edit song ${a.title ? `"${a.title}"` : a.id}${a.archived === true ? " (archive)" : a.archived === false ? " (unarchive)" : ""}`,
+    run: (ctx, a) =>
+      ctx.call(songRoute.PATCH, {
+        method: "PATCH",
+        path: `/api/admin/radio/songs/${a.id}`,
+        params: { id: a.id },
+        body: pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived"]),
+      }),
+  },
+  {
+    name: "delete_song",
+    title: "Delete a song",
+    description: "Deletes a song and its file for good (archive it with update_song to only stop it playing). Needs the person's approval on the site.",
+    input: { id: S.str("The song's id") },
+    required: ["id"],
+    kind: "danger",
+    refs: { id: "song" },
+    summary: (a) => `Delete song ${a.id} and its file`,
+    run: (ctx, a) => ctx.call(songRoute.DELETE, { method: "DELETE", path: `/api/admin/radio/songs/${a.id}`, params: { id: a.id } }),
+  },
+  {
+    name: "list_song_ratings",
+    title: "Song ratings",
+    description: "Listeners' up/down votes per song.",
+    input: {},
+    kind: "read",
+    run: (ctx) => ctx.call(ratingsRoute.GET, { path: "/api/admin/radio/ratings" }),
+  },
+  // ── playlists ──
+  {
+    name: "list_playlists",
+    title: "List playlists",
+    description: "Library playlists with their song counts and source links.",
+    input: {},
+    kind: "read",
+    run: (ctx) => ctx.call(playlistsRoute.GET, { path: "/api/admin/radio/playlists" }),
+  },
+  {
+    name: "get_playlist",
+    title: "Read a playlist",
+    description: "A playlist and its songs in order.",
+    input: { id: S.str("The playlist's id") },
+    required: ["id"],
+    kind: "read",
+    run: (ctx, a) => ctx.call(playlistRoute.GET, { path: `/api/admin/radio/playlists/${a.id}`, params: { id: a.id } }),
+  },
+  {
+    name: "create_playlist",
+    title: "Create a playlist",
+    description: "Creates an empty playlist; add songs with update_playlist.",
+    input: { name: S.str("Playlist name") },
+    required: ["name"],
+    kind: "write",
+    summary: (a) => `Create playlist "${a.name}"`,
+    run: (ctx, a) => ctx.call(playlistsRoute.POST, { method: "POST", path: "/api/admin/radio/playlists", body: { name: a.name } }),
+  },
+  {
+    name: "update_playlist",
+    title: "Edit a playlist",
+    description: "Renames a playlist, changes its description, or sets its songs (songIds replaces the whole list, in order: get_playlist first to keep the current ones).",
+    input: { id: S.str("The playlist's id"), name: S.str("Name"), description: S.str("Description"), songIds: S.strArr("Song ids in order (the full list)") },
+    required: ["id"],
+    kind: "write",
+    refs: { id: "playlist" },
+    summary: (a) => `Edit playlist ${a.name || a.id}${Array.isArray(a.songIds) ? ` (${a.songIds.length} songs)` : ""}`,
+    run: (ctx, a) =>
+      ctx.call(playlistRoute.PATCH, { method: "PATCH", path: `/api/admin/radio/playlists/${a.id}`, params: { id: a.id }, body: pick(a, ["name", "description", "songIds"]) }),
+  },
+  {
+    name: "resync_playlist",
+    title: "Re-sync a playlist from its source",
+    description: "Fetches a linked playlist again from Spotify / YouTube and adds its new songs.",
+    input: { id: S.str("The playlist's id") },
+    required: ["id"],
+    kind: "write",
+    refs: { id: "playlist" },
+    openWorld: true,
+    summary: (a) => `Re-sync playlist ${a.id}`,
+    run: (ctx, a) => ctx.call(resyncRoute.POST, { method: "POST", path: `/api/admin/radio/playlists/${a.id}/resync`, params: { id: a.id } }),
+  },
+  {
+    name: "delete_playlist",
+    title: "Delete a playlist",
+    description: "Deletes a playlist (its songs stay in the library). Needs the person's approval on the site.",
+    input: { id: S.str("The playlist's id") },
+    required: ["id"],
+    kind: "danger",
+    refs: { id: "playlist" },
+    summary: (a) => `Delete playlist ${a.id}`,
+    run: (ctx, a) => ctx.call(playlistRoute.DELETE, { method: "DELETE", path: `/api/admin/radio/playlists/${a.id}`, params: { id: a.id } }),
+  },
+  // ── replays ──
+  {
+    name: "list_replays",
+    title: "List radio replays",
+    description: "Recorded shows listeners can replay on FTN+.",
+    input: {},
+    kind: "read",
+    run: (ctx) => ctx.call(replaysRoute.GET, { path: "/api/admin/radio/replays" }),
+  },
+  {
+    name: "update_replay",
+    title: "Rename or hide a replay",
+    description: "Renames a replay, or hides it from FTN+ (hidden true) / shows it again.",
+    input: { id: S.str("The replay's id"), title: S.str("New title"), hidden: S.bool("Hide from FTN+") },
+    required: ["id"],
+    kind: "write",
+    refs: { id: "replay" },
+    summary: (a) => `Edit replay ${a.title || a.id}${a.hidden === true ? " (hide)" : a.hidden === false ? " (show)" : ""}`,
+    run: (ctx, a) => ctx.call(replayRoute.PATCH, { method: "PATCH", path: `/api/admin/radio/replays/${a.id}`, params: { id: a.id }, body: pick(a, ["title", "hidden"]) }),
+  },
+  {
+    name: "delete_replay",
+    title: "Delete a replay",
+    description: "Deletes a replay and its recording. Needs the person's approval on the site.",
+    input: { id: S.str("The replay's id") },
+    required: ["id"],
+    kind: "danger",
+    refs: { id: "replay" },
+    summary: (a) => `Delete replay ${a.id}`,
+    run: (ctx, a) => ctx.call(replayRoute.DELETE, { method: "DELETE", path: `/api/admin/radio/replays/${a.id}`, params: { id: a.id } }),
+  },
+];

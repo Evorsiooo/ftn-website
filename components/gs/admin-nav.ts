@@ -46,6 +46,7 @@ export const SETTINGS_PAGES = [
   { key: "access", title: "Sign-in", href: "/admin/settings/access", description: "How staff sign in, and who can see FTN+ and the tipline" },
   { key: "radio", title: "Radio", href: "/admin/settings/radio", description: "Station, stream, broadcasting from OBS and the Discord bot" },
   { key: "connections", title: "Integrations", href: "/admin/settings/connections", description: "Icecast, password rotation and album art keys" },
+  { key: "ai", title: "AI access", href: "/admin/settings/ai", description: "Connect Claude, ChatGPT or Gemini, approvals and the audit log" },
 ] as const;
 
 /** Every setting by name, so the jump bar can open the page it lives on. */
@@ -67,4 +68,6 @@ export const SETTINGS_SECTIONS = [
   { title: "YouTube and Twitch channels", href: "/admin/plus" },
   { title: "Video catalog", href: "/admin/plus?tab=videos" },
   { title: "Rows on FTN+ (swimlanes)", href: "/admin/plus?tab=rows" },
+  { title: "AI access (Claude, ChatGPT, Gemini)", href: "/admin/settings/ai" },
+  { title: "Audit log", href: "/admin/settings/ai" },
 ] as const;

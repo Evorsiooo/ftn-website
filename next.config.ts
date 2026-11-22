@@ -45,6 +45,15 @@ const nextConfig: NextConfig = {
       { source: "/admin/settings/plus", destination: "/admin/plus", permanent: false },
     ];
   },
+  // OAuth discovery for AI apps connecting to /mcp (lib/mcp/oauth.ts).
+  async rewrites() {
+    return [
+      { source: "/.well-known/oauth-authorization-server", destination: "/api/oauth/well-known/authorization-server" },
+      { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/oauth/well-known/authorization-server" },
+      { source: "/.well-known/oauth-protected-resource", destination: "/api/oauth/well-known/protected-resource" },
+      { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/oauth/well-known/protected-resource" },
+    ];
+  },
   async headers() {
     return [
       // Everything but /embed/* refuses to be shown in another site's frame.

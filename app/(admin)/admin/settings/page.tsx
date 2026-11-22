@@ -14,7 +14,7 @@ import { useSiteConfig, type SiteConfig } from "@/components/admin/settings/use-
 import { canConfigureSite } from "@/lib/rbac";
 import { cn } from "@/lib/utils";
 
-type Page = "site" | "access" | "radio" | "connections";
+type Page = "site" | "access" | "radio" | "connections" | "ai";
 
 /** The sections each settings page owns, so its save bar only saves what is on it. */
 const PAGE_SECTIONS: Record<Page, string[]> = {
@@ -22,6 +22,7 @@ const PAGE_SECTIONS: Record<Page, string[]> = {
   access: ["signin", "gates"],
   radio: ["stream", "station", "icecast", "rotation"],
   connections: ["art"],
+  ai: [], // its own page (settings/ai), nothing to save here
 };
 
 function Connected({ on }: { on: boolean }) {
