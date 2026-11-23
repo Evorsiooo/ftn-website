@@ -235,8 +235,12 @@ async function fetchClientMetadata(url: string): Promise<{ name: string; redirec
   try {
     const u = new URL(url);
     if (u.protocol !== "https:" || u.pathname === "/" || u.hash) return null;
-    const res = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(5000), redirect: "error" });
-    if (!res.ok) return null;
+    // Workers' fetch has no redirect: "error"; a redirect here is refused by hand instead.
+    const res = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(5000), redirect: "manual" });
+    if (!res.ok) {
+      console.warn(`CIMD fetch ${url}: HTTP ${res.status}`);
+      return KNOWN_CLIENTS[url] || null;
+    }
     const text = await res.text();
     if (text.length > 64 * 1024) return null;
     const doc = JSON.parse(text) as { client_id?: string; client_name?: string; redirect_uris?: unknown; token_endpoint_auth_method?: string };
@@ -247,10 +251,17 @@ async function fetchClientMetadata(url: string): Promise<{ name: string; redirec
     // public clients only: a metadata document can't hold a secret
     if (doc.token_endpoint_auth_method && doc.token_endpoint_auth_method !== "none") return null;
     return { name: friendlyAiName(doc.client_name, allowed[0]), redirectUris: allowed.slice(0, 20) };
-  } catch {
-    return null;
+  } catch (err) {
+    console.warn(`CIMD fetch ${url} failed`, err);
+    return KNOWN_CLIENTS[url] || null;
   }
 }
+
+// Copies of the big apps' client metadata documents, used when theirs can't be fetched (e.g. a bot
+// check in front of it). Checked 2026-11-23.
+const KNOWN_CLIENTS: Record<string, { name: string; redirectUris: string[] }> = {
+  "https://claude.ai/oauth/mcp-oauth-client-metadata": { name: "Claude", redirectUris: ["https://claude.ai/api/mcp/auth_callback"] },
+};
 
 /** Client authentication at the token and revocation endpoints. */
 export async function authenticateClient(
