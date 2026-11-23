@@ -380,7 +380,18 @@ function minutesLeft(counts: Record<string, number>, recent: Record<string, numb
   return Math.max(1, Math.round(Math.max(checkMin, downloadMin)));
 }
 
+// Called by the library page. The two batch lookups are a row or two each; the three song scans
+// (each reads the whole library) only run while a batch is open, since only the banner and its
+// time estimate need them. (Running them on every poll used up D1's free daily reads on 22 Nov.)
 export async function albumAudioSummary(db: DbClient) {
+  const [open] = await db.select({ id: radioAudioRechecks.id }).from(radioAudioRechecks).where(notInArray(radioAudioRechecks.state, [...FINAL, "refused"])).limit(1);
+  const [last] = await db
+    .select({ state: radioAudioRechecks.state, error: radioAudioRechecks.error })
+    .from(radioAudioRechecks)
+    .orderBy(desc(radioAudioRechecks.updatedAt), desc(radioAudioRechecks.createdAt))
+    .limit(1);
+  const refused = last?.state === "refused" ? last.error : null;
+  if (!open) return { counts: null, running: false, minutesLeft: null, refused };
   const rows = await db
     .select({ check: radioSongs.audioCheck, n: sql<number>`count(*)` })
     .from(radioSongs)
@@ -392,12 +403,6 @@ export async function albumAudioSummary(db: DbClient) {
     .from(radioSongs)
     .where(and(eq(radioSongs.source, "youtube"), gte(radioSongs.audioCheckedAt, since)))
     .groupBy(radioSongs.audioCheck);
-  const [open] = await db.select({ id: radioAudioRechecks.id }).from(radioAudioRechecks).where(notInArray(radioAudioRechecks.state, [...FINAL, "refused"])).limit(1);
-  const [last] = await db
-    .select({ state: radioAudioRechecks.state, error: radioAudioRechecks.error })
-    .from(radioAudioRechecks)
-    .orderBy(desc(radioAudioRechecks.updatedAt), desc(radioAudioRechecks.createdAt))
-    .limit(1);
   const groupRows = await db
     .select({
       checked: sql<number>`sum(${radioSongs.audioCheck} in ('album', 'unmatched', 'duplicate', 'swapped', 'downloading'))`,
@@ -412,10 +417,5 @@ export async function albumAudioSummary(db: DbClient) {
   const recent: Record<string, number> = Object.fromEntries(recentRows.map((r) => [r.check ?? "unchecked", Number(r.n)]));
   const firstSec = Math.min(...recentRows.map((r) => Number(r.first)).filter((t) => Number.isFinite(t) && t > 0));
   const spanMs = Number.isFinite(firstSec) ? Date.now() - firstSec * 1000 : 0;
-  return {
-    counts,
-    running: !!open,
-    minutesLeft: open ? minutesLeft(counts, recent, spanMs, groups) : null,
-    refused: last?.state === "refused" ? last.error : null,
-  };
+  return { counts, running: true, minutesLeft: minutesLeft(counts, recent, spanMs, groups), refused };
 }

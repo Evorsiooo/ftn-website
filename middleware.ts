@@ -1,23 +1,28 @@
 import { NextFetchEvent, NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth";
+import { FORCE_MAINTENANCE, MAINTENANCE_MESSAGE, databaseState } from "@/lib/maintenance";
 import { getDb } from "@/db";
 import { writeAudit } from "@/lib/audit";
 
 export const config = {
-  matcher: [
-    "/admin",
-    "/admin/:path*",
-    "/api/admin",
-    "/api/admin/:path*",
-    // not gated, only audited when staff change something (see AUDITED)
-    "/api/articles/:path*",
-    "/api/articles",
-    "/api/sports/:path*",
-    "/api/upload",
-    "/api/radio/config",
-    "/api/sync/youtube",
-  ],
+  // Everything but build assets, logos, fonts and the favicon (the maintenance page covers every page and API).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|logos/|fonts/).*)"],
 };
+
+const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Full-screen maintenance page. Static HTML: no database, no API, no page code runs.
+function maintenancePage(message: string) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Under maintenance · FTN</title><link rel="icon" href="/logos/ftn_favicon_transparent.png">
+<style>@font-face{font-family:Geist;src:url(/fonts/geist.woff2) format("woff2");font-weight:100 900;font-display:swap}
+html,body{margin:0;height:100%;background:#07080b;color:#f5f6f8;font-family:Geist,ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 16px;box-sizing:border-box}
+img{height:40px;width:auto;margin-bottom:32px}h1{margin:0 0 8px;font-size:28px;font-weight:600;letter-spacing:-.01em}p{margin:0;max-width:440px;color:#aab0bc;font-size:16px;line-height:1.5}</style></head>
+<body><main><img src="/logos/ftn_textwhite_transparent.png" alt="FTN"><h1>Under maintenance</h1><p>${esc(message)}</p></main></body></html>`;
+}
+
+// Public routes staff also write to: audited when staff change something, never gated.
+const AUDITED_PUBLIC = [/^\/api\/articles(\/|$)/, /^\/api\/sports\//, /^\/api\/upload$/, /^\/api\/radio\/config$/, /^\/api\/sync\/youtube$/];
 
 // Staff actions on the website go in the audit log ("POST /api/admin/ads" by adrien). The request
 // is logged as sent: whether it then succeeded isn't known here. AI actions are logged by the MCP
@@ -27,20 +32,29 @@ const NOT_AUDITED = [/^\/api\/admin\/radio\/studio/, /^\/api\/admin\/posts\/medi
 
 export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const { pathname } = request.nextUrl;
-  const gated = pathname === "/admin" || pathname.startsWith("/admin/") || pathname === "/api/admin" || pathname.startsWith("/api/admin/");
-  const changes = !["GET", "HEAD", "OPTIONS"].includes(request.method);
-  if (!gated && !changes) return NextResponse.next();
+
+  // x-ftn-db says what the health probe saw (up, down or unknown), to check it from outside.
+  const db = FORCE_MAINTENANCE ? "forced" : await databaseState();
+  if (db === "forced" || db === "down") {
+    const headers = { "Cache-Control": "no-store", "Retry-After": "3600", "x-ftn-db": db };
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Under maintenance" }, { status: 503, headers });
+    return new NextResponse(maintenancePage(MAINTENANCE_MESSAGE), { status: 503, headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } });
+  }
+  if (!/^\/(api\/)?admin(\/|$)/.test(pathname)) {
+    if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && AUDITED_PUBLIC.some((re) => re.test(pathname))) {
+      // audit only, never block
+      const token = request.cookies.get("ftn_session")?.value || request.headers.get("authorization")?.replace("Bearer ", "");
+      const user = token ? await verifySessionToken(token) : null;
+      if (user && user.roles?.length) audit(event, request, user);
+    }
+    const res = NextResponse.next();
+    res.headers.set("x-ftn-db", db);
+    return res;
+  }
 
   const token =
     request.cookies.get("ftn_session")?.value ||
     request.headers.get("authorization")?.replace("Bearer ", "");
-
-  if (!gated) {
-    // Public routes that staff also write to: audit only, never block.
-    const user = token ? await verifySessionToken(token) : null;
-    if (user && user.roles?.length) audit(event, request, user);
-    return NextResponse.next();
-  }
 
   // If no session cookie/token exists
   if (!token) {
@@ -65,7 +79,7 @@ export async function middleware(request: NextRequest, event: NextFetchEvent) {
     return NextResponse.redirect(forbiddenUrl);
   }
 
-  if (changes && pathname.startsWith("/api/")) audit(event, request, user);
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method) && pathname.startsWith("/api/")) audit(event, request, user);
   return NextResponse.next();
 }
 

@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
       const review = parseReview(imp.review);
       return { ...imp, review: review.open, sourceTotal: review.sourceTotal ?? null, playlistName };
     });
-    const albumAudio = await albumAudioSummary(ctx.db).catch(() => null);
+    // Only on request: the import poll (every 4 s) doesn't need it.
+    const albumAudio = request.nextUrl.searchParams.get("audio") === "1" ? await albumAudioSummary(ctx.db).catch(() => null) : undefined;
     return NextResponse.json({ imports: imports.slice(0, 30), reviews: imports.flatMap((i) => i.review.map((r) => ({ importId: i.id, playlistName: i.playlistName, ...r }))), syncErrors: errors, albumAudio });
   } catch (err) {
     return failure(err, "Could not load imports");
