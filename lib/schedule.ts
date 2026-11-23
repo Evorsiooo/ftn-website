@@ -1,5 +1,6 @@
 import { DbClient } from "@/db";
-import { radioShows, broadcasts } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { radioShows, broadcasts, radioVersions } from "@/db/schema";
 import type { BroadcastRecord, ShowRecord } from "@/lib/schedule-core";
 
 export * from "@/lib/schedule-core";
@@ -13,9 +14,29 @@ export function parseRoStates(raw: string | null | undefined): string[] {
   }
 }
 
-export async function loadShowsAndBroadcasts(
-  db: DbClient
-): Promise<{ shows: ShowRecord[]; broadcasts: BroadcastRecord[] }> {
+type ShowsAndBroadcasts = { shows: ShowRecord[]; broadcasts: BroadcastRecord[] };
+
+// The last schedule this server instance read, and the "schedule" counter in radio_versions it was read at.
+// Database triggers move the counter on every change to radio_shows or broadcasts (migration 0034).
+let memo: { version: number; value: ShowsAndBroadcasts } | null = null;
+
+/**
+ * Every show and broadcast. Asked for by the every-minute cron, the now-playing poll and FTN+, so while the
+ * schedule hasn't changed it costs one row (the counter) instead of every show and broadcast.
+ */
+export async function loadShowsAndBroadcasts(db: DbClient): Promise<ShowsAndBroadcasts> {
+  const [v] = await db
+    .select({ version: radioVersions.version })
+    .from(radioVersions)
+    .where(eq(radioVersions.name, "schedule"))
+    .catch(() => [] as { version: number }[]);
+  if (v && memo && memo.version === v.version) return structuredClone(memo.value);
+  const value = await readShowsAndBroadcasts(db);
+  memo = v ? { version: v.version, value: structuredClone(value) } : null;
+  return value;
+}
+
+async function readShowsAndBroadcasts(db: DbClient): Promise<ShowsAndBroadcasts> {
   const showRows = await db.select().from(radioShows);
   const rows = await db.select().from(broadcasts);
   return {

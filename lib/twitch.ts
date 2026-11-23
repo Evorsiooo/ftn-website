@@ -1,4 +1,4 @@
-import { like, eq } from "drizzle-orm";
+import { and, eq, gte, lt } from "drizzle-orm";
 import type { DbClient } from "@/db";
 import { siteSettings, videos } from "@/db/schema";
 import { TWITCH_ID_PREFIX, isTwitchId, twitchLoginFromId, normalizeTwitchLogin, twitchBroadcastId, parseTwitchId, isPendingTwitchRecording } from "@/lib/twitch-id";
@@ -144,7 +144,12 @@ function parseTwitchDuration(d: unknown): number {
  * Rows in the library are rechecked every READY_RECHECK_MS, rows waiting for a recording on every sync.
  */
 async function settleEndedBroadcasts(db: DbClient, logins: string[], liveIds: string[], clientId: string, clientSecret: string) {
-  const rows = await db.select().from(videos).where(like(videos.id, `${TWITCH_ID_PREFIX}%`));
+  // A range on the primary key reads only the Twitch rows. LIKE 'twitch_%' read every video (it can't use the
+  // index), once a minute. "`" is the character after "_", so the range is every id that starts with the prefix.
+  const rows = await db
+    .select()
+    .from(videos)
+    .where(and(gte(videos.id, TWITCH_ID_PREFIX), lt(videos.id, TWITCH_ID_PREFIX.slice(0, -1) + "`")));
   const ended = rows.filter((r) => !liveIds.includes(r.id));
   if (ended.length === 0) return;
 

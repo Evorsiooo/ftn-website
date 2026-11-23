@@ -58,10 +58,18 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
     let live = true;
     const load = () => fetchAdminSummary(roles).then((s) => live && setSummary(s));
     load();
-    const t = setInterval(load, 60_000);
+    // Refresh once a minute while the tab is visible; a hidden tab waits, and catches up when shown again.
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 60_000);
+    const onShow = () => {
+      if (document.visibilityState === "visible") load();
+    };
+    document.addEventListener("visibilitychange", onShow);
     return () => {
       live = false;
       clearInterval(t);
+      document.removeEventListener("visibilitychange", onShow);
     };
   }, [roles, pathname]);
 

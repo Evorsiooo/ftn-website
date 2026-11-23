@@ -1,6 +1,6 @@
-import { and, eq, inArray, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import type { DbClient } from "@/db";
-import { radioImports, radioPlaylists, radioPlaylistSongs, radioSongs } from "@/db/schema";
+import { radioImports, radioPlaylists, radioPlaylistSongs, radioSongs, radioVersions } from "@/db/schema";
 import { getSecureRadioSettings } from "@/lib/radio";
 import { guessTitleArtist } from "@/lib/radio/metadata";
 
@@ -177,6 +177,16 @@ export function parseReview(raw: string | null): ReviewState {
 }
 
 export const FINAL_STATES = ["done", "failed", "cancelled"];
+
+/**
+ * radio_imports.state is not one of FINAL_STATES. Same rows as notInArray(state, FINAL_STATES), but written as
+ * ranges around the three final values so the database can use radio_imports_state_idx: NOT IN read every
+ * import ever made, every minute, to find the (usually zero) open ones.
+ */
+export function openImportState() {
+  const s = radioImports.state;
+  return or(lt(s, "cancelled"), and(gt(s, "cancelled"), lt(s, "done")), and(gt(s, "done"), lt(s, "failed")), gt(s, "failed"))!;
+}
 
 export class DownloaderError extends Error {
   constructor(message: string, readonly status = 502, readonly upstream = 0) {
@@ -505,7 +515,7 @@ export async function syncImport(db: DbClient, row: ImportRow): Promise<ImportRo
 
 /** Follows every unfinished import (the Library page while it's open, and the every-minute cron). */
 export async function syncOpenImports(db: DbClient): Promise<{ checked: number; errors: string[] }> {
-  const open = await db.select().from(radioImports).where(notInArray(radioImports.state, FINAL_STATES));
+  const open = await db.select().from(radioImports).where(openImportState());
   const errors: string[] = [];
   for (const row of open) {
     try {
@@ -552,16 +562,46 @@ export async function playableSongs(db: DbClient): Promise<LibrarySong[]> {
   return rows;
 }
 
+const PLAYABLE_SNAPSHOT_KEY = "radio/cache/playable-songs.json";
+
+/**
+ * playableSongs, read from a snapshot in R2 while the library hasn't changed. The "songs" counter in
+ * radio_versions (moved by database triggers on every song add, edit or delete) says whether the snapshot is
+ * current: one row read instead of the whole song table. Falls back to the database when R2 or the counter
+ * can't be read.
+ */
+export async function cachedPlayableSongs(db: DbClient): Promise<LibrarySong[]> {
+  const bucket = radioBucket();
+  const [v] = await db
+    .select({ version: radioVersions.version })
+    .from(radioVersions)
+    .where(eq(radioVersions.name, "songs"))
+    .catch(() => [] as { version: number }[]);
+  if (!bucket || !v) return playableSongs(db);
+  const version = String(v.version);
+  try {
+    const snap = await bucket.get(PLAYABLE_SNAPSHOT_KEY);
+    if (snap && snap.customMetadata?.version === version) return (await snap.json()) as LibrarySong[];
+  } catch {}
+  const songs = await playableSongs(db);
+  await bucket
+    .put(PLAYABLE_SNAPSHOT_KEY, JSON.stringify(songs), { httpMetadata: { contentType: "application/json" }, customMetadata: { version } })
+    .catch(() => {});
+  return songs;
+}
+
 /** The library songs for [keys] (for checking a running-order write), archived ones left out. */
 export async function songsByKeys(db: DbClient, keys: string[]): Promise<Map<string, LibrarySong>> {
   const out = new Map<string, LibrarySong>();
   const unique = [...new Set(keys)];
   for (let i = 0; i < unique.length; i += 90) {
     const rows = await db
-      .select(librarySongColumns)
+      .select({ ...librarySongColumns, archived: radioSongs.archived })
       .from(radioSongs)
-      .where(and(inArray(radioSongs.r2Key, unique.slice(i, i + 90)), eq(radioSongs.archived, false)));
-    rows.forEach((r) => out.set(r.key, r));
+      .where(inArray(radioSongs.r2Key, unique.slice(i, i + 90)));
+    // archived is checked here, not in SQL: with it in the WHERE the database walked the archived index and
+    // read the whole song table to find 1 to 4 songs. By key alone it uses the unique r2_key index.
+    for (const { archived, ...song } of rows) if (!archived) out.set(song.key, song);
   }
   return out;
 }

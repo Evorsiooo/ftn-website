@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull } from "drizzle-orm";
 import { DbClient } from "@/db";
 import { posts, users } from "@/db/schema";
 import {
@@ -315,25 +315,20 @@ export async function sendLeadershipForScheduled(db: DbClient, postId: string): 
   return sendPostToDiscord(db, postId, { ftnPlus: false });
 }
 
-// Posts that were scheduled without a #leadership message yet (older ones, or Discord was down).
-async function backfillScheduledLeadership(db: DbClient, limit: number) {
-  const missing = await db
-    .select({ id: posts.id })
-    .from(posts)
-    .where(and(isNotNull(posts.scheduledAt), isNull(posts.leadershipMessageId), inArray(posts.status, ["pending", "approved"])))
-    .limit(limit);
-  for (const { id } of missing) await sendLeadershipForScheduled(db, id);
-}
-
-// Sends every scheduled post whose time has come. Called by the scheduled job and, as a safety
-// net, whenever staff load the Posts page (GitHub's scheduler can run hours apart).
+// Sends every scheduled post whose time has come, and first sends #leadership the scheduled posts
+// that have no #leadership message yet (older ones, or Discord was down). Called by the scheduled
+// job every minute and, as a safety net, whenever staff load the Posts page. One query on the
+// scheduled_at index: it reads only the scheduled posts, not the whole table.
 export async function dispatchDuePosts(db: DbClient, limit = 20): Promise<{ id: string; ok: boolean; error?: string }[]> {
-  await backfillScheduledLeadership(db, 3);
-  const due = await db
-    .select({ id: posts.id })
+  const scheduled = await db
+    .select({ id: posts.id, status: posts.status, scheduledAt: posts.scheduledAt, leadershipMessageId: posts.leadershipMessageId })
     .from(posts)
-    .where(and(isNotNull(posts.scheduledAt), lte(posts.scheduledAt, new Date()), inArray(posts.status, ["pending", "approved"])))
-    .limit(limit);
+    .where(isNotNull(posts.scheduledAt)) // sending clears scheduled_at, so this is only the posts still waiting
+    .orderBy(asc(posts.scheduledAt))
+    .then((rows) => rows.filter((p) => p.status === "pending" || p.status === "approved"));
+  for (const { id } of scheduled.filter((p) => !p.leadershipMessageId).slice(0, 3)) await sendLeadershipForScheduled(db, id);
+  const now = Date.now();
+  const due = scheduled.filter((p) => p.scheduledAt && p.scheduledAt.getTime() <= now).slice(0, limit);
   const results: { id: string; ok: boolean; error?: string }[] = [];
   for (const { id } of due) results.push({ id, ...(await dispatchScheduledPost(db, id)) });
   return results;

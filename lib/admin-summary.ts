@@ -1,10 +1,9 @@
-import { canPublishArticles, canConfigureSite, canManagePosts, canManageRadio, canManageAds } from "@/lib/rbac";
 import { expandOccurrences } from "@/lib/schedule-core";
 import type { Occurrence } from "@/lib/schedule-core";
 import { parseBroadcast } from "@/lib/schedule-client";
 import type { ApiBroadcast } from "@/lib/schedule-client";
 
-// What needs a staff member's attention, gathered from the existing admin endpoints.
+// What needs a staff member's attention, from GET /api/admin/summary.
 // Each part is null when the role cannot see it or the request failed.
 export interface AdminSummary {
   tips: { unread: number; oldestDays: number } | null;
@@ -17,74 +16,40 @@ export interface AdminSummary {
 }
 
 const TTL_MS = 30000;
+const DAY = 24 * 60 * 60 * 1000;
 let cache: { key: string; at: number; value: Promise<AdminSummary> } | null = null;
 
-async function getJson(url: string): Promise<any | null> {
+// One small request (GET /api/admin/summary, indexed counts only). It replaced seven whole-list requests
+// (every tip, post, article, broadcast, ad, organizer and import) made by every admin tab once a minute.
+async function load(_roles: string[]): Promise<AdminSummary> {
+  let data: any = null;
   try {
-    const res = await fetch(url);
-    return res.ok ? await res.json() : null;
+    const res = await fetch("/api/admin/summary");
+    data = res.ok ? await res.json() : null;
   } catch {
-    return null;
+    data = null;
   }
-}
-
-const DAY = 24 * 60 * 60 * 1000;
-
-async function load(roles: string[]): Promise<AdminSummary> {
-  const [tipsData, postsData, articlesData, schedData, adsData, orgData, importsData] = await Promise.all([
-    canPublishArticles(roles) || canConfigureSite(roles) ? getJson("/api/admin/tips") : null,
-    canManagePosts(roles) ? getJson("/api/admin/posts") : null,
-    canPublishArticles(roles) ? getJson("/api/articles?admin=true") : null,
-    canManageRadio(roles) ? getJson("/api/admin/broadcasts") : null,
-    canManageAds(roles) ? getJson("/api/admin/ads") : null,
-    canManageAds(roles) ? getJson("/api/admin/organizers") : null,
-    canManageRadio(roles) ? getJson("/api/admin/radio/imports") : null,
-  ]);
   const now = Date.now();
 
-  let tips: AdminSummary["tips"] = null;
-  if (tipsData && Array.isArray(tipsData.tips)) {
-    const unread = tipsData.tips.filter((t: any) => t.status === "unread");
-    const oldest = unread.reduce((m: number, t: any) => Math.min(m, new Date(t.createdAt).getTime()), now);
-    tips = { unread: unread.length, oldestDays: unread.length ? Math.floor((now - oldest) / DAY) : 0 };
-  }
-
-  const posts =
-    postsData && Array.isArray(postsData.posts) ? { pending: postsData.posts.filter((p: any) => p.status === "pending" && !p.scheduledAt).length } : null;
-
-  let drafts: AdminSummary["drafts"] = null;
-  if (articlesData && Array.isArray(articlesData.articles)) {
-    const d = articlesData.articles.filter((a: any) => a.status === "draft");
-    drafts = { count: d.length, stale: d.filter((a: any) => now - new Date(a.createdAt).getTime() > 7 * DAY).length };
-  }
-
   let onAir: AdminSummary["onAir"] = null;
-  if (schedData && Array.isArray(schedData.shows) && Array.isArray(schedData.broadcasts)) {
-    const list = (schedData.broadcasts as ApiBroadcast[]).map(parseBroadcast);
-    const occ = expandOccurrences(schedData.shows, list, new Date(now), new Date(now + 8 * DAY), false);
+  const sched = data?.schedule;
+  if (sched && Array.isArray(sched.shows) && Array.isArray(sched.broadcasts)) {
+    const list = (sched.broadcasts as ApiBroadcast[]).map(parseBroadcast);
+    const occ = expandOccurrences(sched.shows, list, new Date(now), new Date(now + 8 * DAY), false);
     onAir = {
       current: occ.find((o) => o.start.getTime() <= now && o.end.getTime() > now) ?? null,
       upcoming: occ.filter((o) => o.start.getTime() > now).slice(0, 3),
     };
   }
 
-  let adsLow: AdminSummary["adsLow"] = null;
-  if (adsData && Array.isArray(adsData.campaigns)) {
-    const orgs = new Map<string, string>((orgData?.organizers ?? []).map((o: any) => [o.id, o.name]));
-    adsLow = adsData.campaigns
-      .filter((c: any) => c.status === "active" && typeof c.impressionsLeft === "number" && c.impressionsLeft > 0 && c.impressionsLeft <= 20)
-      .map((c: any) => ({ id: c.id, title: c.title || c.name, organizer: orgs.get(c.organizerId) ?? "", left: c.impressionsLeft }));
-  }
-
-  const imports =
-    importsData && Array.isArray(importsData.imports)
-      ? {
-          review: Array.isArray(importsData.reviews) ? importsData.reviews.length : 0,
-          running: importsData.imports.filter((i: any) => !["done", "failed", "cancelled"].includes(i.state)).length,
-        }
-      : null;
-
-  return { tips, posts, drafts, onAir, adsLow, imports };
+  return {
+    tips: data?.tips ?? null,
+    posts: data?.posts ?? null,
+    drafts: data?.drafts ?? null,
+    onAir,
+    adsLow: Array.isArray(data?.adsLow) ? data.adsLow : null,
+    imports: data?.imports ?? null,
+  };
 }
 
 export function fetchAdminSummary(roles: string[]): Promise<AdminSummary> {
