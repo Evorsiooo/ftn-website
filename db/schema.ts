@@ -611,6 +611,84 @@ export const radioReplayParts = sqliteTable("radio_replay_parts", {
   userId: text("user_id"),
 }, (t) => [index("radio_replay_parts_replay_idx").on(t.replayId, t.startMs)]);
 
+// ── AI access (MCP server at /mcp) ─────────────────────────────────────────────────────────────
+// AI apps (Claude, ChatGPT, Gemini...) that registered with the site's OAuth server. id is the
+// OAuth client_id: a random id for apps that registered themselves (dynamic registration), or
+// the https URL of the app's client metadata document (CIMD).
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  redirectUris: text("redirect_uris").notNull(), // JSON array
+  secretHash: text("secret_hash"), // only for apps that asked for a client secret
+  kind: text("kind", { enum: ["dcr", "cimd"] }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+// One-time sign-in codes (5 minutes), stored hashed.
+export const oauthCodes = sqliteTable("oauth_codes", {
+  codeHash: text("code_hash").primaryKey(),
+  clientId: text("client_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  codeChallenge: text("code_challenge").notNull(),
+  resource: text("resource").notNull(),
+  scope: text("scope").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+// One row per connected AI app (a "grant"): its current access and refresh tokens, stored hashed.
+export const oauthGrants = sqliteTable("oauth_grants", {
+  id: text("id").primaryKey(),
+  clientId: text("client_id").notNull(),
+  clientName: text("client_name").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  scope: text("scope").notNull(),
+  resource: text("resource").notNull(),
+  accessHash: text("access_hash").notNull(),
+  accessExpiresAt: integer("access_expires_at", { mode: "timestamp_ms" }).notNull(),
+  refreshHash: text("refresh_hash").notNull(),
+  // the refresh token it replaced, accepted for a minute so a retried refresh doesn't log the app out
+  previousRefreshHash: text("previous_refresh_hash"),
+  rotatedAt: integer("rotated_at", { mode: "timestamp_ms" }),
+  refreshExpiresAt: integer("refresh_expires_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+  revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+}, (t) => [
+  uniqueIndex("oauth_grants_access_idx").on(t.accessHash),
+  uniqueIndex("oauth_grants_refresh_idx").on(t.refreshHash),
+  index("oauth_grants_user_idx").on(t.userId),
+]);
+
+// An image an AI asked the person for (ask_for_image): they pick the file on the website.
+export const aiImageRequests = sqliteTable("ai_image_requests", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  grantId: text("grant_id").notNull(),
+  clientName: text("client_name").notNull(),
+  folder: text("folder").notNull(),
+  note: text("note").notNull(),
+  status: text("status", { enum: ["pending", "done", "cancelled"] }).notNull(),
+  url: text("url"),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  decidedAt: integer("decided_at", { mode: "timestamp_ms" }),
+}, (t) => [index("ai_image_requests_user_idx").on(t.userId, t.createdAt)]);
+
+// Who did what in the admin. actor_label is the Roblox username for a person, or
+// "<username>'s <AI name>" (e.g. "adrien's Claude") for an AI acting for them.
+export const auditLog = sqliteTable("audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  at: integer("at", { mode: "timestamp_ms" }).notNull(),
+  userId: text("user_id"),
+  actorLabel: text("actor_label").notNull(),
+  via: text("via", { enum: ["web", "ai"] }).notNull(),
+  action: text("action").notNull(),
+  summary: text("summary"),
+  status: text("status", { enum: ["ok", "error", "pending", "cancelled", "sent"] }).notNull(),
+  detail: text("detail"), // JSON, trimmed
+}, (t) => [index("audit_log_at_idx").on(t.at), index("audit_log_user_idx").on(t.userId, t.at)]);
+
 // Change counters kept by database triggers (migration 0034). name "songs": moves on every insert, update or
 // delete in radio_songs. The Library page's "anything changed?" check reads this one row instead of counting
 // the whole song table.
