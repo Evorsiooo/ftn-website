@@ -4,7 +4,7 @@ import { videos, videoViews, siteSettings } from "@/db/schema";
 import { desc, eq, gte, sql } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { syncAllConfiguredChannels, verifyActiveLives, isChannelMatching } from "@/lib/youtube";
-import { isPendingTwitchRecording, isTwitchId, syncTwitchLives } from "@/lib/twitch";
+import { isPendingTwitchRecording, isTwitchId } from "@/lib/twitch";
 
 export const runtime = "edge";
 
@@ -113,8 +113,7 @@ async function buildResponse(): Promise<Response> {
       })
     );
 
-    // Twitch lives are checked the same way, so a stream going live or offline shows up on the next refresh.
-    runInBackground(syncTwitchLives(db, twitchChannels));
+    // Twitch lives are refreshed every minute by the cron (/api/sync/live-cron), not from page loads.
 
     // 3. Fetch all ingested videos
     let rawVideos: any[] = [];

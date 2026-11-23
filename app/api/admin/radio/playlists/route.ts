@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { desc, eq, sql } from "drizzle-orm";
-import { radioPlaylists, radioPlaylistSongs } from "@/db/schema";
+import { desc } from "drizzle-orm";
+import { radioPlaylists } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
 
 export const runtime = "edge";
@@ -8,6 +8,8 @@ export const runtime = "edge";
 export async function GET(request: NextRequest) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
+  // song_count is kept by database triggers (migration 0034), so this reads only the playlists. Counting
+  // the songs here read every playlist song on each Library load.
   const playlists = await ctx.db
     .select({
       id: radioPlaylists.id,
@@ -17,11 +19,9 @@ export async function GET(request: NextRequest) {
       source: radioPlaylists.source,
       lastSyncedAt: radioPlaylists.lastSyncedAt,
       updatedAt: radioPlaylists.updatedAt,
-      songs: sql<number>`count(${radioPlaylistSongs.songId})`,
+      songs: radioPlaylists.songCount,
     })
     .from(radioPlaylists)
-    .leftJoin(radioPlaylistSongs, eq(radioPlaylistSongs.playlistId, radioPlaylists.id))
-    .groupBy(radioPlaylists.id)
     .orderBy(desc(radioPlaylists.updatedAt));
   return NextResponse.json({ playlists: playlists.map((p) => ({ ...p, songs: Number(p.songs) })) });
 }
