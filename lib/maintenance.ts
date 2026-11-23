@@ -1,3 +1,5 @@
+import { getRequestContext } from "@cloudflare/next-on-pages";
+
 // Maintenance mode, used by middleware.ts. Nothing here reads data except the health probe below,
 // which reads one row at most once a minute per Cloudflare location.
 //
@@ -14,18 +16,28 @@ const KEY = "https://ftn-db-health.internal/state";
 const REMEMBER_S = 60;
 const TRIES = 3;
 // `select 1` alone reads no rows, and D1 still answers it when the read limit is used up, so the
-// probe reads one real row.
-const PROBE = "select 1 from sqlite_master limit 1";
+// probe reads one row of a real table (site_settings, which every page reads anyway).
+const PROBE = "select 1 from site_settings limit 1";
 
-export async function databaseDown(): Promise<boolean> {
+/** The database's state as the probe sees it; "unknown" (no cache or no binding) never blocks. */
+export async function databaseState(): Promise<"up" | "down" | "unknown"> {
   const cache = (globalThis as { caches?: { default?: Cache } }).caches?.default;
-  const d1 = (process.env as unknown as { DB?: D1Database }).DB;
-  if (!cache || !d1) return false;
-  try {
-    const hit = await cache.match(KEY);
-    if (hit) return (await hit.text()) === "down";
-  } catch {
-    return false;
+  let d1 = (process.env as unknown as { DB?: D1Database }).DB;
+  if (!d1) {
+    try {
+      d1 = (getRequestContext().env as { DB?: D1Database }).DB;
+    } catch {
+      // not running on Cloudflare
+    }
+  }
+  if (!d1) return "unknown";
+  if (cache) {
+    try {
+      const hit = await cache.match(KEY);
+      if (hit) return (await hit.text()) === "down" ? "down" : "up";
+    } catch {
+      // probe instead
+    }
   }
   let ok = false;
   for (let i = 0; i < TRIES && !ok; i++) {
@@ -37,6 +49,6 @@ export async function databaseDown(): Promise<boolean> {
     }
   }
   const state = ok ? "up" : "down";
-  await cache.put(KEY, new Response(state, { headers: { "Cache-Control": `max-age=${REMEMBER_S}` } })).catch(() => {});
-  return !ok;
+  await cache?.put(KEY, new Response(state, { headers: { "Cache-Control": `max-age=${REMEMBER_S}` } })).catch(() => {});
+  return state;
 }
