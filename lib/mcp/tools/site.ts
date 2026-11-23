@@ -8,12 +8,12 @@ import * as moderationRoute from "@/app/api/admin/moderation/route";
 import * as configRoute from "@/app/api/radio/config/route";
 import * as radioSettingsRoute from "@/app/api/admin/radio/settings/route";
 import * as passwordRoute from "@/app/api/admin/radio/password/route";
-import * as diagnoseRoute from "@/app/api/admin/radio/diagnose/route";
 import * as youtubeRoute from "@/app/api/sync/youtube/route";
 import * as videosRoute from "@/app/api/plus/videos/route";
 import * as uploadRoute from "@/app/api/upload/route";
 import { and, eq } from "drizzle-orm";
 import { aiImageRequests } from "@/db/schema";
+import { radioHealth } from "../radio-health";
 import { S, ToolDef, ToolError, pick } from "../types";
 
 const ENTITIES = ["leagues", "teams", "drivers", "venues", "events"] as const;
@@ -409,10 +409,12 @@ export const siteTools: ToolDef[] = [
   {
     name: "check_radio",
     title: "Check the radio",
-    description: "Runs the radio's connection checks (storage, downloader, Icecast) and says what's wrong, if anything.",
+    description:
+      "The radio's state: what the 24/7 AutoDJ is playing (or would play, when nobody is listening), the library size, the show on now and next, " +
+      "and whether someone is live from OBS. Icecast only carries live OBS shows, so no Icecast source is normal. problems lists real faults only.",
     input: {},
     kind: "read",
     openWorld: true,
-    run: (ctx) => ctx.call(diagnoseRoute.GET, { path: "/api/admin/radio/diagnose" }),
+    run: (ctx) => radioHealth(ctx.db),
   },
 ];

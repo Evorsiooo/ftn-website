@@ -269,13 +269,29 @@ async function readIcecastStats(
   }
 }
 
+/** False for loopback and private-network addresses (e.g. http://127.0.0.1:8000), which only the radio
+ * server itself can reach: from the website they end in Cloudflare error 1003 or a timeout. */
+export function edgeReachable(raw: string): boolean {
+  try {
+    const h = new URL(raw).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+    if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return false;
+    if (h.includes(":")) return !(h === "::1" || /^f[cd]/.test(h) || h.startsWith("fe80"));
+    const m = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(h);
+    if (!m) return true;
+    const [a, b] = [Number(m[1]), Number(m[2])];
+    return !(a === 127 || a === 10 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254));
+  } catch {
+    return false;
+  }
+}
+
 // Tries the Icecast admin stats first (when credentials are set), then the public
 // status JSON, so an unreachable or misconfigured admin URL doesn't read as "offline".
 export async function fetchTrackInfo(
   secure: RadioSecureSettings,
   stream: { streamUrl: string; statusJson: string }
 ): Promise<TrackInfo> {
-  if (secure.icecastAdminUrl && secure.icecastPassword) {
+  if (secure.icecastAdminUrl && secure.icecastPassword && edgeReachable(secure.icecastAdminUrl)) {
     const adminInfo = await readIcecastStats(
       `${secure.icecastAdminUrl.replace(/\/$/, "")}/admin/stats.json`,
       { Authorization: `Basic ${btoa(`${secure.icecastUsername}:${secure.icecastPassword}`)}` },
@@ -340,7 +356,7 @@ export async function diagnoseRadio(
     stream: await probeStream(stream.streamUrl),
     publicStatus: stream.statusJson ? await check(stream.statusJson) : null,
     adminStats:
-      secure.icecastAdminUrl && secure.icecastPassword
+      secure.icecastAdminUrl && secure.icecastPassword && edgeReachable(secure.icecastAdminUrl)
         ? await check(`${secure.icecastAdminUrl.replace(/\/$/, "")}/admin/stats.json`, {
             Authorization: `Basic ${btoa(`${secure.icecastUsername}:${secure.icecastPassword}`)}`,
           })
