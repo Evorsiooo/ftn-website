@@ -610,3 +610,24 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
   .fp .radio.replay { grid-template-areas: "art" "info" "seek" "side"; }
   .fp .radio.replay > .seek { margin-top: 0; width: 100%; max-width: 560px; justify-self: center; }
 }
+
+/* Recently played (components/plus/recently-played.tsx): a panel above the Radio page's controls, lined up with
+   their right end; a sheet from the bottom on phones, like the More menu. */
+.fp .radio .info .ctrl { position: relative; }
+.fp .recentwrap { display: contents; }
+.fp .recentwrap .ib[aria-expanded="true"] { background: var(--text); color: var(--ink); }
+.fp .recent { position: absolute; right: 0; bottom: calc(100% + 12px); z-index: 30; width: 360px; max-width: calc(100vw - 2 * var(--pad)); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 8px; box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45); text-align: left; }
+.fp .recent .rh { font: 700 15px/1 var(--body); color: var(--text); padding: 12px 12px 10px; }
+.fp .recent ol { list-style: none; margin: 0; padding: 0; }
+.fp .recent li { display: flex; align-items: center; gap: 12px; padding: 7px 12px; border-radius: 10px; }
+.fp .recent li img, .fp .recent li .ph { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; background: var(--surface-2); }
+.fp .recent .t { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fp .recent .a { font: 600 14px/1.25 var(--body); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp .recent .b { font: 400 13px/1.25 var(--body); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp .recent .ph-line { display: block; height: 12px; border-radius: 4px; background: var(--surface-2); }
+.fp .recent .a.ph-line { width: 60%; margin-bottom: 4px; }
+.fp .recent .b.ph-line { width: 40%; }
+.fp .recent time { font: 400 13px/1 var(--body); color: var(--text-3); font-variant-numeric: tabular-nums; flex: none; }
+.fp .recent .none { padding: 8px 12px 14px; font-size: 14px; color: var(--text-2); }
+.fp .recentscrim { position: fixed; inset: 0 0 var(--tabs-h) 0; background: rgba(0, 0, 0, 0.5); z-index: 41; }
+.fp .recent.sheet { position: fixed; left: 0; right: 0; bottom: var(--tabs-h); width: auto; max-width: none; border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 8px 8px 12px; z-index: 42; box-shadow: none; }
