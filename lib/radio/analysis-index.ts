@@ -1,5 +1,10 @@
 import { ANALYSIS_VERSION, summarizeAnalysis, type AnalysisIndex } from "@/lib/radio/autodj";
 import { ANALYSIS_INDEX_KEY } from "@/lib/radio/store";
+import type { DbClient } from "@/db";
+import { markAnalysed } from "@/lib/radio/prep";
+
+/** Written once the songs analysed before "Getting ready" (migration 0036) have been marked as analysed. */
+const BACKFILL_MARKER = "radio/cache/analysed-backfill-v1";
 
 const PREFIX = "analysis/";
 /** Analyses read per run: the index catches up over a few minutes after a new analysis version. */
@@ -11,7 +16,7 @@ const READS_PER_RUN = 25;
  * every-minute cron, the index's only writer; listeners read it from the bucket's public domain
  * when they pick the next song. An analysis of another version is kept out of the index.
  */
-export async function refreshAnalysisIndex(bucket: R2Bucket): Promise<{ added: number; removed: number; total: number; waiting: number }> {
+export async function refreshAnalysisIndex(bucket: R2Bucket, db?: DbClient): Promise<{ added: number; removed: number; total: number; waiting: number }> {
   const stored = await bucket.get(ANALYSIS_INDEX_KEY);
   let index: AnalysisIndex = { analysisVersion: ANALYSIS_VERSION, songs: {} };
   if (stored) {
@@ -26,6 +31,17 @@ export async function refreshAnalysisIndex(bucket: R2Bucket): Promise<{ added: n
     for (const o of page.objects) if (o.key.endsWith(".json")) present.push(o.key.slice(PREFIX.length, -".json".length));
     cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
+
+  // once: every song whose analysis was shared before songs had an "analysed" date gets one (a few hundred
+  // rows, by their unique key), so they are on air straight away
+  if (db && !(await bucket.head(BACKFILL_MARKER))) {
+    try {
+      await markAnalysed(db, present);
+      await bucket.put(BACKFILL_MARKER, new Date().toISOString());
+    } catch {
+      // tried again next minute; the index itself carries on
+    }
+  }
 
   const keep = new Set(present);
   let removed = 0;

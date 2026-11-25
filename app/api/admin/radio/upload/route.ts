@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const [song] = await ctx.db
       .insert(radioSongs)
-      .values({ id, r2Key, source: "upload", title, artist, durationSec, loudnessDb, bytes: file.size, contentType: type.contentType, addedBy: ctx.user.id, createdAt: now, updatedAt: now })
+      .values({ id, r2Key, source: "upload", title, artist, durationSec, loudnessDb, bytes: file.size, contentType: type.contentType, addedBy: ctx.user.id, metaCheckedAt: now, createdAt: now, updatedAt: now })
       .returning();
     return NextResponse.json({ song }, { status: 201 });
   } catch (err) {

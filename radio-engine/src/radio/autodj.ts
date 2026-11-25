@@ -25,6 +25,7 @@ import {
   summarizeAnalysis,
   slotAt,
   slotIndexAt,
+  onAirSongs,
   TIMELINE_VERSION,
   type AnalysisIndex,
   type AnalysisSummary,
@@ -120,8 +121,6 @@ async function makeItem(song: LibrarySong, buffer: AudioBuffer): Promise<Timelin
  * scored down) apply as they are.
  */
 const REPEAT_WINDOW = 200;
-/** Every this-many songs is one the selector can't place yet (not analysed, or no tempo found), while there are any. */
-const UNPLACED_EVERY = 3;
 
 /** The key, tempo and energy of every shared analysis (empty if the index can't be read). */
 async function fetchAnalysisIndex(): Promise<AnalysisIndex['songs']> {
@@ -144,30 +143,21 @@ const byKey = (a: LibrarySong, b: LibrarySong) => (a.key < b.key ? -1 : a.key > 
 
 /**
  * The AutoDJ's next song, picked the way AutoMix's AutoDJ picks it: AutoMix's selector
- * (engine/selector.ts, verbatim) ranks the analysed library against the song it follows (Camelot
+ * (engine/selector.ts, verbatim) ranks the songs on air against the song it follows (Camelot
  * key, tempo, energy, recent songs and artists) and the first candidate plays, with AutoMix's
  * default energy direction (steady). Every input comes from the stored running order and the shared
  * index, and ties fall to the song key, so every listener would pick the same song.
  *
- * Songs the selector can't place (not analysed yet, or no tempo found) still get every
- * UNPLACED_EVERY-th place, so new songs are heard and analysed and none is left out for good.
+ * Only songs on air are picked (Adrien, 2026-11-25): a new song is "Getting ready" until it has been
+ * analysed and title-checked (Prepare, on the Library page), so the AutoDJ never plays one unanalysed.
  */
 export async function pickNext(library: LibrarySong[], current: RadioTimeline, after: LibrarySong, k: number, log: (s: string) => void): Promise<LibrarySong> {
   const index = await fetchAnalysisIndex();
-  const songs = [...library].sort(byKey);
+  const songs = [...onAirSongs(library)].sort(byKey);
   const history = playHistory(current);
   const recent = new Set(history.slice(0, REPEAT_WINDOW));
   const rand = seeded(k * 2654435761);
-  const placeable = (s: LibrarySong) => Boolean(index[s.key]?.bpm);
-  const pool = songs.filter(placeable).map((s) => asAnalysis(s, index[s.key]!));
-  const unplaced = songs.filter((s) => !placeable(s) && s.key !== after.key);
-  const unplacedFresh = unplaced.filter((s) => !recent.has(s.key));
-
-  if (unplacedFresh.length && (pool.length < 2 || k % UNPLACED_EVERY === 0)) {
-    const song = unplacedFresh[Math.floor(rand() * unplacedFresh.length)]!;
-    log(`next: ${song.title} (not analysed yet: one in ${UNPLACED_EVERY} songs is)`);
-    return song;
-  }
+  const pool = songs.filter((s) => index[s.key]?.bpm).map((s) => asAnalysis(s, index[s.key]!));
 
   // the song it follows: from the index, else its shared analysis (made moments ago, not indexed yet)
   let cur = index[after.key] ?? null;
@@ -186,13 +176,13 @@ export async function pickNext(library: LibrarySong[], current: RadioTimeline, a
     }
   }
 
-  // nothing to rank against (the song it follows has no tempo) or nothing ranked: as AutoMix starts,
-  // any analysed song, here one not played lately
+  // nothing to rank against (the song it follows has no tempo, e.g. a broadcaster's song not prepared yet)
+  // or nothing ranked: as AutoMix starts, any song on air, here one not played lately
   const notLately = (list: string[]) => list.filter((key) => key !== after.key && !recent.has(key));
-  const from = [notLately(pool.map((a) => a.fileKey)), notLately(unplaced.map((s) => s.key)), notLately(songs.map((s) => s.key))].find((l) => l.length)
+  const from = [notLately(pool.map((a) => a.fileKey)), notLately(songs.map((s) => s.key))].find((l) => l.length)
     ?? songs.map((s) => s.key).filter((key) => key !== after.key);
   const key = from.length ? from[Math.floor(rand() * from.length)]! : after.key;
-  const song = songs.find((s) => s.key === key)!;
+  const song = songs.find((s) => s.key === key) ?? after;
   log(`next: ${song.title} (no key/tempo match possible)`);
   return song;
 }

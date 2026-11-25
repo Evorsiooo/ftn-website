@@ -4,6 +4,7 @@ import { Archive, ArchiveRestore, Music, Pause, Pencil, Play, Trash2, X } from "
 import { BackButton, Facts, Sheet } from "@/components/admin/ui";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from "@/lib/radio/loudness";
+import { songStatus } from "./prepare-run";
 import { api, duration, fileUrl, type Song } from "./types";
 import { SongLyrics } from "./song-lyrics";
 
@@ -76,8 +77,16 @@ export function Cover({ src, size = 40 }: { src: string | null; size?: number })
 const added = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 
 /** The songs as a table: cover, title, artist, album, length, source, added. A row opens the song on the right. */
-export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs: Song[]; selectedId: string | null; onSelect: (id: string) => void; archivedView: boolean }) {
-  if (!songs.length) return <div className="empty">{archivedView ? "No archived songs." : "No songs match."}</div>;
+const STATUS: Record<ReturnType<typeof songStatus>, [string, string]> = {
+  "on-air": ["On air", "green"],
+  "getting-ready": ["Getting ready", "grey"],
+  missing: ["Missing file", "red"],
+  failed: ["Couldn't prepare", "red"],
+  archived: ["Archived", "grey"],
+};
+
+export function SongTable({ songs, selectedId, onSelect, empty }: { songs: Song[]; selectedId: string | null; onSelect: (id: string) => void; empty: string }) {
+  if (!songs.length) return <div className="empty">{empty}</div>;
   return (
     <table className="table phone-auto">
       <thead>
@@ -91,8 +100,8 @@ export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs
           <th className="num" style={{ width: 72 }}>
             Length
           </th>
-          <th className="hide-m" style={{ width: 104 }}>
-            Source
+          <th className="hide-m" style={{ width: 132 }}>
+            Status
           </th>
           <th className="hide-m" style={{ width: 96 }}>
             Added
@@ -113,7 +122,9 @@ export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs
               {s.album || ""}
             </td>
             <td className="num muted">{duration(s.durationSec)}</td>
-            <td className="hide-m muted">{SOURCE_LABEL[s.source]}</td>
+            <td className="hide-m">
+              <span className={`pill ${STATUS[songStatus(s)][1]}`}>{STATUS[songStatus(s)][0]}</span>
+            </td>
             <td className="hide-m muted">{added(s.createdAt)}</td>
           </tr>
         ))}
@@ -235,6 +246,12 @@ export function SongPane({
           rows={[
             ["Album", [song.album, song.releaseYear].filter(Boolean).join(" · ") || "Unknown"],
             ["Length", duration(song.durationSec)],
+            [
+              "Status",
+              songStatus(song) === "getting-ready"
+                ? `Getting ready (${[!song.analysedAt && "mixing analysis", !song.metaCheckedAt && "title check"].filter(Boolean).join(" and ")} left)`
+                : STATUS[songStatus(song)][0],
+            ],
             [
               "Source",
               song.sourceUrl ? (

@@ -38,6 +38,12 @@ export function setMusicVideos(songs: { key: string; musicVideo?: boolean }[]): 
   for (const s of songs) if (s.musicVideo) musicVideos.add(s.key);
 }
 
+/** Adds songs' flags without forgetting the others (the Library's Prepare, which sees songs a few at a time). */
+export function addMusicVideos(songs: { key: string; musicVideo?: boolean }[]): void {
+  for (const s of songs) if (s.musicVideo) musicVideos.add(s.key);
+  else musicVideos.delete(s.key);
+}
+
 export const isMusicVideo = (key: string): boolean => musicVideos.has(key);
 
 export async function fetchTrackAudio(key: string): Promise<TrackAudio> {

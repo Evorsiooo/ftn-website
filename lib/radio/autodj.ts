@@ -439,6 +439,17 @@ export interface LibrarySong {
   album?: string | null;
   /** BitChord's flag: a music video, which Automix's loop mixes skip. */
   musicVideo?: boolean;
+  /**
+   * On air: analysed for mixing and title-checked ("Getting ready" until then). The AutoDJ plays only these;
+   * a song a broadcaster queues or a playlist show names plays either way. Absent (an older list): on air.
+   */
+  ready?: boolean;
+}
+
+/** The songs the AutoDJ may pick from: the ones on air (all of them, if none is yet). */
+export function onAirSongs<T extends { ready?: boolean }>(library: T[]): T[] {
+  const ready = library.filter((s) => s.ready !== false);
+  return ready.length ? ready : library;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -559,7 +570,7 @@ export function seeded(seed: number) {
 /** The song "on air" at [serverMs] when nobody is listening, and how far into it. Null with an empty library. */
 export function virtualOnAir(library: LibrarySong[], serverMs: number): { song: LibrarySong; positionSec: number; leftSec: number; next: LibrarySong } | null {
   if (!library.length) return null;
-  const songs = [...library].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const songs = [...onAirSongs(library)].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   const block = Math.floor(serverMs / VIRTUAL_BLOCK_MS);
   const rand = seeded(block * 2654435761);
   const recent: string[] = [];

@@ -27,6 +27,11 @@ export interface Song {
   /** Lyrics for every listener: null = best available, a provider id, or "none"; and the offset in ms. */
   lyricsSource: string | null;
   lyricsOffsetMs: number;
+  /** Getting ready: on air once analysed for mixing and title-checked (null: not yet). */
+  analysedAt?: string | null;
+  metaCheckedAt?: string | null;
+  /** Set aside by Prepare: "missing" (no audio file) or "failed". */
+  prepError?: "missing" | "failed" | null;
   createdAt: string;
 }
 

@@ -11,7 +11,7 @@ import {
   radioStudioQueue,
   radioStudioSessions,
 } from "@/db/schema";
-import { endOfTimelineMs, nowPlaying, slotAt, trackPositionSec, type RadioTimeline, type TimelineItem } from "./autodj";
+import { endOfTimelineMs, nowPlaying, onAirSongs, slotAt, trackPositionSec, type RadioTimeline, type TimelineItem } from "./autodj";
 import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
@@ -526,8 +526,10 @@ async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(Time
     .orderBy(asc(radioStudioQueue.position));
   const q = queued.map((r) => byKey.get(r.key!)).find((x) => x && x.durationSec > 1);
   if (q) return { ...q, fromQueue: true };
-  const fresh = songs.filter((x) => x.durationSec > 1 && !recent.includes(x.key));
-  const pool = fresh.length ? fresh : songs.filter((x) => x.durationSec > 1 && x.key !== recent[recent.length - 1]);
+  // from the library: songs on air only, like the AutoDJ
+  const onAir = onAirSongs(songs);
+  const fresh = onAir.filter((x) => x.durationSec > 1 && !recent.includes(x.key));
+  const pool = fresh.length ? fresh : onAir.filter((x) => x.durationSec > 1 && x.key !== recent[recent.length - 1]);
   const pick = pool[Math.floor(Math.random() * pool.length)];
   return pick ? { ...pick, fromQueue: false } : null;
 }
@@ -580,7 +582,8 @@ function studioStateOf(s: Session | null, list: Person[], queue: QueueRow[], use
     },
     me: mine ? { id: mine.id, role: mine.role } : null,
     people: list.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, state: p.state, connected: !!p.track, gain: p.gain, seenAgoMs: Date.now() - p.seenAt.getTime() })),
-    queue: queue.filter((q) => q.state !== "played").map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey })),
+    // key: the song once downloaded; mine: queued by this broadcaster, whose Studio tab prepares it (Getting ready)
+    queue: queue.filter((q) => q.state !== "played").map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey, key: q.songKey, mine: q.addedBy === user.id })),
     /** Songs of the queue already lined up (or played): the Studio marks them in the running order. */
     queuedKeys: [...new Set(queue.filter((q) => q.state === "played" && q.songKey).map((q) => q.songKey!))],
     cap: ON_AIR_CAP,

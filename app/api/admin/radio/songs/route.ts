@@ -42,6 +42,9 @@ export async function GET(request: NextRequest) {
       audioCheckNote: radioSongs.audioCheckNote,
       lyricsSource: radioSongs.lyricsSource,
       lyricsOffsetMs: radioSongs.lyricsOffsetMs,
+      analysedAt: radioSongs.analysedAt,
+      metaCheckedAt: radioSongs.metaCheckedAt,
+      prepError: radioSongs.prepError,
       createdAt: radioSongs.createdAt,
     })
     .from(radioSongs)

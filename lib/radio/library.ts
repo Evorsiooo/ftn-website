@@ -298,6 +298,8 @@ function songRow(song: DownloaderSong, spotifyId: string | null, userId: string 
     audioCheckedAt: song.resolve && audioCheckOf(song.resolve) ? now : null,
     audioCheckNote: audioCheckNote(song.resolve),
     audioCheckNames: song.resolve?.names?.title ? audioCheckNamesOf(song.resolve.names.title, song.resolve.names.artist) : null,
+    // Getting ready: a song named by YouTube Music's catalogue needs no title check (BitChord's names come first)
+    metaCheckedAt: song.metadataSource === "ytmusic" ? now : null,
     addedBy: userId,
     createdAt: now,
     updatedAt: now,
@@ -423,7 +425,7 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
     if (bucket && copies.length) await bucket.delete(copies).catch(() => {});
   }
   const rows = [...fresh.values()];
-  // 26 columns: D1 allows 100 bound parameters per statement, so 3 rows per insert.
+  // 27 columns: D1 allows 100 bound parameters per statement, so 3 rows per insert.
   for (let i = 0; i < rows.length; i += 3) {
     await db.insert(radioSongs).values(rows.slice(i, i + 3)).onConflictDoNothing();
   }
@@ -576,6 +578,8 @@ export interface LibrarySong {
   thumbnail: string | null;
   /** BitChord's flag: a music video, which Automix's loop mixes skip. */
   musicVideo: boolean;
+  /** On air: analysed for mixing and title-checked (migration 0036). The AutoDJ picks only these. */
+  ready: boolean;
 }
 
 const librarySongColumns = {
@@ -587,6 +591,7 @@ const librarySongColumns = {
   loudnessDb: radioSongs.loudnessDb,
   thumbnail: radioSongs.thumbnailUrl,
   musicVideo: radioSongs.musicVideo,
+  ready: sql<number>`(${radioSongs.analysedAt} IS NOT NULL AND ${radioSongs.metaCheckedAt} IS NOT NULL)`.mapWith(Boolean),
 };
 
 /** Every song that isn't archived, in the shape the radio engine reads. */

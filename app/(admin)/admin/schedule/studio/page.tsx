@@ -16,9 +16,10 @@ import { getMic } from "@/components/radio/voice";
 import { expandOccurrences, type Occurrence } from "@/lib/schedule-core";
 import { parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
 import { hm as fmtTime } from "@/components/admin/ui";
+import { useStudioPrepare } from "@/components/admin/radio-library/prepare-run";
 
 type Person = { id: string; name: string; avatar: string | null; role: "host" | "cohost" | "caller"; state: "waiting" | "on_air"; connected: boolean; gain?: number };
-type Queued = { id: string; label: string; state: string; ready: boolean };
+type Queued = { id: string; label: string; state: string; ready: boolean; key?: string | null; mine?: boolean };
 type Usage = { bytes: number; capBytes: number; freeBytes: number; blocked: boolean; month: string };
 type State = {
   session: { id: string; title: string; callIn: boolean; paused: boolean; startedAt: number } | null;
@@ -103,6 +104,15 @@ const elapsed = (from: number) => {
   const m = Math.floor((s % 3600) / 60);
   return h ? `${h}:${String(m).padStart(2, "0")}` : `${m} min`;
 };
+
+/** A queued song's state: Downloading, Preparing (in this tab, or the tab of whoever queued it), Ready. */
+function QueueState({ q, prep }: { q: Queued; prep: "preparing" | "ready" | "waiting" | "elsewhere" | undefined }) {
+  if (q.state === "failed") return <Pill tone="red">Couldn&apos;t download</Pill>;
+  if (!q.ready) return <Pill tone="grey">Downloading</Pill>;
+  if (prep === "ready") return <Pill tone="green">Ready</Pill>;
+  if (prep === "waiting") return <Pill tone="grey">Plain crossfade</Pill>;
+  return <Pill tone="yellow">Preparing</Pill>;
+}
 
 export default function StudioPage() {
   const radio = useRadio();
@@ -265,6 +275,13 @@ export default function StudioPage() {
   const lineup = useLineup(onAir);
   const skip = (song: LinedUp) => void act({ op: "skip", k: song.k, key: song.key }).then(() => setTimeout(lineup.reload, 300));
   const from = (key: string) => (state?.queuedKeys?.includes(key) ? "Queued" : "AutoDJ");
+  // Songs this broadcaster queues are prepared (title check and mixing analysis) in this tab once downloaded,
+  // so they mix in properly and then join the AutoDJ's songs on air.
+  const downloaded = (state?.queue ?? []).filter((q) => q.key && q.state !== "failed");
+  const prepared = useStudioPrepare(
+    downloaded.map((q) => q.key!),
+    downloaded.filter((q) => q.mine).map((q) => q.key!)
+  );
 
   const voice = useOnAirVoice({ personId: onAir ? state!.me!.id : null, mic: onAir ? mic : null, report, muted });
 
@@ -570,8 +587,8 @@ export default function StudioPage() {
                           </span>
                           <span className="trunc" style={{ flex: 1 }}>
                             {q.label}
-                            <span className="muted">{q.state === "failed" ? " · couldn't download" : !q.ready ? " · downloading…" : ""}</span>
                           </span>
+                          <QueueState q={q} prep={q.key ? prepared[q.key] : undefined} />
                           <button type="button" className="iconbtn" aria-label="Move up" disabled={busy || i === 0} onClick={() => void act({ op: "move", id: q.id, dir: -1 })}>
                             <ArrowUp className="ic-sm" />
                           </button>
@@ -586,6 +603,9 @@ export default function StudioPage() {
                     </ol>
                   )}
                   <p className="help" style={{ margin: 0 }}>Up next is already lined up and mixed; your queue plays after it. Skip a song and the next one takes its place, for everyone.</p>
+                  <p className="help" style={{ margin: 0 }}>
+                    Songs you link are downloaded, then prepared in this tab (checked and analysed, a few at once). Ready songs mix in properly. If a song&apos;s turn comes before it&apos;s ready, it still plays, with a plain crossfade instead of a beat-matched mix.
+                  </p>
 
                   <div className="sublabel">Add a song</div>
                   <div className="search">
@@ -618,7 +638,7 @@ export default function StudioPage() {
                       Queue
                     </button>
                   </form>
-                  <p className="help" style={{ margin: 0 }}>A link is downloaded into the library first (usually under a minute), then joins the queue.</p>
+                  <p className="help" style={{ margin: 0 }}>Usually ready about 1 to 2 minutes after you paste the link (an estimate: under a minute to download, then about 20 to 40 s to prepare).</p>
                 </div>
               </section>
             </div>
