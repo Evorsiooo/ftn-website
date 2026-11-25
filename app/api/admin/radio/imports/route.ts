@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { radioImports, radioPlaylists } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
 import { linkKind, parseReview, startJob, syncOpenImports } from "@/lib/radio/library";
@@ -14,19 +14,23 @@ export async function GET(request: NextRequest) {
   if ("error" in ctx) return ctx.error;
   try {
     const { errors } = await syncOpenImports(ctx.db);
-    const rows = await ctx.db
-      .select({ imp: radioImports, playlistName: radioPlaylists.name })
-      .from(radioImports)
-      .leftJoin(radioPlaylists, eq(radioPlaylists.id, radioImports.playlistId))
-      .orderBy(desc(radioImports.createdAt))
-      .limit(200);
-    const imports = rows.map(({ imp, playlistName }) => {
+    // the latest 30 imports, and separately the ones with songs waiting for a pick (a partial index
+    // holds only those), instead of reading the last 200 imports on every poll
+    const select = { imp: radioImports, playlistName: radioPlaylists.name };
+    const [rows, waiting] = await Promise.all([
+      ctx.db.select(select).from(radioImports).leftJoin(radioPlaylists, eq(radioPlaylists.id, radioImports.playlistId)).orderBy(desc(radioImports.createdAt)).limit(30),
+      ctx.db.select(select).from(radioImports).leftJoin(radioPlaylists, eq(radioPlaylists.id, radioImports.playlistId)).where(sql`review LIKE '%"open":[{%'`),
+    ]);
+    const shape = ({ imp, playlistName }: (typeof rows)[number]) => {
+      const { recordedItems: _omit, ...rest } = imp;
       const review = parseReview(imp.review);
-      return { ...imp, review: review.open, sourceTotal: review.sourceTotal ?? null, playlistName };
-    });
-    // Only on request: the import poll (every 4 s) doesn't need it.
+      return { ...rest, review: review.open, sourceTotal: review.sourceTotal ?? null, playlistName };
+    };
+    const imports = rows.map(shape);
+    const withReviews = [...waiting.map(shape)].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+    // Only on request: the import poll (every 10 s) doesn't need it.
     const albumAudio = request.nextUrl.searchParams.get("audio") === "1" ? await albumAudioSummary(ctx.db).catch(() => null) : undefined;
-    return NextResponse.json({ imports: imports.slice(0, 30), reviews: imports.flatMap((i) => i.review.map((r) => ({ importId: i.id, playlistName: i.playlistName, ...r }))), syncErrors: errors, albumAudio });
+    return NextResponse.json({ imports, reviews: withReviews.flatMap((i) => i.review.map((r) => ({ importId: i.id, playlistName: i.playlistName, ...r }))), syncErrors: errors, albumAudio });
   } catch (err) {
     return failure(err, "Could not load imports");
   }

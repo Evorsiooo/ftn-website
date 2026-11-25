@@ -50,8 +50,10 @@ function LibraryPage() {
       do {
         l.again = false;
         try {
-          const [s, p] = await Promise.all([api<{ songs: Song[] }>("/api/admin/radio/songs"), api<{ playlists: Playlist[] }>("/api/admin/radio/playlists")]);
+          const [s, p] = await Promise.all([api<{ songs: Song[]; at?: number }>("/api/admin/radio/songs"), api<{ playlists: Playlist[] }>("/api/admin/radio/playlists")]);
           setSongs(s.songs);
+          // a 304 answer brings back the copy the browser kept, with the time it was first loaded: still right
+          if (s.at) loadedAt.current = s.at;
           setPlaylists(p.playlists);
           setError(null);
         } catch (err: any) {
@@ -62,11 +64,36 @@ function LibraryPage() {
       l.running = false;
     }
   }, []);
+  // During an import: only the songs added or changed since the last load, merged into the list (each full
+  // load reads every song, about 4,000 rows once the library has grown).
+  const loadedAt = useRef(0);
+  const loadChanged = useCallback(async () => {
+    if (!loadedAt.current) return loadLibrary();
+    try {
+      const [s, p] = await Promise.all([
+        api<{ songs: Song[]; at: number }>(`/api/admin/radio/songs?since=${loadedAt.current}`),
+        api<{ playlists: Playlist[] }>("/api/admin/radio/playlists"),
+      ]);
+      loadedAt.current = s.at;
+      if (s.songs.length) {
+        setSongs((list) => {
+          if (!list) return list;
+          const changed = new Map(s.songs.map((x) => [x.id, x]));
+          const kept = list.map((x) => changed.get(x.id) ?? x);
+          const known = new Set(list.map((x) => x.id));
+          return [...s.songs.filter((x) => !known.has(x.id)), ...kept];
+        });
+      }
+      setPlaylists(p.playlists);
+    } catch {
+      // the next change tries again
+    }
+  }, [loadLibrary]);
   const patchSong = useCallback((id: string, patch: Partial<Song>) => setSongs((list) => list && list.map((s) => (s.id === id ? { ...s, ...patch } : s))), []);
   const dropSong = useCallback((id: string) => setSongs((list) => list && list.filter((s) => s.id !== id)), []);
 
   // Imports: the GET also brings unfinished ones up to date with the downloader. withAudio also asks
-  // for the album-audio check's state (left out of the 4 s import poll, which doesn't need it).
+  // for the album-audio check's state (left out of the 10 s import poll, which doesn't need it).
   // A changed import reloads the library at most once a minute (each load reads every song), and
   // always when an import finishes.
   const doneCount = useRef<string>("");
@@ -84,14 +111,14 @@ function LibraryPage() {
       const justFinished = finished.current && fin !== finished.current;
       if (justFinished || (changed && Date.now() - lastLibraryLoad.current >= 60_000)) {
         lastLibraryLoad.current = Date.now();
-        loadLibrary();
+        loadChanged();
       }
       doneCount.current = sig;
       finished.current = fin;
     } catch {
       // the downloader can be down; the library still works
     }
-  }, [loadLibrary]);
+  }, [loadChanged]);
 
   const reload = useCallback(() => {
     lastLibraryLoad.current = Date.now();
@@ -107,7 +134,7 @@ function LibraryPage() {
   const running = imports.filter((i) => !FINAL.includes(i.state));
   useEffect(() => {
     if (!running.length) return;
-    const t = setInterval(() => loadImports(), 4000);
+    const t = setInterval(() => loadImports(), 10_000);
     return () => clearInterval(t);
   }, [running.length, loadImports]);
 
