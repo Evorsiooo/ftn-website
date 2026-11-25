@@ -268,7 +268,10 @@ export async function extend(
   const recent = current.items.map((i) => i.key);
   // a show's song (the Studio queue, a playlist show) when one is due as this song starts
   const showKey = programPick(program, endOfTimelineMs(current), recent, new Set(library.map((s) => s.key)), current.playlists);
-  const next = (showKey && library.find((s) => s.key === showKey)) || (await pickNext(library, current, lastSong, lastK + 1, log));
+  // otherwise the website's pick (it refuses any other), else, from an older website, our own
+  const picked = current.nextPick?.k === lastK + 1 && current.nextPick.after === lastSong.key ? library.find((s) => s.key === current.nextPick!.key) : undefined;
+  if (picked && !showKey) log(`next: ${picked.title} (picked by the website)`);
+  const next = (showKey && library.find((s) => s.key === showKey)) || picked || (await pickNext(library, current, lastSong, lastK + 1, log));
   log(`lining up ${next.title} after ${lastSong.title}`);
   const [bLast, bNext, storedLast, storedNext] = await Promise.all([
     decodeForPlan(lastSong.key),

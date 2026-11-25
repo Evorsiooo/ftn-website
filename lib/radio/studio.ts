@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import { endOfTimelineMs, nowPlaying, onAirSongs, playHistory, PLAYED_MAX, repeatWindow, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
 import { rotationFilter } from "./rotation";
+import { serverPick } from "./server-pick";
 import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
@@ -348,6 +349,7 @@ export async function resumeMusic(db: DbClient, s: Session, publish = true): Pro
       items: [item],
       mixes: [],
     };
+    fresh.nextPick = await serverPick(db, bucket, fresh, new Map()).catch(() => null);
     await bucket.put(AUTODJ_KEY, JSON.stringify(fresh), { httpMetadata: { contentType: "application/json" } });
     if (s.replayId) await saveTimelinePart(db, s.replayId, fresh);
   }
@@ -513,6 +515,8 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
       // the songs cut never played: they don't count as played
       next = withPlayed(tl, cut, now);
     }
+    // the website's pick to follow the new last song (the one picked before followed another song)
+    next = { ...next, nextPick: await serverPick(db, bucket, next, new Map()).catch(() => null) };
     const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), { httpMetadata: { contentType: "application/json" }, onlyIf: { etagMatches: stored.etag } });
     if (!put) continue; // a listener's browser lined up a song at the same moment: look again
     if (fromQueue.length) await markQueuedPlayed(db, fromQueue);

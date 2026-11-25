@@ -4,7 +4,8 @@ import { checkTimelineChange, onAirSongs, repeatWindow, REPEAT_WINDOW, withPlaye
 import { cachedPlayableSongs, songsByKeys } from "@/lib/radio/library";
 import { recordMixReport } from "@/lib/radio/mix-reports";
 import { PROGRAM_KEY, type RadioProgram } from "@/lib/radio/program-types";
-import { repeatProblem, ROTATION_VERSION, withPlaylistPlays } from "@/lib/radio/rotation";
+import { notThePick, repeatProblem, ROTATION_VERSION, withPlaylistPlays } from "@/lib/radio/rotation";
+import { serverPick } from "@/lib/radio/server-pick";
 import { AUTODJ_KEY, noStore, radioBucket, radioDb } from "@/lib/radio/store";
 import { logTimeline, markQueuedPlayed } from "@/lib/radio/studio";
 
@@ -39,7 +40,8 @@ export async function POST(request: NextRequest) {
   const items = (next as { items?: unknown })?.items;
   const keys = Array.isArray(items) ? items.map((i) => String((i as { key?: unknown })?.key)) : [];
   const now = Date.now();
-  const error = checkTimelineChange(current, next, now, await songsByKeys(getDb(db), keys));
+  const known = await songsByKeys(getDb(db), keys);
+  const error = checkTimelineChange(current, next, now, known);
   if (error) {
     const stale = current !== null && (next as { rev?: unknown })?.rev !== current.rev + 1;
     const bad = /^mix (\d+): (.*)$/.exec(error);
@@ -68,7 +70,21 @@ export async function POST(request: NextRequest) {
       console.warn(`radio: repeat from an older player let through (${msg})`);
     }
   }
+  // the song the website picked for this place (none for a fresh start, or after a show's song)
+  const wrong = notThePick(current, out, now, program);
+  if (wrong) {
+    const msg = `not the song the website picked: ${wrong}`;
+    if ((picker ?? 0) >= ROTATION_VERSION) return NextResponse.json({ error: msg }, { status: 422, headers: noStore });
+    console.warn(`radio: older player's pick let through (${msg})`);
+  }
   out = withPlaylistPlays(current, out, now, program);
+  // and the song to follow the new last one, for the browser that plans the next mix
+  try {
+    out = { ...out, nextPick: await serverPick(getDb(db), bucket, out, known) };
+  } catch (err) {
+    console.error("radio: picking the next song", err);
+    out = { ...out, nextPick: null };
+  }
   next = out;
   // only over the revision that was checked: two listeners sending at once can't both win
   const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), {

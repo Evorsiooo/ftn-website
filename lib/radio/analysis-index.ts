@@ -1,5 +1,6 @@
 import { ANALYSIS_VERSION, summarizeAnalysis, type AnalysisIndex } from "@/lib/radio/autodj";
 import { ANALYSIS_INDEX_KEY } from "@/lib/radio/store";
+import { PICK_META_KEY, writePickGroups } from "@/lib/radio/server-pick";
 import type { DbClient } from "@/db";
 import { markAnalysed } from "@/lib/radio/prep";
 
@@ -65,10 +66,14 @@ export async function refreshAnalysisIndex(bucket: R2Bucket, db?: DbClient): Pro
   const waiting = missing.length - added;
   if (added || removed || !stored) {
     // only over what was read: a run that overlaps this one can't undo it
-    await bucket.put(ANALYSIS_INDEX_KEY, JSON.stringify(index), {
+    const put = await bucket.put(ANALYSIS_INDEX_KEY, JSON.stringify(index), {
       httpMetadata: { contentType: "application/json" },
       onlyIf: stored ? { etagMatches: stored.etag } : undefined,
     });
+    // the website's next-song picker reads the same summaries, split in groups (lib/radio/server-pick.ts)
+    if (put) await writePickGroups(bucket, index).catch((err) => console.error("radio: pick groups", err));
+  } else if (!(await bucket.head(PICK_META_KEY))) {
+    await writePickGroups(bucket, index).catch((err) => console.error("radio: pick groups", err));
   }
   return { added, removed, total, waiting };
 }

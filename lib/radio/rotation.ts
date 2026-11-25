@@ -131,3 +131,20 @@ export function withPlaylistPlays(current: RadioTimeline | null, stored: RadioTi
   }
   return { ...stored, playlists: progress };
 }
+
+/**
+ * The key of a new song of [stored] that takes the place the website had picked a song for (current.nextPick)
+ * without being that song, or null. A show's song may take it: a broadcaster's queued song, or one a playlist
+ * show airing then allows.
+ */
+export function notThePick(current: RadioTimeline | null, stored: RadioTimeline, nowMs: number, program: RadioProgram | null): string | null {
+  const p = current?.nextPick;
+  if (!p) return null;
+  const i = p.k - stored.firstK;
+  if (i < firstNewItem(current, stored, nowMs) || i < 1 || i >= stored.items.length) return null;
+  if (stored.items[i - 1]!.key !== p.after) return null;
+  const key = stored.items[i]!.key;
+  if (key === p.key || program?.studio?.queue.includes(key)) return null;
+  if (playlistAirings(stored, i, program).some((a) => playlistAllows(stored.playlists?.[a.playlistId ?? a.id], a.playlist!, key))) return null;
+  return key;
+}

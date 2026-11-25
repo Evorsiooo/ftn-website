@@ -88,6 +88,14 @@ export async function radioHealth(db: DbClient) {
     library: library ? { playableSongs: library.length } : null,
     schedule: { onNow: show(current), upNext: show(next) },
     obsLive,
+    // the song the website picked to come next (listeners' browsers mix into it), and the playlist shows' shuffles
+    websitePick: tl?.nextPick ? { position: tl.nextPick.k, after: tl.nextPick.after, song: tl.nextPick.key } : null,
+    playlistShows: Object.entries(tl?.playlists ?? {}).map(([playlistId, p]) => ({
+      playlistId,
+      round: p.cycle + 1,
+      songsPlayedThisRound: p.played.length,
+      lastPlayed: new Date(p.at).toISOString(),
+    })),
     // mixes the safety checks refused (the song then played out with no mix), last 7 days
     refusedMixes: (() => {
       const week = mixReports.filter((r) => now - r.lastAt < 7 * 86_400_000);

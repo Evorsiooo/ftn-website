@@ -112,6 +112,12 @@ export interface RadioTimeline {
   played?: string[];
   /** Server ms of the last stored change (the website sets it): songs lined up after it were likely never heard. */
   storedAtMs?: number;
+  /**
+   * The song the website picked to follow song number k-1 ([after]), set by the website each time it stores a
+   * change (lib/radio/server-pick.ts). The browser that plans that mix mixes into it; the website refuses
+   * any other (except a show's song).
+   */
+  nextPick?: { k: number; after: string; key: string } | null;
   /** Where each playlist show's shuffle has got to (the website keeps it, see lib/radio/rotation.ts). */
   playlists?: Record<string, PlaylistProgress>;
 }
