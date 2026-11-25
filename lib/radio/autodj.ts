@@ -136,9 +136,10 @@ function playedSpan(tl: RadioTimeline, j: number): PlayedSong | null {
 
 /**
  * [next] with its play history: the songs [current] had that [next] drops, most recent first, ahead of
- * [current]'s own history. A fresh start counts every song of the old running order.
+ * [current]'s own history. A fresh start counts every song of the old running order. Only songs that had
+ * started before [heardBefore] are kept with their times (a Studio pause: the songs after it were never heard).
  */
-export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, nowMs: number): RadioTimeline {
+export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, nowMs: number, heardBefore = nowMs): RadioTimeline {
   if (!current) return { ...next, played: [], recent: [] };
   const fresh = endOfTimelineMs(current) < nowMs;
   const dropped = fresh ? current.items.length : Math.max(0, next.firstK - current.firstK);
@@ -146,7 +147,7 @@ export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, n
   const spans: PlayedSong[] = [];
   for (let j = dropped - 1; j >= 0; j--) {
     const span = playedSpan(current, j);
-    if (span) spans.push(span);
+    if (span && span.at < heardBefore) spans.push(span);
   }
   return {
     ...next,

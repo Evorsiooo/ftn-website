@@ -11,7 +11,7 @@ import {
   radioStudioQueue,
   radioStudioSessions,
 } from "@/db/schema";
-import { endOfTimelineMs, nowPlaying, slotAt, trackPositionSec, type RadioTimeline, type TimelineItem } from "./autodj";
+import { endOfTimelineMs, nowPlaying, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
 import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
@@ -342,7 +342,10 @@ export async function resumeMusic(db: DbClient, s: Session, publish = true): Pro
       items: [item],
       mixes: [],
     };
-    await bucket.put(AUTODJ_KEY, JSON.stringify(fresh), { httpMetadata: { contentType: "application/json" } });
+    // the history keeps what was heard before the pause; the paused song carries on, so it isn't listed yet
+    const stored = withPlayed(tl, fresh, now, s.pausedAt.getTime());
+    if (stored.recent?.[0]?.key === item.key) stored.recent = stored.recent.slice(1);
+    await bucket.put(AUTODJ_KEY, JSON.stringify(stored), { httpMetadata: { contentType: "application/json" } });
     if (s.replayId) await saveTimelinePart(db, s.replayId, fresh);
   }
   await db.update(radioStudioSessions).set({ pausedAt: null, pausedKey: null, pausedSec: null }).where(eq(radioStudioSessions.id, s.id));
@@ -505,6 +508,8 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
       backToQueue = tl.items.slice(j + 1).map((i) => i.key);
       next = cut;
     }
+    // the songs a skip moves past go into the play history, as when listeners line songs up
+    next = withPlayed(tl, next, now);
     const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), { httpMetadata: { contentType: "application/json" }, onlyIf: { etagMatches: stored.etag } });
     if (!put) continue; // a listener's browser lined up a song at the same moment: look again
     if (fromQueue.length) await markQueuedPlayed(db, fromQueue);
