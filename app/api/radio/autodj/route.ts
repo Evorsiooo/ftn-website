@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/db";
-import { checkTimelineChange, withPlayed, type RadioTimeline } from "@/lib/radio/autodj";
-import { songsByKeys } from "@/lib/radio/library";
+import { checkTimelineChange, onAirSongs, repeatWindow, REPEAT_WINDOW, withPlayed, type RadioTimeline } from "@/lib/radio/autodj";
+import { cachedPlayableSongs, songsByKeys } from "@/lib/radio/library";
+import { recordMixReport } from "@/lib/radio/mix-reports";
+import { PROGRAM_KEY, type RadioProgram } from "@/lib/radio/program-types";
+import { repeatProblem, ROTATION_VERSION, withPlaylistPlays } from "@/lib/radio/rotation";
 import { AUTODJ_KEY, noStore, radioBucket, radioDb } from "@/lib/radio/store";
 import { logTimeline, markQueuedPlayed } from "@/lib/radio/studio";
 
@@ -12,9 +15,13 @@ export const runtime = "edge";
  * domain; when it runs short one of them POSTs a longer one here. The website
  * only checks and stores: new songs must be in the library, nothing already
  * playing or about to play may change, every mix must stay within safe
- * volume, filter and speed bounds, and the change must build on the stored
+ * volume, filter and speed bounds, no new song may have played within the last
+ * 200 (lib/radio/rotation.ts), and the change must build on the stored
  * revision (the first listener to send one wins; the others re-read it).
  */
+/** A library a little smaller than when the browser looked (songs archived since) mustn't make a fair pick a repeat. */
+const WINDOW_SLACK = 10;
+
 export async function POST(request: NextRequest) {
   const bucket = radioBucket();
   const db = radioDb();
@@ -31,14 +38,39 @@ export async function POST(request: NextRequest) {
   const current = stored ? ((await stored.json()) as RadioTimeline) : null;
   const items = (next as { items?: unknown })?.items;
   const keys = Array.isArray(items) ? items.map((i) => String((i as { key?: unknown })?.key)) : [];
-  const error = checkTimelineChange(current, next, Date.now(), await songsByKeys(getDb(db), keys));
+  const now = Date.now();
+  const error = checkTimelineChange(current, next, now, await songsByKeys(getDb(db), keys));
   if (error) {
     const stale = current !== null && (next as { rev?: unknown })?.rev !== current.rev + 1;
+    const bad = /^mix (\d+): (.*)$/.exec(error);
+    if (bad && !stale) {
+      const tl = next as RadioTimeline;
+      const i = Number(bad[1]);
+      await recordMixReport({ from: tl.items[i]!.key, to: tl.items[i + 1]!.key, style: String(tl.mixes[i]?.style), problem: bad[2]!, where: "website" });
+    }
     return NextResponse.json({ error }, { status: stale ? 409 : 422, headers: noStore });
   }
+  // the play history and the playlist shows' progress are the website's to keep (the next-song picker
+  // reads them), whatever was sent; "picker" is only what the sender says about itself
+  const { picker, ...sent } = next as RadioTimeline;
+  let out = withPlayed(current, sent as RadioTimeline, now);
+  const program = await readProgram(bucket);
+  const repeats = repeatProblem(current, out, now, program);
+  if (repeats.length) {
+    // the window shrinks for a small library (repeatWindow), as the browsers' picker does
+    const n = repeats.some((r) => r.ago < REPEAT_WINDOW - WINDOW_SLACK) ? onAirSongs(await cachedPlayableSongs(getDb(db))).length : Infinity;
+    const window = Math.max(0, repeatWindow(n) - WINDOW_SLACK);
+    const real = repeats.filter((r) => r.ago < window);
+    if (real.length) {
+      const msg = `played ${real[0]!.ago + 1} songs ago: ${real[0]!.key}`;
+      // a player loaded before the rules came in (a tab left open): let it through rather than stop the radio
+      if ((picker ?? 0) >= ROTATION_VERSION) return NextResponse.json({ error: msg }, { status: 422, headers: noStore });
+      console.warn(`radio: repeat from an older player let through (${msg})`);
+    }
+  }
+  out = withPlaylistPlays(current, out, now, program);
+  next = out;
   // only over the revision that was checked: two listeners sending at once can't both win
-  // the play history is the website's to keep (the next-song picker reads it), whatever was sent
-  next = withPlayed(current, next as RadioTimeline, Date.now());
   const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), {
     httpMetadata: { contentType: "application/json" },
     onlyIf: stored ? { etagMatches: stored.etag } : { uploadedBefore: new Date(0) },
@@ -54,4 +86,13 @@ export async function POST(request: NextRequest) {
     console.error("radio: after storing the running order", err);
   }
   return NextResponse.json({ rev: (next as RadioTimeline).rev }, { headers: noStore });
+}
+
+async function readProgram(bucket: R2Bucket): Promise<RadioProgram | null> {
+  try {
+    const obj = await bucket.get(PROGRAM_KEY);
+    return obj ? ((await obj.json()) as RadioProgram) : null;
+  } catch {
+    return null;
+  }
 }

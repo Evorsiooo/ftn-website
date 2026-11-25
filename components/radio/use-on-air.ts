@@ -3,7 +3,7 @@
 // Listen). While this browser plays the AutoDJ, its own player is the source; otherwise the stored running order
 // and the server clock give the same answer every listener hears, and between listeners virtualOnAir does.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { endOfTimelineMs, nowPlaying, virtualOnAir, type LibrarySong, type RadioTimeline } from "@/lib/radio/autodj";
+import { endOfTimelineMs, historyAfter, nowPlaying, virtualOnAir, type LibrarySong, type RadioTimeline } from "@/lib/radio/autodj";
 import { RADIO_FILES } from "./use-radio-source";
 import { useRadio } from "./radio-provider";
 
@@ -108,7 +108,7 @@ export function useOnAir(enabled = true): OnAir {
       }
     }
     // Nobody listening: the song the first listener will start with, at the same place (see virtualOnAir).
-    const v = virtualOnAir(songs, serverNow);
+    const v = virtualOnAir(songs, serverNow, historyAfter(tl));
     if (!v) return { state: "off-air" };
     return { state: "song", key: v.song.key, title: v.song.title, artist: v.song.artist, art: v.song.thumbnail ?? null, positionSec: v.positionSec, at: now, durationSec: v.song.durationSec ?? 0 };
   }, [radio.source, radio.song, playingHere, songs, tl, now, skew]);

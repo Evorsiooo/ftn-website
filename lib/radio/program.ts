@@ -78,7 +78,10 @@ export async function programAirings(db: DbClient, now = Date.now()): Promise<Pr
   const out: ProgramAiring[] = [];
   for (const o of occ) {
     const a: ProgramAiring = { id: `${o.broadcastId}:${o.start.getTime()}`, start: o.start.getTime(), end: o.end.getTime(), plays: o.plays, title: o.title, art: o.artUrl };
-    if (o.plays === "playlist" && o.playlistId) a.playlist = lists.get(o.playlistId);
+    if (o.plays === "playlist" && o.playlistId) {
+      a.playlist = lists.get(o.playlistId);
+      a.playlistId = o.playlistId;
+    }
     if (o.plays === "stream" && o.streamUrl) a.stream = o.streamUrl;
     out.push(a);
   }

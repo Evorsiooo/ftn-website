@@ -3,9 +3,10 @@
 // "no Icecast source" just means nobody is live.
 import type { DbClient } from "@/db";
 import { edgeReachable, getSecureRadioSettings, getStreamConfig, probeStream } from "@/lib/radio";
-import { endOfTimelineMs, nowPlaying, virtualOnAir, type RadioTimeline } from "@/lib/radio/autodj";
+import { endOfTimelineMs, historyAfter, nowPlaying, virtualOnAir, type RadioTimeline } from "@/lib/radio/autodj";
 import { cachedPlayableSongs } from "@/lib/radio/library";
 import { LIVE_KEY, type RadioLive } from "@/lib/radio/live";
+import { readMixReports } from "@/lib/radio/mix-reports";
 import { AUTODJ_KEY, radioBucket } from "@/lib/radio/store";
 import { loadShowsAndBroadcasts, resolveCurrentAndNext } from "@/lib/schedule";
 
@@ -18,13 +19,14 @@ export async function radioHealth(db: DbClient) {
   const bucket = radioBucket();
   if (!bucket) problems.push("The radio's storage (R2 bucket) isn't connected to the website.");
 
-  const [library, tlObj, liveObj, schedule, secure, stream] = await Promise.all([
+  const [library, tlObj, liveObj, schedule, secure, stream, mixReports] = await Promise.all([
     cachedPlayableSongs(db).catch(() => null),
     bucket?.get(AUTODJ_KEY).catch(() => null),
     bucket?.get(LIVE_KEY).catch(() => null),
     loadShowsAndBroadcasts(db).catch(() => null),
     getSecureRadioSettings(db),
     getStreamConfig(db),
+    readMixReports().catch(() => []),
   ]);
   const tl = tlObj ? ((await tlObj.json().catch(() => null)) as RadioTimeline | null) : null;
   const live = liveObj ? ((await liveObj.json().catch(() => null)) as RadioLive | null) : null;
@@ -48,7 +50,7 @@ export async function radioHealth(db: DbClient) {
       runningOrderEndsAt: new Date(endOfTimelineMs(tl!)).toISOString(),
     };
   } else {
-    const v = library?.length ? virtualOnAir(library, now) : null;
+    const v = library?.length ? virtualOnAir(library, now, historyAfter(tl ?? null)) : null;
     autodj = v
       ? {
           state: "idle",
@@ -86,5 +88,13 @@ export async function radioHealth(db: DbClient) {
     library: library ? { playableSongs: library.length } : null,
     schedule: { onNow: show(current), upNext: show(next) },
     obsLive,
+    // mixes the safety checks refused (the song then played out with no mix), last 7 days
+    refusedMixes: (() => {
+      const week = mixReports.filter((r) => now - r.lastAt < 7 * 86_400_000);
+      return {
+        last7Days: week.length,
+        latest: week.slice(0, 5).map((r) => ({ at: new Date(r.lastAt).toISOString(), from: r.from, to: r.to, style: r.style, problem: r.problem, refusedBy: r.where, times: r.count })),
+      };
+    })(),
   };
 }

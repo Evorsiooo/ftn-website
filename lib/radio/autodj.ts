@@ -100,25 +100,77 @@ export interface RadioTimeline {
   mixes: TimelineMix[];
   plannedWith: { bars: number; analysisVersion: number; engine: string };
   /**
+   * Sent with a change, never stored: the version of the rotation rules the sender's picker follows
+   * (ROTATION_VERSION in lib/radio/rotation.ts). Browsers with an older player don't send it; the
+   * website then lets their picks through, so a tab left open across an update can't stop the radio.
+   */
+  picker?: number;
+  /**
    * Songs that have left the running order, most recent first (at most PLAYED_MAX). The website
    * fills it in when it stores a change (withPlayed), so the next-song picker knows what played.
    */
   played?: string[];
+  /** Server ms of the last stored change (the website sets it): songs lined up after it were likely never heard. */
+  storedAtMs?: number;
+  /** Where each playlist show's shuffle has got to (the website keeps it, see lib/radio/rotation.ts). */
+  playlists?: Record<string, PlaylistProgress>;
+}
+
+/** A playlist's shuffle: which round, the songs it has played in this round, and when it last played one. */
+export interface PlaylistProgress {
+  cycle: number;
+  played: string[];
+  at: number;
 }
 
 /** How many songs the running order remembers having played. */
 export const PLAYED_MAX = 200;
 
+/** No song again within this many songs (Adrien, 2026-11-21, kept 2026-11-25). */
+export const REPEAT_WINDOW = 200;
+/** Songs always left to choose from, however small the library (so the artist and album rules have a choice). */
+export const MIN_CHOICE = 50;
+/**
+ * The no-repeat window for [onAirCount] songs on air: REPEAT_WINDOW, shortened only for a library under
+ * 250 songs so that MIN_CHOICE songs are always left (the AutoDJ never runs out of songs to play).
+ */
+export function repeatWindow(onAirCount: number): number {
+  return Math.max(0, Math.min(REPEAT_WINDOW, onAirCount - MIN_CHOICE));
+}
+
+/**
+ * The songs of [tl] that count as played once it has run out (everyone left): the ones that had started by its
+ * last stored change. Listeners line up a song as each one starts, so a song that started later than that most
+ * likely played to nobody. Most recent first. An older running order (no storedAtMs): all of them.
+ */
+export function heardItems(tl: RadioTimeline): string[] {
+  const by = tl.storedAtMs ?? Infinity;
+  const out: string[] = [];
+  for (let j = 0; j < tl.items.length; j++) {
+    const s = slotAt(tl, tl.firstK + j);
+    if (s && s.startMs <= by) out.push(s.item.key);
+  }
+  return out.reverse();
+}
+
+/** What a fresh start after [tl] counts as played, most recent first (the songs the radio between listeners avoids). */
+export function historyAfter(tl: RadioTimeline | null): string[] {
+  return tl ? [...heardItems(tl), ...(tl.played ?? [])].slice(0, PLAYED_MAX) : [];
+}
+
 /**
  * [next] with its play history: the songs [current] had that [next] drops, most recent first, ahead of
- * [current]'s own history. A fresh start counts every song of the old running order.
+ * [current]'s own history. A fresh start counts the old running order's songs that were heard (heardItems).
+ * Also carries the playlist shows' progress over and stamps the time it is stored.
  */
 export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, nowMs: number): RadioTimeline {
-  if (!current) return { ...next, played: [] };
+  const kept = { ...next, storedAtMs: nowMs, playlists: current?.playlists ?? {} };
+  if (!current) return { ...kept, played: [] };
   const fresh = endOfTimelineMs(current) < nowMs;
-  const dropped = fresh ? current.items.length : Math.max(0, next.firstK - current.firstK);
+  if (fresh) return { ...kept, played: historyAfter(current) };
+  const dropped = Math.max(0, next.firstK - current.firstK);
   const left = current.items.slice(0, dropped).map((i) => i.key).reverse();
-  return { ...next, played: [...left, ...(current.played ?? [])].slice(0, PLAYED_MAX) };
+  return { ...kept, played: [...left, ...(current.played ?? [])].slice(0, PLAYED_MAX) };
 }
 
 /** Everything the running order has played or lined up, most recent first. */
@@ -454,6 +506,12 @@ export function onAirSongs<T extends { ready?: boolean }>(library: T[]): T[] {
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** The index in [next] of its first song that [current] didn't have (all of them for a fresh start). */
+export function firstNewItem(current: RadioTimeline | null, next: RadioTimeline, nowMs: number): number {
+  if (!current || endOfTimelineMs(current) < nowMs) return 0;
+  return Math.max(0, current.items.length - (next.firstK - current.firstK));
+}
+
 /**
  * Null when [next] may replace [current] (null: nothing stored yet) at server
  * time [nowMs]. Accepted: a fresh start when the radio has run out, or the
@@ -473,7 +531,7 @@ export function checkTimelineChange(current: RadioTimeline | null, next: unknown
   // identical, below); only new ones are compared with the library, so a song
   // renamed or archived in the admin panel since doesn't block the next write.
   const fresh = !current || endOfTimelineMs(current) < nowMs;
-  const newFrom = fresh ? 0 : Math.max(0, current!.items.length - ((tl.firstK as number) - current!.firstK));
+  const newFrom = firstNewItem(current, tl, nowMs);
   for (const [i, item] of tl.items.entries()) {
     if (!isObj(item)) return 'bad item';
     if (!within(item.durationSec, 1, 1200)) return 'bad duration';
@@ -568,9 +626,17 @@ export function seeded(seed: number) {
 }
 
 /** The song "on air" at [serverMs] when nobody is listening, and how far into it. Null with an empty library. */
-export function virtualOnAir(library: LibrarySong[], serverMs: number): { song: LibrarySong; positionSec: number; leftSec: number; next: LibrarySong } | null {
+export function virtualOnAir(
+  library: LibrarySong[],
+  serverMs: number,
+  /** What has played, most recent first (historyAfter of the stored running order): kept out like any repeat. */
+  avoid: string[] = [],
+): { song: LibrarySong; positionSec: number; leftSec: number; next: LibrarySong } | null {
   if (!library.length) return null;
-  const songs = [...onAirSongs(library)].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const all = [...onAirSongs(library)].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const blocked = new Set(avoid.slice(0, repeatWindow(all.length)));
+  const fresh = all.filter((s) => !blocked.has(s.key));
+  const songs = fresh.length ? fresh : all;
   const block = Math.floor(serverMs / VIRTUAL_BLOCK_MS);
   const rand = seeded(block * 2654435761);
   const recent: string[] = [];
