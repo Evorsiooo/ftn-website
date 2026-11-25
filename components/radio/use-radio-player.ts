@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_GAIN } from "@/lib/radio/volume";
 
 export type PlayerStatus = "idle" | "connecting" | "playing" | "buffering" | "reconnecting" | "error" | "off-air";
 
@@ -84,9 +85,9 @@ const HANDOFF_FADE_MS = 700;
 function readStored(): { volume: number; muted: boolean } {
   try {
     const v = parseFloat(localStorage.getItem(VOLUME_KEY) ?? "");
-    return { volume: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.8, muted: localStorage.getItem(MUTED_KEY) === "1" };
+    return { volume: Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : DEFAULT_GAIN, muted: localStorage.getItem(MUTED_KEY) === "1" };
   } catch {
-    return { volume: 0.8, muted: false };
+    return { volume: DEFAULT_GAIN, muted: false };
   }
 }
 
@@ -108,7 +109,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
   const duckRef = useRef(1);
   const voiceDuckRef = useRef(1);
   const [pendingSince, setPendingSince] = useState<number | null>(null);
-  const [volume, setVolumeState] = useState(0.8);
+  const [volume, setVolumeState] = useState(DEFAULT_GAIN);
   const [muted, setMutedState] = useState(false);
   // Another window (main page or pop-out) is the one playing right now.
   const [remotePlaying, setRemotePlayingState] = useState(false);
