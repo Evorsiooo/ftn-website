@@ -104,21 +104,55 @@ export interface RadioTimeline {
    * fills it in when it stores a change (withPlayed), so the next-song picker knows what played.
    */
   played?: string[];
+  /**
+   * The same songs with when they played (server ms), most recent first (at most RECENT_MAX), for the Radio
+   * page's "Recently played". Kept by the website alongside [played] (withPlayed).
+   */
+  recent?: PlayedSong[];
+}
+
+export interface PlayedSong {
+  key: string;
+  /** When the song started (server ms). */
+  at: number;
+  /** When it handed over to the next one (server ms). */
+  end: number;
 }
 
 /** How many songs the running order remembers having played. */
 export const PLAYED_MAX = 200;
+/** How many of them it remembers with their times. */
+export const RECENT_MAX = 30;
+
+/** When the song at local index [j] of [tl] started and handed over (null when it can't be worked out). */
+function playedSpan(tl: RadioTimeline, j: number): PlayedSong | null {
+  const slot = slotAt(tl, (tl.firstK ?? 0) + j);
+  if (!slot) return null;
+  // the first song of a running order may start partway in (a fresh start, or songs dropped in front of it)
+  const at = j === 0 ? tl.anchorMs - tl.startSec * 1000 : slot.startMs;
+  const end = slot.mixOut ? slot.mixOut.t0Ms + slot.mixOut.mix.handoffSec * 1000 : slot.endMs;
+  return Number.isFinite(at) && Number.isFinite(end) ? { key: slot.item.key, at, end } : null;
+}
 
 /**
  * [next] with its play history: the songs [current] had that [next] drops, most recent first, ahead of
  * [current]'s own history. A fresh start counts every song of the old running order.
  */
 export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, nowMs: number): RadioTimeline {
-  if (!current) return { ...next, played: [] };
+  if (!current) return { ...next, played: [], recent: [] };
   const fresh = endOfTimelineMs(current) < nowMs;
   const dropped = fresh ? current.items.length : Math.max(0, next.firstK - current.firstK);
   const left = current.items.slice(0, dropped).map((i) => i.key).reverse();
-  return { ...next, played: [...left, ...(current.played ?? [])].slice(0, PLAYED_MAX) };
+  const spans: PlayedSong[] = [];
+  for (let j = dropped - 1; j >= 0; j--) {
+    const span = playedSpan(current, j);
+    if (span) spans.push(span);
+  }
+  return {
+    ...next,
+    played: [...left, ...(current.played ?? [])].slice(0, PLAYED_MAX),
+    recent: [...spans, ...(current.recent ?? [])].slice(0, RECENT_MAX),
+  };
 }
 
 /** Everything the running order has played or lined up, most recent first. */
@@ -557,13 +591,11 @@ export function seeded(seed: number) {
 }
 
 /** The song "on air" at [serverMs] when nobody is listening, and how far into it. Null with an empty library. */
-export function virtualOnAir(library: LibrarySong[], serverMs: number): { song: LibrarySong; positionSec: number; leftSec: number; next: LibrarySong } | null {
-  if (!library.length) return null;
-  const songs = [...library].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  const block = Math.floor(serverMs / VIRTUAL_BLOCK_MS);
+/** The songs drawn one after another in the hour [block] when nobody is listening (the same in every browser). */
+function virtualDraw(songs: LibrarySong[], block: number) {
   const rand = seeded(block * 2654435761);
   const recent: string[] = [];
-  const draw = () => {
+  return () => {
     const pool = songs.filter((s) => !recent.includes(s.key));
     const from = pool.length ? pool : songs;
     const s = from[Math.floor(rand() * from.length)]!;
@@ -571,12 +603,93 @@ export function virtualOnAir(library: LibrarySong[], serverMs: number): { song: 
     if (recent.length > Math.min(VIRTUAL_NO_REPEAT, songs.length - 1)) recent.shift();
     return s;
   };
-  const len = (s: LibrarySong) => (finite(s.durationSec) && s.durationSec! > 1 ? s.durationSec! : VIRTUAL_DEFAULT_SEC);
+}
+
+const virtualLen = (s: LibrarySong) => (finite(s.durationSec) && s.durationSec! > 1 ? s.durationSec! : VIRTUAL_DEFAULT_SEC);
+const byKey = (library: LibrarySong[]) => [...library].sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+/** The song "on air" at [serverMs] when nobody is listening, and how far into it. Null with an empty library. */
+export function virtualOnAir(library: LibrarySong[], serverMs: number): { song: LibrarySong; positionSec: number; leftSec: number; next: LibrarySong } | null {
+  if (!library.length) return null;
+  const songs = byKey(library);
+  const block = Math.floor(serverMs / VIRTUAL_BLOCK_MS);
+  const draw = virtualDraw(songs, block);
   let t = (serverMs - block * VIRTUAL_BLOCK_MS) / 1000;
   let song = draw();
-  for (let guard = 0; t >= len(song) && guard < 10_000; guard++) {
-    t -= len(song);
+  for (let guard = 0; t >= virtualLen(song) && guard < 10_000; guard++) {
+    t -= virtualLen(song);
     song = draw();
   }
-  return { song, positionSec: t, leftSec: len(song) - t, next: draw() };
+  return { song, positionSec: t, leftSec: virtualLen(song) - t, next: draw() };
+}
+
+/**
+ * The songs the pages showed between listeners from [fromMs] to [toMs], most recent first (at most [max]):
+ * those that ended inside the window (the one still on at [toMs] is not over yet).
+ */
+function virtualPlayed(songs: LibrarySong[], fromMs: number, toMs: number, max: number): PlayedSong[] {
+  const out: PlayedSong[] = [];
+  const last = Math.floor((toMs - 1) / VIRTUAL_BLOCK_MS);
+  const first = Math.max(Math.floor(fromMs / VIRTUAL_BLOCK_MS), last - 48);
+  for (let block = last; block >= first && out.length < max; block--) {
+    const draw = virtualDraw(songs, block);
+    const blockEnd = (block + 1) * VIRTUAL_BLOCK_MS;
+    const these: PlayedSong[] = [];
+    for (let at = block * VIRTUAL_BLOCK_MS, guard = 0; at < blockEnd && at < toMs && guard < 10_000; guard++) {
+      const s = draw();
+      const end = Math.min(at + virtualLen(s) * 1000, blockEnd);
+      // only songs that started and ended in the window: the one a listener's fresh start carried on with is
+      // in the real history already, and the one on when the last listener left was heard by them. A song the
+      // new hour cut off within its first minute is left out too.
+      if (at >= fromMs - 1000 && at < toMs - 1000 && end <= toMs + 1000 && end - at >= 60_000) these.push({ key: s.key, at, end });
+      at = end;
+    }
+    out.push(...these.reverse());
+  }
+  return out.slice(0, max);
+}
+
+export interface RecentSong {
+  key: string;
+  title: string;
+  artist: string;
+  art: string | null;
+  /** When it started (server ms). */
+  at: number;
+}
+
+/**
+ * What the radio played before the song on air now, most recent first: the running order's finished songs, the
+ * ones it remembers ([recent]), and, where nobody was listening in between, the songs the pages showed then.
+ */
+export function recentlyPlayed(tl: RadioTimeline | null, library: LibrarySong[], serverMs: number, count: number): RecentSong[] {
+  const real: PlayedSong[] = [];
+  if (tl) {
+    for (let j = tl.items.length - 1; j >= 0; j--) {
+      const span = playedSpan(tl, j);
+      if (span && span.end <= serverMs) real.push(span);
+    }
+    real.push(...(tl.recent ?? []));
+  }
+  const songs = byKey(library);
+  const found: PlayedSong[] = [];
+  let to = serverMs;
+  for (const r of real) {
+    if (found.length >= count) break;
+    if (songs.length && to - r.end > 30_000) found.push(...virtualPlayed(songs, r.end, to, count - found.length));
+    if (found.length < count) found.push(r);
+    to = Math.min(to, r.at);
+  }
+  // no history at all (nobody has listened yet): the day before, between listeners. With a history, nothing is
+  // made up before its oldest song, since songs played then may only be remembered without their times.
+  if (found.length < count && songs.length && real.length === 0 && !tl?.played?.length) {
+    found.push(...virtualPlayed(songs, to - 86_400_000, to, count - found.length));
+  }
+  const info = new Map(library.map((s) => [s.key, s]));
+  const named = new Map((tl?.items ?? []).map((i) => [i.key, i]));
+  return found.slice(0, count).map((p) => {
+    const s = info.get(p.key);
+    const n = named.get(p.key);
+    return { key: p.key, title: s?.title ?? n?.title ?? "", artist: s?.artist ?? n?.artist ?? "", art: s?.thumbnail ?? null, at: p.at };
+  }).filter((r) => r.title);
 }
