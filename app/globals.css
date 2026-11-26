@@ -120,7 +120,7 @@
   --ftn-text-3: #8b92a0;
   --ftn-glass: rgb(24 26 33 / 0.62);
   --ftn-brand-text: #ffbb14;
-  --ftn-live: #ff5a4d;
+  --ftn-live: #e2162b;
   --ftn-live-ink: #ff8f85;
   --ftn-sports: #6aa7ff;
   --ftn-shadow: 0 14px 40px -14px rgb(0 0 0 / 0.9);
@@ -136,7 +136,7 @@
   --ftn-text-3: #5b6677;
   --ftn-glass: rgb(255 255 255 / 0.72);
   --ftn-brand-text: #8a5700;
-  --ftn-live: #d92d20;
+  --ftn-live: #e2162b;
   --ftn-live-ink: #b42318;
   --ftn-sports: #1d5fd1;
   --ftn-shadow: 0 10px 30px -12px rgb(20 30 50 / 0.3);
@@ -672,10 +672,6 @@ input:-webkit-autofill {
   to {
     background-position: -100% 0;
   }
-}
-@keyframes ftn-pulse-dot {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(255 77 61 / 0.5); }
-  50% { box-shadow: 0 0 0 4px rgb(255 77 61 / 0); }
 }
 .ftn-page-enter {
   animation: ftn-fade-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;

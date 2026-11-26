@@ -133,7 +133,7 @@ export default async function HomePage() {
               <>
                 {featuredVideo.isLive && (
                   <div className="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-widest">
-                    <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" /> Live now on FTN+
+                    <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-live" /> Live now on FTN+
                   </div>
                 )}
                 <h1 className={`line-clamp-4 pb-[0.06em] font-extrabold leading-[0.98] [overflow-wrap:anywhere] ${HERO_TITLE_CLASSES[heroTitleSize(featuredVideo.title)]}`} title={featuredVideo.title}>

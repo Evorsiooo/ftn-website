@@ -189,7 +189,7 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 .fp .pbar .tx { min-width: 0; }
 .fp .pbar .a { font: 600 15px/1.3 var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fp .pbar .b { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.fp .pbar .open:hover .a { text-decoration: underline; text-underline-offset: 3px; }
+.fp .pbar .extras { display: flex; align-items: center; gap: 6px; }
 .fp .stop { width: 44px; height: 44px; border-radius: 999px; background: var(--yellow); display: grid; place-items: center; flex: none; transition: background-color 150ms; }
 .fp .stop:hover { background: var(--yellow-hover); }
 .fp .stop i { width: 14px; height: 14px; background: var(--ink); border-radius: 2px; }
@@ -404,10 +404,8 @@ html:has(.fp:not(.fp-lite)), html:has(.fp:not(.fp-lite)) body { background: #161
 /* Live marker: in the duration's place and shape (see components/plus/live.tsx). */
 .fp .livemark { display: inline-flex; align-items: center; gap: 6px; font: 600 12px/1 var(--body); color: var(--text); }
 .fp .th .livemark { position: absolute; right: 8px; bottom: 8px; background: rgba(10, 8, 5, 0.82); padding: 4px 7px 4px 6px; border-radius: 4px; }
-.fp .livemark i { width: 7px; height: 7px; border-radius: 999px; background: var(--live); box-shadow: 0 0 0 0 rgba(226, 22, 43, 0.6); animation: fp-live 2s ease-out infinite; }
+.fp .livemark i { width: 7px; height: 7px; border-radius: 999px; background: var(--live); }
 .fp .livemark.inline { font-size: 14px; color: var(--text-2); }
-@keyframes fp-live { 0% { box-shadow: 0 0 0 0 rgba(226, 22, 43, 0.55); } 70%, 100% { box-shadow: 0 0 0 6px rgba(226, 22, 43, 0); } }
-@media (prefers-reduced-motion: reduce) { .fp .livemark i { animation: none; } }
 .fp .logo-fallback { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 999px; background: var(--surface-3); color: var(--text-2); font: 700 11px/1 var(--body); flex: none; }
 .fp .volbtn { display: grid; place-items: center; color: inherit; }
 .fp .volbtn:hover { color: var(--text); }
@@ -495,7 +493,7 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 /* Replays: past shows to listen back to, under Shows on the radio page */
 .fp .replays { display: grid; grid-template-columns: repeat(min(var(--cols), 4), minmax(0, 1fr)); gap: 20px; padding: 0 var(--pad) 64px; }
 .fp .replays a { display: block; }
-.fp .replays img, .fp .replays .ph-art { width: 100%; aspect-ratio: 16 / 9; border-radius: 12px; object-fit: cover; transition: opacity 150ms; }
+.fp .replays .th { width: 100%; }
 .fp .replays a:hover img { opacity: 0.85; }
 .fp .replays .n { font: 600 15px/1.3 var(--body); margin-top: 12px; }
 .fp .replays .w { font-size: 13px; color: var(--text-3); }
@@ -750,3 +748,9 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .rpt.popfill textarea { height: 52px; }
 .fp .rpt.popfill .chk { margin-top: 12px; }
 .fp .rpt.popfill .song-o:nth-child(3), .fp .rpt.popfill .who { display: none; }
+
+/* (2026-11-26) full screen uses the Radio page's layout (.radio): centred in the window, no nav above it */
+.fp .full { overflow-y: auto; }
+.fp .full > .radio { position: relative; z-index: 1; width: 100%; align-content: center; padding-top: 72px; --art: clamp(200px, calc(100vh - 320px), 420px); }
+/* the art's glow is drawn larger than the window: fixed, so it never makes the window scroll */
+.fp .full > .glow { position: fixed; }

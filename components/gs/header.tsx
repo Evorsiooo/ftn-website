@@ -76,7 +76,7 @@ export function GsHeader({ section }: { section?: string }) {
             title={plusLive ? "Live now on FTN+" : "FTN+"}
             className="inline-flex h-9 items-center gap-2 rounded-full bg-[#16110a] px-4 transition hover:bg-black"
           >
-            {plusLive && <span aria-hidden className="h-2 w-2 flex-none animate-pulse rounded-full bg-[#ff5a4d]" />}
+            {plusLive && <span aria-hidden className="h-2 w-2 flex-none rounded-full bg-live" />}
             <img src="/logos/ftnplus_textwhite_transparent.png" alt="FTN+" className="h-4 w-auto object-contain" />
           </PlusLink>
           <AuthButton />

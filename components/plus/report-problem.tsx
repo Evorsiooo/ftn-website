@@ -10,7 +10,7 @@ import { loadLibrary, serverOffset } from "@/components/radio/use-on-air";
 import { RADIO_FILES } from "@/components/radio/use-radio-source";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { recentlyPlayed, type RadioTimeline } from "@/lib/radio/autodj";
-import { BUG_REASONS, MAX_DETAILS, SONG_REASONS, describeDiagnostics, type ReportDiagnostics, type ReportSource } from "@/lib/radio/reports";
+import { BUG_REASONS, MAX_DETAILS, REPORT_SOURCES, SONG_REASONS, describeDiagnostics, type ReportDiagnostics, type ReportSource } from "@/lib/radio/reports";
 import * as I from "./icons";
 
 type Song = { key: string; title: string; artist: string; art: string | null; when: string };
@@ -338,7 +338,7 @@ function ReportWindow({ current, source, anchor, onClose }: { current: Song | nu
                 {g.title === "Device" && (
                   <div className="row">
                     <dt>Sent from</dt>
-                    <dd>{source === "popout" ? "Popout player" : source === "full" ? "Full screen" : "Radio page"}</dd>
+                    <dd>{REPORT_SOURCES[source]}</dd>
                   </div>
                 )}
               </dl>

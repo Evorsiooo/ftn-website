@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { radioReplays, radioShows } from "@/db/schema";
 import { radioDb } from "@/lib/radio/store";
@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
   if (!d1) return NextResponse.json({ replays: [] });
   const db = getDb(d1);
   const show = request.nextUrl.searchParams.get("show");
-  const where = [eq(radioReplays.hidden, false), lt(radioReplays.endedAt, new Date())];
+  // automated (playlist) shows' replays aren't listed: they filled the tab (Adrien, 2026-11-26)
+  const where = [eq(radioReplays.hidden, false), ne(radioReplays.kind, "playlist"), lt(radioReplays.endedAt, new Date())];
   if (show) where.push(eq(radioReplays.showId, show));
   const rows = await db
     .select({ r: radioReplays, showName: radioShows.name, showArt: radioShows.artUrl })

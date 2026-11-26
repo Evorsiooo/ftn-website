@@ -138,7 +138,7 @@ export function LivePill({ children = "Live", className }: { children?: React.Re
         className
       )}
     >
-      <span className="ftn-live-dot h-1.5 w-1.5 rounded-full bg-white animate-[ftn-pulse-dot_2s_ease-in-out_infinite]" />
+      <span className="ftn-live-dot h-1.5 w-1.5 rounded-full bg-white" />
       {children}
     </span>
   );
@@ -148,7 +148,7 @@ export function LivePill({ children = "Live", className }: { children?: React.Re
 export function LiveLabel({ children = "Live", className }: { children?: React.ReactNode; className?: string }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-live-ink", className)}>
-      <span className="ftn-live-dot h-1.5 w-1.5 rounded-full bg-live animate-[ftn-pulse-dot_2s_ease-in-out_infinite]" />
+      <span className="ftn-live-dot h-1.5 w-1.5 rounded-full bg-live" />
       {children}
     </span>
   );
