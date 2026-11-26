@@ -6,6 +6,7 @@ import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from "@/lib/radio/loudness";
 import { api, duration, fileUrl, type Song } from "./types";
 import { SongLyrics } from "./song-lyrics";
+import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 
 const SOURCE_LABEL: Record<Song["source"], string> = { youtube: "YouTube", soundcloud: "SoundCloud", upload: "Uploaded" };
 
@@ -139,12 +140,15 @@ export function SongPane({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(song.title);
   const [artist, setArtist] = useState(song.artist);
+  const spotifyLink = song.spotifyId ? `https://open.spotify.com/track/${song.spotifyId}` : "";
+  const [spotify, setSpotify] = useState(spotifyLink);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setEditing(false);
     setTitle(song.title);
     setArtist(song.artist);
-  }, [song.id, song.title, song.artist]);
+    setSpotify(spotifyLink);
+  }, [song.id, song.title, song.artist, spotifyLink]);
 
   const setArchived = async (archived: boolean) => {
     try {
@@ -169,9 +173,13 @@ export function SongPane({
     e.preventDefault();
     setBusy(true);
     try {
-      await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify({ title, artist }) });
+      const spotifyChanged = spotify.trim() !== spotifyLink;
+      const res = await api<{ song?: { spotifyId?: string | null } }>(`/api/admin/radio/songs/${song.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title, artist, ...(spotifyChanged ? { spotify: spotify.trim() || null } : {}) }),
+      });
       setEditing(false);
-      onPatched(song.id, { title: title.trim(), artist: artist.trim() });
+      onPatched(song.id, { title: title.trim(), artist: artist.trim(), ...(spotifyChanged ? { spotifyId: res?.song?.spotifyId ?? null } : {}) });
     } catch (err: any) {
       toast(err.message);
     } finally {
@@ -210,6 +218,18 @@ export function SongPane({
             <div className="field">
               <label>Artist</label>
               <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} maxLength={300} required />
+            </div>
+            <div className="field">
+              <label>Spotify link</label>
+              <input
+                className="input"
+                value={spotify}
+                onChange={(e) => setSpotify(e.target.value)}
+                maxLength={300}
+                placeholder="https://open.spotify.com/track/…"
+                inputMode="url"
+              />
+              <span className="muted t12">Listeners who liked this song open it on Spotify. Left empty, they get a Spotify search.</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="submit" className="btn strong" disabled={busy || !title.trim() || !artist.trim()}>
@@ -256,6 +276,17 @@ export function SongPane({
                   ] as [string, React.ReactNode],
                 ]
               : []),
+            [
+              "Listen on",
+              <span key="l" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <a href={youtubeMusicUrl(song.source === "youtube" ? song.sourceId : null, song.artist, song.title)} target="_blank" rel="noopener noreferrer" className="link">
+                  YouTube Music
+                </a>
+                <a href={spotifyUrl(song.spotifyId, song.artist, song.title)} target="_blank" rel="noopener noreferrer" className="link">
+                  {song.spotifyId ? "Spotify" : "Spotify (search)"}
+                </a>
+              </span>,
+            ],
             ["Loudness", song.loudnessDb == null ? "Not known (no levelling)" : `${song.loudnessDb > 0 ? "+" : ""}${song.loudnessDb.toFixed(1)} dB`],
             ["Added", added(song.createdAt)],
             ["File", <span key="f" className="t12" style={{ fontFamily: "ui-monospace, monospace", overflowWrap: "anywhere" }}>{song.key}</span>],

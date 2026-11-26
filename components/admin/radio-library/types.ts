@@ -9,6 +9,10 @@ export interface Song {
   key: string;
   source: "youtube" | "soundcloud" | "upload";
   sourceUrl: string | null;
+  /** The YouTube video id (source youtube). */
+  sourceId?: string | null;
+  /** The Spotify track id, if known (Liked songs on FTN+ open it; otherwise a Spotify search). */
+  spotifyId?: string | null;
   title: string;
   artist: string;
   album: string | null;

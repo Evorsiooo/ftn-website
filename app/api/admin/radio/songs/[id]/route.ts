@@ -4,18 +4,19 @@ import { radioSongs } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
 import { isLinedUp, radioBucket } from "@/lib/radio/library";
 import { isLyricsOffset, isLyricsSource } from "@/lib/radio/lyrics-choice";
+import { parseSpotifyTrack } from "@/lib/radio/song-links";
 
 export const runtime = "edge";
 
 type Params = { params: Promise<{ id: string }> };
 
 // Edit a song's title, artist, album, year and cover (by hand, or from the music catalog), its lyrics (provider and
-// offset, for every listener), or archive it (hidden from the AutoDJ and the library list) and back.
+// offset, for every listener), its Spotify track (Liked songs on FTN+ open it), or archive it (hidden from the AutoDJ and the library list) and back.
 export async function PATCH(request: NextRequest, { params }: Params) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
   const { id } = await params;
-  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown; lyricsSource?: unknown; lyricsOffsetMs?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown; lyricsSource?: unknown; lyricsOffsetMs?: unknown; spotify?: unknown } | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const set: Partial<typeof radioSongs.$inferInsert> = {};
@@ -50,6 +51,15 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.lyricsOffsetMs !== undefined) {
     if (!isLyricsOffset(body.lyricsOffsetMs)) return NextResponse.json({ error: "lyricsOffsetMs must be -5000 to 5000, in steps of 100" }, { status: 400 });
     set.lyricsOffsetMs = body.lyricsOffsetMs;
+  }
+  if (body.spotify !== undefined) {
+    // a track link, spotify:track:… or the id; null or "" clears it (listeners then get a Spotify search)
+    if (body.spotify === null || body.spotify === "") set.spotifyId = null;
+    else {
+      const id = typeof body.spotify === "string" ? parseSpotifyTrack(body.spotify) : null;
+      if (!id) return NextResponse.json({ error: "spotify must be a Spotify track link (open.spotify.com/track/…) or null" }, { status: 400 });
+      set.spotifyId = id;
+    }
   }
   if (body.archived !== undefined) {
     if (typeof body.archived !== "boolean") return NextResponse.json({ error: "archived must be true or false" }, { status: 400 });
