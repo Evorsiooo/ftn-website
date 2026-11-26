@@ -1,7 +1,7 @@
 "use client";
 /**
  * The radio's keyboard shortcuts: BitChord's web/app/src/shell/useKeyboardShortcuts.ts, keeping the keys a shared
- * radio has. Space listens or stops (BitChord: play/pause); ⌘/Ctrl+↑ / ↓ turn the volume up or down by 10%.
+ * radio has. Space listens or stops (BitChord: play/pause); ⌘/Ctrl+↑ / ↓ move the volume slider up or down by 10%.
  * Left out, as a listener can't do them on a shared radio and the radio has no search: ⌘/Ctrl+→ / ← (next /
  * previous), ⌘/Ctrl+F and "/" (search). Esc already closes the full-screen radio (FullScreen in radio-ui.tsx).
  *
@@ -10,6 +10,7 @@
  */
 import { useEffect, useRef } from "react";
 import { useRadio } from "./radio-provider";
+import { gainFromSlider, sliderFromGain } from "@/lib/radio/volume";
 
 type Actions = { toggle: () => void; volume: () => number; setVolume: (v: number) => void };
 
@@ -39,10 +40,10 @@ function onKey(event: KeyboardEvent) {
   switch (event.key) {
     case "ArrowUp":
       event.preventDefault();
-      return player.setVolume(Math.min(1, player.volume() + 0.1));
+      return player.setVolume(gainFromSlider(sliderFromGain(player.volume()) + 0.1));
     case "ArrowDown":
       event.preventDefault();
-      return player.setVolume(Math.max(0, player.volume() - 0.1));
+      return player.setVolume(gainFromSlider(sliderFromGain(player.volume()) - 0.1));
   }
 }
 

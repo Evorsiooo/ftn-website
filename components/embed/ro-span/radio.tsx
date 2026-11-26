@@ -7,6 +7,7 @@ import { useRadio } from "@/components/radio/radio-provider";
 import { loadStationModule } from "@/components/radio/use-radio-player";
 import { useNowPlaying } from "@/components/radio/use-now-playing";
 import { useStationView } from "@/components/plus/radio-ui";
+import { gainFromPercent, sliderPercent } from "@/lib/radio/volume";
 import "./radio.css";
 
 const whenFmt = new Intl.DateTimeFormat("en-US", { weekday: "short", hour: "numeric", minute: "2-digit" });
@@ -69,7 +70,7 @@ export function RoSpanRadio() {
   const next = info?.nextShow ? { k: "Next:", t: `${info.nextShow.name}, ${when(info.nextShow.start)}` } : null;
   // during a show, the line under the controls is the song playing in it
   const line = show && v.songTitle ? { k: "Song:", t: `${v.songTitle}, ${v.songArtist}` } : next;
-  const vol = Math.round((r.muted ? 0 : r.volume) * 100);
+  const vol = sliderPercent(r.muted ? 0 : r.volume);
 
   return (
     <div className="rsx">
@@ -96,7 +97,7 @@ export function RoSpanRadio() {
                 <button type="button" className="spk" aria-label={r.muted ? "Unmute" : "Mute"} onClick={r.toggleMute}>
                   <Speaker off={r.muted || vol === 0} />
                 </button>
-                <input type="range" min={0} max={100} value={vol} aria-label="Volume" onChange={(e) => r.setVolume(+e.target.value / 100)} style={{ ["--v" as string]: `${vol}%` }} />
+                <input type="range" min={0} max={100} value={vol} aria-label="Volume" onChange={(e) => r.setVolume(gainFromPercent(+e.target.value))} style={{ ["--v" as string]: `${vol}%` }} />
               </label>
             </>
           ) : (

@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, lt, lte, or, sql } from "drizzle-orm";
 import type { DbClient } from "@/db";
 import { radioImports, radioPlaylists, radioPlaylistSongs, radioSongs, radioVersions } from "@/db/schema";
 import { getSecureRadioSettings } from "@/lib/radio";
@@ -356,17 +356,36 @@ export function findDuplicate<T extends DuplicateCandidate>(song: Omit<Duplicate
   );
 }
 
-export async function librarySongsForDuplicates(db: DbClient) {
-  return db
-    .select({ id: radioSongs.id, r2Key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, spotifyId: radioSongs.spotifyId })
-    .from(radioSongs);
+const duplicateColumns = {
+  id: radioSongs.id,
+  r2Key: radioSongs.r2Key,
+  title: radioSongs.title,
+  artist: radioSongs.artist,
+  durationSec: radioSongs.durationSec,
+  spotifyId: radioSongs.spotifyId,
+};
+
+/**
+ * The library songs [song] could be a copy of (findDuplicate's candidates): the same Spotify track, and
+ * every song within 5 seconds of its length. Both are index lookups (migration 0035), a few dozen rows,
+ * where the whole song table used to be read for every new song.
+ */
+export async function duplicateCandidates(db: DbClient, song: { durationSec: number; spotifyId?: string | null }) {
+  const [bySpotify, byLength] = await Promise.all([
+    song.spotifyId ? db.select(duplicateColumns).from(radioSongs).where(eq(radioSongs.spotifyId, song.spotifyId)) : Promise.resolve([]),
+    db
+      .select(duplicateColumns)
+      .from(radioSongs)
+      .where(and(gte(radioSongs.durationSec, song.durationSec - 5), lte(radioSongs.durationSec, song.durationSec + 5))),
+  ]);
+  return [...bySpotify, ...byLength];
 }
 
 /**
- * The song ids for [keys] (R2 keys), adding the songs that aren't in the library yet. A song that
- * is already in the library under another file (another upload of the same track, or the Spotify
- * match of a song added from YouTube) isn't added again: its new file is deleted and the library
- * song is used instead.
+ * The song ids for [items] (finished downloader items), adding the songs that aren't in the library yet. A
+ * song that is already in the library under another file (another upload of the same track, or the Spotify
+ * match of a song added from YouTube) isn't added again: its new file is deleted and the library song is
+ * used instead. Called with the items finished since the last check only (radio_imports.recorded_items).
  */
 async function recordSongs(db: DbClient, items: JobItem[], userId: string | null): Promise<Map<string, string>> {
   const songs = items.filter((i) => i.song?.audio?.r2Key?.startsWith("songs/"));
@@ -383,16 +402,21 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
     fresh.set(key, songRow(item.song!, item.spotify?.spotifyId ?? null, userId));
   }
   if (fresh.size) {
-    const library: (DuplicateCandidate & { r2Key: string })[] = await librarySongsForDuplicates(db);
+    // songs added by this same call count too: a playlist can hold the same track twice
+    const added: (DuplicateCandidate & { r2Key: string })[] = [];
     const copies: string[] = [];
     for (const [key, row] of [...fresh]) {
-      const same = findDuplicate(row, library);
-      if (same) {
+      const same = findDuplicate(row, [...(await duplicateCandidates(db, row)), ...added]);
+      if (same && same.r2Key === key) {
+        // the same file, recorded meanwhile by another check of this import: nothing to delete
+        ids.set(key, same.id);
+        fresh.delete(key);
+      } else if (same) {
         ids.set(key, same.id);
         fresh.delete(key);
         copies.push(key, ...(row.metaKey ? [row.metaKey] : []));
       } else {
-        library.push(row);
+        added.push(row);
       }
     }
     const bucket = radioBucket();
@@ -410,20 +434,27 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
   return ids;
 }
 
-/** Puts [entries] (song id, position) in [playlistId], moving songs already there to their new place. */
+/**
+ * Puts [entries] (song id, position) in [playlistId], moving songs already there to their new place. Only
+ * the songs an import check just recorded come here, so they are written without first reading the playlist.
+ */
 async function placeInPlaylist(db: DbClient, playlistId: string, entries: { songId: string; position: number }[]) {
-  if (!entries.length) return;
-  const existing = await db
-    .select({ songId: radioPlaylistSongs.songId, position: radioPlaylistSongs.position })
-    .from(radioPlaylistSongs)
-    .where(eq(radioPlaylistSongs.playlistId, playlistId));
-  const at = new Map(existing.map((e) => [e.songId, e.position]));
   for (const e of entries) {
-    if (at.get(e.songId) === e.position) continue;
     await db
       .insert(radioPlaylistSongs)
       .values({ playlistId, songId: e.songId, position: e.position })
       .onConflictDoUpdate({ target: [radioPlaylistSongs.playlistId, radioPlaylistSongs.songId], set: { position: e.position } });
+  }
+}
+
+/** The downloader item numbers an import has recorded (radio_imports.recorded_items). */
+export function parseRecorded(raw: string | null | undefined): Set<number> {
+  if (!raw) return new Set();
+  try {
+    const v = JSON.parse(raw);
+    return new Set(Array.isArray(v) ? v.filter((n): n is number => Number.isInteger(n)) : []);
+  } catch {
+    return new Set();
   }
 }
 
@@ -447,7 +478,10 @@ export async function syncImport(db: DbClient, row: ImportRow): Promise<ImportRo
     throw err;
   }
   const items = job.items ?? [];
-  const done = items.filter((i) => i.state === "done" && i.song);
+  // only the songs finished since the last check: re-reading every finished song (and, for each new one,
+  // the whole library) on every check is what a large import couldn't afford
+  const recorded = parseRecorded(row.recordedItems);
+  const done = items.filter((i) => i.state === "done" && i.song && !recorded.has(i.index));
   const ids = await recordSongs(db, done, row.createdBy);
 
   if (row.playlistId) {
@@ -485,7 +519,10 @@ export async function syncImport(db: DbClient, row: ImportRow): Promise<ImportRo
   if (typeof job.sourceTotal === "number" && job.total && job.sourceTotal > job.total) reviewState.sourceTotal = job.sourceTotal;
   const review = reviewState.open.length || reviewState.answered.length || reviewState.sourceTotal ? JSON.stringify(reviewState) : null;
 
+  for (const i of done) recorded.add(i.index);
+  const recordedItems = recorded.size ? JSON.stringify([...recorded].sort((a, b) => a - b)) : null;
   const next = {
+    recordedItems,
     state: job.state,
     title: job.title ?? row.title,
     total: job.total ?? row.total,
@@ -564,30 +601,47 @@ export async function playableSongs(db: DbClient): Promise<LibrarySong[]> {
 
 const PLAYABLE_SNAPSHOT_KEY = "radio/cache/playable-songs.json";
 
+/** While songs are only added or edited (an import), the snapshot is rebuilt at most this often. */
+const SNAPSHOT_ADDED_LAG_MS = 10 * 60_000;
+
 /**
- * playableSongs, read from a snapshot in R2 while the library hasn't changed. The "songs" counter in
- * radio_versions (moved by database triggers on every song add, edit or delete) says whether the snapshot is
- * current: one row read instead of the whole song table. Falls back to the database when R2 or the counter
- * can't be read.
+ * playableSongs as JSON text, from a snapshot in R2 while it is current. Two counters in radio_versions, moved
+ * by database triggers, say whether it is: "songs" (any add, edit or delete) and "songs_removed" (a song
+ * archived, deleted or given another file; migration 0035). A snapshot behind on "songs" only is kept for up
+ * to 10 minutes: during an import a song arrives every few seconds and each rebuild reads the whole library,
+ * while a song that can't play any more always rebuilds it at once. Returned as text so the 1+ MB list isn't
+ * parsed and re-written by every request (the free plan's 10 ms CPU). Falls back to the database when R2 or the
+ * counters can't be read.
  */
-export async function cachedPlayableSongs(db: DbClient): Promise<LibrarySong[]> {
+export async function playableSongsJson(db: DbClient): Promise<string> {
   const bucket = radioBucket();
-  const [v] = await db
-    .select({ version: radioVersions.version })
+  const versions = await db
+    .select({ name: radioVersions.name, version: radioVersions.version })
     .from(radioVersions)
-    .where(eq(radioVersions.name, "songs"))
-    .catch(() => [] as { version: number }[]);
-  if (!bucket || !v) return playableSongs(db);
-  const version = String(v.version);
+    .where(inArray(radioVersions.name, ["songs", "songs_removed"]))
+    .catch(() => [] as { name: string; version: number }[]);
+  const version = versions.find((v) => v.name === "songs")?.version;
+  const removed = versions.find((v) => v.name === "songs_removed")?.version;
+  if (!bucket || version === undefined) return JSON.stringify(await playableSongs(db));
   try {
     const snap = await bucket.get(PLAYABLE_SNAPSHOT_KEY);
-    if (snap && snap.customMetadata?.version === version) return (await snap.json()) as LibrarySong[];
+    if (snap) {
+      const meta = snap.customMetadata ?? {};
+      const current = meta.version === String(version);
+      const onlyAdded = removed !== undefined && meta.removed === String(removed) && Date.now() - snap.uploaded.getTime() < SNAPSHOT_ADDED_LAG_MS;
+      if (current || onlyAdded) return await snap.text();
+    }
   } catch {}
-  const songs = await playableSongs(db);
-  await bucket
-    .put(PLAYABLE_SNAPSHOT_KEY, JSON.stringify(songs), { httpMetadata: { contentType: "application/json" }, customMetadata: { version } })
-    .catch(() => {});
-  return songs;
+  const text = JSON.stringify(await playableSongs(db));
+  const customMetadata: Record<string, string> = { version: String(version) };
+  if (removed !== undefined) customMetadata.removed = String(removed);
+  await bucket.put(PLAYABLE_SNAPSHOT_KEY, text, { httpMetadata: { contentType: "application/json" }, customMetadata }).catch(() => {});
+  return text;
+}
+
+/** playableSongsJson, parsed (the Studio's skip and the AI's radio check). */
+export async function cachedPlayableSongs(db: DbClient): Promise<LibrarySong[]> {
+  return JSON.parse(await playableSongsJson(db)) as LibrarySong[];
 }
 
 /** The library songs for [keys] (for checking a running-order write), archived ones left out. */

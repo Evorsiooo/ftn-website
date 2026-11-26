@@ -14,14 +14,14 @@ export interface AuditEntry {
 
 const MAX_DETAIL = 4000;
 
-/** Hides passwords, secrets and tokens before anything is stored or shown to an AI. */
+/** Hides passwords, secrets, tokens and webhook URLs (anyone with one can post to that channel) before anything is stored or shown to an AI. */
 export function redactSecrets(value: unknown, depth = 0): unknown {
   if (depth > 8) return "…";
   if (Array.isArray(value)) return value.map((v) => redactSecrets(v, depth + 1));
   if (value && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value)) {
-      out[k] = /password|secret|token|apikey|api_key|private/i.test(k) && v ? "[hidden]" : redactSecrets(v, depth + 1);
+      out[k] = /password|secret|token|apikey|api_key|private|webhook/i.test(k) && v ? "[hidden]" : redactSecrets(v, depth + 1);
     }
     return out;
   }

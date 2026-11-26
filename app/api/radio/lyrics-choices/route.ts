@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isNotNull, ne, or } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { radioSongs } from "@/db/schema";
 import type { LyricsChoice, LyricsSource } from "@/lib/radio/lyrics-choice";
@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
   const rows = await getDb(d1)
     .select({ key: radioSongs.r2Key, source: radioSongs.lyricsSource, offsetMs: radioSongs.lyricsOffsetMs })
     .from(radioSongs)
-    .where(or(isNotNull(radioSongs.lyricsSource), ne(radioSongs.lyricsOffsetMs, 0)));
+    // written out with a literal 0, exactly as the partial index radio_songs_lyrics_choice_idx (migration 0035):
+    // the database then reads only the songs with a choice. With a bound parameter it read the whole library.
+    .where(sql`lyrics_source IS NOT NULL OR lyrics_offset_ms <> 0`);
   const choices: Record<string, LyricsChoice> = {};
   for (const r of rows) choices[r.key] = { source: (r.source as LyricsSource) ?? null, offsetMs: r.offsetMs };
   const res = NextResponse.json({ choices }, { headers: { "Cache-Control": `public, max-age=${TTL_SECONDS}`, "x-cached-at": String(Date.now()) } });

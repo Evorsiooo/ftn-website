@@ -450,6 +450,11 @@ export const radioSongs = sqliteTable("radio_songs", {
   uniqueIndex("radio_songs_r2_key_idx").on(t.r2Key),
   index("radio_songs_archived_idx").on(t.archived),
   index("radio_songs_audio_check_idx").on(t.audioCheck),
+  // migration 0035: an import's duplicate check, the Library page's "changed since" load, the lyrics choices
+  index("radio_songs_spotify_idx").on(t.spotifyId),
+  index("radio_songs_duration_idx").on(t.durationSec),
+  index("radio_songs_updated_idx").on(t.updatedAt),
+  index("radio_songs_lyrics_choice_idx").on(t.r2Key).where(sql`lyrics_source IS NOT NULL OR lyrics_offset_ms <> 0`),
 ]);
 
 // Album-audio re-check batches sent to the downloader (lib/radio/album-audio.ts); id = its job id.
@@ -505,6 +510,8 @@ export const radioImports = sqliteTable("radio_imports", {
   failed: integer("failed").notNull().default(0),
   review: text("review"),
   error: text("error"),
+  // JSON list of the downloader item numbers already recorded (migration 0035): a check only looks at new ones
+  recordedItems: text("recorded_items"),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
