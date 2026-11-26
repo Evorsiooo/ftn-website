@@ -217,7 +217,7 @@ export const radioTools: ToolDef[] = [
     name: "get_library_status",
     title: "Song library status",
     description:
-      "How many songs are on air (the AutoDJ plays only these) and how many are getting ready, songs that need a look (missing file, couldn't be prepared, video covers, kept as music videos, archived), and any Prepare run going on (whose PC, progress, time left). Prepare itself runs in an admin's browser (Library page, Prepare button: several songs analysed at once on that PC); an AI can't start it, but can follow it and stop it with stop_prepare.",
+      "How many songs are on air (the AutoDJ plays only these) and how many are getting ready, songs that need a look (missing file, couldn't be prepared, video covers, kept as music videos, archived), and any Prepare run going on (whose PC, progress, time left). Prepare itself runs in an admin's browser (Library page, Prepare button: several songs analysed at once on that PC); an AI can't start it, but can follow it and stop it with stop_prepare. Only signed-in radio staff can save a song's analysis, so neither an AI nor a visitor can send one.",
     input: {},
     kind: "read",
     run: async (ctx) => {

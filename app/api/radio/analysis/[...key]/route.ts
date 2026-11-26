@@ -3,17 +3,23 @@ import { getDb } from "@/db";
 import { checkAnalysis } from "@/lib/radio/autodj";
 import { songsByKeys } from "@/lib/radio/library";
 import { markAnalysed } from "@/lib/radio/prep";
+import { radioAdmin } from "@/lib/radio/admin-route";
 import { analysisKey, noStore, radioBucket, radioDb } from "@/lib/radio/store";
 
 export const runtime = "edge";
 
 /**
- * Shares a song's analysis: BitChord's TrackAnalysis, made in the browser of
- * the first listener who needed it. Listeners read it from the bucket's
- * public domain. Checked before it's stored (this song, this analysis
- * version, bounded plain data), and the first one stored is kept.
+ * Shares a song's analysis: BitChord's TrackAnalysis, made in a staff member's
+ * browser (Prepare on the Library page, or a broadcaster's Studio tab).
+ * Listeners read it from the bucket's public domain. Only signed-in radio staff
+ * may store one (Adrien, 2026-11-26: nobody else can send fake results), and it
+ * is checked before it's stored (this song, this analysis version, bounded
+ * plain data); the first one stored is kept.
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ key: string[] }> }) {
+  // before anything is read: a visitor who isn't radio staff costs one session check, nothing more
+  const staff = await radioAdmin(request);
+  if ("error" in staff) return staff.error;
   const bucket = radioBucket();
   const db = radioDb();
   if (!bucket || !db) return NextResponse.json({ error: "Radio storage unavailable" }, { status: 503 });
