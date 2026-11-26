@@ -4,10 +4,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ListPlus, Plus, Search } from "lucide-react";
 import { Seg } from "@/components/admin/ui";
+import { MusicResults, useMusicSearch } from "@/components/admin/radio-library/add-songs";
 
 type Song = { id?: string; key: string; title: string; artist: string; durationSec?: number; thumbnail?: string | null };
 type Collection = { groups: { id: string; name: string; songs: Song[] }[]; songs: Song[]; total: number };
-type Tab = "collection" | "library";
+type Tab = "collection" | "library" | "youtube";
+
+const PLACEHOLDER: Record<Tab, string> = { collection: "Search your collection", library: "Search the library", youtube: "Search YouTube Music" };
 
 const dur = (s?: number) => (s && s > 0 ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}` : "");
 const fmtCount = new Intl.NumberFormat();
@@ -66,6 +69,9 @@ export function StudioAddPanel({
   const [results, setResults] = useState<Song[]>([]);
   const [url, setUrl] = useState("");
   const [autodj, setAutodj] = useState(false);
+  // YouTube Music: live search on the VPS; + downloads the song into the collection and queues it
+  const music = useMusicSearch(query, tab === "youtube");
+  const [sent, setSent] = useState<Set<string>>(new Set());
 
   const loadCollection = useCallback(() => get<Collection>("/api/admin/radio/studio?collection=1").then(setCollection, () => {}), []);
   useEffect(() => {
@@ -108,6 +114,7 @@ export function StudioAddPanel({
           options={[
             { value: "collection", label: "My collection", n: collection ? fmtCount.format(collection.total) : undefined },
             { value: "library", label: "Library", n: libraryCount != null ? fmtCount.format(libraryCount) : undefined },
+            { value: "youtube", label: "YouTube Music" },
           ]}
         />
         <div className="search">
@@ -116,8 +123,8 @@ export function StudioAddPanel({
             className="input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={tab === "collection" ? "Search your collection" : "Search the library"}
-            aria-label={tab === "collection" ? "Search your collection" : "Search the library"}
+            placeholder={PLACEHOLDER[tab]}
+            aria-label={PLACEHOLDER[tab]}
           />
         </div>
       </div>
@@ -165,8 +172,35 @@ export function StudioAddPanel({
               )}
             </>
           )
-        ) : (
+        ) : tab === "library" ? (
           results.map((s) => <Row key={s.key} s={s} queued={queuedKeys.has(s.key)} busy={busy} onQueue={() => queue(s)} onCollect={collection && !mine.has(s.key) ? () => void collect(s) : undefined} />)
+        ) : query.trim().length >= 3 ? (
+          <MusicResults
+            compact
+            results={music.results}
+            loading={music.loading}
+            error={music.error}
+            action={(r) =>
+              sent.has(r.videoId) ? (
+                <span className="iconbtn q-ok" title="Downloading into your queue" aria-label="Downloading into your queue">
+                  <Check className="ic-sm" />
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className="iconbtn"
+                  title="Queue"
+                  aria-label={`Queue ${r.title}`}
+                  disabled={busy}
+                  onClick={() => void act({ op: "queueUrl", url: r.url, autodj }).then((ok) => ok !== false && setSent((p) => new Set(p).add(r.videoId)))}
+                >
+                  <Plus className="ic-sm" />
+                </button>
+              )
+            }
+          />
+        ) : (
+          <p className="muted" style={{ margin: 8 }}>Type an artist and a title. Songs you queue are downloaded into your collection.</p>
         )}
       </div>
       <div className="add-foot">

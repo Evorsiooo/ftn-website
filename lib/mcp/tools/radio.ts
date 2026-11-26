@@ -19,6 +19,7 @@ import * as replaysRoute from "@/app/api/admin/radio/replays/route";
 import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
 import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
 import * as collectionsRoute from "@/app/api/admin/radio/collections/route";
+import * as musicSearchRoute from "@/app/api/admin/radio/search/route";
 import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
 import { inArray } from "drizzle-orm";
@@ -308,6 +309,21 @@ export const radioTools: ToolDef[] = [
     openWorld: true,
     summary: () => "Download the songs whose file is missing again",
     run: (ctx) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "redownload" } }),
+  },
+  {
+    name: "search_youtube_music",
+    title: "Search YouTube Music for songs",
+    description:
+      "Finds songs on YouTube Music by artist and title (its Songs search: studio recordings, never music videos), to add one that isn't in the library yet. Returns up to 10 with title, artist, album, durationSec and url. To add one, pass its url to add_songs (Studio: studio_control queueUrl). Check search_songs first: the library may already have it.",
+    input: { query: S.str("Artist and title, e.g. daft punk get lucky"), limit: S.int("How many (default 5, at most 10)") },
+    required: ["query"],
+    kind: "read",
+    openWorld: true,
+    run: async (ctx, a) => {
+      const data = await ctx.call(musicSearchRoute.GET, { path: "/api/admin/radio/search", query: { q: String(a.query || "") } });
+      const limit = Math.min(Math.max(Number(a.limit) || 5, 1), 10);
+      return { songs: ((data.songs || []) as Array<Record<string, unknown>>).slice(0, limit).map(({ thumbnail: _t, ...song }) => song) };
+    },
   },
   {
     name: "add_songs",
