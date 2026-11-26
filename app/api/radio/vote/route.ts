@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { songVotes } from "@/db/schema";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getCurrentSong } from "@/lib/radio-votes";
+import { verifySessionToken } from "@/lib/auth";
 
 export const runtime = "edge";
 
@@ -17,15 +18,34 @@ function voterIdFrom(request: NextRequest): string | null {
   return v && UUID.test(v) ? v : null;
 }
 
+// The signed-in listener's account id: their likes then also follow their account (Liked songs on FTN+ Saved).
+async function signedInUserId(request: NextRequest): Promise<string | null> {
+  const token = request.cookies.get("ftn_session")?.value;
+  if (!token) return null;
+  const user = await verifySessionToken(token).catch(() => null);
+  return user?.id ? String(user.id) : null;
+}
+
 // Listeners only ever get their own vote back. Totals are admin-only (/api/admin/radio/ratings).
-async function myVote(db: ReturnType<typeof getDb>, key: string, voterId: string | null): Promise<number> {
-  if (!voterId) return 0;
-  const [m] = await db
-    .select({ value: songVotes.value })
-    .from(songVotes)
-    .where(and(eq(songVotes.songKey, key), eq(songVotes.voterId, voterId)))
-    .limit(1);
-  return m?.value ?? 0;
+// Signed in, a vote from another device counts too (index on user_id, so a few rows at most).
+async function myVote(db: ReturnType<typeof getDb>, key: string, voterId: string | null, userId: string | null = null): Promise<number> {
+  if (voterId) {
+    const [m] = await db
+      .select({ value: songVotes.value })
+      .from(songVotes)
+      .where(and(eq(songVotes.songKey, key), eq(songVotes.voterId, voterId)))
+      .limit(1);
+    if (m) return m.value;
+  }
+  if (userId) {
+    const [m] = await db
+      .select({ value: songVotes.value })
+      .from(songVotes)
+      .where(and(eq(songVotes.userId, userId), eq(songVotes.songKey, key)))
+      .limit(1);
+    if (m) return m.value;
+  }
+  return 0;
 }
 
 // Public: the current song and this listener's own vote. No totals.
@@ -37,7 +57,7 @@ export async function GET(request: NextRequest) {
     if (!rl.allowed) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     const song = await getCurrentSong(d1);
     if (!song) return NextResponse.json({ song: null });
-    const mine = await myVote(getDb(d1), song.key, voterIdFrom(request));
+    const mine = await myVote(getDb(d1), song.key, voterIdFrom(request), await signedInUserId(request));
     return NextResponse.json({ song: { key: song.key, artist: song.artist, title: song.title }, mine });
   } catch (error) {
     console.error("vote read error:", error);
@@ -77,16 +97,20 @@ export async function POST(request: NextRequest) {
     if (song.key !== body.key) return NextResponse.json({ error: "That song has changed", song: now }, { status: 409 });
 
     const db = getDb(d1);
+    const userId = await signedInUserId(request);
     if (value === 0) {
       await db.delete(songVotes).where(and(eq(songVotes.songKey, song.key), eq(songVotes.voterId, voterId)));
+      // the same song liked on their other devices leaves their Liked songs too
+      if (userId) await db.delete(songVotes).where(and(eq(songVotes.userId, userId), eq(songVotes.songKey, song.key)));
     } else {
       const now = new Date();
       await db
         .insert(songVotes)
-        .values({ voterId, songKey: song.key, artist: song.artist, title: song.title, value, createdAt: now, updatedAt: now })
-        .onConflictDoUpdate({ target: [songVotes.voterId, songVotes.songKey], set: { value, updatedAt: now } });
+        .values({ voterId, userId, songKey: song.key, artist: song.artist, title: song.title, value, createdAt: now, updatedAt: now })
+        .onConflictDoUpdate({ target: [songVotes.voterId, songVotes.songKey], set: { value, updatedAt: now, ...(userId ? { userId } : {}) } });
+      if (userId) await db.update(songVotes).set({ value, updatedAt: now }).where(and(eq(songVotes.userId, userId), eq(songVotes.songKey, song.key)));
     }
-    const mine = await myVote(db, song.key, voterId);
+    const mine = await myVote(db, song.key, voterId, userId);
     const res = NextResponse.json({ success: true, mine });
     if (!existing) {
       res.cookies.set(COOKIE, voterId, { httpOnly: true, sameSite: "lax", secure: true, path: "/", maxAge: 60 * 60 * 24 * 365 });

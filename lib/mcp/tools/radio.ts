@@ -14,9 +14,18 @@ import * as playlistsRoute from "@/app/api/admin/radio/playlists/route";
 import * as playlistRoute from "@/app/api/admin/radio/playlists/[id]/route";
 import * as resyncRoute from "@/app/api/admin/radio/playlists/[id]/resync/route";
 import * as ratingsRoute from "@/app/api/admin/radio/ratings/route";
+import * as reportsRoute from "@/app/api/admin/radio/reports/route";
 import * as replaysRoute from "@/app/api/admin/radio/replays/route";
 import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
+import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
+import * as collectionsRoute from "@/app/api/admin/radio/collections/route";
+import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
+import { inArray } from "drizzle-orm";
+import { radioSongs } from "@/db/schema";
+import { lookUpGenres, mbGate, parseGenres } from "@/lib/radio/genres";
+import { findInCatalog } from "@/lib/radio/metadata";
+import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 import { S, ToolDef, ToolError, pick } from "../types";
 
 const RO_STATE_KEYS = ["harrison", "ridgeway", "madison", "clark", "firestone", "international"];
@@ -49,7 +58,7 @@ const broadcastFields = {
 };
 const BROADCAST_KEYS = Object.keys(broadcastFields);
 
-const STUDIO_ACTIONS = ["queueSong", "queueUrl", "skip", "remove", "move", "onAir", "gain", "pause", "resume", "callIn", "end", "takeOff"] as const;
+const STUDIO_ACTIONS = ["queueSong", "queueSongs", "queueUrl", "skip", "remove", "move", "onAir", "gain", "pause", "resume", "callIn", "end", "takeOff"] as const;
 
 export const radioTools: ToolDef[] = [
   // ── schedule ──
@@ -165,11 +174,13 @@ export const radioTools: ToolDef[] = [
     name: "studio_control",
     title: "Control the live Studio",
     description:
-      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueUrl {url}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end.",
+      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueSongs {keys: several keys in order, e.g. a playlist from get_collection}, queueUrl {url, autodj: also put it on the AutoDJ (default: only your collection)}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end.",
     input: {
       action: S.enum(STUDIO_ACTIONS, "What to do"),
       key: S.str("queueSong / skip: the song's key"),
+      keys: S.strArr("queueSongs: song keys, in order"),
       url: S.str("queueUrl: a YouTube/Spotify/SoundCloud link"),
+      autodj: S.bool("queueUrl: also add the song to the AutoDJ (default false: only your collection)"),
       k: S.int("skip: the playing song's position (from get_studio)"),
       id: S.str("remove / move / onAir / gain / takeOff: the queue item or person id"),
       dir: S.int("move: -1 up, 1 down"),
@@ -182,16 +193,20 @@ export const radioTools: ToolDef[] = [
     summary: (a) => `Studio: ${a.action}${a.url ? ` ${a.url}` : ""}${a.key ? ` ${a.key}` : ""}`,
     run: (ctx, a) => {
       if (!(STUDIO_ACTIONS as readonly string[]).includes(a.action)) throw new ToolError("Unknown Studio action.");
-      return ctx.call(studioRoute.POST, { method: "POST", path: "/api/admin/radio/studio", body: { op: a.action, ...pick(a, ["key", "url", "k", "id", "dir", "gain", "on"]) } });
+      return ctx.call(studioRoute.POST, { method: "POST", path: "/api/admin/radio/studio", body: { op: a.action, ...pick(a, ["key", "keys", "url", "autodj", "k", "id", "dir", "gain", "on"]) } });
     },
   },
   // ── song library ──
   {
     name: "search_songs",
     title: "Search the song library",
-    description: "Finds songs in the radio library by title, artist or album. Returns id, key, names, length, archived and lyrics settings.",
+    description:
+      "Finds songs in the radio library by title, artist or album, or by genre. Each song has a status: on-air (the AutoDJ may play it), getting-ready (waiting for Prepare: its mixing analysis and, for new songs, title check), missing (no audio file), failed (couldn't be prepared) or archived. Genre tags: genre (broad, from Apple), genres (detailed, from MusicBrainz), originalYear (year it first came out), genreCheckedAt (null: not looked up yet) and genreByHand (typed in by a person). Where to listen elsewhere: youtubeMusic (the exact song) and spotify (the exact track when spotifyId is set, otherwise a Spotify search; set it with update_song). Playlists (list_playlists, get_playlist) are the songs' show tags.",
     input: {
       query: S.str("Words to look for in title, artist or album (leave out to list)"),
+      status: S.enum(["on-air", "getting-ready", "missing", "failed", "archived"], "Only songs with this status"),
+      genre: S.str("Only songs whose genre or detailed genres contain this, e.g. disco or hip hop"),
+      genreLookedUp: S.bool("true: only songs already looked up for genres; false: only songs not looked up yet"),
       archived: S.bool("true: only archived songs, false: only live ones"),
       limit: S.int("How many (default 50, at most 500)"),
       offset: S.int("Skip this many (paging)"),
@@ -199,26 +214,132 @@ export const radioTools: ToolDef[] = [
     kind: "read",
     run: async (ctx, a) => {
       const data = await ctx.call(songsRoute.GET, { path: "/api/admin/radio/songs" });
-      let songs = (data.songs || []) as Array<Record<string, unknown>>;
+      let songs: Array<Record<string, any>> = ((data.songs || []) as Array<Record<string, any>>).map((s) => ({ ...s, status: songStatus(s as any) }));
       const q = String(a.query || "").toLowerCase().trim();
       if (q) songs = songs.filter((s) => [s.title, s.artist, s.album].some((v) => String(v || "").toLowerCase().includes(q)));
       if (typeof a.archived === "boolean") songs = songs.filter((s) => !!s.archived === a.archived);
+      if (typeof a.status === "string") songs = songs.filter((s) => s.status === a.status);
+      const g = String(a.genre || "").toLowerCase().trim();
+      if (g) songs = songs.filter((s) => String(s.genre || "").toLowerCase().includes(g) || parseGenres(s.genres as string | null).some((x) => x.includes(g)));
+      if (typeof a.genreLookedUp === "boolean") songs = songs.filter((s) => !!s.genreCheckedAt === a.genreLookedUp);
+      // detailed genres as a list, not the stored JSON text
+      songs = songs.map((s) => ({ ...s, genres: parseGenres(s.genres as string | null) }));
       const limit = Math.min(Math.max(Number(a.limit) || 50, 1), 500);
       const offset = Math.max(Number(a.offset) || 0, 0);
-      return { total: songs.length, songs: songs.slice(offset, offset + limit) };
+      const page = songs.slice(offset, offset + limit).map((s) => {
+        const artist = String(s.artist || ""), title = String(s.title || "");
+        const youtubeId = s.source === "youtube" ? (s.sourceId as string | null) : null;
+        return { ...s, youtubeMusic: youtubeMusicUrl(youtubeId, artist, title), spotify: spotifyUrl(s.spotifyId as string | null, artist, title) };
+      });
+      return { total: songs.length, songs: page };
     },
+  },
+  {
+    name: "get_library_status",
+    title: "Song library status",
+    description:
+      "How many songs are on air (the AutoDJ plays only these) and how many are getting ready, songs that need a look (missing file, couldn't be prepared, video covers, kept as music videos, archived), and any Prepare run going on (whose PC, progress, time left). Prepare itself runs in an admin's browser (Library page, Prepare button: several songs analysed at once on that PC); an AI can't start it, but can follow it and stop it with stop_prepare. Only signed-in radio staff can save a song's analysis, so neither an AI nor a visitor can send one.",
+    input: {},
+    kind: "read",
+    run: async (ctx) => {
+      const [data, prep] = await Promise.all([
+        ctx.call(songsRoute.GET, { path: "/api/admin/radio/songs" }),
+        ctx.call(prepareRoute.GET, { path: "/api/admin/radio/prepare" }),
+      ]);
+      const songs = (data.songs || []) as Array<Record<string, any>>;
+      const c = { onAir: 0, gettingReady: 0, needTitleCheck: 0, missingFile: 0, couldNotPrepare: 0, videoCovers: 0, keptAsMusicVideos: 0, archived: 0 };
+      for (const s of songs) {
+        const st = songStatus(s as any);
+        if (st === "archived") {
+          c.archived++;
+          continue;
+        }
+        if (st === "on-air") c.onAir++;
+        else if (st === "getting-ready") {
+          c.gettingReady++;
+          if (!s.metaCheckedAt) c.needTitleCheck++;
+        } else if (st === "missing") c.missingFile++;
+        else c.couldNotPrepare++;
+        if (s.audioCheck === "unmatched") c.keptAsMusicVideos++;
+        if (typeof s.thumbnail === "string" && /\.ytimg\.com\//.test(s.thumbnail)) c.videoCovers++;
+      }
+      const runs = ((prep.runs || []) as Array<Record<string, any>>).map((r) => {
+        const left = Math.max(0, r.total - r.done - r.failed);
+        return {
+          id: r.id,
+          on: `${r.userName}'s PC`,
+          analysesAtOnce: r.workers,
+          prepared: r.done,
+          of: r.total,
+          couldNotPrepare: r.failed,
+          minutesLeft: r.perMin ? Math.max(1, Math.round(left / r.perMin)) : null,
+          minutesLeftNote: r.perMin ? "measured from this run's pace" : "still measuring (first few minutes)",
+          stopRequested: r.stopRequested,
+        };
+      });
+      return { songs: c, prepareRuns: runs, note: runs.length ? null : c.gettingReady ? "Nothing is being prepared. Someone has to press Prepare on the Library page (in a browser)." : null };
+    },
+  },
+  {
+    name: "stop_prepare",
+    title: "Stop a Prepare run",
+    description: "Stops a Prepare run (get_library_status) on whichever PC it runs: that tab stops at its next song. Songs already done stay on air; the next run carries on with the rest.",
+    input: { id: S.str("The run's id (get_library_status)") },
+    required: ["id"],
+    kind: "write",
+    summary: (a) => `Stop Prepare run ${a.id}`,
+    run: (ctx, a) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "stop", runId: a.id } }),
+  },
+  {
+    name: "retry_unprepared_songs",
+    title: "Try unprepared songs again",
+    description: "Puts the songs that couldn't be prepared back in Getting ready, so the next Prepare run tries them again.",
+    input: {},
+    kind: "write",
+    summary: () => "Put songs that couldn't be prepared back in Getting ready",
+    run: (ctx) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "retry" } }),
+  },
+  {
+    name: "redownload_missing_songs",
+    title: "Download missing song files again",
+    description: "For songs whose audio file is missing: downloads each again from its link (follow with list_imports). They go back to Getting ready.",
+    input: {},
+    kind: "write",
+    openWorld: true,
+    summary: () => "Download the songs whose file is missing again",
+    run: (ctx) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "redownload" } }),
   },
   {
     name: "add_songs",
     title: "Add songs to the library",
     description:
-      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews.",
-    input: { url: S.str("The link") },
+      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews. New songs arrive as Getting ready: the AutoDJ plays them once someone runs Prepare on the Library page (get_library_status). A broadcaster's songs queued in the Studio are prepared by their own browser. The songs always go into the person's own collection (get_collection); autodj false keeps them out of the AutoDJ.",
+    input: { url: S.str("The link"), autodj: S.bool("Also put the songs on the AutoDJ (default true). false: only in the person's collection") },
     required: ["url"],
     kind: "write",
     openWorld: true,
     summary: (a) => `Add songs from ${a.url}`,
-    run: (ctx, a) => ctx.call(importsRoute.POST, { method: "POST", path: "/api/admin/radio/imports", body: { url: a.url } }),
+    run: (ctx, a) => ctx.call(importsRoute.POST, { method: "POST", path: "/api/admin/radio/imports", body: { url: a.url, autodj: a.autodj !== false } }),
+  },
+  {
+    name: "get_collection",
+    title: "A broadcaster's song collection",
+    description:
+      "The songs in the signed-in person's collection (every song they added), grouped by the playlists they imported, each with autodj (whether the AutoDJ plays it). Site admins and managers can read someone else's with userId; owners: true lists who has a collection.",
+    input: { userId: S.str("Someone else's collection (site admins and managers)"), owners: S.bool("List everyone with a collection instead") },
+    kind: "read",
+    run: (ctx, a) => ctx.call(collectionsRoute.GET, { path: "/api/admin/radio/collections", query: a.owners ? { owners: "1" } : a.userId ? { user: a.userId } : {} }),
+  },
+  {
+    name: "remove_from_collection",
+    title: "Take a song out of a collection",
+    description: "Removes a song from the signed-in person's collection (or, for site admins and managers, userId's). A song then in no collection and not on the AutoDJ is archived.",
+    input: { songId: S.str("The song's id (get_collection)"), userId: S.str("Whose collection (site admins and managers)") },
+    required: ["songId"],
+    kind: "write",
+    refs: { songId: "song" },
+    summary: (a) => `Remove song ${a.songId} from ${a.userId ? "a" : "your"} collection`,
+    run: (ctx, a) => ctx.call(collectionsRoute.DELETE, { method: "DELETE", path: "/api/admin/radio/collections", body: pick(a, ["songId", "userId"]) }),
   },
   {
     name: "check_link",
@@ -233,7 +354,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "list_imports",
     title: "Song imports in progress",
-    description: "Recent imports with their progress, and Spotify tracks waiting for someone to choose the right match (reviews).",
+    description: "Recent imports with their progress, and Spotify tracks waiting for someone to choose the right match (reviews). Downloaded songs land in Getting ready (get_library_status).",
     input: {},
     kind: "read",
     openWorld: true,
@@ -267,7 +388,8 @@ export const radioTools: ToolDef[] = [
   {
     name: "update_song",
     title: "Edit a song",
-    description: "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing.",
+    description:
+      "Fixes a song's details, archives it (the radio stops playing it) or brings it back, or puts it on / takes it off the AutoDJ (autodj; it stays in collections either way). Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing. Genre tags: genre, genres, originalYear; setting any of them marks them as typed in by hand (genreByHand), so lookups no longer change them, unless genreByHand false is sent. spotify sets the song's Spotify track, which the Spotify button on listeners' Liked songs opens (without it, that button searches Spotify).",
     input: {
       id: S.str("The song's id (search_songs)"),
       title: S.str("Title"),
@@ -277,7 +399,13 @@ export const radioTools: ToolDef[] = [
       thumbnail: S.str("Cover image URL"),
       lyricsSource: { type: ["string", "null"], enum: [...LYRIC_SOURCE_IDS, "none", null], description: "A lyrics provider to always use, 'none' for no lyrics, or null for automatic" },
       lyricsOffsetMs: S.int("Lyrics timing shift: -5000 to 5000 ms in steps of 100 (positive = later)"),
+      spotify: { type: ["string", "null"], description: "The song's Spotify track link (open.spotify.com/track/…), or null to clear it" },
       archived: S.bool("true archives it, false brings it back"),
+      genre: { type: ["string", "null"], description: "Broad genre, e.g. R&B/Soul (null clears it)" },
+      genres: { type: ["array", "null"], items: { type: "string" }, description: "Detailed genres, most fitting first, up to 8, e.g. [\"disco\", \"funk\"] (null clears them)" },
+      originalYear: { type: ["integer", "null"], description: "Year the song first came out (null clears it)" },
+      genreByHand: S.bool("false: let find_song_genres and the Library's lookup change the genre tags again"),
+      autodj: S.bool("true: the AutoDJ plays it, false: only in broadcasters' collections"),
     },
     required: ["id"],
     kind: "write",
@@ -288,8 +416,59 @@ export const radioTools: ToolDef[] = [
         method: "PATCH",
         path: `/api/admin/radio/songs/${a.id}`,
         params: { id: a.id },
-        body: pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived"]),
+        body: {
+          ...pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived", "autodj", "spotify", "genre", "genres", "originalYear", "genreByHand"]),
+          // genre tags set by the AI count as typed in by hand, as in the Library's Edit form
+          ...(["genre", "genres", "originalYear"].some((k) => a[k] !== undefined) && a.genreByHand === undefined ? { genreByHand: true } : {}),
+        },
       }),
+  },
+  {
+    name: "find_song_genres",
+    title: "Look up songs' genres",
+    description:
+      "Looks up to 5 songs in MusicBrainz (detailed genres, the year each first came out) and, for songs with no genre yet, Apple's catalogue (broad genre), and saves what it finds. Takes about 4 seconds a song (MusicBrainz allows one request a second). Songs whose genres were typed in by hand are skipped. For the whole library, the Library page's ⋯ menu has \"Find genres and original years\".",
+    input: { ids: S.strArr("Up to 5 song ids (search_songs; genreLookedUp false lists the ones not looked up yet)") },
+    required: ["ids"],
+    kind: "write",
+    openWorld: true,
+    summary: (a) => `Look up genres for ${Array.isArray(a.ids) ? a.ids.length : 0} song(s)`,
+    run: async (ctx, a) => {
+      const ids = Array.isArray(a.ids) ? [...new Set((a.ids as unknown[]).filter((x): x is string => typeof x === "string"))] : [];
+      if (!ids.length || ids.length > 5) throw new ToolError("Give 1 to 5 song ids.");
+      const rows = await ctx.db
+        .select({ id: radioSongs.id, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, metadataSource: radioSongs.metadataSource, source: radioSongs.source, releaseYear: radioSongs.releaseYear, genre: radioSongs.genre, genreByHand: radioSongs.genreByHand })
+        .from(radioSongs)
+        .where(inArray(radioSongs.id, ids));
+      const get = mbGate({ "User-Agent": `FTN-Radio/1.0 ( ${ctx.origin} )` });
+      const stop = { current: false };
+      const artistGenres = new Map<string, string[]>();
+      const results: Record<string, unknown>[] = [];
+      for (const id of ids) {
+        const song = rows.find((r) => r.id === id);
+        if (!song) {
+          results.push({ id, result: "not found" });
+          continue;
+        }
+        if (song.genreByHand) {
+          results.push({ id, title: song.title, result: "skipped: genres typed in by hand" });
+          continue;
+        }
+        const [m, apple] = await Promise.all([
+          lookUpGenres(song, get, stop, artistGenres).catch(() => null),
+          song.genre || song.source === "upload" ? null : findInCatalog(song.title, song.artist, song.durationSec).catch(() => null),
+        ]);
+        const patch: Record<string, unknown> = { genreChecked: true };
+        if (m?.genres.length) patch.genres = m.genres;
+        // only an earlier year than ours: a later one means a reissue or a bonus-track edition was matched
+        if (m?.originalYear && (!song.releaseYear || m.originalYear < song.releaseYear)) patch.originalYear = m.originalYear;
+        const g = apple?.primaryGenreName?.trim().slice(0, 60);
+        if (g) patch.genre = g;
+        await ctx.call(songRoute.PATCH, { method: "PATCH", path: `/api/admin/radio/songs/${id}`, params: { id }, body: patch });
+        results.push({ id, title: song.title, genre: g || song.genre, genres: m?.genres ?? [], genresFrom: m?.from ?? null, originalYear: patch.originalYear ?? null, foundOnMusicBrainz: !!m });
+      }
+      return { songs: results };
+    },
   },
   {
     name: "delete_song",
@@ -305,10 +484,61 @@ export const radioTools: ToolDef[] = [
   {
     name: "list_song_ratings",
     title: "Song ratings",
-    description: "Listeners' up/down votes per song.",
+    description: "Listeners' up/down votes per song (a thumbs up also puts the song in that listener's Liked songs on FTN+ Saved).",
     input: {},
     kind: "read",
     run: (ctx) => ctx.call(ratingsRoute.GET, { path: "/api/admin/radio/ratings" }),
+  },
+  // ── problem reports (the flag on the radio player) ──
+  {
+    name: "list_reports",
+    title: "List radio problem reports",
+    description:
+      "Problems listeners reported from the radio player, newest first (at most 300): song reports (too long, wrong song, wrong title or artist, bad sound, wrong lyrics, not for the radio) and bugs. Each says whether the sender was signed in (username) or not, and whether diagnostics were attached. Also returns how many reports have each status.",
+    input: {
+      status: S.enum(["new", "fixed", "dismissed", "all"], "Which reports (default new)"),
+      kind: S.enum(["song", "bug"], "Only song reports or only bug reports"),
+      q: S.str("Search in the reason, comment, song, artist and username"),
+      diagnostics: S.bool("Include each report's diagnostics (browser, player state, sync, last player messages)"),
+    },
+    kind: "read",
+    run: (ctx, a) =>
+      ctx.call(reportsRoute.GET, { path: "/api/admin/radio/reports", query: { status: a.status, kind: a.kind, q: a.q, diagnostics: a.diagnostics ? "1" : undefined } }),
+  },
+  {
+    name: "get_report",
+    title: "Read a radio problem report",
+    description: "One report with its diagnostics, if the listener attached them: browser and device, player state, how far from the station clock, longest freeze, songs lined up, and the player's last messages.",
+    input: { id: S.str("The report's id (list_reports)") },
+    required: ["id"],
+    kind: "read",
+    run: (ctx, a) => ctx.call(reportsRoute.GET, { path: "/api/admin/radio/reports", query: { id: a.id } }),
+  },
+  {
+    name: "set_report_status",
+    title: "Mark radio reports fixed or dismissed",
+    description: "Changes the status of one or more reports: fixed, dismissed, or back to new.",
+    input: { ids: S.strArr("The reports' ids (list_reports)"), status: S.enum(["new", "fixed", "dismissed"], "The new status") },
+    required: ["ids", "status"],
+    kind: "write",
+    summary: (a) => `Mark ${Array.isArray(a.ids) ? a.ids.length : 0} radio report(s) ${a.status}`,
+    run: (ctx, a) => ctx.call(reportsRoute.PUT, { method: "PUT", path: "/api/admin/radio/reports", body: { ids: a.ids, status: a.status } }),
+  },
+  {
+    name: "block_report_sender",
+    title: "Block a report sender",
+    description:
+      "Stops the sender of a report from sending more reports (their account if they were signed in, otherwise their network) and dismisses their new reports. unblock: true lifts it.",
+    input: {
+      id: S.str("A report they sent (list_reports)"),
+      days: S.int("How long, in days (default 30; 0 = for good)", { minimum: 0, maximum: 3650 }),
+      unblock: S.bool("Lift the block instead"),
+    },
+    required: ["id"],
+    kind: "danger",
+    summary: (a) => (a.unblock ? `Unblock the sender of report ${a.id}` : `Block the sender of report ${a.id}${a.days === 0 ? " for good" : ` for ${a.days ?? 30} days`}`),
+    run: (ctx, a) =>
+      ctx.call(reportsRoute.PUT, { method: "PUT", path: "/api/admin/radio/reports", body: a.unblock ? { action: "unblock", id: a.id } : { action: "block", id: a.id, days: a.days } }),
   },
   // ── playlists ──
   {

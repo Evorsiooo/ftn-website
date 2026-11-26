@@ -393,9 +393,11 @@ export const posts = sqliteTable("posts", {
 }, (t) => [index("posts_scheduled_idx").on(t.scheduledAt), index("posts_status_idx").on(t.status)]);
 
 // Radio song ratings: one vote per listener per song. voter_id is a random id kept in the listener's
-// cookie, so no sign-in is needed. value is 1 (up) or -1 (down).
+// cookie, so no sign-in is needed. value is 1 (up) or -1 (down). A like (1) is also in the listener's Liked songs
+// on FTN+ Saved; user_id is set when they were signed in, so those follow their account (migration 0038).
 export const songVotes = sqliteTable("song_votes", {
   voterId: text("voter_id").notNull(),
+  userId: text("user_id"),
   songKey: text("song_key").notNull(),
   artist: text("artist").notNull(),
   title: text("title").notNull(),
@@ -405,7 +407,41 @@ export const songVotes = sqliteTable("song_votes", {
 }, (t) => [
   primaryKey({ columns: [t.voterId, t.songKey] }),
   index("song_votes_song_idx").on(t.songKey),
+  index("song_votes_user_idx").on(t.userId),
 ]);
+
+// Problem reports from the radio player's flag button: a song (too long, wrong lyrics...) or a bug. Anyone can
+// send one (Settings > Sign-in can limit it). user_id/username are set when the sender was signed in;
+// sender_hash is a keyed hash of their network address (never the address), used for limits and blocking.
+// diagnostics is the JSON the listener chose to attach (browser, player state, sync, recent player log).
+export const radioReports = sqliteTable("radio_reports", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["song", "bug"] }).notNull(),
+  reason: text("reason").notNull(),
+  songKey: text("song_key"),
+  songTitle: text("song_title"),
+  songArtist: text("song_artist"),
+  details: text("details").notNull().default(""),
+  diagnostics: text("diagnostics"),
+  source: text("source").notNull(),
+  userId: text("user_id"),
+  username: text("username"),
+  senderHash: text("sender_hash").notNull(),
+  status: text("status", { enum: ["new", "fixed", "dismissed"] }).notNull().default("new"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index("radio_reports_status_idx").on(t.status, t.createdAt),
+  index("radio_reports_created_idx").on(t.createdAt),
+  index("radio_reports_sender_idx").on(t.senderHash, t.songKey, t.reason),
+]);
+
+// Senders blocked from reporting: "user:<id>" or "net:<sender_hash>", until expires_at (null = for good).
+export const radioReportBlocks = sqliteTable("radio_report_blocks", {
+  key: text("key").primaryKey(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
 
 // Radio song library (BitChord-based webradio). Each song is one audio file in the ftn-radio R2
 // bucket, put there by the VPS downloader (euno-radio) or uploaded from the admin. metaKey is the
@@ -443,6 +479,20 @@ export const radioSongs = sqliteTable("radio_songs", {
   audioCheckNote: text("audio_check_note"),
   // The library names (title, newline, artist) the check last searched with; renamed unmatched songs are checked again.
   audioCheckNames: text("audio_check_names"),
+  // Getting ready (migration 0036): on air once analysed for mixing and, for songs from a link, title-checked.
+  analysedAt: integer("analysed_at", { mode: "timestamp" }),
+  metaCheckedAt: integer("meta_checked_at", { mode: "timestamp" }),
+  // Why it couldn't be prepared: "missing" (no audio file) or "failed".
+  prepError: text("prep_error"),
+  // Genre tags (migration 0037): a broad genre (Apple), detailed genres (MusicBrainz, JSON array), the original
+  // release year (MusicBrainz), when they were last looked up, and whether they were typed in by hand.
+  genre: text("genre"),
+  genres: text("genres"),
+  originalYear: integer("original_year"),
+  genreCheckedAt: integer("genre_checked_at", { mode: "timestamp" }),
+  genreByHand: integer("genre_by_hand", { mode: "boolean" }).notNull().default(false),
+  // Played by the AutoDJ (migration 0039). False: only in the collections of the broadcasters who added it.
+  autodj: integer("autodj", { mode: "boolean" }).notNull().default(true),
   addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -454,6 +504,7 @@ export const radioSongs = sqliteTable("radio_songs", {
   index("radio_songs_spotify_idx").on(t.spotifyId),
   index("radio_songs_duration_idx").on(t.durationSec),
   index("radio_songs_updated_idx").on(t.updatedAt),
+  index("radio_songs_getting_ready_idx").on(t.createdAt).where(sql`analysed_at IS NULL OR meta_checked_at IS NULL`),
   index("radio_songs_lyrics_choice_idx").on(t.r2Key).where(sql`lyrics_source IS NOT NULL OR lyrics_offset_ms <> 0`),
 ]);
 
@@ -478,6 +529,8 @@ export const radioPlaylists = sqliteTable("radio_playlists", {
   sourceUrl: text("source_url"),
   source: text("source", { enum: ["youtube", "soundcloud", "spotify"] }),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+  // Imported into this broadcaster's collection (migration 0039): the Studio groups their songs by it.
+  collectionOf: text("collection_of"),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -512,6 +565,9 @@ export const radioImports = sqliteTable("radio_imports", {
   error: text("error"),
   // JSON list of the downloader item numbers already recorded (migration 0035): a check only looks at new ones
   recordedItems: text("recorded_items"),
+  // Migration 0039: the songs go into this broadcaster's collection, and on the AutoDJ only if autodj.
+  collectionOf: text("collection_of"),
+  autodj: integer("autodj", { mode: "boolean" }).notNull().default(true),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -521,6 +577,13 @@ export const radioImports = sqliteTable("radio_imports", {
   // only the imports with songs waiting for someone to pick a match (the admin sidebar's count)
   index("radio_imports_review_idx").on(t.id).where(sql`review LIKE '%"open":[{%'`),
 ]);
+
+// A broadcaster's collection (migration 0039): songs they added, to queue from in the Studio. Private to them.
+export const radioCollectionSongs = sqliteTable("radio_collection_songs", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => radioSongs.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.songId] }), index("radio_collection_songs_song_idx").on(t.songId)]);
 
 // Radio listeners: each listener's random id, upserted about every 10 minutes from the player.
 // The listener count is the rows seen in the last 11 minutes (shown only above 2).
@@ -699,6 +762,29 @@ export const auditLog = sqliteTable("audit_log", {
 // Change counters kept by database triggers (migration 0034). name "songs": moves on every insert, update or
 // delete in radio_songs. The Library page's "anything changed?" check reads this one row instead of counting
 // the whole song table.
+// Songs reserved by a Prepare run (migration 0036): several PCs share the work; a reservation runs out on its own.
+export const radioPrepLeases = sqliteTable("radio_prep_leases", {
+  songId: text("song_id").primaryKey().references(() => radioSongs.id, { onDelete: "cascade" }),
+  runId: text("run_id").notNull(),
+  until: integer("until", { mode: "timestamp" }).notNull(),
+});
+
+// One row per Prepare run: its progress, seen from any device, and a stop request.
+export const radioPrepRuns = sqliteTable("radio_prep_runs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  userName: text("user_name").notNull(),
+  workers: integer("workers").notNull(),
+  total: integer("total").notNull(),
+  done: integer("done").notNull().default(0),
+  failed: integer("failed").notNull().default(0),
+  perMin: real("per_min"),
+  stopRequested: integer("stop_requested", { mode: "boolean" }).notNull().default(false),
+  startedAt: integer("started_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  endedAt: integer("ended_at", { mode: "timestamp" }),
+}, (t) => [index("radio_prep_runs_ended_idx").on(t.endedAt)]);
+
 export const radioVersions = sqliteTable("radio_versions", {
   name: text("name").primaryKey(),
   version: integer("version").notNull().default(0),

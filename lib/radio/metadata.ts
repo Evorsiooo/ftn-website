@@ -6,7 +6,7 @@
 // library page then looks each song up in Apple's public music catalog (iTunes Search) for the exact name,
 // artist, album and a square cover (components/admin/radio-library/metadata-check.tsx). Never on the VPS.
 
-const squash = (s: string) =>
+export const squash = (s: string) =>
   s
     .toLowerCase()
     .normalize("NFKD")
@@ -87,17 +87,19 @@ export interface ITunesTrack {
   trackTimeMillis?: number;
   artworkUrl100?: string;
   collectionArtistName?: string;
+  /** Apple's one broad genre for the song, e.g. "R&B/Soul" (saved as the song's genre). */
+  primaryGenreName?: string;
 }
 
 /** The song's own name for comparing: no brackets, no " - Remastered 2011", no "feat.". */
-const bare = (t: string) =>
+export const bare = (t: string) =>
   squash(
     t
       .replace(BRACKETS, "")
       .replace(/\s+[-–—]\s+.*(remaster|version|edit|mix|mono|stereo|live).*$/i, "")
       .replace(/\s(feat|ft|featuring)\.?\s.*$/i, "")
   );
-const mainArtist = (a: string) => squash(a.split(/,|&|\s+x\s+|\s+and\s+|\bfeat\.?|\bft\.?|\bfeaturing\b/i)[0] || a);
+export const mainArtist = (a: string) => squash(a.split(/,|&|\s+x\s+|\s+and\s+|\bfeat\.?|\bft\.?|\bfeaturing\b/i)[0] || a);
 const COMPILATION = /greatest hits|best of|collection|anthology|essential|hits\b|now that's|the very best|playlist|karaoke|tribute|workout|party|originals|\bgold\b|platinum|singles|\d0'?s\b|classics|love songs|summer|christmas/i;
 
 const EXTRA = /remaster|deluxe|edition|anniversary|remix|\bmono\b|- single|- ep\b|expanded|version/i;

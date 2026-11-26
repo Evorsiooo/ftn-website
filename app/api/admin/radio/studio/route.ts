@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, like, or } from "drizzle-orm";
 import { radioSongs } from "@/db/schema";
+import { collectionOf } from "@/lib/radio/collections";
 import { radioAdmin, studioFailure } from "@/lib/radio/admin-route";
 import { liveStudio } from "@/lib/radio/program";
 import { overCap, usageBytes, usageSummary } from "@/lib/radio/rtc";
@@ -15,6 +16,7 @@ import {
   pauseMusic,
   putOnAir,
   queueSong,
+  queueSongs,
   queueUrl,
   removeFromQueue,
   resumeMusic,
@@ -31,20 +33,21 @@ export const runtime = "edge";
 /**
  * The Studio (Broadcast role): the show on air, who's on it and waiting, the queue, and the
  * month's voice usage. Polled every few seconds by the Studio page, which also counts as the
- * broadcaster checking in. ?q= searches the library instead.
+ * broadcaster checking in. ?q= searches the library instead (songs on the AutoDJ), ?collection=1 gives your collection.
  */
 export async function GET(request: NextRequest) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
   const { db, user } = ctx;
   try {
+    if (request.nextUrl.searchParams.get("collection") === "1") return NextResponse.json(await collectionOf(db, user.id), { headers: noStore });
     const q = request.nextUrl.searchParams.get("q");
     if (q !== null) {
       const term = `%${q.trim().slice(0, 100).replace(/[%_]/g, "")}%`;
       const songs = await db
         .select({ key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, thumbnail: radioSongs.thumbnailUrl })
         .from(radioSongs)
-        .where(and(eq(radioSongs.archived, false), or(like(radioSongs.title, term), like(radioSongs.artist, term))))
+        .where(and(eq(radioSongs.archived, false), eq(radioSongs.autodj, true), or(like(radioSongs.title, term), like(radioSongs.artist, term))))
         .limit(25);
       return NextResponse.json({ songs }, { headers: noStore });
     }
@@ -101,8 +104,11 @@ export async function POST(request: NextRequest) {
       case "queueSong":
         await queueSong(db, s, user, String(body.key ?? ""));
         break;
+      case "queueSongs":
+        await queueSongs(db, s, user, Array.isArray(body.keys) ? body.keys.filter((k): k is string => typeof k === "string") : []);
+        break;
       case "queueUrl":
-        await queueUrl(db, s, user, String(body.url ?? "").trim());
+        await queueUrl(db, s, user, String(body.url ?? "").trim(), body.autodj === true);
         break;
       case "skip":
         await skipSong(db, s, Number(body.k), String(body.key ?? ""));

@@ -4,7 +4,9 @@
 // file, the queue is keyed by video id and takes priorities, and results are
 // kept in memory as well as IndexedDB so the mix loop can read them synchronously.
 // FTN radio lab: the audio comes from the radio's R2 bucket (radio/fetchAudio.ts)
-// instead of YouTube, and the track log is the console. Nothing else changed.
+// instead of YouTube, and the track log is the console. FTN Prepare (2026-11-25): the class is exported so the
+// Library page can run several analyzers side by side (one worker each), and forget() lets a long run drop
+// what it has finished. The analysis itself is unchanged.
 import { getAnalysis, putAnalysis } from '../db';
 import { fetchTrackAudio, type TrackAudio } from '../../../radio/fetchAudio';
 import type { AnalyzeResponse } from './analysis.worker';
@@ -36,7 +38,7 @@ const KEEP_BYTES_FOR = 6;
  * transfer to the essentia worker -> persist TrackAnalysis to IndexedDB. One
  * track at a time keeps peak memory at one decoded file.
  */
-class Analyzer {
+export class Analyzer {
   private worker: Worker | null = null;
   private queue: { videoId: string; tags: TrackTags }[] = [];
   private running = false;
@@ -65,6 +67,21 @@ class Analyzer {
     this.bytes.set(videoId, held);
     while (this.bytes.size > KEEP_BYTES_FOR) this.bytes.delete(this.bytes.keys().next().value!);
     return held;
+  }
+
+  /** FTN Prepare: drops a finished track (its analysis, status and audio) so a long run keeps its memory flat. */
+  forget(videoId: string): void {
+    this.results.delete(videoId);
+    this.status.delete(videoId);
+    this.failedAt.delete(videoId);
+    this.bytes.delete(videoId);
+  }
+
+  /** FTN Prepare: ends this analyzer's worker. */
+  close(): void {
+    this.worker?.terminate();
+    this.worker = null;
+    this.queue = [];
   }
 
   /** The analysis of [videoId], if it is done. */

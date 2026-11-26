@@ -337,10 +337,30 @@
 .adm .ratings-table .r-num { width: 80px; text-align: right; }
 
 /* ---------- studio ---------- */
-.adm .studio { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); height: 100%; }
+/* On air and Callers share the first column; Music has the rest, split into what plays and what to add. */
+.adm .studio2 { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); height: 100%; }
+.adm .studio2 .left { display: flex; flex-direction: column; min-height: 0; overflow-y: auto; border-right: 1px solid var(--a-border); }
+.adm .studio2 .left .col-body { overflow: visible; flex: none; }
+.adm .studio2 .left section + section .col-head { border-top: 1px solid var(--a-border); }
+.adm .music { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); min-height: 0; min-width: 0; }
+.adm .music > .col-head { grid-column: 1 / -1; }
+.adm .music .q { overflow-y: auto; padding: 12px 16px; display: grid; gap: 10px; align-content: start; border-right: 1px solid var(--a-border); min-width: 0; }
+.adm .music .q > * { min-width: 0; }
+.adm .add { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.adm .add-top { padding: 12px 16px 8px; display: grid; gap: 8px; flex: none; }
+.adm .add-top .seg { justify-self: start; }
+.adm .add-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 8px 8px; }
+.adm .add-foot { flex: none; border-top: 1px solid var(--a-border); padding: 10px 16px 12px; display: grid; gap: 8px; }
+.adm .add-foot form { display: flex; gap: 8px; }
+.adm .grp-h { display: flex; align-items: center; gap: 8px; padding: 12px 8px 4px; }
+.adm .grp-h .nm { font-weight: 600; flex: 1; min-width: 0; }
+.adm .song .dur { width: 38px; text-align: right; flex: none; }
+.adm .song .q-ok { color: var(--a-green); }
+.adm .chk { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; justify-self: start; }
 .adm .col { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid var(--a-border); }
 .adm .col:last-child { border-right: 0; }
-.adm .col-head { padding: 10px 16px; border-bottom: 1px solid var(--a-border); display: flex; align-items: center; gap: 8px; min-height: 52px; flex: none; }
+/* every column head is the same height, whatever is in it (a 32px button used to make one taller) */
+.adm .col-head { padding: 10px 16px; border-bottom: 1px solid var(--a-border); display: flex; align-items: center; gap: 8px; height: 52px; flex: none; }
 .adm .col-head h2 { font-size: 15px; font-weight: 600; margin: 0; }
 .adm .col-body { flex: 1; overflow-y: auto; padding: 12px 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
 .adm .col-body > * { min-width: 0; }
@@ -510,9 +530,17 @@
   .adm .ratings { padding: 12px; }
   .adm .ratings-table .r-num { width: 52px; }
   .adm .vi { border-left: 0; border-top: 1px solid var(--a-border); overflow: visible; padding: 12px; }
-  .adm .studio { display: block; overflow-y: auto; }
-  .adm .studio .col { display: block; border-right: 0; border-bottom: 1px solid var(--a-border); }
-  .adm .studio .col-body { overflow: visible; }
+  .adm .studio2 { display: block; height: 100%; overflow-y: auto; }
+  .adm .studio2 .left { overflow: visible; border-right: 0; }
+  .adm .music { display: block; }
+  .adm .studio2 .left section:last-child .col-body { border-bottom: 1px solid var(--a-border); }
+  .adm .music .q { overflow: visible; border-right: 0; padding: 12px; }
+  .adm .add { border-top: 1px solid var(--a-border); }
+  .adm .add-list { overflow: visible; }
+  .adm .add-top { padding: 12px 12px 8px; }
+  .adm .add-foot { padding: 10px 12px 14px; }
+  .adm .studio2 .col-body { padding: 12px; }
+  .adm .studio2 .col-head { padding: 10px 12px; }
   .adm .cal { display: none; }
   .adm .table.phone-auto { table-layout: auto; }
   .adm .table.phone-auto th { width: auto !important; }
@@ -716,3 +744,83 @@
 .adm .ai-steps { margin: 10px 0 8px; padding-left: 18px; display: grid; gap: 4px; }
 .adm .ai-confirm { max-width: 640px; padding: 24px 24px 96px; display: grid; gap: 16px; }
 .adm .ai-confirm pre { margin: 0; padding: 12px; border-radius: var(--a-r-ctl); background: var(--a-sunken); font: 12px/1.5 var(--font-geist-mono), ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+
+/* ---------- song library: Library status panel (plans/library-ux) ---------- */
+.adm .ls { display: grid; grid-template-columns: minmax(0, 1fr); }
+.adm .ls-select { width: 100%; max-width: 100%; }
+.adm .ls-title { font-size: 16px; font-weight: 600; margin: 0; padding: 0 20px; min-height: 57px; display: flex; align-items: center; border-bottom: 1px solid var(--a-border); }
+.adm .ls-sec { padding: 18px 20px; display: grid; gap: 10px; border-bottom: 1px solid var(--a-border); min-width: 0; }
+.adm .ls-sec:last-child { border-bottom: 0; }
+.adm .ls-sec h3 { font-size: 14px; font-weight: 600; margin: 0; }
+.adm .ls-big { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.adm .ls-big b { font-size: 22px; font-weight: 600; }
+.adm .ls-big span { font-size: 13px; }
+.adm .ls-p { margin: 0; font-size: 13px; line-height: 1.5; }
+.adm .ls-help { margin: 0; }
+.adm .ls-facts { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; margin: 0; font-size: 13px; }
+.adm .ls-facts dt { min-width: 0; } .adm .ls-facts dd { margin: 0; color: var(--a-muted); text-align: right; }
+.adm .ls-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.adm .ls-row, .adm .ls-other { display: flex; align-items: center; gap: 10px; font-size: 13px; min-width: 0; }
+.adm .ls-row { min-height: 36px; }
+.adm .ls-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.adm .ls-row .ls-show { padding: 0 8px; }
+.adm .ls-dl { display: grid; gap: 6px; }
+.adm .ls-dl-line { display: flex; gap: 10px; font-size: 13px; min-width: 0; }
+.adm .ls-dl-line .ls-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the phone's way in: one line under the search, opening the panel as a sheet */
+.adm .ls-open { display: none; }
+@media (max-width: 760px) {
+  .adm .ls-open { display: flex; align-items: center; gap: 8px; margin: 8px 12px 0; padding: 0 12px; height: 40px; border: 1px solid var(--a-border-strong); border-radius: var(--a-r-ctl); background: var(--a-surface); font-size: 13px; font-weight: 600; color: var(--a-text); cursor: pointer; flex: none; min-width: 0; width: calc(100% - 24px); text-align: left; }
+  .adm .ls-open .end { margin-left: auto; color: var(--a-muted); font-weight: 500; white-space: nowrap; }
+  .adm .ls-open .grow { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .adm .adm-sheet .ls-title { display: none; }
+  .adm .adm-sheet .ls-sec { padding: 14px 0; }
+}
+
+/* Radio problem reports (/admin/radio/reports) */
+.adm .rp-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; background: var(--a-sunken); }
+.adm .rp-bug { width: 40px; height: 40px; border-radius: 6px; flex: none; background: var(--a-sunken); display: grid; place-items: center; color: var(--a-muted); }
+.adm .rp-song { display: flex; gap: 14px; align-items: center; padding: 12px; min-width: 0; }
+.adm .rp-song img, .adm .rp-song-ph { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; flex: none; background: var(--a-sunken); }
+.adm .rp-h3 { margin: 8px 0 0; font-size: 16px; font-weight: 650; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm .rp-one { padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.adm .rp-one .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.adm .rp-one .txt { line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.adm .rp-diag { padding: 0; overflow: hidden; }
+.adm .rp-diag .sec { padding: 12px 14px; border-top: 1px solid var(--a-border); }
+.adm .rp-diag .sec:first-child { border-top: 0; }
+.adm .rp-diag .k { font-size: 12px; font-weight: 600; color: var(--a-muted); margin-bottom: 8px; }
+.adm .rp-log { margin: 0; font: 12px/1.65 ui-monospace, "SF Mono", Consolas, monospace; color: var(--a-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.adm .rp-link { background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; color: var(--a-text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--a-border-strong); text-underline-offset: 3px; }
+@media (max-width: 760px) { .adm .rp-song img, .adm .rp-song-ph { width: 52px; height: 52px; } }
+
+/* The radio bar (components/plus/plus.css .pbar, 76px; 64px up to 1000px wide) is a row of the screen, not
+   on top of the admin: the frame ends where the bar starts, so it never hides anything. */
+html[data-radio-mini] .adm-app { height: calc(100dvh - 76px); }
+/* the public site makes room with body padding (plus.css); here the frame itself is shorter */
+body:has(.adm-app) { padding-bottom: 0 !important; }
+html[data-radio-mini] .adm .savebar { bottom: calc(76px + 16px); }
+html[data-radio-mini] .adm-toasts { bottom: calc(76px + 16px); }
+@media (max-width: 1000px) {
+  html[data-radio-mini] .adm-app { height: calc(100dvh - 64px); }
+  html[data-radio-mini] .adm .savebar, html[data-radio-mini] .adm-toasts { bottom: calc(64px + 16px); }
+}
+@media (max-width: 760px) {
+  html[data-radio-mini] .adm-app.menu .adm-side { bottom: 64px; }
+  html[data-radio-mini] .adm .creator-send { bottom: 64px; }
+}
+
+/* Library › Collections */
+.adm .coll { height: 100%; padding: 16px 20px 32px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-content: start; max-width: 900px; }
+.adm .coll > select { justify-self: start; }
+.adm .coll > *, .adm .coll .rows > .r > * { min-width: 0; }
+.adm .coll .rows > .r > .coll-cover, .adm .coll .rows > .r > .coll-dj, .adm .coll .rows > .r > .iconbtn { flex: none; }
+.adm .coll-h { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
+.adm .coll-h .muted { font-weight: 400; }
+.adm .coll .rows > .r { padding: 8px 12px; gap: 10px; }
+.adm .coll-cover { width: 32px; height: 32px; border-radius: 4px; flex: none; object-fit: cover; background: var(--a-sunken); }
+.adm .coll-dj { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+@media (max-width: 760px) {
+  .adm .coll { padding: 12px 12px 24px; }
+  .adm .coll .num { display: none; }
+}

@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const shape = ({ imp, playlistName }: (typeof rows)[number]) => {
       const { recordedItems: _omit, ...rest } = imp;
       const review = parseReview(imp.review);
-      return { ...rest, review: review.open, sourceTotal: review.sourceTotal ?? null, playlistName };
+      return { ...rest, review: review.open, sourceTotal: review.sourceTotal ?? null, playlistName, mine: imp.createdBy === ctx.user.id };
     };
     const imports = rows.map(shape);
     const withReviews = [...waiting.map(shape)].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
@@ -36,11 +36,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Paste a link: a song, or a playlist / album / set, which also becomes a linked library playlist.
+// Paste a link: a song, or a playlist / album / set, which also becomes a linked library playlist. The songs
+// go into the broadcaster's collection, and on the AutoDJ too unless autodj is false (migration 0039).
 export async function POST(request: NextRequest) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
-  const body = (await request.json().catch(() => null)) as { url?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { url?: unknown; autodj?: unknown } | null;
+  const autodj = body?.autodj !== false;
   const url = typeof body?.url === "string" ? body.url.trim() : "";
   const kind = url.length <= 2000 ? linkKind(url) : null;
   if (!kind) return NextResponse.json({ error: "Paste a YouTube, YouTube Music, SoundCloud or Spotify link." }, { status: 400 });
@@ -57,11 +59,11 @@ export async function POST(request: NextRequest) {
     if (kind.collection) {
       playlistId = crypto.randomUUID();
       // named after the link until the downloader reports the playlist's own name
-      await ctx.db.insert(radioPlaylists).values({ id: playlistId, name: url, sourceUrl: url, source: kind.source, createdBy: ctx.user.id, createdAt: now, updatedAt: now });
+      await ctx.db.insert(radioPlaylists).values({ id: playlistId, name: url, sourceUrl: url, source: kind.source, collectionOf: ctx.user.id, createdBy: ctx.user.id, createdAt: now, updatedAt: now });
     }
     const [row] = await ctx.db
       .insert(radioImports)
-      .values({ id: jobId, url, playlistId, state: job.state, title: job.title, total: job.total, createdBy: ctx.user.id, createdAt: now, updatedAt: now })
+      .values({ id: jobId, url, playlistId, state: job.state, title: job.title, total: job.total, collectionOf: ctx.user.id, autodj, createdBy: ctx.user.id, createdAt: now, updatedAt: now })
       .returning();
     return NextResponse.json({ import: { ...row, review: [] } }, { status: 201 });
   } catch (err) {

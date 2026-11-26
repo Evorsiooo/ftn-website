@@ -13,6 +13,8 @@ export interface AdminSummary {
   adsLow: { id: string; title: string; organizer: string; left: number }[] | null;
   /** Song imports: how many songs wait for someone to pick the right match, and imports still running. */
   imports: { review: number; running: number } | null;
+  /** Radio problem reports nobody has looked at yet. */
+  reports: { new: number } | null;
 }
 
 const TTL_MS = 30000;
@@ -49,6 +51,7 @@ async function load(_roles: string[]): Promise<AdminSummary> {
     onAir,
     adsLow: Array.isArray(data?.adsLow) ? data.adsLow : null,
     imports: data?.imports ?? null,
+    reports: data?.reports ?? null,
   };
 }
 

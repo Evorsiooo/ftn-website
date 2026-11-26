@@ -14,6 +14,7 @@ function badgeCount(summary: AdminSummary | null, key?: AdminBadge): number {
   if (key === "tips") return summary.tips?.unread ?? 0;
   if (key === "posts") return summary.posts?.pending ?? 0;
   if (key === "imports") return summary.imports?.review ?? 0;
+  if (key === "reports") return summary.reports?.new ?? 0;
   return summary.drafts?.count ?? 0;
 }
 
@@ -93,7 +94,9 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
   const owns = (m: (typeof ADMIN_MODULES)[number]) => under(m.href) || (m.also ?? []).some(under);
   // The deepest matching entry wins.
   const activeHref = useMemo(() => {
-    const hits = modules.filter(owns).sort((a, b) => b.href.length - a.href.length);
+    // by the longest path that matched, so /admin/radio/reports beats Song library's "also" /admin/radio
+    const depth = (m: (typeof ADMIN_MODULES)[number]) => Math.max(...[m.href, ...(m.also ?? [])].filter(under).map((h) => h.length), -1);
+    const hits = modules.filter(owns).sort((a, b) => depth(b) - depth(a));
     return hits[0]?.href ?? (pathname === "/admin" ? "/admin" : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modules, pathname]);

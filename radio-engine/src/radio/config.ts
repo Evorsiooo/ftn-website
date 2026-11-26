@@ -23,5 +23,7 @@ export const TIME_URL = '/api/radio/time';
 export const LIBRARY_URL = '/api/radio/library';
 /** The AutoDJ's running order: read from the bucket, a longer one POSTed here (checked by the website). */
 export const AUTODJ_WRITE_URL = '/api/radio/autodj';
+/** Mixes the safety checks refused, reported for the radio check (lib/radio/mix-reports.ts). */
+export const MIX_REPORT_URL = '/api/radio/mix-report';
 /** A song's shared analysis: read from the bucket, PUT here once (checked by the website). */
 export const analysisWriteUrl = (key: string) => `/api/radio/analysis/${encodeKey(key)}`;

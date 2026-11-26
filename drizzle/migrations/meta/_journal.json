@@ -136,17 +136,17 @@
       "breakpoints": true
     },
     {
-      "idx": 19,
-      "version": "6",
-      "when": 1793122800000,
-      "tag": "0019_posts_no_ad",
-      "breakpoints": true
-    },
-    {
       "idx": 20,
       "version": "6",
       "when": 1793126400000,
       "tag": "0019_post_videos",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1793122800000,
+      "tag": "0019_posts_no_ad",
       "breakpoints": true
     },
     {
@@ -161,6 +161,20 @@
       "version": "6",
       "when": 1793133600000,
       "tag": "0021_ad_message_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1795000000000,
+      "tag": "0022_performance_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1795100000000,
+      "tag": "0023_broadcast_notifications",
       "breakpoints": true
     },
     {
@@ -245,6 +259,41 @@
       "version": "6",
       "when": 1796300000000,
       "tag": "0035_import_reads",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1796400000000,
+      "tag": "0036_song_prep",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1796500000000,
+      "tag": "0037_song_genres",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1796600000000,
+      "tag": "0038_liked_songs",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1796700000000,
+      "tag": "0039_collections",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1796700000000,
+      "tag": "0040_radio_reports",
       "breakpoints": true
     }
   ]

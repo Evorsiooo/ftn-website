@@ -10,7 +10,7 @@ import {
   canModerateUsers,
 } from "@/lib/rbac";
 
-export type AdminBadge = "tips" | "posts" | "drafts" | "imports";
+export type AdminBadge = "tips" | "posts" | "drafts" | "imports" | "reports";
 
 export interface AdminModule {
   title: string;
@@ -30,6 +30,7 @@ export const ADMIN_MODULES: AdminModule[] = [
   { title: "Tipline", group: "Newsroom", badge: "tips", description: "Anonymous leads from readers.", href: "/admin/tips", allowed: (r) => canPublishArticles(r) || canConfigureSite(r) },
   { title: "Schedule", group: "Radio", description: "Radio shows and livestreams. Go on air from the Studio.", href: "/admin/schedule", allowed: canManageRadio },
   { title: "Song library", group: "Radio", badge: "imports", description: "The radio's songs, playlists and ratings.", href: "/admin/radio/library", also: ["/admin/radio"], allowed: canManageRadio },
+  { title: "Reports", group: "Radio", badge: "reports", description: "Problems listeners reported from the radio player: songs and bugs.", href: "/admin/radio/reports", allowed: canManageRadio },
   { title: "FTN+ content", group: "Network", description: "YouTube and Twitch channels, the video catalog and the rows on FTN+.", href: "/admin/plus", allowed: canConfigureSite },
   { title: "Sports", group: "Network", description: "Leagues, teams, venues, schedule and results.", href: "/admin/sports", allowed: canManageSports },
   { title: "Ads", group: "Network", description: "Advertisers, their ads, and how they perform.", href: "/admin/ads", allowed: canManageAds },
@@ -56,6 +57,7 @@ export const SETTINGS_SECTIONS = [
   { title: "Sign-in method", href: "/admin/settings/access" },
   { title: "Account creation", href: "/admin/settings/access" },
   { title: "Who can see FTN+ and the tipline", href: "/admin/settings/access" },
+  { title: "Who can send radio problem reports", href: "/admin/settings/access" },
   { title: "Radio station and stream", href: "/admin/settings/radio" },
   { title: "Broadcasting from OBS (server and password)", href: "/admin/settings/radio" },
   { title: "Radio Discord bot", href: "/admin/settings/radio" },

@@ -4,8 +4,11 @@ import { Archive, ArchiveRestore, Music, Pause, Pencil, Play, Trash2, X } from "
 import { BackButton, Facts, Sheet } from "@/components/admin/ui";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from "@/lib/radio/loudness";
+import { songStatus } from "./prepare-run";
 import { api, duration, fileUrl, type Song } from "./types";
 import { SongLyrics } from "./song-lyrics";
+import { parseGenres } from "@/lib/radio/genres";
+import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 
 const SOURCE_LABEL: Record<Song["source"], string> = { youtube: "YouTube", soundcloud: "SoundCloud", upload: "Uploaded" };
 
@@ -76,8 +79,16 @@ export function Cover({ src, size = 40 }: { src: string | null; size?: number })
 const added = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : "numeric" });
 
 /** The songs as a table: cover, title, artist, album, length, source, added. A row opens the song on the right. */
-export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs: Song[]; selectedId: string | null; onSelect: (id: string) => void; archivedView: boolean }) {
-  if (!songs.length) return <div className="empty">{archivedView ? "No archived songs." : "No songs match."}</div>;
+const STATUS: Record<ReturnType<typeof songStatus>, [string, string]> = {
+  "on-air": ["On air", "green"],
+  "getting-ready": ["Getting ready", "grey"],
+  missing: ["Missing file", "red"],
+  failed: ["Couldn't prepare", "red"],
+  archived: ["Archived", "grey"],
+};
+
+export function SongTable({ songs, selectedId, onSelect, empty }: { songs: Song[]; selectedId: string | null; onSelect: (id: string) => void; empty: string }) {
+  if (!songs.length) return <div className="empty">{empty}</div>;
   return (
     <table className="table phone-auto">
       <thead>
@@ -91,8 +102,8 @@ export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs
           <th className="num" style={{ width: 72 }}>
             Length
           </th>
-          <th className="hide-m" style={{ width: 104 }}>
-            Source
+          <th className="hide-m" style={{ width: 132 }}>
+            Status
           </th>
           <th className="hide-m" style={{ width: 96 }}>
             Added
@@ -113,12 +124,27 @@ export function SongTable({ songs, selectedId, onSelect, archivedView }: { songs
               {s.album || ""}
             </td>
             <td className="num muted">{duration(s.durationSec)}</td>
-            <td className="hide-m muted">{SOURCE_LABEL[s.source]}</td>
+            <td className="hide-m">
+              <span className={`pill ${STATUS[songStatus(s)][1]}`}>{STATUS[songStatus(s)][0]}</span>
+            </td>
             <td className="hide-m muted">{added(s.createdAt)}</td>
           </tr>
         ))}
       </tbody>
     </table>
+  );
+}
+
+/** "R&B/Soul" with the detailed genres under it, or what's still to do. */
+function genreFacts(song: Song): React.ReactNode {
+  const detail = parseGenres(song.genres);
+  if (!song.genre && !detail.length) return <span className="muted">{song.genreCheckedAt ? "Not found. Edit to add one." : "Not looked up yet"}</span>;
+  return (
+    <span>
+      {song.genre || detail[0]}
+      {detail.length > 0 && <span className="muted t12" style={{ display: "block" }}>{detail.join(" · ")}</span>}
+      {song.genreByHand && <span className="muted t12" style={{ display: "block" }}>Set by hand</span>}
+    </span>
   );
 }
 
@@ -139,12 +165,21 @@ export function SongPane({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(song.title);
   const [artist, setArtist] = useState(song.artist);
+  const [genre, setGenre] = useState(song.genre || "");
+  const [genres, setGenres] = useState(parseGenres(song.genres).join(", "));
+  const [origYear, setOrigYear] = useState(song.originalYear ? String(song.originalYear) : "");
+  const spotifyLink = song.spotifyId ? `https://open.spotify.com/track/${song.spotifyId}` : "";
+  const [spotify, setSpotify] = useState(spotifyLink);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setEditing(false);
     setTitle(song.title);
     setArtist(song.artist);
-  }, [song.id, song.title, song.artist]);
+    setGenre(song.genre || "");
+    setGenres(parseGenres(song.genres).join(", "));
+    setSpotify(spotifyLink);
+    setOrigYear(song.originalYear ? String(song.originalYear) : "");
+  }, [song.id, song.title, song.artist, song.genre, song.genres, song.originalYear, spotifyLink]);
 
   const setArchived = async (archived: boolean) => {
     try {
@@ -169,9 +204,24 @@ export function SongPane({
     e.preventDefault();
     setBusy(true);
     try {
-      await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify({ title, artist }) });
+      const patch: Record<string, unknown> = { title, artist };
+      const spotifyChanged = spotify.trim() !== spotifyLink;
+      if (spotifyChanged) patch.spotify = spotify.trim() || null;
+      const list = genres.split(",").map((g) => g.trim().toLowerCase()).filter(Boolean);
+      const year = origYear.trim() ? Number(origYear) : null;
+      const genreChanged = genre.trim() !== (song.genre || "") || list.join(",") !== parseGenres(song.genres).join(",") || year !== (song.originalYear ?? null);
+      if (genreChanged) {
+        // typed in by hand: the lookups leave them alone from now on
+        Object.assign(patch, { genre: genre.trim() || null, genres: list.length ? list : null, originalYear: year, genreByHand: true });
+      }
+      const res = await api<{ song?: { spotifyId?: string | null } }>(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify(patch) });
       setEditing(false);
-      onPatched(song.id, { title: title.trim(), artist: artist.trim() });
+      onPatched(song.id, {
+        title: title.trim(),
+        artist: artist.trim(),
+        ...(genreChanged ? { genre: genre.trim() || null, genres: list.length ? JSON.stringify([...new Set(list)]) : null, originalYear: year, genreByHand: true } : {}),
+        ...(spotifyChanged ? { spotifyId: res?.song?.spotifyId ?? null } : {}),
+      });
     } catch (err: any) {
       toast(err.message);
     } finally {
@@ -211,8 +261,33 @@ export function SongPane({
               <label>Artist</label>
               <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} maxLength={300} required />
             </div>
+            <div className="field">
+              <label>Genre</label>
+              <input className="input" value={genre} onChange={(e) => setGenre(e.target.value)} maxLength={60} placeholder="e.g. R&B/Soul" />
+            </div>
+            <div className="field">
+              <label>Detailed genres</label>
+              <input className="input" value={genres} onChange={(e) => setGenres(e.target.value)} maxLength={400} placeholder="e.g. disco, funk, soul" />
+              <span className="help">Separated by commas, most fitting first.</span>
+            </div>
+            <div className="field">
+              <label>First came out</label>
+              <input className="input" value={origYear} onChange={(e) => setOrigYear(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="Year" style={{ maxWidth: 120 }} />
+            </div>
+            <div className="field">
+              <label>Spotify link</label>
+              <input
+                className="input"
+                value={spotify}
+                onChange={(e) => setSpotify(e.target.value)}
+                maxLength={300}
+                placeholder="https://open.spotify.com/track/…"
+                inputMode="url"
+              />
+              <span className="muted t12">Listeners who liked this song open it on Spotify. Left empty, they get a Spotify search.</span>
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button type="submit" className="btn strong" disabled={busy || !title.trim() || !artist.trim()}>
+              <button type="submit" className="btn strong" disabled={busy || !title.trim() || !artist.trim() || (!!origYear && (Number(origYear) < 1800 || Number(origYear) > 2200))}>
                 {busy ? "Saving…" : "Save"}
               </button>
               <button type="button" className="btn ghost" onClick={() => setEditing(false)}>
@@ -234,7 +309,15 @@ export function SongPane({
         <Facts
           rows={[
             ["Album", [song.album, song.releaseYear].filter(Boolean).join(" · ") || "Unknown"],
+            ["Genre", genreFacts(song)],
+            ...(song.originalYear && song.originalYear !== song.releaseYear ? [["First came out", String(song.originalYear)] as [string, React.ReactNode]] : []),
             ["Length", duration(song.durationSec)],
+            [
+              "Status",
+              songStatus(song) === "getting-ready"
+                ? `Getting ready (${[!song.analysedAt && "mixing analysis", !song.metaCheckedAt && "title check"].filter(Boolean).join(" and ")} left)`
+                : STATUS[songStatus(song)][0],
+            ],
             [
               "Source",
               song.sourceUrl ? (
@@ -256,6 +339,17 @@ export function SongPane({
                   ] as [string, React.ReactNode],
                 ]
               : []),
+            [
+              "Listen on",
+              <span key="l" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <a href={youtubeMusicUrl(song.source === "youtube" ? song.sourceId : null, song.artist, song.title)} target="_blank" rel="noopener noreferrer" className="link">
+                  YouTube Music
+                </a>
+                <a href={spotifyUrl(song.spotifyId, song.artist, song.title)} target="_blank" rel="noopener noreferrer" className="link">
+                  {song.spotifyId ? "Spotify" : "Spotify (search)"}
+                </a>
+              </span>,
+            ],
             ["Loudness", song.loudnessDb == null ? "Not known (no levelling)" : `${song.loudnessDb > 0 ? "+" : ""}${song.loudnessDb.toFixed(1)} dB`],
             ["Added", added(song.createdAt)],
             ["File", <span key="f" className="t12" style={{ fontFamily: "ui-monospace, monospace", overflowWrap: "anywhere" }}>{song.key}</span>],
@@ -296,6 +390,7 @@ export function UploadSong({ onClose, onDone }: { onClose: () => void; onDone: (
   const [measure, setMeasure] = useState<{ durationSec: number; loudnessDb: number } | null>(null);
   const [status, setStatus] = useState<string>("");
   const [progress, setProgress] = useState<number | null>(null);
+  const [autodj, setAutodj] = useState(true);
 
   const pick = async (f: File | null) => {
     setFile(f);
@@ -327,6 +422,7 @@ export function UploadSong({ onClose, onDone }: { onClose: () => void; onDone: (
     form.set("artist", artist.trim());
     form.set("durationSec", String(measure.durationSec));
     form.set("loudnessDb", String(measure.loudnessDb));
+    form.set("autodj", String(autodj));
     // XHR for upload progress
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/admin/radio/upload");
@@ -393,6 +489,10 @@ export function UploadSong({ onClose, onDone }: { onClose: () => void; onDone: (
           <label>Artist</label>
           <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} maxLength={300} required />
         </div>
+        <label className="chk">
+          <input type="checkbox" className="check" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
+          Also add to the AutoDJ
+        </label>
         {progress !== null && (
           <div className="meter" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
             <i style={{ width: `${progress}%` }} />

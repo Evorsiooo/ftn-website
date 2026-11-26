@@ -330,7 +330,7 @@ export const siteTools: ToolDef[] = [
   {
     name: "get_site_settings",
     title: "Site settings",
-    description: "Site-wide settings: sign-in, who sees FTN+ and the tip line, auto-mod and banned words, YouTube/Twitch channels, home page rows, hidden videos, links, donation banner.",
+    description: "Site-wide settings: sign-in, who sees FTN+ and the tip line, who can send radio problem reports, auto-mod and banned words, YouTube/Twitch channels, home page rows, hidden videos, links, donation banner.",
     input: {},
     kind: "read",
     run: (ctx) => ctx.call(configRoute.GET, { path: "/api/radio/config" }),
@@ -339,7 +339,7 @@ export const siteTools: ToolDef[] = [
     name: "update_site_settings",
     title: "Change site settings",
     description:
-      "Changes site settings: only the fields given (same names as get_site_settings, e.g. donationBannerEnabled, bannedWords, autoModEnabled, youtubeChannels, twitchChannels, hiddenVideoIds, socialLinks, discordUrl, ftnPlusAccess, tiplineAccess, allowSignIn, authMode).",
+      "Changes site settings: only the fields given (same names as get_site_settings, e.g. donationBannerEnabled, bannedWords, autoModEnabled, youtubeChannels, twitchChannels, hiddenVideoIds, socialLinks, discordUrl, ftnPlusAccess, tiplineAccess, reportsAccess (public, members_only or off: who can send radio problem reports), allowSignIn, authMode).",
     input: { settings: S.obj("The settings to change") },
     required: ["settings"],
     kind: "danger",
@@ -411,7 +411,9 @@ export const siteTools: ToolDef[] = [
     title: "Check the radio",
     description:
       "The radio's state: what the 24/7 AutoDJ is playing (or would play, when nobody is listening), the last 8 songs it played (the Radio page's Recently played list, most recent first), the library size, the show on now and next, " +
-      "and whether someone is live from OBS. Icecast only carries live OBS shows, so no Icecast source is normal. problems lists real faults only.",
+      "and whether someone is live from OBS. Icecast only carries live OBS shows, so no Icecast source is normal. problems lists real faults only. " +
+      "Also: websitePick (the next song the website chose; no song repeats within 200), playlistShows (each playlist's shuffle: round and songs played in it), " +
+      "and refusedMixes (mixes the safety checks refused in the last 7 days; the song then played out with no mix).",
     input: {},
     kind: "read",
     openWorld: true,

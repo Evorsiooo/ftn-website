@@ -25,6 +25,35 @@ export interface Station {
   /** Lowers the music while someone on air talks (1 = full). */
   setVoiceDuck(level: number): void;
   stop(): void;
+  /** For a listener's problem report: how the engine is doing right now (sync, timing, what's lined up). */
+  diagnostics?(): StationDiagnostics;
+}
+
+export interface StationDiagnostics {
+  offsetMs: number | null;
+  roundTripMs: number | null;
+  outputLatencyMs: number | null;
+  audioState: string | null;
+  nextMix: { style: string; inSec: number } | null;
+  songsLinedUp: number | null;
+  rev: number | null;
+  /** The longest gap between two engine ticks (a frozen tab or a busy device). */
+  maxFreezeMs: number | null;
+}
+
+function diagnosticsOf(engine: RadioEngine): StationDiagnostics {
+  const s = engine.status as Record<string, any>;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  return {
+    offsetMs: num(s.offsetMs ?? engine.clock.offsetMs),
+    roundTripMs: num(s.roundTripMs ?? engine.clock.roundTripMs),
+    outputLatencyMs: num(s.outputLatencyMs),
+    audioState: typeof s.ctxState === 'string' ? s.ctxState : null,
+    nextMix: s.nextMix && typeof s.nextMix.inSec === 'number' ? { style: String(s.nextMix.style ?? ''), inSec: s.nextMix.inSec } : null,
+    songsLinedUp: num(s.songsLinedUp),
+    rev: num(s.rev),
+    maxFreezeMs: num(s.maxTickGapMs),
+  };
 }
 
 export interface StationOptions {
@@ -65,6 +94,7 @@ export async function startStation(opts: StationOptions = {}): Promise<Station> 
     setDuck: (l) => engine.setDuck(l),
     setVoiceDuck: (l) => engine.setVoiceDuck(l),
     stop: () => engine.stop(),
+    diagnostics: () => diagnosticsOf(engine),
   };
 }
 

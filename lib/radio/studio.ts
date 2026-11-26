@@ -11,7 +11,9 @@ import {
   radioStudioQueue,
   radioStudioSessions,
 } from "@/db/schema";
-import { endOfTimelineMs, nowPlaying, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
+import { endOfTimelineMs, nowPlaying, onAirSongs, playHistory, repeatWindow, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
+import { rotationFilter } from "./rotation";
+import { serverPick } from "./server-pick";
 import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
@@ -342,11 +344,14 @@ export async function resumeMusic(db: DbClient, s: Session, publish = true): Pro
       items: [item],
       mixes: [],
     };
-    // the history keeps what was heard before the pause; the paused song carries on, so it isn't listed yet
+    // the history keeps what was heard before the pause (the songs lined up after it never played); the paused
+    // song carries on, so it isn't listed yet
     const stored = withPlayed(tl, fresh, now, s.pausedAt.getTime());
     if (stored.recent?.[0]?.key === item.key) stored.recent = stored.recent.slice(1);
+    if (stored.played?.[0] === item.key) stored.played = stored.played.slice(1);
+    stored.nextPick = await serverPick(db, bucket, stored, new Map()).catch(() => null);
     await bucket.put(AUTODJ_KEY, JSON.stringify(stored), { httpMetadata: { contentType: "application/json" } });
-    if (s.replayId) await saveTimelinePart(db, s.replayId, fresh);
+    if (s.replayId) await saveTimelinePart(db, s.replayId, stored);
   }
   await db.update(radioStudioSessions).set({ pausedAt: null, pausedKey: null, pausedSec: null }).where(eq(radioStudioSessions.id, s.id));
   if (s.replayId) {
@@ -374,14 +379,42 @@ export async function queueSong(db: DbClient, s: Session, user: RobloxUser, song
   await republish(db);
 }
 
-/** Queue by link: the VPS downloads it into the library first; it joins the queue once it's there. */
-export async function queueUrl(db: DbClient, s: Session, user: RobloxUser, url: string): Promise<void> {
+/** Queues several library songs at once, in order (a playlist of the broadcaster's collection). Songs already waiting are skipped. */
+export async function queueSongs(db: DbClient, s: Session, user: RobloxUser, keys: string[]): Promise<void> {
+  const unique = [...new Set(keys)].slice(0, 200);
+  if (!unique.length) return;
+  const waiting = new Set(
+    (await db.select({ key: radioStudioQueue.songKey }).from(radioStudioQueue).where(and(eq(radioStudioQueue.sessionId, s.id), eq(radioStudioQueue.state, "queued")))).map((r) => r.key)
+  );
+  const found = new Map<string, { title: string; artist: string }>();
+  for (let i = 0; i < unique.length; i += 90) {
+    const rows = await db
+      .select({ key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, archived: radioSongs.archived })
+      .from(radioSongs)
+      .where(inArray(radioSongs.r2Key, unique.slice(i, i + 90)));
+    for (const r of rows) if (!r.archived) found.set(r.key, r);
+  }
+  let position = await lastPosition(db, s.id);
+  const now = new Date();
+  const rows = unique
+    .filter((k) => found.has(k) && !waiting.has(k))
+    .map((songKey) => ({ id: crypto.randomUUID(), sessionId: s.id, songKey, label: `${found.get(songKey)!.title} · ${found.get(songKey)!.artist}`, position: position++, addedBy: user.id, createdAt: now }));
+  // 7 columns: 14 rows per statement (D1's 100 bound parameters)
+  for (let i = 0; i < rows.length; i += 14) await db.insert(radioStudioQueue).values(rows.slice(i, i + 14));
+  if (rows.length) await republish(db);
+}
+
+/**
+ * Queue by link: the VPS downloads it into the broadcaster's collection first (and the AutoDJ's songs too with
+ * [autodj]); it joins the queue once it's there.
+ */
+export async function queueUrl(db: DbClient, s: Session, user: RobloxUser, url: string, autodj = false): Promise<void> {
   const kind = url.length <= 2000 ? linkKind(url) : null;
   if (!kind) throw new StudioError("Paste a YouTube, YouTube Music, SoundCloud or Spotify song link.");
-  if (kind.collection) throw new StudioError("Paste one song. Whole playlists go in through the Library, then search for them here.");
+  if (kind.collection) throw new StudioError("Paste one song. Add whole playlists on the Song library page: they then show in your collection here.");
   const { jobId, job } = await startJob(db, url, null);
   const now = new Date();
-  await db.insert(radioImports).values({ id: jobId, url, playlistId: null, state: job.state, title: job.title, total: job.total, createdBy: user.id, createdAt: now, updatedAt: now });
+  await db.insert(radioImports).values({ id: jobId, url, playlistId: null, state: job.state, title: job.title, total: job.total, collectionOf: user.id, autodj, createdBy: user.id, createdAt: now, updatedAt: now });
   await db.insert(radioStudioQueue).values({
     id: crypto.randomUUID(), sessionId: s.id, importId: jobId, label: url, position: await lastPosition(db, s.id), addedBy: user.id, createdAt: now,
   });
@@ -493,23 +526,25 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
         const outSec = mixes[0]?.outSec ?? items[0]!.durationSec;
         if (startSec > Math.min(outSec - 1, items[0]!.durationSec - 75)) startSec = 0;
       } else {
-        const item = await skipTo(db, s, tl.items.map((i) => i.key));
+        const item = await skipTo(db, s, playHistory(tl));
         if (!item) throw new StudioError("There's no other song to play.", 409);
         if (item.fromQueue) fromQueue = [item.key];
         items = [{ key: item.key, title: item.title, artist: item.artist, durationSec: item.durationSec, loudnessDb: item.loudnessDb }];
         mixes = [];
       }
-      next = { ...tl, rev: tl.rev + 1, firstK: k + 1, anchorMs: at, startSec: Math.round(startSec * 1000) / 1000, repeat: false, items, mixes };
+      // the songs it drops (the skipped one too) go into the play history, like any that finished
+      next = withPlayed(tl, { ...tl, rev: tl.rev + 1, firstK: k + 1, anchorMs: at, startSec: Math.round(startSec * 1000) / 1000, repeat: false, items, mixes }, now);
     } else {
       const j = k - tl.firstK;
       const cut: RadioTimeline = { ...tl, rev: tl.rev + 1, items: tl.items.slice(0, j), mixes: tl.mixes.slice(0, j - 1) };
       const last = slotAt(cut, k - 1)!;
       if (last.endMs - now < DROP_MARGIN_MS) throw new StudioError("Too close to the mix to drop it now: skip it once it plays.", 409);
       backToQueue = tl.items.slice(j + 1).map((i) => i.key);
-      next = cut;
+      // the songs cut never played: they don't count as played
+      next = withPlayed(tl, cut, now);
     }
-    // the songs a skip moves past go into the play history, as when listeners line songs up
-    next = withPlayed(tl, next, now);
+    // the website's pick to follow the new last song (the one picked before followed another song)
+    next = { ...next, nextPick: await serverPick(db, bucket, next, new Map()).catch(() => null) };
     const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), { httpMetadata: { contentType: "application/json" }, onlyIf: { etagMatches: stored.etag } });
     if (!put) continue; // a listener's browser lined up a song at the same moment: look again
     if (fromQueue.length) await markQueuedPlayed(db, fromQueue);
@@ -520,8 +555,12 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
   throw new StudioError("The songs lined up kept changing: try again.", 409);
 }
 
-/** The song to play after a skip when nothing is lined up: the queue's next song, else one from the library. */
-async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(TimelineItem & { fromQueue: boolean }) | null> {
+/**
+ * The song to play after a skip when nothing is lined up: the queue's next song, else one from the library
+ * that hasn't played lately ([history]: most recent first; the same no-repeat window as the AutoDJ), with the
+ * artist and album rules where they leave a choice.
+ */
+async function skipTo(db: DbClient, s: Session, history: string[]): Promise<(TimelineItem & { fromQueue: boolean }) | null> {
   const songs = await cachedPlayableSongs(db);
   const byKey = new Map(songs.map((x) => [x.key, x]));
   const queued = await db
@@ -531,8 +570,13 @@ async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(Time
     .orderBy(asc(radioStudioQueue.position));
   const q = queued.map((r) => byKey.get(r.key!)).find((x) => x && x.durationSec > 1);
   if (q) return { ...q, fromQueue: true };
-  const fresh = songs.filter((x) => x.durationSec > 1 && !recent.includes(x.key));
-  const pool = fresh.length ? fresh : songs.filter((x) => x.durationSec > 1 && x.key !== recent[recent.length - 1]);
+  // from the library: songs on air only, like the AutoDJ
+  const onAir = onAirSongs(songs).filter((x) => x.durationSec > 1);
+  const recent = new Set(history.slice(0, repeatWindow(onAir.length)));
+  const fresh = onAir.filter((x) => !recent.has(x.key));
+  // none left: the one that played longest ago
+  const ago = (key: string) => { const i = history.indexOf(key); return i < 0 ? Infinity : i; };
+  const pool = fresh.length ? rotationFilter(fresh, (x) => x.key, history, byKey) : [...onAir].sort((a, b) => ago(b.key) - ago(a.key)).slice(0, 1);
   const pick = pool[Math.floor(Math.random() * pool.length)];
   return pick ? { ...pick, fromQueue: false } : null;
 }
@@ -585,7 +629,8 @@ function studioStateOf(s: Session | null, list: Person[], queue: QueueRow[], use
     },
     me: mine ? { id: mine.id, role: mine.role } : null,
     people: list.map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, role: p.role, state: p.state, connected: !!p.track, gain: p.gain, seenAgoMs: Date.now() - p.seenAt.getTime() })),
-    queue: queue.filter((q) => q.state !== "played").map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey })),
+    // key: the song once downloaded; mine: queued by this broadcaster, whose Studio tab prepares it (Getting ready)
+    queue: queue.filter((q) => q.state !== "played").map((q) => ({ id: q.id, label: q.label, state: q.state, ready: !!q.songKey, key: q.songKey, mine: q.addedBy === user.id })),
     /** Songs of the queue already lined up (or played): the Studio marks them in the running order. */
     queuedKeys: [...new Set(queue.filter((q) => q.state === "played" && q.songKey).map((q) => q.songKey!))],
     cap: ON_AIR_CAP,

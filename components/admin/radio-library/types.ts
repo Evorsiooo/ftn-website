@@ -9,6 +9,10 @@ export interface Song {
   key: string;
   source: "youtube" | "soundcloud" | "upload";
   sourceUrl: string | null;
+  /** The YouTube video id (source youtube). */
+  sourceId?: string | null;
+  /** The Spotify track id, if known (Liked songs on FTN+ open it; otherwise a Spotify search). */
+  spotifyId?: string | null;
   title: string;
   artist: string;
   album: string | null;
@@ -17,6 +21,8 @@ export interface Song {
   loudnessDb: number | null;
   thumbnail: string | null;
   archived: boolean;
+  /** False: only in broadcasters' collections, not played by the AutoDJ (migration 0039). */
+  autodj?: boolean;
   /** BitChord's flag: the file is a music video (Automix's loop mixes skip it). */
   musicVideo?: boolean;
   /** Where title and artist came from; "ytmusic" = YouTube Music's catalogue (the album song). */
@@ -27,6 +33,21 @@ export interface Song {
   /** Lyrics for every listener: null = best available, a provider id, or "none"; and the offset in ms. */
   lyricsSource: string | null;
   lyricsOffsetMs: number;
+  /** Getting ready: on air once analysed for mixing and title-checked (null: not yet). */
+  analysedAt?: string | null;
+  metaCheckedAt?: string | null;
+  /** Set aside by Prepare: "missing" (no audio file) or "failed". */
+  prepError?: "missing" | "failed" | null;
+  /** Broad genre (Apple's catalogue, or typed in). */
+  genre?: string | null;
+  /** Detailed genres from MusicBrainz, a JSON array as stored (see parseGenres). */
+  genres?: string | null;
+  /** The year the song first came out (MusicBrainz), when release year is a reissue's. */
+  originalYear?: number | null;
+  /** When "Find genres and original years" last looked it up. */
+  genreCheckedAt?: string | null;
+  /** Genres typed in by hand: lookups leave them alone. */
+  genreByHand?: boolean;
   createdAt: string;
 }
 
@@ -82,6 +103,11 @@ export interface Import {
   done: number;
   failed: number;
   error: string | null;
+  /** Migration 0039: whose collection the songs go into (null: imports from before collections), and whether the AutoDJ gets them. */
+  collectionOf?: string | null;
+  autodj?: boolean;
+  /** Started by the person looking. */
+  mine?: boolean;
   createdAt: string;
 }
 

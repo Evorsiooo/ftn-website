@@ -65,6 +65,7 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
   const [authMode, setAuthMode] = useState<"roblox" | "credentials">("roblox");
   const [ftnPlusAccess, setFtnPlusAccess] = useState<"public" | "members_only">("public");
   const [tiplineAccess, setTiplineAccess] = useState<"public" | "members_only">("public");
+  const [reportsAccess, setReportsAccess] = useState<"public" | "members_only" | "off">("public");
 
   // User Accounts & Password Management
   const [userSearchQuery, setUserSearchQuery] = useState("");
@@ -167,7 +168,7 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
   const [purgingVideos, setPurgingVideos] = useState(false);
 
   const payloadJson = JSON.stringify({
-    streamUrlInput, statusJsonInput, webradioToggle, allowSignIn, authMode, ftnPlusAccess, tiplineAccess, discordUrl, socialLinks,
+    streamUrlInput, statusJsonInput, webradioToggle, allowSignIn, authMode, ftnPlusAccess, tiplineAccess, reportsAccess, discordUrl, socialLinks,
     bannedWordsInput, youtubeChannels, twitchChannels, hiddenFeaturedChannels, hiddenTrendingChannels, swimlanes, hiddenVideoIds, autoModEnabled,
     donationBannerEnabled, autoModThreshold, autoModMuteDuration, radioPublic, radioSecure,
   });
@@ -187,7 +188,7 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
     rotation: { label: "Password rotation", sec: ["rotationEndpointUrl", "rotationEndpointToken", "rotationFrequencyHours", "rotationTimeUtc", "discordWebhookUrl"] },
     art: { label: "Album art", pub: ["defaultArtUrl"], sec: ["lastFmApiKey", "fanartTvApiKey", "artPriority"] },
     signin: { label: "Sign-in", keys: ["allowSignIn", "authMode"] },
-    gates: { label: "Access gates", keys: ["ftnPlusAccess", "tiplineAccess"] },
+    gates: { label: "Access gates", keys: ["ftnPlusAccess", "tiplineAccess", "reportsAccess"] },
     automod: { label: "Auto-moderation", keys: ["autoModEnabled", "autoModThreshold", "autoModMuteDuration"] },
     profanity: { label: "Profanity filter", keys: ["bannedWordsInput"] },
     channels: { label: "YouTube channels", keys: ["youtubeChannels", "hiddenFeaturedChannels", "hiddenTrendingChannels"] },
@@ -199,7 +200,7 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
   const setters: Record<string, (v: any) => void> = {
     donationBannerEnabled: setDonationBannerEnabled, discordUrl: setDiscordUrl, socialLinks: setSocialLinks, streamUrlInput: setStreamUrlInput,
     statusJsonInput: setStatusJsonInput, webradioToggle: setWebradioToggle, allowSignIn: setAllowSignIn, authMode: setAuthMode,
-    ftnPlusAccess: setFtnPlusAccess, tiplineAccess: setTiplineAccess, autoModEnabled: setAutoModEnabled, autoModThreshold: setAutoModThreshold,
+    ftnPlusAccess: setFtnPlusAccess, tiplineAccess: setTiplineAccess, reportsAccess: setReportsAccess, autoModEnabled: setAutoModEnabled, autoModThreshold: setAutoModThreshold,
     autoModMuteDuration: setAutoModMuteDuration, bannedWordsInput: setBannedWordsInput, youtubeChannels: setYoutubeChannels, twitchChannels: setTwitchChannels,
     hiddenFeaturedChannels: setHiddenFeaturedChannels, hiddenTrendingChannels: setHiddenTrendingChannels, hiddenVideoIds: setHiddenVideoIds, swimlanes: setSwimlanes,
   };
@@ -286,6 +287,7 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
           if (data.authMode) setAuthMode(data.authMode);
           if (data.ftnPlusAccess) setFtnPlusAccess(data.ftnPlusAccess);
           if (data.tiplineAccess) setTiplineAccess(data.tiplineAccess);
+          if (data.reportsAccess) setReportsAccess(data.reportsAccess);
           if (data.discordUrl) setDiscordUrl(data.discordUrl);
           if (data.bannedWords !== undefined) setBannedWordsInput(data.bannedWords);
           if (Array.isArray(data.socialLinks)) setSocialLinks(data.socialLinks);
@@ -896,6 +898,7 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
           authMode,
           ftnPlusAccess,
           tiplineAccess,
+          reportsAccess,
           discordUrl: discordUrl.trim(),
           socialLinks,
           bannedWords: bannedWordsInput,
@@ -980,6 +983,8 @@ export function useSiteConfig(opts: { people?: boolean; videos?: boolean } = {})
     setFtnPlusAccess,
     tiplineAccess,
     setTiplineAccess,
+    reportsAccess,
+    setReportsAccess,
     userSearchQuery,
     setUserSearchQuery,
     searchedUsers,

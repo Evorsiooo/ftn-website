@@ -139,3 +139,24 @@ export function useSavedReplays() {
   }, []);
   return items;
 }
+
+// -------------------------------------------------------------------------------------------- liked songs
+
+/** A song the listener liked on the radio (thumbs up), with where to listen to it. */
+export type LikedSong = { key: string; title: string; artist: string; art: string | null; durationSec: number | null; youtubeMusic: string; spotify: string; spotifyExact: boolean };
+
+/** Every liked song (this browser's, or the account's when signed in), and taking one back. */
+export function useLikedSongs() {
+  const [songs, setSongs] = useState<LikedSong[] | null>(null);
+  useEffect(() => {
+    fetch("/api/plus/liked-songs", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: any) => setSongs(Array.isArray(d?.songs) ? d.songs : []))
+      .catch(() => setSongs([]));
+  }, []);
+  const unlike = useCallback((key: string) => {
+    setSongs((list) => (list ? list.filter((s) => s.key !== key) : list));
+    fetch("/api/plus/liked-songs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ key }) }).catch(() => {});
+  }, []);
+  return { songs, unlike };
+}

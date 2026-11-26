@@ -35,8 +35,32 @@ interface Station {
   setDuck(level: number): void;
   setVoiceDuck(level: number): void;
   stop(): void;
+  /** How the engine is doing (sync, timing, what's lined up), for a problem report (an older engine has none). */
+  diagnostics?(): EngineDiagnostics;
 }
-type StationModule = { startStation(opts: { listenerId?: string; volume?: number }): Promise<Station> };
+export interface EngineDiagnostics {
+  offsetMs: number | null;
+  roundTripMs: number | null;
+  outputLatencyMs: number | null;
+  audioState: string | null;
+  nextMix: { style: string; inSec: number } | null;
+  songsLinedUp: number | null;
+  rev: number | null;
+  maxFreezeMs: number | null;
+}
+type StationModule = { startStation(opts: { listenerId?: string; volume?: number; log?: (line: string) => void }): Promise<Station> };
+
+/** The player's last messages (the engine's log and the player's own), kept in memory only: a listener can
+ *  attach them to a problem report. Never sent anywhere otherwise. */
+const playerLog: string[] = [];
+const logTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+export function notePlayer(line: string) {
+  playerLog.push(`${logTime.format(new Date())}  ${line.slice(0, 300)}`);
+  if (playerLog.length > 40) playerLog.splice(0, playerLog.length - 40);
+}
+export function recentPlayerLog(n = 20): string[] {
+  return playerLog.slice(-n);
+}
 
 let stationModule: Promise<StationModule> | null = null;
 /** The engine bundle, built separately (radio-engine/) into public/radio-engine/. Fetched once, when first needed. */
@@ -205,7 +229,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
     const gen = startGen.current;
     const fading = fadeIn.current;
     loadStationModule()
-      .then((mod) => mod.startStation({ listenerId: listenerId(), volume: fading || mutedRef.current ? 0 : volumeRef.current }))
+      .then((mod) => mod.startStation({ listenerId: listenerId(), volume: fading || mutedRef.current ? 0 : volumeRef.current, log: notePlayer }))
       .then((station) => {
         if (gen !== startGen.current || !wantPlaying.current) {
           station.stop();
@@ -249,6 +273,7 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
       .catch((err) => {
         if (gen !== startGen.current) return;
         console.error("radio: couldn't start the AutoDJ", err);
+        notePlayer(`couldn't start the AutoDJ: ${String(err)}`);
         // a network hiccup: keep "connecting" and try again (the press already unlocked audio)
         if (wantPlaying.current && retries.current < STATION_RETRIES_MS.length) {
           const delay = STATION_RETRIES_MS[retries.current]!;
@@ -564,10 +589,33 @@ export function useRadioPlayer(streamUrl: string, onTrackChange?: () => void, op
     const s = st.status();
     return s.song && s.positionSec != null ? { key: s.song.key, sec: s.positionSec } : null;
   }, []);
+  // the player's own changes of state, for a problem report's log
+  useEffect(() => {
+    notePlayer(`player: ${status} (${source})`);
+  }, [status, source]);
+  /** What a listener can attach to a problem report: the player's state and, while the AutoDJ plays here, the engine's. */
+  const diagnostics = useCallback(() => {
+    const st = stationRef.current;
+    const s = st?.status();
+    const pos = s?.positionSec ?? null;
+    return {
+      player: {
+        status,
+        source,
+        volume: volumeRef.current,
+        muted: mutedRef.current,
+        otherWindow: status === "idle" && remotePlayingRef0.current,
+        song: song ? `${song.title}, ${song.artist}` : null,
+        positionSec: typeof pos === "number" ? Math.round(pos) : null,
+      },
+      engine: st?.diagnostics ? st.diagnostics() : null,
+      log: recentPlayerLog(),
+    };
+  }, [status, source, song]);
   /** Lowers the music while someone on air talks (Studio shows); 1 = full. */
   const voiceDuck = useCallback((level: number) => {
     voiceDuckRef.current = level;
     stationRef.current?.setVoiceDuck(level);
   }, []);
-  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow, playheadNow, voiceDuck };
+  return { status: shownStatus, localStatus: status, remotePlaying, pendingSince, volume, muted, setVolume, toggleMute, play, stop, source, song, listeners, ducked, duck, positionNow, playheadNow, voiceDuck, diagnostics };
 }

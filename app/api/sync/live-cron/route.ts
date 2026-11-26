@@ -76,7 +76,8 @@ export async function POST(request: NextRequest) {
   try {
     const bucket = radioBucket();
     if (bucket) {
-      const idx = await refreshAnalysisIndex(bucket);
+      const d1 = (process.env as any).DB as D1Database | undefined;
+      const idx = await refreshAnalysisIndex(bucket, d1 ? getDb(d1) : undefined);
       if (idx.added || idx.removed || idx.waiting) out.radioAnalysisIndex = idx;
     }
   } catch (err: any) {
