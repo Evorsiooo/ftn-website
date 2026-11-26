@@ -32,6 +32,17 @@ function LibraryPage() {
   const [videosOnly, setVideosOnly] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  // ?song=<file key> (from a radio problem report): open that song once the list is loaded
+  const [linked, setLinked] = useState(false);
+  const linkedKey = params.get("song");
+  useEffect(() => {
+    if (linked || !linkedKey || !songs) return;
+    setLinked(true);
+    const s = songs.find((x) => x.key === linkedKey);
+    if (!s) return;
+    if (s.archived) setArchived(true);
+    setSelected(s.id);
+  }, [linked, linkedKey, songs]);
   const [sheet, setSheet] = useState<"add" | "review" | "upload" | null>(null);
   const [menu, setMenu] = useState(false);
   const preview = usePreview();

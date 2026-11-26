@@ -716,3 +716,20 @@
 .adm .ai-steps { margin: 10px 0 8px; padding-left: 18px; display: grid; gap: 4px; }
 .adm .ai-confirm { max-width: 640px; padding: 24px 24px 96px; display: grid; gap: 16px; }
 .adm .ai-confirm pre { margin: 0; padding: 12px; border-radius: var(--a-r-ctl); background: var(--a-sunken); font: 12px/1.5 var(--font-geist-mono), ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+
+/* Radio problem reports (/admin/radio/reports) */
+.adm .rp-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; background: var(--a-sunken); }
+.adm .rp-bug { width: 40px; height: 40px; border-radius: 6px; flex: none; background: var(--a-sunken); display: grid; place-items: center; color: var(--a-muted); }
+.adm .rp-song { display: flex; gap: 14px; align-items: center; padding: 12px; min-width: 0; }
+.adm .rp-song img, .adm .rp-song-ph { width: 64px; height: 64px; border-radius: 8px; object-fit: cover; flex: none; background: var(--a-sunken); }
+.adm .rp-h3 { margin: 8px 0 0; font-size: 16px; font-weight: 650; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.adm .rp-one { padding: 12px 14px; display: grid; gap: 6px; min-width: 0; }
+.adm .rp-one .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.adm .rp-one .txt { line-height: 1.55; overflow-wrap: anywhere; white-space: pre-wrap; }
+.adm .rp-diag { padding: 0; overflow: hidden; }
+.adm .rp-diag .sec { padding: 12px 14px; border-top: 1px solid var(--a-border); }
+.adm .rp-diag .sec:first-child { border-top: 0; }
+.adm .rp-diag .k { font-size: 12px; font-weight: 600; color: var(--a-muted); margin-bottom: 8px; }
+.adm .rp-log { margin: 0; font: 12px/1.65 ui-monospace, "SF Mono", Consolas, monospace; color: var(--a-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.adm .rp-link { background: none; border: 0; padding: 0; cursor: pointer; justify-self: start; color: var(--a-text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--a-border-strong); text-underline-offset: 3px; }
+@media (max-width: 760px) { .adm .rp-song img, .adm .rp-song-ph { width: 52px; height: 52px; } }

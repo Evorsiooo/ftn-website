@@ -407,6 +407,39 @@ export const songVotes = sqliteTable("song_votes", {
   index("song_votes_song_idx").on(t.songKey),
 ]);
 
+// Problem reports from the radio player's flag button: a song (too long, wrong lyrics...) or a bug. Anyone can
+// send one (Settings > Sign-in can limit it). user_id/username are set when the sender was signed in;
+// sender_hash is a keyed hash of their network address (never the address), used for limits and blocking.
+// diagnostics is the JSON the listener chose to attach (browser, player state, sync, recent player log).
+export const radioReports = sqliteTable("radio_reports", {
+  id: text("id").primaryKey(),
+  kind: text("kind", { enum: ["song", "bug"] }).notNull(),
+  reason: text("reason").notNull(),
+  songKey: text("song_key"),
+  songTitle: text("song_title"),
+  songArtist: text("song_artist"),
+  details: text("details").notNull().default(""),
+  diagnostics: text("diagnostics"),
+  source: text("source").notNull(),
+  userId: text("user_id"),
+  username: text("username"),
+  senderHash: text("sender_hash").notNull(),
+  status: text("status", { enum: ["new", "fixed", "dismissed"] }).notNull().default("new"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+}, (t) => [
+  index("radio_reports_status_idx").on(t.status, t.createdAt),
+  index("radio_reports_created_idx").on(t.createdAt),
+  index("radio_reports_sender_idx").on(t.senderHash, t.songKey, t.reason),
+]);
+
+// Senders blocked from reporting: "user:<id>" or "net:<sender_hash>", until expires_at (null = for good).
+export const radioReportBlocks = sqliteTable("radio_report_blocks", {
+  key: text("key").primaryKey(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
+});
+
 // Radio song library (BitChord-based webradio). Each song is one audio file in the ftn-radio R2
 // bucket, put there by the VPS downloader (euno-radio) or uploaded from the admin. metaKey is the
 // downloader's JSON next to the file (deleted with it, or a re-import would think it is still there).

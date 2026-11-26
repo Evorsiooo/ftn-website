@@ -203,6 +203,27 @@ function AccessPage({ c }: { c: SiteConfig }) {
         <Line label="Tipline" help={c.tiplineAccess === "public" ? "Anyone can send a tip, anonymously or with their Roblox name." : "Visitors must sign in to send a tip."}>
           {gate(c.tiplineAccess, c.setTiplineAccess, "Tipline access")}
         </Line>
+        <Line
+          label="Radio problem reports"
+          help={
+            c.reportsAccess === "public"
+              ? "Anyone can report a song or a bug from the radio player. Each report says whether they were signed in."
+              : c.reportsAccess === "members_only"
+                ? "Listeners must sign in to report a problem."
+                : "The report button is hidden."
+          }
+        >
+          <Seg
+            value={c.reportsAccess}
+            onChange={c.setReportsAccess}
+            options={[
+              { value: "public", label: "Everyone" },
+              { value: "members_only", label: "Signed-in only" },
+              { value: "off", label: "Off" },
+            ]}
+            label="Radio problem reports"
+          />
+        </Line>
       </Section>
       <Section title="Staff accounts">
         <p className="help" style={{ margin: 0 }}>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { adCampaigns, articles, organizers, posts, radioImports, tips } from "@/db/schema";
+import { adCampaigns, articles, organizers, posts, radioImports, radioReports, tips } from "@/db/schema";
 import { requireStaff } from "@/lib/admin-auth";
 import { canManageAds, canManagePosts, canManageRadio, canPublishArticles } from "@/lib/rbac";
 import { loadShowsAndBroadcasts } from "@/lib/schedule";
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     }
   };
 
-  const [tipsPart, postsPart, draftsPart, schedule, adsLow, imports] = await Promise.all([
+  const [tipsPart, postsPart, draftsPart, schedule, adsLow, imports, reports] = await Promise.all([
     // tips_status_idx: reads only the unread tips
     part(canPublishArticles(roles), async () => {
       const [r] = await db
@@ -101,10 +101,15 @@ export async function GET(request: NextRequest) {
       const review = withReview.reduce((n, r) => n + parseReview(r.review).open.length, 0);
       return { review, running: Number(running?.n ?? 0) };
     }),
+    // radio_reports_status_idx: reads only the new reports
+    part(canManageRadio(roles), async () => {
+      const [r] = await db.select({ n: sql<number>`count(*)` }).from(radioReports).where(eq(radioReports.status, "new"));
+      return { new: Number(r?.n ?? 0) };
+    }),
   ]);
 
   return NextResponse.json(
-    { tips: tipsPart, posts: postsPart, drafts: draftsPart, schedule, adsLow, imports },
+    { tips: tipsPart, posts: postsPart, drafts: draftsPart, schedule, adsLow, imports, reports },
     { headers: { "Cache-Control": "private, no-store" } }
   );
 }

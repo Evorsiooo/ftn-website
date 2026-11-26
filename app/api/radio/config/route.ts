@@ -34,6 +34,8 @@ export interface SiteConfig {
   bannedWords: string;
   ftnPlusAccess: "public" | "members_only";
   tiplineAccess: "public" | "members_only";
+  /** Who can send radio problem reports (the flag on the radio player). */
+  reportsAccess: "public" | "members_only" | "off";
   socialLinks: SocialLinkConfig[];
   customSwimlanes: CustomSwimlaneConfig[];
   hiddenVideoIds: string[];
@@ -59,6 +61,7 @@ const DEFAULT_CONFIG: SiteConfig = {
   bannedWords: "fuck\nshit\nbitch\nasshole\ncunt\ndick\npussy\nnigger\nfaggot",
   ftnPlusAccess: "public",
   tiplineAccess: "public",
+  reportsAccess: "public",
   socialLinks: [
     { id: "sl-discord", name: "Discord Server", url: "https://discord.gg/ftn" },
     { id: "sl-roblox", name: "Roblox Group", url: "https://www.roblox.com" },
@@ -177,6 +180,7 @@ export async function POST(req: Request) {
       bannedWords: typeof body.bannedWords === "string" ? body.bannedWords.slice(0, 50000) : inMemoryConfig.bannedWords,
       ftnPlusAccess: body.ftnPlusAccess === undefined ? inMemoryConfig.ftnPlusAccess : body.ftnPlusAccess === "members_only" ? "members_only" : "public",
       tiplineAccess: body.tiplineAccess === undefined ? inMemoryConfig.tiplineAccess : body.tiplineAccess === "members_only" ? "members_only" : "public",
+      reportsAccess: body.reportsAccess === undefined ? inMemoryConfig.reportsAccess ?? "public" : body.reportsAccess === "members_only" || body.reportsAccess === "off" ? body.reportsAccess : "public",
       socialLinks: Array.isArray(body.socialLinks) ? body.socialLinks.slice(0, 20) : inMemoryConfig.socialLinks,
       customSwimlanes: Array.isArray(body.customSwimlanes) ? body.customSwimlanes.slice(0, 50) : inMemoryConfig.customSwimlanes,
       hiddenVideoIds: Array.isArray(body.hiddenVideoIds) ? body.hiddenVideoIds.filter((id: any) => typeof id === "string" && id.trim()).map((id: string) => id.trim()) : inMemoryConfig.hiddenVideoIds || [],

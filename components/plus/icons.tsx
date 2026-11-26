@@ -32,3 +32,5 @@ export const More = (p: P) => (<svg {...base} {...p}><circle cx="5" cy="12" r="1
 export const ArrowLeft = (p: P) => (<svg {...base} {...p}><path d="M19 12H5M11 6l-6 6 6 6" /></svg>);
 export const Stop = (p: P) => (<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden {...p}><rect x="6.5" y="6.5" width="11" height="11" rx="2" /></svg>);
 export const VolOff = (p: P) => (<svg {...base} {...p}><path d="M4 9h4l5-4v14l-5-4H4z" /><path d="M17 9.5l5 5M22 9.5l-5 5" /></svg>);
+export const Flag = (p: P) => (<svg {...base} {...p}><path d="M5 21V4M5 4h11l-2 4 2 4H5" /></svg>);
+export const Check = (p: P) => (<svg {...base} strokeWidth={2.4} {...p}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>);

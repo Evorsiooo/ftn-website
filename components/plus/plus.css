@@ -631,3 +631,87 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .recent .none { padding: 8px 12px 14px; font-size: 14px; color: var(--text-2); }
 .fp .recentscrim { position: fixed; inset: 0 0 var(--tabs-h) 0; background: rgba(0, 0, 0, 0.5); z-index: 41; }
 .fp .recent.sheet { position: fixed; left: 0; right: 0; bottom: var(--tabs-h); width: auto; max-width: none; border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 8px 8px 12px; z-index: 42; box-shadow: none; }
+
+/* ---------------------------------------------------------------- report a problem (components/plus/report-problem.tsx)
+   A window over everything (full screen too): centred on computers, a sheet from the bottom on phones, the whole
+   popout window in the popout. Nothing in it scrolls at the sizes we support; on a very short window the middle
+   scrolls on its own, never the page. */
+.fp .rpt-scrim { position: fixed; inset: 0; background: rgba(10, 7, 3, 0.62); z-index: 70; }
+.fp .rpt { position: fixed; z-index: 71; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 560px; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 32px 64px rgba(0, 0, 0, 0.5); text-align: left; color: var(--text); }
+.fp .rpt-h { display: flex; align-items: center; gap: 8px; padding: 16px 16px 0 24px; flex: none; min-height: 56px; }
+.fp .rpt-h h2 { margin: 0; flex: 1; font: 800 22px/1.2 var(--title); letter-spacing: -0.01em; }
+.fp .rpt-h .back { margin-left: -12px; }
+.fp .rpt-b { padding: 16px 24px 4px; overflow: auto; min-height: 0; }
+.fp .rpt-f { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px 18px; flex: none; }
+.fp .rpt-f .btn.main:disabled { opacity: 0.45; cursor: not-allowed; }
+.fp .rpt-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg); border-radius: 999px; }
+.fp .rpt-seg button { height: 38px; border-radius: 999px; font: 600 14px/1 var(--body); color: var(--text-2); }
+.fp .rpt-seg button[aria-checked="true"] { background: var(--surface-3); color: var(--text); }
+.fp .rpt .lbl { font: 600 14px/1.3 var(--body); margin: 16px 0 8px; display: flex; justify-content: space-between; }
+.fp .rpt .lbl small { font-weight: 400; color: var(--text-3); font-size: 13px; }
+.fp .rpt .songs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.fp .rpt .song-o { display: flex; align-items: center; gap: 12px; padding: 4px 12px 4px 4px; border-radius: 12px; border: 1px solid transparent; width: 100%; min-width: 0; text-align: left; }
+.fp .rpt .song-o:hover { background: rgba(255, 248, 230, 0.05); }
+.fp .rpt .song-o[aria-checked="true"] { border-color: rgba(255, 248, 230, 0.5); background: var(--surface-2); }
+.fp .rpt .song-o.ph { height: 50px; background: var(--surface-2); }
+.fp .rpt .song-o img, .fp .rpt .song-o .ph { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex: none; background: var(--surface-2); }
+.fp .rpt .song-o .t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fp .rpt .song-o .a { font: 600 14px/1.25 var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp .rpt .song-o .b { font: 400 13px/1.25 var(--body); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp .rpt .song-o time { font: 400 13px/1 var(--body); color: var(--text-3); flex: none; }
+.fp .rpt .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.fp .rpt .chip { height: 34px; padding: 0 14px; border-radius: 999px; background: var(--surface-2); font: 500 14px/1 var(--body); color: var(--text); }
+.fp .rpt .chip:hover { background: var(--surface-3); }
+.fp .rpt .chip[aria-checked="true"] { background: var(--text); color: var(--ink); font-weight: 600; }
+.fp .rpt textarea { display: block; width: 100%; height: 64px; resize: none; padding: 10px 14px; border-radius: 12px; background: var(--bg); border: 1px solid var(--line); color: var(--text); font: 400 14px/1.45 var(--body); }
+.fp .rpt textarea::placeholder { color: var(--text-3); }
+.fp .rpt textarea:focus { outline: 2px solid var(--yellow); outline-offset: 0; border-color: transparent; }
+.fp .rpt .count { font: 400 12px/1 var(--body); color: var(--text-3); text-align: right; margin-top: 6px; }
+.fp .rpt .chk { display: flex; gap: 12px; align-items: flex-start; margin-top: 14px; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); }
+.fp .rpt .chk .box { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--text-2); flex: none; margin-top: 1px; display: grid; place-items: center; }
+.fp .rpt .chk.on .box { background: var(--text); border-color: var(--text); color: var(--ink); }
+.fp .rpt .chk .box svg { width: 14px; height: 14px; opacity: 0; }
+.fp .rpt .chk.on .box svg { opacity: 1; }
+.fp .rpt .chk .tt { display: block; font: 600 14px/1.3 var(--body); cursor: pointer; }
+.fp .rpt .chk .ss { display: block; font: 400 13px/1.4 var(--body); color: var(--text-2); margin-top: 2px; }
+.fp .rpt .lnk { color: var(--text); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--text-3); font: inherit; }
+.fp .rpt .who { font: 400 13px/1.4 var(--body); color: var(--text-3); margin-top: 12px; }
+.fp .rpt .err { margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: rgba(226, 22, 43, 0.14); color: #ffb4b4; font: 500 13px/1.4 var(--body); }
+.fp .rpt .ts:empty { display: none; }
+.fp .rpt .ts { margin-top: 12px; }
+.fp .rpt .intro { font: 400 14px/1.5 var(--body); color: var(--text-2); margin: 0 0 4px; }
+.fp .rpt dl { margin: 0; display: grid; gap: 8px; font: 400 14px/1.4 var(--body); }
+.fp .rpt dl .row { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 16px; }
+.fp .rpt dt { color: var(--text-2); }
+.fp .rpt dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.fp .rpt .grp { font: 700 12px/1 var(--body); color: var(--text-3); margin: 18px 0 10px; }
+.fp .rpt .log { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); font: 400 12px/1.6 ui-monospace, "SF Mono", Consolas, monospace; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 132px; overflow: auto; }
+.fp .rpt .never { margin-top: 16px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); font: 400 13px/1.5 var(--body); color: var(--text-2); }
+.fp .rpt .never b { color: var(--text); font-weight: 600; }
+.fp .rpt .done { text-align: center; padding: 8px 8px 4px; }
+.fp .rpt .done .ok { width: 52px; height: 52px; border-radius: 50%; background: var(--surface-3); display: grid; place-items: center; margin: 0 auto 16px; }
+.fp .rpt .done .ok svg { width: 26px; height: 26px; color: var(--text); }
+.fp .rpt .done h3 { margin: 0; font: 800 22px/1.2 var(--title); }
+.fp .rpt .done p { margin: 8px auto 0; max-width: 340px; font: 400 14px/1.5 var(--body); color: var(--text-2); }
+@media (max-width: 760px) {
+  .fp .rpt { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-width: none; max-height: calc(100dvh - 24px); border-radius: 20px 20px 0 0; border-width: 1px 0 0; }
+  .fp .rpt-h { padding: 14px 12px 0 20px; }
+  .fp .rpt-b { padding: 12px 20px 4px; }
+  .fp .rpt-f { padding: 12px 20px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .fp .rpt-f .btn { flex: 1; }
+  .fp .rpt .chip { height: 32px; padding: 0 12px; font-size: 13.5px; }
+  .fp .rpt dl .row { grid-template-columns: 96px minmax(0, 1fr); }
+}
+/* the popout: the window is the report */
+.fp .rpt.popfill { inset: 0; transform: none; width: auto; max-width: none; max-height: none; border-radius: 0; border: 0; box-shadow: none; }
+.fp .rpt.popfill .rpt-h { padding: 12px 12px 0 20px; }
+.fp .rpt.popfill .rpt-h h2 { font-size: 20px; }
+.fp .rpt.popfill .rpt-b { padding: 8px 20px 4px; }
+.fp .rpt.popfill .rpt-f { padding: 8px 20px 16px; }
+.fp .rpt.popfill .lbl { margin: 12px 0 6px; }
+.fp .rpt.popfill .rpt-seg button { height: 34px; font-size: 13px; }
+.fp .rpt.popfill .chips { gap: 6px; }
+.fp .rpt.popfill .chip { height: 32px; padding: 0 11px; font-size: 13px; }
+.fp .rpt.popfill textarea { height: 52px; }
+.fp .rpt.popfill .chk { margin-top: 12px; }
+.fp .rpt.popfill .song-o:nth-child(3), .fp .rpt.popfill .who { display: none; }
