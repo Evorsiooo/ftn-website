@@ -32,6 +32,16 @@ export interface Song {
   metaCheckedAt?: string | null;
   /** Set aside by Prepare: "missing" (no audio file) or "failed". */
   prepError?: "missing" | "failed" | null;
+  /** Broad genre (Apple's catalogue, or typed in). */
+  genre?: string | null;
+  /** Detailed genres from MusicBrainz, a JSON array as stored (see parseGenres). */
+  genres?: string | null;
+  /** The year the song first came out (MusicBrainz), when release year is a reissue's. */
+  originalYear?: number | null;
+  /** When "Find genres and original years" last looked it up. */
+  genreCheckedAt?: string | null;
+  /** Genres typed in by hand: lookups leave them alone. */
+  genreByHand?: boolean;
   createdAt: string;
 }
 

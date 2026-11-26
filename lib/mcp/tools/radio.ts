@@ -19,6 +19,10 @@ import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
 import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
 import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
+import { inArray } from "drizzle-orm";
+import { radioSongs } from "@/db/schema";
+import { lookUpGenres, mbGate, parseGenres } from "@/lib/radio/genres";
+import { findInCatalog } from "@/lib/radio/metadata";
 import { S, ToolDef, ToolError, pick } from "../types";
 
 const RO_STATE_KEYS = ["harrison", "ridgeway", "madison", "clark", "firestone", "international"];
@@ -192,10 +196,12 @@ export const radioTools: ToolDef[] = [
     name: "search_songs",
     title: "Search the song library",
     description:
-      "Finds songs in the radio library by title, artist or album. Each song has a status: on-air (the AutoDJ may play it), getting-ready (waiting for Prepare: its mixing analysis and, for new songs, title check), missing (no audio file), failed (couldn't be prepared) or archived.",
+      "Finds songs in the radio library by title, artist or album, or by genre. Each song has a status: on-air (the AutoDJ may play it), getting-ready (waiting for Prepare: its mixing analysis and, for new songs, title check), missing (no audio file), failed (couldn't be prepared) or archived. Genre tags: genre (broad, from Apple), genres (detailed, from MusicBrainz), originalYear (year it first came out), genreCheckedAt (null: not looked up yet) and genreByHand (typed in by a person). Playlists (list_playlists, get_playlist) are the songs' show tags.",
     input: {
       query: S.str("Words to look for in title, artist or album (leave out to list)"),
       status: S.enum(["on-air", "getting-ready", "missing", "failed", "archived"], "Only songs with this status"),
+      genre: S.str("Only songs whose genre or detailed genres contain this, e.g. disco or hip hop"),
+      genreLookedUp: S.bool("true: only songs already looked up for genres; false: only songs not looked up yet"),
       archived: S.bool("true: only archived songs, false: only live ones"),
       limit: S.int("How many (default 50, at most 500)"),
       offset: S.int("Skip this many (paging)"),
@@ -208,6 +214,11 @@ export const radioTools: ToolDef[] = [
       if (q) songs = songs.filter((s) => [s.title, s.artist, s.album].some((v) => String(v || "").toLowerCase().includes(q)));
       if (typeof a.archived === "boolean") songs = songs.filter((s) => !!s.archived === a.archived);
       if (typeof a.status === "string") songs = songs.filter((s) => s.status === a.status);
+      const g = String(a.genre || "").toLowerCase().trim();
+      if (g) songs = songs.filter((s) => String(s.genre || "").toLowerCase().includes(g) || parseGenres(s.genres as string | null).some((x) => x.includes(g)));
+      if (typeof a.genreLookedUp === "boolean") songs = songs.filter((s) => !!s.genreCheckedAt === a.genreLookedUp);
+      // detailed genres as a list, not the stored JSON text
+      songs = songs.map((s) => ({ ...s, genres: parseGenres(s.genres as string | null) }));
       const limit = Math.min(Math.max(Number(a.limit) || 50, 1), 500);
       const offset = Math.max(Number(a.offset) || 0, 0);
       return { total: songs.length, songs: songs.slice(offset, offset + limit) };
@@ -347,7 +358,8 @@ export const radioTools: ToolDef[] = [
   {
     name: "update_song",
     title: "Edit a song",
-    description: "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing.",
+    description:
+      "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing. Genre tags: genre, genres, originalYear; setting any of them marks them as typed in by hand (genreByHand), so lookups no longer change them, unless genreByHand false is sent.",
     input: {
       id: S.str("The song's id (search_songs)"),
       title: S.str("Title"),
@@ -358,6 +370,10 @@ export const radioTools: ToolDef[] = [
       lyricsSource: { type: ["string", "null"], enum: [...LYRIC_SOURCE_IDS, "none", null], description: "A lyrics provider to always use, 'none' for no lyrics, or null for automatic" },
       lyricsOffsetMs: S.int("Lyrics timing shift: -5000 to 5000 ms in steps of 100 (positive = later)"),
       archived: S.bool("true archives it, false brings it back"),
+      genre: { type: ["string", "null"], description: "Broad genre, e.g. R&B/Soul (null clears it)" },
+      genres: { type: ["array", "null"], items: { type: "string" }, description: "Detailed genres, most fitting first, up to 8, e.g. [\"disco\", \"funk\"] (null clears them)" },
+      originalYear: { type: ["integer", "null"], description: "Year the song first came out (null clears it)" },
+      genreByHand: S.bool("false: let find_song_genres and the Library's lookup change the genre tags again"),
     },
     required: ["id"],
     kind: "write",
@@ -368,8 +384,59 @@ export const radioTools: ToolDef[] = [
         method: "PATCH",
         path: `/api/admin/radio/songs/${a.id}`,
         params: { id: a.id },
-        body: pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived"]),
+        body: {
+          ...pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived", "genre", "genres", "originalYear", "genreByHand"]),
+          // genre tags set by the AI count as typed in by hand, as in the Library's Edit form
+          ...(["genre", "genres", "originalYear"].some((k) => a[k] !== undefined) && a.genreByHand === undefined ? { genreByHand: true } : {}),
+        },
       }),
+  },
+  {
+    name: "find_song_genres",
+    title: "Look up songs' genres",
+    description:
+      "Looks up to 5 songs in MusicBrainz (detailed genres, the year each first came out) and, for songs with no genre yet, Apple's catalogue (broad genre), and saves what it finds. Takes about 4 seconds a song (MusicBrainz allows one request a second). Songs whose genres were typed in by hand are skipped. For the whole library, the Library page's ⋯ menu has \"Find genres and original years\".",
+    input: { ids: S.strArr("Up to 5 song ids (search_songs; genreLookedUp false lists the ones not looked up yet)") },
+    required: ["ids"],
+    kind: "write",
+    openWorld: true,
+    summary: (a) => `Look up genres for ${Array.isArray(a.ids) ? a.ids.length : 0} song(s)`,
+    run: async (ctx, a) => {
+      const ids = Array.isArray(a.ids) ? [...new Set((a.ids as unknown[]).filter((x): x is string => typeof x === "string"))] : [];
+      if (!ids.length || ids.length > 5) throw new ToolError("Give 1 to 5 song ids.");
+      const rows = await ctx.db
+        .select({ id: radioSongs.id, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, metadataSource: radioSongs.metadataSource, source: radioSongs.source, releaseYear: radioSongs.releaseYear, genre: radioSongs.genre, genreByHand: radioSongs.genreByHand })
+        .from(radioSongs)
+        .where(inArray(radioSongs.id, ids));
+      const get = mbGate({ "User-Agent": `FTN-Radio/1.0 ( ${ctx.origin} )` });
+      const stop = { current: false };
+      const artistGenres = new Map<string, string[]>();
+      const results: Record<string, unknown>[] = [];
+      for (const id of ids) {
+        const song = rows.find((r) => r.id === id);
+        if (!song) {
+          results.push({ id, result: "not found" });
+          continue;
+        }
+        if (song.genreByHand) {
+          results.push({ id, title: song.title, result: "skipped: genres typed in by hand" });
+          continue;
+        }
+        const [m, apple] = await Promise.all([
+          lookUpGenres(song, get, stop, artistGenres).catch(() => null),
+          song.genre || song.source === "upload" ? null : findInCatalog(song.title, song.artist, song.durationSec).catch(() => null),
+        ]);
+        const patch: Record<string, unknown> = { genreChecked: true };
+        if (m?.genres.length) patch.genres = m.genres;
+        // only an earlier year than ours: a later one means a reissue or a bonus-track edition was matched
+        if (m?.originalYear && (!song.releaseYear || m.originalYear < song.releaseYear)) patch.originalYear = m.originalYear;
+        const g = apple?.primaryGenreName?.trim().slice(0, 60);
+        if (g) patch.genre = g;
+        await ctx.call(songRoute.PATCH, { method: "PATCH", path: `/api/admin/radio/songs/${id}`, params: { id }, body: patch });
+        results.push({ id, title: song.title, genre: g || song.genre, genres: m?.genres ?? [], genresFrom: m?.from ?? null, originalYear: patch.originalYear ?? null, foundOnMusicBrainz: !!m });
+      }
+      return { songs: results };
+    },
   },
   {
     name: "delete_song",

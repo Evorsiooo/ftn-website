@@ -7,6 +7,7 @@ import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from "@/lib/radio/loudness";
 import { songStatus } from "./prepare-run";
 import { api, duration, fileUrl, type Song } from "./types";
 import { SongLyrics } from "./song-lyrics";
+import { parseGenres } from "@/lib/radio/genres";
 
 const SOURCE_LABEL: Record<Song["source"], string> = { youtube: "YouTube", soundcloud: "SoundCloud", upload: "Uploaded" };
 
@@ -133,6 +134,19 @@ export function SongTable({ songs, selectedId, onSelect, empty }: { songs: Song[
   );
 }
 
+/** "R&B/Soul" with the detailed genres under it, or what's still to do. */
+function genreFacts(song: Song): React.ReactNode {
+  const detail = parseGenres(song.genres);
+  if (!song.genre && !detail.length) return <span className="muted">{song.genreCheckedAt ? "Not found. Edit to add one." : "Not looked up yet"}</span>;
+  return (
+    <span>
+      {song.genre || detail[0]}
+      {detail.length > 0 && <span className="muted t12" style={{ display: "block" }}>{detail.join(" · ")}</span>}
+      {song.genreByHand && <span className="muted t12" style={{ display: "block" }}>Set by hand</span>}
+    </span>
+  );
+}
+
 /** The song picked in the table: listen, its facts, edit, archive, delete. */
 export function SongPane({
   song,
@@ -150,12 +164,18 @@ export function SongPane({
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(song.title);
   const [artist, setArtist] = useState(song.artist);
+  const [genre, setGenre] = useState(song.genre || "");
+  const [genres, setGenres] = useState(parseGenres(song.genres).join(", "));
+  const [origYear, setOrigYear] = useState(song.originalYear ? String(song.originalYear) : "");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setEditing(false);
     setTitle(song.title);
     setArtist(song.artist);
-  }, [song.id, song.title, song.artist]);
+    setGenre(song.genre || "");
+    setGenres(parseGenres(song.genres).join(", "));
+    setOrigYear(song.originalYear ? String(song.originalYear) : "");
+  }, [song.id, song.title, song.artist, song.genre, song.genres, song.originalYear]);
 
   const setArchived = async (archived: boolean) => {
     try {
@@ -180,9 +200,21 @@ export function SongPane({
     e.preventDefault();
     setBusy(true);
     try {
-      await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify({ title, artist }) });
+      const patch: Record<string, unknown> = { title, artist };
+      const list = genres.split(",").map((g) => g.trim().toLowerCase()).filter(Boolean);
+      const year = origYear.trim() ? Number(origYear) : null;
+      const genreChanged = genre.trim() !== (song.genre || "") || list.join(",") !== parseGenres(song.genres).join(",") || year !== (song.originalYear ?? null);
+      if (genreChanged) {
+        // typed in by hand: the lookups leave them alone from now on
+        Object.assign(patch, { genre: genre.trim() || null, genres: list.length ? list : null, originalYear: year, genreByHand: true });
+      }
+      await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify(patch) });
       setEditing(false);
-      onPatched(song.id, { title: title.trim(), artist: artist.trim() });
+      onPatched(song.id, {
+        title: title.trim(),
+        artist: artist.trim(),
+        ...(genreChanged ? { genre: genre.trim() || null, genres: list.length ? JSON.stringify([...new Set(list)]) : null, originalYear: year, genreByHand: true } : {}),
+      });
     } catch (err: any) {
       toast(err.message);
     } finally {
@@ -222,8 +254,21 @@ export function SongPane({
               <label>Artist</label>
               <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} maxLength={300} required />
             </div>
+            <div className="field">
+              <label>Genre</label>
+              <input className="input" value={genre} onChange={(e) => setGenre(e.target.value)} maxLength={60} placeholder="e.g. R&B/Soul" />
+            </div>
+            <div className="field">
+              <label>Detailed genres</label>
+              <input className="input" value={genres} onChange={(e) => setGenres(e.target.value)} maxLength={400} placeholder="e.g. disco, funk, soul" />
+              <span className="help">Separated by commas, most fitting first.</span>
+            </div>
+            <div className="field">
+              <label>First came out</label>
+              <input className="input" value={origYear} onChange={(e) => setOrigYear(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="Year" style={{ maxWidth: 120 }} />
+            </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button type="submit" className="btn strong" disabled={busy || !title.trim() || !artist.trim()}>
+              <button type="submit" className="btn strong" disabled={busy || !title.trim() || !artist.trim() || (!!origYear && (Number(origYear) < 1800 || Number(origYear) > 2200))}>
                 {busy ? "Saving…" : "Save"}
               </button>
               <button type="button" className="btn ghost" onClick={() => setEditing(false)}>
@@ -245,6 +290,8 @@ export function SongPane({
         <Facts
           rows={[
             ["Album", [song.album, song.releaseYear].filter(Boolean).join(" · ") || "Unknown"],
+            ["Genre", genreFacts(song)],
+            ...(song.originalYear && song.originalYear !== song.releaseYear ? [["First came out", String(song.originalYear)] as [string, React.ReactNode]] : []),
             ["Length", duration(song.durationSec)],
             [
               "Status",

@@ -31,6 +31,8 @@ export interface PrepSong {
   thumbnail: string | null;
   source: string;
   musicVideo: boolean;
+  genre: string | null;
+  genreByHand: boolean;
   needsAnalysis: boolean;
   needsTitleCheck: boolean;
 }
@@ -46,6 +48,8 @@ const prepColumns = {
   thumbnail: radioSongs.thumbnailUrl,
   source: radioSongs.source,
   musicVideo: radioSongs.musicVideo,
+  genre: radioSongs.genre,
+  genreByHand: radioSongs.genreByHand,
   analysedAt: radioSongs.analysedAt,
   metaCheckedAt: radioSongs.metaCheckedAt,
 };
@@ -63,6 +67,8 @@ const toPrepSong = (r: PrepRow): PrepSong => ({
   thumbnail: r.thumbnail,
   source: r.source,
   musicVideo: r.musicVideo,
+  genre: r.genre,
+  genreByHand: r.genreByHand,
   needsAnalysis: !r.analysedAt,
   needsTitleCheck: !r.metaCheckedAt,
 });

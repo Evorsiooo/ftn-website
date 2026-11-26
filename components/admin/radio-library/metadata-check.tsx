@@ -1,7 +1,7 @@
 "use client";
 // Looks songs up in Apple's music catalog from this browser (iTunes Search allows it, and each admin's own
 // connection keeps well inside its ~20 searches a minute) and saves the exact title, artist, album, year and
-// square cover. New songs are checked as part of Prepare (prepare-run.ts, only after a click); "Re-check all
+// square cover, and Apple's broad genre. New songs are checked as part of Prepare (prepare-run.ts, only after a click); "Re-check all
 // titles and covers" goes through the whole library. A song is changed only when the catalog has the same song at the same length.
 // Songs named by YouTube Music's catalogue (the album-audio check, metadataSource "ytmusic") are left
 // alone: as in BitChord, those names come first and this lookup is the fallback.
@@ -42,7 +42,7 @@ const sleep = (ms: number, stop: { current: boolean }) =>
     }, 250);
   });
 
-type Searchable = Pick<Song, "title" | "artist" | "durationSec" | "album" | "releaseYear" | "thumbnail">;
+type Searchable = Pick<Song, "title" | "artist" | "durationSec" | "album" | "releaseYear" | "thumbnail" | "genre" | "genreByHand">;
 type Search = (title: string, artist: string, dur: number) => ReturnType<typeof findInCatalog>;
 
 /**
@@ -77,6 +77,9 @@ export async function catalogPatch(song: Searchable, search: Search, stop: { cur
   if (Number.isFinite(year) && year !== song.releaseYear) patch.releaseYear = year;
   const art = hit.artworkUrl100?.startsWith("https://") ? hit.artworkUrl100.replace(/\/\d+x\d+bb\./, "/600x600bb.") : null;
   if (art && art !== song.thumbnail) patch.thumbnail = art;
+  // Apple's broad genre (e.g. "R&B/Soul"), unless the genre was typed in by hand
+  const genre = hit.primaryGenreName?.trim().slice(0, 60);
+  if (genre && !song.genreByHand && genre !== song.genre) patch.genre = genre;
   return Object.keys(patch).length ? patch : null;
 }
 

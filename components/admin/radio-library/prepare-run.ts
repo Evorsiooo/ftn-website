@@ -19,6 +19,8 @@ export interface PrepSong {
   thumbnail: string | null;
   source: string;
   musicVideo: boolean;
+  genre: string | null;
+  genreByHand: boolean;
   needsAnalysis: boolean;
   needsTitleCheck: boolean;
 }

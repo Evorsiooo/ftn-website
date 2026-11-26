@@ -10,6 +10,7 @@ import { AddSongs, ReviewMatches } from "@/components/admin/radio-library/add-so
 import { SongPane, SongTable, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
 import { PlaylistList } from "@/components/admin/radio-library/playlists";
 import { useMetadataCheck } from "@/components/admin/radio-library/metadata-check";
+import { GENRE_SECONDS_PER_SONG, genresToFind, useGenreCheck } from "@/components/admin/radio-library/genre-check";
 import { songStatus, usePrepareRun, type SongPrepResult } from "@/components/admin/radio-library/prepare-run";
 import { countLibrary, isVideoCover, LibraryStatus, type OtherRun, type ShowFilter } from "@/components/admin/radio-library/library-status";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
@@ -143,6 +144,21 @@ function LibraryPage() {
   }, [running.length, loadImports]);
 
   const meta = useMetadataCheck(songs, patchSong);
+  const genreRun = useGenreCheck(songs, patchSong);
+  const genresLeft = useMemo(() => genresToFind(songs).length, [songs]);
+  const findGenres = async () => {
+    setMenu(false);
+    const mins = Math.max(1, Math.round((genresLeft * GENRE_SECONDS_PER_SONG) / 60));
+    const time = mins >= 60 ? `${Math.floor(mins / 60)} h${mins % 60 ? ` ${mins % 60} min` : ""}` : `${mins} min`;
+    if (
+      !(await confirmDialog(
+        `Look up ${genresLeft === 1 ? "1 song" : `${n(genresLeft)} songs`} in MusicBrainz and Apple's catalogue for genres and the year ${genresLeft === 1 ? "it" : "each"} first came out? It takes about ${time} in this tab (one MusicBrainz request a second, light on your PC). You can stop it any time and it carries on later.`,
+        { ok: "Find genres" }
+      ))
+    )
+      return;
+    void genreRun.run();
+  };
 
   // Prepare: each finished song is updated in the list here (no reload of the whole library).
   const onSongDone = useCallback(
@@ -323,6 +339,14 @@ function LibraryPage() {
         running: meta.state.running,
         onStop: meta.stop,
       }}
+      genreCheck={{
+        line:
+          genreRun.state.running || genreRun.state.note || genreRun.state.total > 0
+            ? `${genreRun.state.running ? "Finding genres and original years" : "Found genres and original years"}: ${n(genreRun.state.done)} of ${n(genreRun.state.total)}${genreRun.state.done ? `, ${n(genreRun.state.found)} with a genre` : ""}${genreRun.state.note ? ` · ${genreRun.state.note}` : ""}`
+            : null,
+        running: genreRun.state.running,
+        onStop: genreRun.stop,
+      }}
       busy={busy || !songs}
       onPrepare={() => prep.start(counts.gettingReady)}
       onStop={prep.stop}
@@ -386,6 +410,17 @@ function LibraryPage() {
                     title="Look every song up in the music catalog for its exact title, artist, album and cover"
                   >
                     Re-check all titles and covers
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="btn ghost"
+                    style={{ width: "100%", justifyContent: "flex-start" }}
+                    disabled={!genresLeft || genreRun.state.running}
+                    onClick={findGenres}
+                    title={genresLeft ? "Detailed genres and the original year from MusicBrainz, a broad genre from Apple" : "Every song has been looked up"}
+                  >
+                    Find genres and original years
                   </button>
                 </div>
               )}
