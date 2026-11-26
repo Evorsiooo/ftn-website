@@ -85,7 +85,14 @@ export async function radioHealth(db: DbClient) {
     ok: problems.length === 0,
     problems,
     autodj,
-    library: library ? { playableSongs: library.length } : null,
+    library: library
+      ? {
+          playableSongs: library.length,
+          // the AutoDJ picks only songs on air; the rest wait for Prepare (get_library_status)
+          onAir: library.filter((s) => s.ready !== false).length,
+          gettingReady: library.filter((s) => s.ready === false).length,
+        }
+      : null,
     schedule: { onNow: show(current), upNext: show(next) },
     obsLive,
     // the song the website picked to come next (listeners' browsers mix into it), and the playlist shows' shuffles
