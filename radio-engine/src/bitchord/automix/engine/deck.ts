@@ -51,6 +51,18 @@ const SERVO_MS = 40;
 const SEEK_STORM = { count: 3, windowSec: 10, looseSec: 60, looseErrorSec: 3 };
 
 /**
+ * FTN radio: Firefox. Every playbackRate change on a media element makes an audible click there
+ * (measured: a 440 Hz tone with a 0.6% rate change every 0.8 s had a discontinuity at each change,
+ * none without), and its currentTime jitters by ~20 ms (Chromium ~3 ms), which is over the 6 ms
+ * deadband, so the servo above changed the rate about once a second in solo play and 10+ times a
+ * second during mixes: the glitching Linux/Firefox listeners heard. In Firefox the servo works on a
+ * 1 s median, only starts correcting past 25 ms (stops under 5 ms), corrects with a fixed 1% (3% past
+ * 100 ms) and follows a mix's tempo glide in 0.5% steps, so the rate changes a few times a minute.
+ */
+const COARSE = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent);
+const COARSE_SERVO = { window: 25, startSec: 0.025, stopSec: 0.005, nudge: 0.01, bigErrorSec: 0.1, bigNudge: 0.03, rateStep: 0.005 };
+
+/**
  * One DJ deck: <audio> -> 3-band EQ -> gain (AutoMix's automation) -> fader
  * (the player's own crossfade share) -> master. All transport goes through
  * scheduleChange() on the AudioContext clock and is mirrored into a Timeline
@@ -84,6 +96,9 @@ export class Deck {
   private seekingUntil = 0;
   private seekTimes: number[] = [];
   private looseUntil = 0;
+  /** Firefox: correcting a drift (see COARSE_SERVO). */
+  private correcting = false;
+  private appliedNudge = 0;
 
   constructor(
     readonly id: string,
@@ -194,6 +209,8 @@ export class Deck {
     this.locked = true;
     this.leader = null;
     this.errors = [];
+    this.correcting = false;
+    this.appliedNudge = 0;
     this.ensureTimer();
     this.dispatch();
   }
@@ -337,14 +354,32 @@ export class Deck {
     // currentTime moves in audio-callback steps; a short median keeps the
     // nudge from chasing that jitter.
     this.errors.push(error);
-    if (this.errors.length > 5) this.errors.shift();
+    if (this.errors.length > (COARSE ? COARSE_SERVO.window : 5)) this.errors.shift();
     const smoothed = [...this.errors].sort((a, b) => a - b)[this.errors.length >> 1]!;
+    if (COARSE) return this.coarseServo(smoothed, rate);
     // While the deck is still quiet (an incoming track's first bars) it may
     // be pulled harder: nobody hears a 10% nudge at -20 dB.
     const limit = this.gain.gain.value < 0.3 ? MAX_QUIET_NUDGE : MAX_NUDGE;
     const nudge = Math.abs(smoothed) < DEADBAND_SEC ? 0 : Math.max(-limit, Math.min(limit, -smoothed * SERVO_GAIN * (limit / MAX_NUDGE)));
     const want = rate * (1 + nudge);
     if (Math.abs(audio.playbackRate - want) > 0.0015) audio.playbackRate = want;
+  }
+
+  /** Firefox's servo (see COARSE_SERVO): few, steady rate changes. */
+  private coarseServo(smoothed: number, rate: number) {
+    const c = COARSE_SERVO;
+    const size = Math.abs(smoothed);
+    if (this.errors.length < c.window && !this.correcting && size < c.bigErrorSec) return; // not enough readings yet
+    if (!this.correcting && size > c.startSec) this.correcting = true;
+    else if (this.correcting && size < c.stopSec) this.correcting = false;
+    const nudge = this.correcting ? -Math.sign(smoothed) * (size > c.bigErrorSec ? c.bigNudge : c.nudge) : 0;
+    const want = rate * (1 + nudge);
+    // a nudge starting, changing or ending applies at once; a mix's tempo glide only in steps
+    const settled = rate === 1 && nudge === 0 && this.audio.playbackRate !== 1; // a glide's last small step
+    if (nudge !== this.appliedNudge || settled || Math.abs(this.audio.playbackRate - want) > c.rateStep) {
+      this.appliedNudge = nudge;
+      if (Math.abs(this.audio.playbackRate - want) > 0.0015) this.audio.playbackRate = want;
+    }
   }
 
   get isPlaying(): boolean {
