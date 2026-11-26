@@ -1,6 +1,6 @@
 "use client";
-import React, { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Check, ExternalLink, Search } from "lucide-react";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { api, duration, FINAL, type Import, type Review } from "./types";
 
@@ -13,17 +13,72 @@ const STATE_LABEL: Record<string, string> = {
   cancelled: "Stopped",
 };
 
-/** Paste a link; follow the downloads. */
+/** A YouTube Music search result (/api/admin/radio/search). */
+export type MusicResult = { videoId: string; title: string; artist: string; album: string | null; durationSec: number | null; thumbnail: string | null; explicit: boolean; url: string };
+
+/** Words, not a link: search YouTube Music as you type. */
+export const looksLikeLink = (text: string) => /^(https?:\/\/|www\.)|\b(youtu\.?be|spotify|soundcloud)\b[^\s]*\//i.test(text.trim());
+
+/**
+ * Live YouTube Music search: 400 ms after the last key, from 3 characters, newest answer wins.
+ * The VPS does the search (the browser can't reach YouTube Music).
+ */
+export function useMusicSearch(text: string, enabled = true) {
+  const [results, setResults] = useState<MusicResult[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const q = text.trim();
+    if (!enabled || q.length < 3 || looksLikeLink(q)) {
+      setResults(null);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+    let live = true;
+    setLoading(true);
+    const t = setTimeout(() => {
+      api<{ songs: MusicResult[] }>(`/api/admin/radio/search?q=${encodeURIComponent(q)}`)
+        .then((d) => live && (setResults(d.songs), setError(null)))
+        .catch((err) => live && (setResults(null), setError(err.message)))
+        .finally(() => live && setLoading(false));
+    }, 400);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [text, enabled]);
+  return { results, loading, error };
+}
+
+/** Paste a link, or search YouTube Music; follow the downloads. */
 export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: () => void }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
   // the songs always go into your collection; on the AutoDJ too when ticked
   const [autodj, setAutodj] = useState(true);
+  const search = useMusicSearch(url);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState<string | null>(null);
+  const isLink = looksLikeLink(url);
+
+  const addResult = async (r: MusicResult) => {
+    setAdding(r.videoId);
+    try {
+      await api("/api/admin/radio/imports", { method: "POST", body: JSON.stringify({ url: r.url, autodj }) });
+      setAdded((prev) => new Set(prev).add(r.videoId));
+      onChange();
+    } catch (err: any) {
+      toast(err.message);
+    } finally {
+      setAdding(null);
+    }
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!url.trim()) return;
+    if (!url.trim() || !looksLikeLink(url)) return;
     setBusy(true);
     try {
       const link = url.trim();
@@ -64,25 +119,47 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
     <div style={{ display: "grid", gap: 16 }}>
       <form onSubmit={submit} style={{ display: "grid", gap: 6 }}>
         <label htmlFor="radio-import-url" className="lbl">
-          Song, album or playlist link
+          Search for a song, or paste a link
         </label>
         <div style={{ display: "flex", gap: 8 }}>
-          <input
-            id="radio-import-url"
-            className="input"
-            style={{ flex: 1 }}
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="YouTube, YouTube Music, SoundCloud or Spotify"
-            autoComplete="off"
-            autoFocus
-          />
-          <button type="submit" className="btn primary" disabled={busy || !url.trim()}>
-            {busy ? "Adding…" : "Add"}
-          </button>
+          <div className="search" style={{ flex: 1 }}>
+            <Search />
+            <input
+              id="radio-import-url"
+              className="input"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Artist and title, or a YouTube, SoundCloud or Spotify link"
+              autoComplete="off"
+              autoFocus
+            />
+          </div>
+          {isLink && (
+            <button type="submit" className="btn primary" disabled={busy}>
+              {busy ? "Adding…" : "Add"}
+            </button>
+          )}
         </div>
-        <div className="help">Albums and playlists also become a playlist here, linked to the original so you can re-sync it later.</div>
+        <div className="help">Songs are found on YouTube Music. Album and playlist links also become a playlist here, linked to the original so you can re-sync it later.</div>
       </form>
+      {!isLink && url.trim().length >= 3 && (
+        <MusicResults
+          results={search.results}
+          loading={search.loading}
+          error={search.error}
+          action={(r) =>
+            added.has(r.videoId) ? (
+              <span className="btn sm ghost" aria-disabled>
+                <Check className="ic-sm" aria-hidden /> Added
+              </span>
+            ) : (
+              <button type="button" className="btn sm strong" disabled={adding === r.videoId} onClick={() => addResult(r)}>
+                {adding === r.videoId ? "Adding…" : "Add"}
+              </button>
+            )
+          }
+        />
+      )}
       <label className="chk">
         <input type="checkbox" className="check" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
         Also add to the AutoDJ
@@ -198,6 +275,53 @@ export function ReviewMatches({ reviews, onChange }: { reviews: Review[]; onChan
           </section>
         );
       })}
+    </div>
+  );
+}
+
+/** Search results as rows: cover, title, artist · album · length, and the caller's button. */
+export function MusicResults({
+  results,
+  loading,
+  error,
+  action,
+  compact = false,
+}: {
+  results: MusicResult[] | null;
+  loading: boolean;
+  error: string | null;
+  action: (r: MusicResult) => React.ReactNode;
+  compact?: boolean;
+}) {
+  if (error) return <p className="muted" style={{ margin: compact ? "8px" : 0 }}>{error}</p>;
+  if (!results) return <p className="muted" style={{ margin: compact ? "8px" : 0 }}>{loading ? "Searching YouTube Music…" : ""}</p>;
+  if (!results.length) return <p className="muted" style={{ margin: compact ? "8px" : 0 }}>No songs found on YouTube Music.</p>;
+  return (
+    <div className={compact ? undefined : "rows"} style={{ opacity: loading ? 0.6 : 1, transition: "opacity .15s" }}>
+      {results.map((r) => (
+        <div key={r.videoId} className={compact ? "song" : "r"}>
+          {r.thumbnail ? (
+            <img className="cover" src={r.thumbnail} alt="" loading="lazy" width={40} height={40} style={compact ? undefined : { width: 40, height: 40, borderRadius: 6, objectFit: "cover", flex: "none" }} />
+          ) : (
+            <span className="cover" style={compact ? undefined : { width: 40, height: 40, borderRadius: 6, background: "var(--a-hover)", flex: "none" }} />
+          )}
+          {compact ? (
+            <span className="trunc" style={{ flex: 1 }}>
+              {r.title} <span className="muted">· {r.artist}</span>
+            </span>
+          ) : (
+            <div className="grow">
+              <div className="trunc" style={{ fontWeight: 600 }}>
+                {r.title}
+                {r.explicit && <span className="muted t12"> · E</span>}
+              </div>
+              <div className="t12 muted trunc">{[r.artist, r.album].filter(Boolean).join(" · ")}</div>
+            </div>
+          )}
+          <span className="t12 muted num dur">{duration(r.durationSec)}</span>
+          {action(r)}
+        </div>
+      ))}
     </div>
   );
 }
