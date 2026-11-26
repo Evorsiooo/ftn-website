@@ -448,6 +448,13 @@ export const radioSongs = sqliteTable("radio_songs", {
   metaCheckedAt: integer("meta_checked_at", { mode: "timestamp" }),
   // Why it couldn't be prepared: "missing" (no audio file) or "failed".
   prepError: text("prep_error"),
+  // Genre tags (migration 0037): a broad genre (Apple), detailed genres (MusicBrainz, JSON array), the original
+  // release year (MusicBrainz), when they were last looked up, and whether they were typed in by hand.
+  genre: text("genre"),
+  genres: text("genres"),
+  originalYear: integer("original_year"),
+  genreCheckedAt: integer("genre_checked_at", { mode: "timestamp" }),
+  genreByHand: integer("genre_by_hand", { mode: "boolean" }).notNull().default(false),
   addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),

@@ -93,6 +93,7 @@ export function LibraryStatus({
   reviews,
   albumAudio,
   titleCheck,
+  genreCheck,
   onPrepare,
   onStop,
   onStopOther,
@@ -110,6 +111,7 @@ export function LibraryStatus({
   reviews: Review[];
   albumAudio: { line: string | null };
   titleCheck: { line: string | null; running: boolean; onStop: () => void };
+  genreCheck: { line: string | null; running: boolean; onStop: () => void };
   onPrepare: () => void;
   onStop: () => void;
   onStopOther: (id: string) => void;
@@ -210,6 +212,16 @@ export function LibraryStatus({
             <span className="ls-label muted">{titleCheck.line}</span>
             {titleCheck.running && (
               <button type="button" className="btn sm" onClick={titleCheck.onStop}>
+                Stop
+              </button>
+            )}
+          </div>
+        )}
+        {genreCheck.line && (
+          <div className="ls-other">
+            <span className="ls-label muted">{genreCheck.line}</span>
+            {genreCheck.running && (
+              <button type="button" className="btn sm" onClick={genreCheck.onStop}>
                 Stop
               </button>
             )}

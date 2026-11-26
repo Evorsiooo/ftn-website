@@ -45,6 +45,11 @@ export async function GET(request: NextRequest) {
       analysedAt: radioSongs.analysedAt,
       metaCheckedAt: radioSongs.metaCheckedAt,
       prepError: radioSongs.prepError,
+      genre: radioSongs.genre,
+      genres: radioSongs.genres,
+      originalYear: radioSongs.originalYear,
+      genreCheckedAt: radioSongs.genreCheckedAt,
+      genreByHand: radioSongs.genreByHand,
       createdAt: radioSongs.createdAt,
     })
     .from(radioSongs)
