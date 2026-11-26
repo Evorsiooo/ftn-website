@@ -58,7 +58,7 @@ function ExitLink({ className }: { className?: string }) {
 }
 
 function LiveDot({ className }: { className?: string }) {
-  return <span role="img" aria-label="Live now" className={cn("ftn-live-dot h-2 w-2 flex-none rounded-full bg-live animate-[ftn-pulse-dot_2s_ease-in-out_infinite]", className)} />;
+  return <span role="img" aria-label="Live now" className={cn("ftn-live-dot h-2 w-2 flex-none rounded-full bg-live", className)} />;
 }
 
 /**

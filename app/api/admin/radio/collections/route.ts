@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
-import { canSeeAllCollections, collectionOf, collectionOwners, removeFromCollection } from "@/lib/radio/collections";
+import { addToCollection, canSeeAllCollections, collectionOf, collectionOwners, removeFromCollection } from "@/lib/radio/collections";
 import { noStore } from "@/lib/radio/store";
 
 export const runtime = "edge";
@@ -23,6 +23,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ userId, ...(await collectionOf(ctx.db, userId)) }, { headers: noStore });
   } catch (err) {
     return failure(err, "Could not load the collection");
+  }
+}
+
+/** Adds library songs to your collection: { songIds: [...] } (up to 200). Answers how many were new. */
+export async function POST(request: NextRequest) {
+  const ctx = await radioAdmin(request);
+  if ("error" in ctx) return ctx.error;
+  const body = (await request.json().catch(() => null)) as { songIds?: unknown } | null;
+  const songIds = Array.isArray(body?.songIds) ? body.songIds.filter((x): x is string => typeof x === "string") : [];
+  if (!songIds.length || songIds.length > 200) return NextResponse.json({ error: "Give 1 to 200 song ids" }, { status: 400 });
+  try {
+    const added = await addToCollection(ctx.db, ctx.user.id, songIds);
+    return NextResponse.json({ ok: true, added, skipped: Math.max(0, new Set(songIds).size - added) });
+  } catch (err) {
+    return failure(err, "Could not add to your collection");
   }
 }
 

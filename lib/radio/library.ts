@@ -208,14 +208,14 @@ async function downloaderTarget(db: DbClient): Promise<{ base: string; token: st
   return { base, token: secure.rotationEndpointToken };
 }
 
-async function downloader<T>(db: DbClient, path: string, init: RequestInit = {}): Promise<T> {
+async function downloader<T>(db: DbClient, path: string, init: RequestInit = {}, timeoutMs = 20_000): Promise<T> {
   const { base, token } = await downloaderTarget(db);
   let res: Response;
   try {
     res = await fetch(base + path, {
       ...init,
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init.headers || {}) },
-      signal: AbortSignal.timeout(20_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err: any) {
     throw new DownloaderError(`Could not reach the song downloader: ${err?.message || "request failed"}`);
@@ -239,6 +239,22 @@ export const getJob = (db: DbClient, jobId: string) => downloader<{ job: Job }>(
 
 export const cancelJob = (db: DbClient, jobId: string) =>
   downloader<{ job: Job }>(db, `/api/download/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+
+/** A YouTube Music Songs search result (the VPS's GET /api/search). Adding one = importing its url. */
+export type MusicSearchResult = {
+  videoId: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  durationSec: number | null;
+  thumbnail: string | null;
+  explicit: boolean;
+  url: string;
+};
+
+/** Live search: the VPS asks YouTube Music (browsers can't, and it answers Cloudflare with nothing). */
+export const searchMusic = (db: DbClient, q: string) =>
+  downloader<{ songs: MusicSearchResult[] }>(db, `/api/search?q=${encodeURIComponent(q)}`, {}, 10_000);
 
 // ---------- links ----------
 

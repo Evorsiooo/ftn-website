@@ -19,11 +19,12 @@ import * as replaysRoute from "@/app/api/admin/radio/replays/route";
 import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
 import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
 import * as collectionsRoute from "@/app/api/admin/radio/collections/route";
+import * as musicSearchRoute from "@/app/api/admin/radio/search/route";
 import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
 import { inArray } from "drizzle-orm";
 import { radioSongs } from "@/db/schema";
-import { lookUpGenres, mbGate, parseGenres } from "@/lib/radio/genres";
+import { lookUpGenres, mbGate, MusicBrainzBusy, parseGenres } from "@/lib/radio/genres";
 import { findInCatalog } from "@/lib/radio/metadata";
 import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 import { S, ToolDef, ToolError, pick } from "../types";
@@ -310,6 +311,21 @@ export const radioTools: ToolDef[] = [
     run: (ctx) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "redownload" } }),
   },
   {
+    name: "search_youtube_music",
+    title: "Search YouTube Music for songs",
+    description:
+      "Finds songs on YouTube Music by artist and title (its Songs search: studio recordings, never music videos), to add one that isn't in the library yet. Returns up to 10 with title, artist, album, durationSec and url. To add one, pass its url to add_songs (Studio: studio_control queueUrl). Check search_songs first: the library may already have it.",
+    input: { query: S.str("Artist and title, e.g. daft punk get lucky"), limit: S.int("How many (default 5, at most 10)") },
+    required: ["query"],
+    kind: "read",
+    openWorld: true,
+    run: async (ctx, a) => {
+      const data = await ctx.call(musicSearchRoute.GET, { path: "/api/admin/radio/search", query: { q: String(a.query || "") } });
+      const limit = Math.min(Math.max(Number(a.limit) || 5, 1), 10);
+      return { songs: ((data.songs || []) as Array<Record<string, unknown>>).slice(0, limit).map(({ thumbnail: _t, ...song }) => song) };
+    },
+  },
+  {
     name: "add_songs",
     title: "Add songs to the library",
     description:
@@ -329,6 +345,16 @@ export const radioTools: ToolDef[] = [
     input: { userId: S.str("Someone else's collection (site admins and managers)"), owners: S.bool("List everyone with a collection instead") },
     kind: "read",
     run: (ctx, a) => ctx.call(collectionsRoute.GET, { path: "/api/admin/radio/collections", query: a.owners ? { owners: "1" } : a.userId ? { user: a.userId } : {} }),
+  },
+  {
+    name: "add_to_collection",
+    title: "Add library songs to your collection",
+    description: "Puts songs already in the library (ids from search_songs) into the signed-in person's own collection, so they can queue them from it in the Studio. Songs already there, and archived songs, are skipped (added tells how many went in). Doesn't change whether the AutoDJ plays them.",
+    input: { songIds: S.strArr("Up to 200 song ids (search_songs)") },
+    required: ["songIds"],
+    kind: "write",
+    summary: (a) => `Add ${Array.isArray(a.songIds) ? a.songIds.length : 0} song(s) to your collection`,
+    run: (ctx, a) => ctx.call(collectionsRoute.POST, { method: "POST", path: "/api/admin/radio/collections", body: pick(a, ["songIds"]) }),
   },
   {
     name: "remove_from_collection",
@@ -455,9 +481,14 @@ export const radioTools: ToolDef[] = [
           continue;
         }
         const [m, apple] = await Promise.all([
-          lookUpGenres(song, get, stop, artistGenres).catch(() => null),
+          lookUpGenres(song, get, stop, artistGenres).catch((err) => (err instanceof MusicBrainzBusy ? ("busy" as const) : null)),
           song.genre || song.source === "upload" ? null : findInCatalog(song.title, song.artist, song.durationSec).catch(() => null),
         ]);
+        if (m === "busy") {
+          // not marked as looked up, so the song stays in the list for a later try
+          results.push({ id, title: song.title, result: "MusicBrainz is busy: not looked up, try again in a few minutes" });
+          continue;
+        }
         const patch: Record<string, unknown> = { genreChecked: true };
         if (m?.genres.length) patch.genres = m.genres;
         // only an earlier year than ours: a later one means a reissue or a bonus-track edition was matched

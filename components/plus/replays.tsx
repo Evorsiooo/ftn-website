@@ -57,7 +57,19 @@ export function Replays() {
       <div className="replays">
         {list.map((r) => (
           <Link key={r.id} href={`/plus/radio/replays/${r.id}`}>
-            {r.art ? <img src={r.art} alt="" /> : <div className="ph-art" />}
+            {/* the show's art as a square on a blurred copy of itself, as on the FTN+ home */}
+            <div className="th rep">
+              {r.art ? (
+                <>
+                  <img className="bg" src={r.art} alt="" loading="lazy" />
+                  <img className="sq" src={r.art} alt="" loading="lazy" />
+                </>
+              ) : (
+                <div className="ph">
+                  <I.Radio />
+                </div>
+              )}
+            </div>
             <div className="n">{r.title}</div>
             <div className="w">
               {dateFmt.format(new Date(r.startedAt))} · {dur(r.endedAt - r.startedAt)}

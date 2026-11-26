@@ -8,7 +8,7 @@ import { runAlbumAudioCheck } from "@/lib/radio/album-audio";
 import { refreshAnalysisIndex } from "@/lib/radio/analysis-index";
 import { radioBucket } from "@/lib/radio/store";
 import { publishProgram } from "@/lib/radio/program";
-import { ensurePlaylistReplays, tidy } from "@/lib/radio/studio";
+import { tidy } from "@/lib/radio/studio";
 
 export const runtime = "edge";
 
@@ -41,10 +41,9 @@ export async function POST(request: NextRequest) {
   }
   try {
     // the Studio (people who left, a show nobody runs), then radio/program.json (airings roll
-    // forward) and replays of playlist shows on air
+    // forward). Automated (playlist) shows get no replay (Adrien, 2026-11-26: they filled the tab).
     await tidy(db);
-    const program = await publishProgram(db);
-    await ensurePlaylistReplays(db, program);
+    await publishProgram(db);
   } catch (err: any) {
     out.radioProgramError = err?.message || "Radio program failed";
   }

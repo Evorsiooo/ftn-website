@@ -297,21 +297,25 @@ function SongLine({ v }: { v: StationView }) {
   );
 }
 
-function Secondary({ v }: { v: StationView }) {
+function Secondary({ v, full = false }: { v: StationView; full?: boolean }) {
   const r = useRadio();
   return (
     <>
       <span className="gap" />
       <Votes songKey={v.songKey} />
-      <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source="page" />
+      <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source={full ? "full" : "page"} />
       <Volume />
       <RecentlyPlayed songKey={v.songKey} />
-      <button className="ib" aria-label="Open in a popout window" onClick={r.popout}>
-        <I.Pop />
-      </button>
-      <button className="ib" aria-label="Full screen" onClick={() => r.setFull(true)}>
-        <I.Full />
-      </button>
+      {!full && (
+        <>
+          <button className="ib" aria-label="Open in a popout window" onClick={r.popout}>
+            <I.Pop />
+          </button>
+          <button className="ib" aria-label="Full screen" onClick={() => r.setFull(true)}>
+            <I.Full />
+          </button>
+        </>
+      )}
     </>
   );
 }
@@ -453,6 +457,15 @@ export function FullScreen() {
   const people = useOnStage();
   const close = r.setFull;
   useRadioShortcuts();
+  // the page under it can't scroll (its scrollbar showed through, though nothing here scrolls)
+  useEffect(() => {
+    const html = document.documentElement;
+    const was = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = was;
+    };
+  }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close(false);
     window.addEventListener("keydown", onKey);
@@ -467,23 +480,25 @@ export function FullScreen() {
       <button className="ib corner" style={{ right: 20 }} aria-label="Open in a popout window" onClick={r.popout}>
         <I.Pop />
       </button>
-      <div className={`grid${lyrics || people.length ? "" : " solo"}`}>
-        <section aria-label="On air">
-          {v.art ? <Cover v={v} /> : <div className="art ph-art" />}
-          <div className="name">{v.name}</div>
-          <div className="by">{v.by}</div>
-          <SongLine v={v} />
-          <div className="ctrl">
-            <ListenButton big={false} />
-            <span className="gap" />
-            <Votes songKey={v.songKey} />
-            <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source="full" />
-            <Volume />
+      {/* the Radio page's layout: art and lyrics, then the title with every control beside it */}
+      <RadioGrid>
+        <div className="artcol">{v.art ? <Cover v={v} /> : <div className="art ph-art" />}</div>
+        <Side lyrics={lyrics} people={people} position={v.position} />
+        <div className="info">
+          <div className="txt">
+            <h1 className="name" title={v.name}>
+              {v.name}
+            </h1>
+            <div className="by">{v.by}</div>
+            <SongLine v={v} />
+            {meta(v) && <div className="rmeta">{meta(v)}</div>}
           </div>
-          {meta(v) && <div className="rmeta">{meta(v)}</div>}
-        </section>
-        {(lyrics || people.length > 0) && <Side lyrics={lyrics} people={people} position={v.position} />}
-      </div>
+          <div className="ctrl">
+            <ListenButton />
+            <Secondary v={v} full />
+          </div>
+        </div>
+      </RadioGrid>
     </div>
   );
 }
@@ -497,7 +512,7 @@ export function PlayerBar() {
   const second = r.ducked && on ? "Radio lowered while the video plays" : v.by;
   return (
     <div className="pbar" role="region" aria-label="Radio">
-      <button className="open" onClick={() => r.setFull(true)} aria-label="Open the radio in full screen">
+      <div className="open">
         {v.art ? <img src={v.art} alt="" /> : <span className="ph-art" style={{ width: 48, height: 48, borderRadius: 8 }} />}
         <span className="tx">
           <span className="a" style={{ display: "block" }}>
@@ -507,7 +522,12 @@ export function PlayerBar() {
             {second}
           </span>
         </span>
-      </button>
+      </div>
+      <span className="hide-phone extras">
+        <Votes songKey={v.songKey} />
+        <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source="bar" />
+        <RecentlyPlayed songKey={v.songKey} />
+      </span>
       <Volume />
       <button className="ib hide-phone" aria-label="Open in a popout window" onClick={r.popout}>
         <I.Pop />

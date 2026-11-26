@@ -6,7 +6,7 @@ export const SONG_REASONS = ["Too long", "Wrong song", "Wrong title or artist", 
 export const BUG_REASONS = ["Sound cuts out", "Won't play", "Lyrics out of time", "Page looks broken", "Something else"] as const;
 export type ReportKind = "song" | "bug";
 export type ReportStatus = "new" | "fixed" | "dismissed";
-export const REPORT_SOURCES = { page: "Radio page", full: "Full screen", popout: "Popout player" } as const;
+export const REPORT_SOURCES = { page: "Radio page", full: "Full screen", popout: "Popout player", bar: "Player bar" } as const;
 export type ReportSource = keyof typeof REPORT_SOURCES;
 
 export const MAX_DETAILS = 500;

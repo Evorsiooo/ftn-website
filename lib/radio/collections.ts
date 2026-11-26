@@ -111,4 +111,28 @@ export async function removeFromCollection(db: DbClient, userId: string, songId:
   if (!other) await db.update(radioSongs).set({ archived: true, updatedAt: new Date() }).where(eq(radioSongs.id, songId));
 }
 
+/**
+ * Puts songs already in the library into [userId]'s collection (Adrien, 2026-11-26). Songs already in it
+ * are left as they are, and archived ones are skipped (unarchive them first). Returns how many were new.
+ */
+export async function addToCollection(db: DbClient, userId: string, songIds: string[]): Promise<number> {
+  const ids = [...new Set(songIds)].slice(0, 200);
+  if (!ids.length) return 0;
+  const found: { id: string }[] = [];
+  for (let i = 0; i < ids.length; i += 90) found.push(...(await db.select({ id: radioSongs.id }).from(radioSongs).where(and(inArray(radioSongs.id, ids.slice(i, i + 90)), eq(radioSongs.archived, false)))));
+  if (!found.length) return 0;
+  const have = new Set<string>();
+  for (let i = 0; i < found.length; i += 90) {
+    const part = found.slice(i, i + 90).map((f) => f.id);
+    for (const r of await db.select({ id: radioCollectionSongs.songId }).from(radioCollectionSongs).where(and(eq(radioCollectionSongs.userId, userId), inArray(radioCollectionSongs.songId, part)))) have.add(r.id);
+  }
+  const now = new Date();
+  const fresh = found.filter((f) => !have.has(f.id));
+  // 3 columns a row: 30 rows a statement stays under D1's 100 bound values
+  for (let i = 0; i < fresh.length; i += 30) {
+    await db.insert(radioCollectionSongs).values(fresh.slice(i, i + 30).map((f) => ({ userId, songId: f.id, createdAt: now }))).onConflictDoNothing();
+  }
+  return fresh.length;
+}
+
 export const canSeeAllCollections = (roles: string[]) => roles.includes("site_admin") || roles.includes("manager");

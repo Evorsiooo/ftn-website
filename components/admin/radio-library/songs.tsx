@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Archive, ArchiveRestore, Music, Pause, Pencil, Play, Trash2, X } from "lucide-react";
+import { Archive, ArchiveRestore, ListPlus, Music, Pause, Pencil, Play, Trash2, X } from "lucide-react";
 import { BackButton, Facts, Sheet } from "@/components/admin/ui";
 import { confirmDialog, toast } from "@/components/gs/dialogs";
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from "@/lib/radio/loudness";
@@ -190,6 +190,14 @@ export function SongPane({
       toast(err.message);
     }
   };
+  const addToMine = async () => {
+    try {
+      const r = await api<{ added: number }>("/api/admin/radio/collections", { method: "POST", body: JSON.stringify({ songIds: [song.id] }) });
+      toast(r.added ? `“${song.title}” is in your collection.` : `“${song.title}” was already in your collection.`);
+    } catch (err: any) {
+      toast(err.message);
+    }
+  };
   const remove = async () => {
     if (!(await confirmDialog(`Delete “${song.title}” for good? The file is removed and it leaves every playlist. This can't be undone.`, { ok: "Delete", danger: true }))) return;
     try {
@@ -360,6 +368,11 @@ export function SongPane({
             <button type="button" className="btn sm" onClick={() => setEditing(true)}>
               <Pencil className="ic-sm" /> Edit
             </button>
+            {!song.archived && (
+              <button type="button" className="btn sm" onClick={addToMine}>
+                <ListPlus className="ic-sm" /> Add to my collection
+              </button>
+            )}
             <button type="button" className="btn sm" onClick={() => setArchived(!song.archived)} title={song.archived ? "Put it back in the library" : "Hide it from the radio"}>
               {song.archived ? <ArchiveRestore className="ic-sm" /> : <Archive className="ic-sm" />}
               {song.archived ? "Unarchive" : "Archive"}
