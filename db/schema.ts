@@ -491,6 +491,8 @@ export const radioSongs = sqliteTable("radio_songs", {
   originalYear: integer("original_year"),
   genreCheckedAt: integer("genre_checked_at", { mode: "timestamp" }),
   genreByHand: integer("genre_by_hand", { mode: "boolean" }).notNull().default(false),
+  // Played by the AutoDJ (migration 0039). False: only in the collections of the broadcasters who added it.
+  autodj: integer("autodj", { mode: "boolean" }).notNull().default(true),
   addedBy: text("added_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -527,6 +529,8 @@ export const radioPlaylists = sqliteTable("radio_playlists", {
   sourceUrl: text("source_url"),
   source: text("source", { enum: ["youtube", "soundcloud", "spotify"] }),
   lastSyncedAt: integer("last_synced_at", { mode: "timestamp" }),
+  // Imported into this broadcaster's collection (migration 0039): the Studio groups their songs by it.
+  collectionOf: text("collection_of"),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -561,6 +565,9 @@ export const radioImports = sqliteTable("radio_imports", {
   error: text("error"),
   // JSON list of the downloader item numbers already recorded (migration 0035): a check only looks at new ones
   recordedItems: text("recorded_items"),
+  // Migration 0039: the songs go into this broadcaster's collection, and on the AutoDJ only if autodj.
+  collectionOf: text("collection_of"),
+  autodj: integer("autodj", { mode: "boolean" }).notNull().default(true),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
@@ -570,6 +577,13 @@ export const radioImports = sqliteTable("radio_imports", {
   // only the imports with songs waiting for someone to pick a match (the admin sidebar's count)
   index("radio_imports_review_idx").on(t.id).where(sql`review LIKE '%"open":[{%'`),
 ]);
+
+// A broadcaster's collection (migration 0039): songs they added, to queue from in the Studio. Private to them.
+export const radioCollectionSongs = sqliteTable("radio_collection_songs", {
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  songId: text("song_id").notNull().references(() => radioSongs.id, { onDelete: "cascade" }),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.userId, t.songId] }), index("radio_collection_songs_song_idx").on(t.songId)]);
 
 // Radio listeners: each listener's random id, upserted about every 10 minutes from the player.
 // The listener count is the rows seen in the last 11 minutes (shown only above 2).

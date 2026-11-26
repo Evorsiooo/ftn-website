@@ -1,6 +1,6 @@
 import { and, eq, gt, gte, inArray, lt, lte, or, sql } from "drizzle-orm";
 import type { DbClient } from "@/db";
-import { radioImports, radioPlaylists, radioPlaylistSongs, radioSongs, radioVersions } from "@/db/schema";
+import { radioCollectionSongs, radioImports, radioPlaylists, radioPlaylistSongs, radioSongs, radioVersions } from "@/db/schema";
 import { getSecureRadioSettings } from "@/lib/radio";
 import { guessTitleArtist } from "@/lib/radio/metadata";
 
@@ -269,7 +269,7 @@ export function linkKind(raw: string): { source: "youtube" | "soundcloud" | "spo
 const clampText = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-function songRow(song: DownloaderSong, spotifyId: string | null, userId: string | null) {
+function songRow(song: DownloaderSong, spotifyId: string | null, userId: string | null, autodj = true) {
   const now = new Date();
   // A plain video's "Artist - Title (Official Video)" by its uploader becomes Title by Artist; the library
   // page then looks the song up in the music catalog for the exact names, album and cover.
@@ -292,6 +292,7 @@ function songRow(song: DownloaderSong, spotifyId: string | null, userId: string 
     bytes: num(song.audio.bytes),
     contentType: clampText(song.audio.contentType, 100) || null,
     archived: false,
+    autodj,
     musicVideo: song.musicVideo === true,
     metadataSource: song.metadataSource ?? null,
     audioCheck: audioCheckOf(song.resolve),
@@ -389,7 +390,7 @@ export async function duplicateCandidates(db: DbClient, song: { durationSec: num
  * match of a song added from YouTube) isn't added again: its new file is deleted and the library song is
  * used instead. Called with the items finished since the last check only (radio_imports.recorded_items).
  */
-async function recordSongs(db: DbClient, items: JobItem[], userId: string | null): Promise<Map<string, string>> {
+async function recordSongs(db: DbClient, items: JobItem[], userId: string | null, autodj = true): Promise<Map<string, string>> {
   const songs = items.filter((i) => i.song?.audio?.r2Key?.startsWith("songs/"));
   const keys = [...new Set(songs.map((i) => i.song!.audio.r2Key))];
   const ids = new Map<string, string>();
@@ -401,7 +402,7 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
   for (const item of songs) {
     const key = item.song!.audio.r2Key;
     if (ids.has(key) || fresh.has(key)) continue;
-    fresh.set(key, songRow(item.song!, item.spotify?.spotifyId ?? null, userId));
+    fresh.set(key, songRow(item.song!, item.spotify?.spotifyId ?? null, userId, autodj));
   }
   if (fresh.size) {
     // songs added by this same call count too: a playlist can hold the same track twice
@@ -425,7 +426,7 @@ async function recordSongs(db: DbClient, items: JobItem[], userId: string | null
     if (bucket && copies.length) await bucket.delete(copies).catch(() => {});
   }
   const rows = [...fresh.values()];
-  // 27 columns: D1 allows 100 bound parameters per statement, so 3 rows per insert.
+  // 28 columns: D1 allows 100 bound parameters per statement, so 3 rows per insert.
   for (let i = 0; i < rows.length; i += 3) {
     await db.insert(radioSongs).values(rows.slice(i, i + 3)).onConflictDoNothing();
   }
@@ -484,7 +485,8 @@ export async function syncImport(db: DbClient, row: ImportRow): Promise<ImportRo
   // the whole library) on every check is what a large import couldn't afford
   const recorded = parseRecorded(row.recordedItems);
   const done = items.filter((i) => i.state === "done" && i.song && !recorded.has(i.index));
-  const ids = await recordSongs(db, done, row.createdBy);
+  const ids = await recordSongs(db, done, row.createdBy, row.collectionOf ? row.autodj : true);
+  if (row.collectionOf && ids.size) await addToCollection(db, row.collectionOf, [...new Set(ids.values())], row.autodj);
 
   if (row.playlistId) {
     const entries = done
@@ -552,6 +554,20 @@ export async function syncImport(db: DbClient, row: ImportRow): Promise<ImportRo
   return { ...row, ...patch };
 }
 
+/**
+ * Puts [songIds] in [userId]'s collection. With [autodj], songs that were only in collections go on the
+ * AutoDJ too; without it, songs already on the AutoDJ stay there.
+ */
+export async function addToCollection(db: DbClient, userId: string, songIds: string[], autodj: boolean): Promise<void> {
+  const now = new Date();
+  // 3 columns: up to 30 rows per statement
+  for (let i = 0; i < songIds.length; i += 30) {
+    const chunk = songIds.slice(i, i + 30);
+    await db.insert(radioCollectionSongs).values(chunk.map((songId) => ({ userId, songId, createdAt: now }))).onConflictDoNothing();
+    if (autodj) await db.update(radioSongs).set({ autodj: true, updatedAt: now }).where(and(inArray(radioSongs.id, chunk), eq(radioSongs.autodj, false)));
+  }
+}
+
 /** Follows every unfinished import (the Library page while it's open, and the every-minute cron). */
 export async function syncOpenImports(db: DbClient): Promise<{ checked: number; errors: string[] }> {
   const open = await db.select().from(radioImports).where(openImportState());
@@ -580,6 +596,8 @@ export interface LibrarySong {
   musicVideo: boolean;
   /** On air: analysed for mixing and title-checked (migration 0036). The AutoDJ picks only these. */
   ready: boolean;
+  /** False: only in broadcasters' collections, so the AutoDJ never picks it (a show can still play it). Left out when true. */
+  autodj?: boolean;
 }
 
 const librarySongColumns = {
@@ -592,7 +610,11 @@ const librarySongColumns = {
   thumbnail: radioSongs.thumbnailUrl,
   musicVideo: radioSongs.musicVideo,
   ready: sql<number>`(${radioSongs.analysedAt} IS NOT NULL AND ${radioSongs.metaCheckedAt} IS NOT NULL)`.mapWith(Boolean),
+  autodj: radioSongs.autodj,
 };
+
+// autodj is sent only when false: the list goes to every listener, and nearly every song is on the AutoDJ
+const slim = ({ autodj, ...song }: LibrarySong): LibrarySong => (autodj === false ? { ...song, autodj } : song);
 
 /** Every song that isn't archived, in the shape the radio engine reads. */
 export async function playableSongs(db: DbClient): Promise<LibrarySong[]> {
@@ -601,7 +623,7 @@ export async function playableSongs(db: DbClient): Promise<LibrarySong[]> {
     .from(radioSongs)
     .where(eq(radioSongs.archived, false))
     .orderBy(radioSongs.createdAt);
-  return rows;
+  return rows.map(slim);
 }
 
 const PLAYABLE_SNAPSHOT_KEY = "radio/cache/playable-songs.json";
@@ -660,7 +682,7 @@ export async function songsByKeys(db: DbClient, keys: string[]): Promise<Map<str
       .where(inArray(radioSongs.r2Key, unique.slice(i, i + 90)));
     // archived is checked here, not in SQL: with it in the WHERE the database walked the archived index and
     // read the whole song table to find 1 to 4 songs. By key alone it uses the unique r2_key index.
-    for (const { archived, ...song } of rows) if (!archived) out.set(song.key, song);
+    for (const { archived, ...song } of rows) if (!archived) out.set(song.key, slim(song));
   }
   return out;
 }

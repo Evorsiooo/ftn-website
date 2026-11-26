@@ -390,6 +390,7 @@ export function UploadSong({ onClose, onDone }: { onClose: () => void; onDone: (
   const [measure, setMeasure] = useState<{ durationSec: number; loudnessDb: number } | null>(null);
   const [status, setStatus] = useState<string>("");
   const [progress, setProgress] = useState<number | null>(null);
+  const [autodj, setAutodj] = useState(true);
 
   const pick = async (f: File | null) => {
     setFile(f);
@@ -421,6 +422,7 @@ export function UploadSong({ onClose, onDone }: { onClose: () => void; onDone: (
     form.set("artist", artist.trim());
     form.set("durationSec", String(measure.durationSec));
     form.set("loudnessDb", String(measure.loudnessDb));
+    form.set("autodj", String(autodj));
     // XHR for upload progress
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/admin/radio/upload");
@@ -487,6 +489,10 @@ export function UploadSong({ onClose, onDone }: { onClose: () => void; onDone: (
           <label>Artist</label>
           <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} maxLength={300} required />
         </div>
+        <label className="chk">
+          <input type="checkbox" className="check" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
+          Also add to the AutoDJ
+        </label>
         {progress !== null && (
           <div className="meter" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
             <i style={{ width: `${progress}%` }} />

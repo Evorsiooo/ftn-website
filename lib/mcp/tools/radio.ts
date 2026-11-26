@@ -18,6 +18,7 @@ import * as reportsRoute from "@/app/api/admin/radio/reports/route";
 import * as replaysRoute from "@/app/api/admin/radio/replays/route";
 import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
 import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
+import * as collectionsRoute from "@/app/api/admin/radio/collections/route";
 import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
 import { inArray } from "drizzle-orm";
@@ -57,7 +58,7 @@ const broadcastFields = {
 };
 const BROADCAST_KEYS = Object.keys(broadcastFields);
 
-const STUDIO_ACTIONS = ["queueSong", "queueUrl", "skip", "remove", "move", "onAir", "gain", "pause", "resume", "callIn", "end", "takeOff"] as const;
+const STUDIO_ACTIONS = ["queueSong", "queueSongs", "queueUrl", "skip", "remove", "move", "onAir", "gain", "pause", "resume", "callIn", "end", "takeOff"] as const;
 
 export const radioTools: ToolDef[] = [
   // ── schedule ──
@@ -173,11 +174,13 @@ export const radioTools: ToolDef[] = [
     name: "studio_control",
     title: "Control the live Studio",
     description:
-      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueUrl {url}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end.",
+      "Controls the show on air. Works only while the signed-in person is on air in the Studio. queueSong {key: library song key from search_songs}, queueSongs {keys: several keys in order, e.g. a playlist from get_collection}, queueUrl {url, autodj: also put it on the AutoDJ (default: only your collection)}, skip {k, key: the current song from get_studio}, remove/move/onAir/gain/takeOff {id, dir: 1|-1, gain}, pause, resume, callIn {on}, end.",
     input: {
       action: S.enum(STUDIO_ACTIONS, "What to do"),
       key: S.str("queueSong / skip: the song's key"),
+      keys: S.strArr("queueSongs: song keys, in order"),
       url: S.str("queueUrl: a YouTube/Spotify/SoundCloud link"),
+      autodj: S.bool("queueUrl: also add the song to the AutoDJ (default false: only your collection)"),
       k: S.int("skip: the playing song's position (from get_studio)"),
       id: S.str("remove / move / onAir / gain / takeOff: the queue item or person id"),
       dir: S.int("move: -1 up, 1 down"),
@@ -190,7 +193,7 @@ export const radioTools: ToolDef[] = [
     summary: (a) => `Studio: ${a.action}${a.url ? ` ${a.url}` : ""}${a.key ? ` ${a.key}` : ""}`,
     run: (ctx, a) => {
       if (!(STUDIO_ACTIONS as readonly string[]).includes(a.action)) throw new ToolError("Unknown Studio action.");
-      return ctx.call(studioRoute.POST, { method: "POST", path: "/api/admin/radio/studio", body: { op: a.action, ...pick(a, ["key", "url", "k", "id", "dir", "gain", "on"]) } });
+      return ctx.call(studioRoute.POST, { method: "POST", path: "/api/admin/radio/studio", body: { op: a.action, ...pick(a, ["key", "keys", "url", "autodj", "k", "id", "dir", "gain", "on"]) } });
     },
   },
   // ── song library ──
@@ -310,13 +313,33 @@ export const radioTools: ToolDef[] = [
     name: "add_songs",
     title: "Add songs to the library",
     description:
-      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews. New songs arrive as Getting ready: the AutoDJ plays them once someone runs Prepare on the Library page (get_library_status). A broadcaster's songs queued in the Studio are prepared by their own browser.",
-    input: { url: S.str("The link") },
+      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews. New songs arrive as Getting ready: the AutoDJ plays them once someone runs Prepare on the Library page (get_library_status). A broadcaster's songs queued in the Studio are prepared by their own browser. The songs always go into the person's own collection (get_collection); autodj false keeps them out of the AutoDJ.",
+    input: { url: S.str("The link"), autodj: S.bool("Also put the songs on the AutoDJ (default true). false: only in the person's collection") },
     required: ["url"],
     kind: "write",
     openWorld: true,
     summary: (a) => `Add songs from ${a.url}`,
-    run: (ctx, a) => ctx.call(importsRoute.POST, { method: "POST", path: "/api/admin/radio/imports", body: { url: a.url } }),
+    run: (ctx, a) => ctx.call(importsRoute.POST, { method: "POST", path: "/api/admin/radio/imports", body: { url: a.url, autodj: a.autodj !== false } }),
+  },
+  {
+    name: "get_collection",
+    title: "A broadcaster's song collection",
+    description:
+      "The songs in the signed-in person's collection (every song they added), grouped by the playlists they imported, each with autodj (whether the AutoDJ plays it). Site admins and managers can read someone else's with userId; owners: true lists who has a collection.",
+    input: { userId: S.str("Someone else's collection (site admins and managers)"), owners: S.bool("List everyone with a collection instead") },
+    kind: "read",
+    run: (ctx, a) => ctx.call(collectionsRoute.GET, { path: "/api/admin/radio/collections", query: a.owners ? { owners: "1" } : a.userId ? { user: a.userId } : {} }),
+  },
+  {
+    name: "remove_from_collection",
+    title: "Take a song out of a collection",
+    description: "Removes a song from the signed-in person's collection (or, for site admins and managers, userId's). A song then in no collection and not on the AutoDJ is archived.",
+    input: { songId: S.str("The song's id (get_collection)"), userId: S.str("Whose collection (site admins and managers)") },
+    required: ["songId"],
+    kind: "write",
+    refs: { songId: "song" },
+    summary: (a) => `Remove song ${a.songId} from ${a.userId ? "a" : "your"} collection`,
+    run: (ctx, a) => ctx.call(collectionsRoute.DELETE, { method: "DELETE", path: "/api/admin/radio/collections", body: pick(a, ["songId", "userId"]) }),
   },
   {
     name: "check_link",
@@ -366,7 +389,7 @@ export const radioTools: ToolDef[] = [
     name: "update_song",
     title: "Edit a song",
     description:
-      "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing. Genre tags: genre, genres, originalYear; setting any of them marks them as typed in by hand (genreByHand), so lookups no longer change them, unless genreByHand false is sent. spotify sets the song's Spotify track, which the Spotify button on listeners' Liked songs opens (without it, that button searches Spotify).",
+      "Fixes a song's details, archives it (the radio stops playing it) or brings it back, or puts it on / takes it off the AutoDJ (autodj; it stays in collections either way). Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing. Genre tags: genre, genres, originalYear; setting any of them marks them as typed in by hand (genreByHand), so lookups no longer change them, unless genreByHand false is sent. spotify sets the song's Spotify track, which the Spotify button on listeners' Liked songs opens (without it, that button searches Spotify).",
     input: {
       id: S.str("The song's id (search_songs)"),
       title: S.str("Title"),
@@ -382,6 +405,7 @@ export const radioTools: ToolDef[] = [
       genres: { type: ["array", "null"], items: { type: "string" }, description: "Detailed genres, most fitting first, up to 8, e.g. [\"disco\", \"funk\"] (null clears them)" },
       originalYear: { type: ["integer", "null"], description: "Year the song first came out (null clears it)" },
       genreByHand: S.bool("false: let find_song_genres and the Library's lookup change the genre tags again"),
+      autodj: S.bool("true: the AutoDJ plays it, false: only in broadcasters' collections"),
     },
     required: ["id"],
     kind: "write",
@@ -393,7 +417,7 @@ export const radioTools: ToolDef[] = [
         path: `/api/admin/radio/songs/${a.id}`,
         params: { id: a.id },
         body: {
-          ...pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived", "spotify", "genre", "genres", "originalYear", "genreByHand"]),
+          ...pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived", "autodj", "spotify", "genre", "genres", "originalYear", "genreByHand"]),
           // genre tags set by the AI count as typed in by hand, as in the Library's Edit form
           ...(["genre", "genres", "originalYear"].some((k) => a[k] !== undefined) && a.genreByHand === undefined ? { genreByHand: true } : {}),
         },
