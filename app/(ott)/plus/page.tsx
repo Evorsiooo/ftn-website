@@ -11,6 +11,7 @@ import { RadioRow } from "@/components/plus/radio-row";
 import { ReplaysRow } from "@/components/plus/replays";
 import { useSaved } from "@/components/plus/saved";
 import * as I from "@/components/plus/icons";
+import { heroTitleSize } from "@/lib/hero-title";
 
 /** Home: the featured video (a live stream takes its place), then what's new, the radio, and the curated rows. */
 export default function FTNPlusHomePage() {
@@ -138,7 +139,9 @@ function Hero({ v }: { v: PlusVideo }) {
           {v.channel}
           {v.live && <LiveMark inline />}
         </div>
-        <h1>{v.title}</h1>
+        <h1 className={heroTitleSize(v.title)} title={v.title}>
+          {v.title}
+        </h1>
         {!v.live && v.description && <p>{v.description}</p>}
         <div className="acts">
           <Link href={watchPath(v.id)} className="btn main lg">
