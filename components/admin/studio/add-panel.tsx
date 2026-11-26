@@ -2,7 +2,7 @@
 // The Studio's right-hand music column: the broadcaster's own collection (grouped by the playlists they
 // imported) or the AutoDJ's library, searchable, and a link box that downloads a song into the collection.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Plus, Search } from "lucide-react";
+import { Check, ListPlus, Plus, Search } from "lucide-react";
 import { Seg } from "@/components/admin/ui";
 
 type Song = { id?: string; key: string; title: string; artist: string; durationSec?: number; thumbnail?: string | null };
@@ -19,7 +19,7 @@ async function get<T>(url: string): Promise<T> {
   return d as T;
 }
 
-function Row({ s, queued, busy, onQueue }: { s: Song; queued: boolean; busy: boolean; onQueue: () => void }) {
+function Row({ s, queued, busy, onQueue, onCollect }: { s: Song; queued: boolean; busy: boolean; onQueue: () => void; onCollect?: () => void }) {
   return (
     <div className="song">
       {s.thumbnail ? <img className="cover" src={s.thumbnail} alt="" loading="lazy" /> : <span className="cover" />}
@@ -27,6 +27,11 @@ function Row({ s, queued, busy, onQueue }: { s: Song; queued: boolean; busy: boo
         {s.title} <span className="muted">· {s.artist}</span>
       </span>
       <span className="t12 muted num dur">{dur(s.durationSec)}</span>
+      {onCollect && (
+        <button type="button" className="iconbtn" aria-label={`Add ${s.title} to my collection`} onClick={onCollect}>
+          <ListPlus className="ic-sm" />
+        </button>
+      )}
       {queued ? (
         <span className="iconbtn q-ok" title="In your queue" aria-label="In your queue">
           <Check className="ic-sm" />
@@ -85,6 +90,13 @@ export function StudioAddPanel({
   }, [collection, query]);
 
   const queue = (s: Song) => void act({ op: "queueSong", key: s.key });
+  // library songs not in the collection yet get a second button that puts them in it
+  const mine = useMemo(() => new Set(collection ? [...collection.songs, ...collection.groups.flatMap((g) => g.songs)].map((s) => s.key) : []), [collection]);
+  const collect = async (s: Song) => {
+    if (!s.id) return;
+    const r = await fetch("/api/admin/radio/collections", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ songIds: [s.id] }) });
+    if (r.ok) void loadCollection();
+  };
 
   return (
     <div className="add">
@@ -154,7 +166,7 @@ export function StudioAddPanel({
             </>
           )
         ) : (
-          results.map((s) => <Row key={s.key} s={s} queued={queuedKeys.has(s.key)} busy={busy} onQueue={() => queue(s)} />)
+          results.map((s) => <Row key={s.key} s={s} queued={queuedKeys.has(s.key)} busy={busy} onQueue={() => queue(s)} onCollect={collection && !mine.has(s.key) ? () => void collect(s) : undefined} />)
         )}
       </div>
       <div className="add-foot">

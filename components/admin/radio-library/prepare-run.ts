@@ -102,6 +102,68 @@ async function prepareSong(
 }
 
 // ---------------------------------------------------------------------------------------------------------
+/**
+ * The most songs analysed at once on this PC: every thread but one, at most 12. A browser can't see how much
+ * memory is free, so the RAM it says it has (Chrome and Brave give up to 8 GB) also caps it: 1.5 songs a GB.
+ */
+function maxWorkers(): number {
+  const threads = navigator.hardwareConcurrency || 2;
+  const gb = (navigator as { deviceMemory?: number }).deviceMemory;
+  const byRam = gb ? Math.max(1, Math.floor(gb * 1.5)) : 12;
+  return Math.max(1, Math.min(12, threads - 1, byRam));
+}
+
+/**
+ * Tunes how many songs run at once. Each step is measured over at least a minute and twice as many songs as
+ * run at once: faster than the step before (5% or more) adds one; slower (10% or more) takes one back and
+ * stops growing. A page that stutters (its timers over 250 ms late) takes one back too.
+ */
+function tuner(start: number, most: number, set: (n: number) => void) {
+  let limit = start;
+  let growing = true;
+  let stepFrom = Date.now();
+  let stepDone = 0;
+  let before: number | null = null;
+  let lagged = 0;
+  let tick = Date.now();
+  const watch = setInterval(() => {
+    const late = Date.now() - tick - 500;
+    tick = Date.now();
+    lagged = late > 250 ? lagged + 1 : 0;
+    if (lagged >= 3 && limit > 1) {
+      lagged = 0;
+      growing = false;
+      limit -= 1;
+      set(limit);
+      stepFrom = Date.now();
+      stepDone = 0;
+    }
+  }, 500);
+  return {
+    finished(now: number) {
+      stepDone += 1;
+      const span = now - stepFrom;
+      if (span < 60_000 || stepDone < limit * 2) return;
+      const rate = stepDone / span;
+      if (before !== null && rate < before * 0.9 && limit > 1) {
+        limit -= 1;
+        growing = false;
+      } else if (growing && limit < most && (before === null || rate >= before * 1.05)) {
+        limit += 1;
+      } else if (before !== null && rate < before * 1.05) {
+        growing = false;
+      }
+      before = rate;
+      stepFrom = now;
+      stepDone = 0;
+      set(limit);
+    },
+    close() {
+      clearInterval(watch);
+    },
+  };
+}
+
 // The Library's run: songs claimed from the server a batch at a time, so several PCs share the work.
 
 export interface RunState {
@@ -193,7 +255,11 @@ export function usePrepareRun(onSongDone: (r: SongPrepResult) => void) {
     };
     try {
       const mod = await loadPrepareModule();
-      const workers = mod.defaultWorkers();
+      // Adaptive (Adrien, 2026-11-26): start at half the PC's threads, then add one song at a time while
+      // songs keep finishing faster and the page stays responsive; one back when it gets slower.
+      const most = maxWorkers();
+      const workers = Math.max(1, Math.min(most, Math.floor((navigator.hardwareConcurrency || 2) / 2)));
+      let limit = workers;
       // a refreshed tab carries on: the old run is closed (its songs given back) and this one continues its count
       if (carried) await prepApi({ op: "end", runId: carried.runId }).catch(() => {});
       const startRes = await steady(() => prepApi<{ id: string }>({ op: "start", workers, total, done, failed }), stopped, waiting);
@@ -201,7 +267,12 @@ export function usePrepareRun(onSongDone: (r: SongPrepResult) => void) {
       const id = runId;
       remember({ runId: id, total, done, failed });
       window.addEventListener("pagehide", unload);
-      preparer = mod.createPreparer(workers);
+      // as many analyzers as the most it may grow to: each one's Web Worker only starts when it gets a song
+      preparer = mod.createPreparer(most);
+      const tune = tuner(limit, most, (n) => {
+        limit = n;
+        setState((s) => ({ ...s, workers: n }));
+      });
       const search = pacedSearch(halt);
       setState((s) => ({ ...s, phase: "running", runId: id, workers }));
 
@@ -215,13 +286,13 @@ export function usePrepareRun(onSongDone: (r: SongPrepResult) => void) {
       try {
         while (!halt.current) {
           // keep a few songs in hand beyond those running, so a free analyzer never waits for the server
-          if (!exhausted && queue.length < workers) {
-            const got = await steady(() => prepApi<{ songs: PrepSong[]; stop: boolean }>({ op: "claim", runId: id, n: workers * 2 - queue.length }), stopped, waiting);
+          if (!exhausted && queue.length < limit) {
+            const got = await steady(() => prepApi<{ songs: PrepSong[]; stop: boolean }>({ op: "claim", runId: id, n: limit * 2 - queue.length }), stopped, waiting);
             if (got.stop) break;
             if (!got.songs.length) exhausted = true;
             queue.push(...got.songs);
           }
-          while (queue.length && inFlight.size < workers && !halt.current) {
+          while (queue.length && inFlight.size < limit && !halt.current) {
             const song = queue.shift()!;
             setState((s) => ({ ...s, titleChecks: s.titleChecks || song.needsTitleCheck }));
             const p = prepareSong(song, preparer, search, halt, waiting)
@@ -231,6 +302,7 @@ export function usePrepareRun(onSongDone: (r: SongPrepResult) => void) {
                 else done++;
                 const now = Date.now();
                 finishedAt.push(now);
+                tune.finished(now);
                 while (finishedAt.length && finishedAt[0]! < now - MEASURE_WINDOW_MS) finishedAt.shift();
                 const span = Math.min(MEASURE_WINDOW_MS, now - started);
                 const perMin = now - started >= MEASURE_AFTER_MS && finishedAt.length >= 3 ? (finishedAt.length / span) * 60_000 : null;
@@ -260,6 +332,7 @@ export function usePrepareRun(onSongDone: (r: SongPrepResult) => void) {
         }
       } finally {
         clearInterval(beat);
+        tune.close();
       }
       setState((s) => ({ ...s, phase: "stopping" }));
       await prepApi({ op: "end", runId: id }).catch(() => {});

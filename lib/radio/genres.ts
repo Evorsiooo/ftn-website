@@ -16,6 +16,8 @@ import { bare, guessTitleArtist, mainArtist, squash } from "./metadata";
 const MB = "https://musicbrainz.org/ws/2";
 /** MusicBrainz allows one request a second per IP; a little more keeps us clear of it. */
 export const MB_GAP_MS = 1100;
+/** The pace after a "slow down" answer: one request every 2 seconds. */
+const SLOW_GAP_MS = 2000;
 const MAX_GENRES = 5;
 
 export class MusicBrainzBusy extends Error {}
@@ -50,20 +52,26 @@ export interface GenreLookup {
  */
 export function mbGate(headers: Record<string, string> = {}) {
   let last = 0;
+  // after MusicBrainz has said "slow down" once, this gate keeps a slower pace for the rest of the run
+  let gap = MB_GAP_MS;
   let chain: Promise<unknown> = Promise.resolve();
   return function get<T>(path: string, stop: { current: boolean }): Promise<T | null> {
     const run = chain.then(async () => {
       // 503 is MusicBrainz saying "slow down" (it also happens when the whole service is busy): wait 2, 4,
       // then 8 seconds and ask again; after that the caller pauses the run for a minute
       for (let attempt = 0; ; attempt++) {
-        const wait = last + MB_GAP_MS - Date.now();
+        const wait = last + gap - Date.now();
         if (wait > 0) await new Promise((r) => setTimeout(r, wait));
         last = Date.now();
         if (stop.current) return null;
         const res = await fetch(`${MB}${path}${path.includes("?") ? "&" : "?"}fmt=json`, { headers: { Accept: "application/json", ...headers }, signal: AbortSignal.timeout(15_000) });
         if (res.status === 503 || res.status === 429) {
+          gap = SLOW_GAP_MS;
           if (attempt >= 3) throw new MusicBrainzBusy(`MusicBrainz ${res.status}`);
-          last = Date.now() + 1000 * 2 ** (attempt + 1) - MB_GAP_MS;
+          // its Retry-After (seconds) when it gives one, else 2, 4, 8 seconds
+          const after = Number(res.headers.get("Retry-After"));
+          const pause = Number.isFinite(after) && after > 0 ? Math.min(after, 120) * 1000 : 1000 * 2 ** (attempt + 1);
+          last = Date.now() + pause - gap;
           continue;
         }
         if (!res.ok) return null;

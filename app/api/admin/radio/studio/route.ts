@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (q !== null) {
       const term = `%${q.trim().slice(0, 100).replace(/[%_]/g, "")}%`;
       const songs = await db
-        .select({ key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, thumbnail: radioSongs.thumbnailUrl })
+        .select({ id: radioSongs.id, key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, durationSec: radioSongs.durationSec, thumbnail: radioSongs.thumbnailUrl })
         .from(radioSongs)
         .where(and(eq(radioSongs.archived, false), eq(radioSongs.autodj, true), or(like(radioSongs.title, term), like(radioSongs.artist, term))))
         .limit(25);

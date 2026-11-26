@@ -23,7 +23,7 @@ export type AnalyseOutcome =
 
 /**
  * Analyses at once on this PC: one per core, keeping one core free so the PC stays usable, and at most 7
- * (about 150 to 250 MB of memory each while a song is in progress).
+ * (about 150 to 250 MB of memory each while a song is in progress). The Library page tunes its own number (prepare-run.ts).
  */
 export function defaultWorkers(): number {
   const cores = navigator.hardwareConcurrency || 2;

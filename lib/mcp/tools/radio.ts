@@ -23,7 +23,7 @@ import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
 import { inArray } from "drizzle-orm";
 import { radioSongs } from "@/db/schema";
-import { lookUpGenres, mbGate, parseGenres } from "@/lib/radio/genres";
+import { lookUpGenres, mbGate, MusicBrainzBusy, parseGenres } from "@/lib/radio/genres";
 import { findInCatalog } from "@/lib/radio/metadata";
 import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 import { S, ToolDef, ToolError, pick } from "../types";
@@ -331,6 +331,16 @@ export const radioTools: ToolDef[] = [
     run: (ctx, a) => ctx.call(collectionsRoute.GET, { path: "/api/admin/radio/collections", query: a.owners ? { owners: "1" } : a.userId ? { user: a.userId } : {} }),
   },
   {
+    name: "add_to_collection",
+    title: "Add library songs to your collection",
+    description: "Puts songs already in the library (ids from search_songs) into the signed-in person's own collection, so they can queue them from it in the Studio. Songs already there, and archived songs, are skipped (added tells how many went in). Doesn't change whether the AutoDJ plays them.",
+    input: { songIds: S.strArr("Up to 200 song ids (search_songs)") },
+    required: ["songIds"],
+    kind: "write",
+    summary: (a) => `Add ${Array.isArray(a.songIds) ? a.songIds.length : 0} song(s) to your collection`,
+    run: (ctx, a) => ctx.call(collectionsRoute.POST, { method: "POST", path: "/api/admin/radio/collections", body: pick(a, ["songIds"]) }),
+  },
+  {
     name: "remove_from_collection",
     title: "Take a song out of a collection",
     description: "Removes a song from the signed-in person's collection (or, for site admins and managers, userId's). A song then in no collection and not on the AutoDJ is archived.",
@@ -455,9 +465,14 @@ export const radioTools: ToolDef[] = [
           continue;
         }
         const [m, apple] = await Promise.all([
-          lookUpGenres(song, get, stop, artistGenres).catch(() => null),
+          lookUpGenres(song, get, stop, artistGenres).catch((err) => (err instanceof MusicBrainzBusy ? ("busy" as const) : null)),
           song.genre || song.source === "upload" ? null : findInCatalog(song.title, song.artist, song.durationSec).catch(() => null),
         ]);
+        if (m === "busy") {
+          // not marked as looked up, so the song stays in the list for a later try
+          results.push({ id, title: song.title, result: "MusicBrainz is busy: not looked up, try again in a few minutes" });
+          continue;
+        }
         const patch: Record<string, unknown> = { genreChecked: true };
         if (m?.genres.length) patch.genres = m.genres;
         // only an earlier year than ours: a later one means a reissue or a bonus-track edition was matched
