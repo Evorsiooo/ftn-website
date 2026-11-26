@@ -16,6 +16,8 @@ import * as resyncRoute from "@/app/api/admin/radio/playlists/[id]/resync/route"
 import * as ratingsRoute from "@/app/api/admin/radio/ratings/route";
 import * as replaysRoute from "@/app/api/admin/radio/replays/route";
 import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
+import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
+import { songStatus } from "@/lib/radio/song-status";
 import { LYRIC_SOURCE_IDS } from "@/lib/radio/lyrics-choice";
 import { inArray } from "drizzle-orm";
 import { radioSongs } from "@/db/schema";
@@ -194,9 +196,10 @@ export const radioTools: ToolDef[] = [
     name: "search_songs",
     title: "Search the song library",
     description:
-      "Finds songs in the radio library by title, artist or album, or by genre. Returns id, key, names, length, archived, lyrics settings and genre tags: genre (broad, from Apple), genres (detailed, from MusicBrainz), originalYear (year it first came out), genreCheckedAt (null: not looked up yet) and genreByHand (typed in by a person). Playlists (list_playlists, get_playlist) are the songs' show tags.",
+      "Finds songs in the radio library by title, artist or album, or by genre. Each song has a status: on-air (the AutoDJ may play it), getting-ready (waiting for Prepare: its mixing analysis and, for new songs, title check), missing (no audio file), failed (couldn't be prepared) or archived. Genre tags: genre (broad, from Apple), genres (detailed, from MusicBrainz), originalYear (year it first came out), genreCheckedAt (null: not looked up yet) and genreByHand (typed in by a person). Playlists (list_playlists, get_playlist) are the songs' show tags.",
     input: {
       query: S.str("Words to look for in title, artist or album (leave out to list)"),
+      status: S.enum(["on-air", "getting-ready", "missing", "failed", "archived"], "Only songs with this status"),
       genre: S.str("Only songs whose genre or detailed genres contain this, e.g. disco or hip hop"),
       genreLookedUp: S.bool("true: only songs already looked up for genres; false: only songs not looked up yet"),
       archived: S.bool("true: only archived songs, false: only live ones"),
@@ -206,10 +209,11 @@ export const radioTools: ToolDef[] = [
     kind: "read",
     run: async (ctx, a) => {
       const data = await ctx.call(songsRoute.GET, { path: "/api/admin/radio/songs" });
-      let songs = (data.songs || []) as Array<Record<string, unknown>>;
+      let songs: Array<Record<string, any>> = ((data.songs || []) as Array<Record<string, any>>).map((s) => ({ ...s, status: songStatus(s as any) }));
       const q = String(a.query || "").toLowerCase().trim();
       if (q) songs = songs.filter((s) => [s.title, s.artist, s.album].some((v) => String(v || "").toLowerCase().includes(q)));
       if (typeof a.archived === "boolean") songs = songs.filter((s) => !!s.archived === a.archived);
+      if (typeof a.status === "string") songs = songs.filter((s) => s.status === a.status);
       const g = String(a.genre || "").toLowerCase().trim();
       if (g) songs = songs.filter((s) => String(s.genre || "").toLowerCase().includes(g) || parseGenres(s.genres as string | null).some((x) => x.includes(g)));
       if (typeof a.genreLookedUp === "boolean") songs = songs.filter((s) => !!s.genreCheckedAt === a.genreLookedUp);
@@ -221,10 +225,85 @@ export const radioTools: ToolDef[] = [
     },
   },
   {
+    name: "get_library_status",
+    title: "Song library status",
+    description:
+      "How many songs are on air (the AutoDJ plays only these) and how many are getting ready, songs that need a look (missing file, couldn't be prepared, video covers, kept as music videos, archived), and any Prepare run going on (whose PC, progress, time left). Prepare itself runs in an admin's browser (Library page, Prepare button: several songs analysed at once on that PC); an AI can't start it, but can follow it and stop it with stop_prepare.",
+    input: {},
+    kind: "read",
+    run: async (ctx) => {
+      const [data, prep] = await Promise.all([
+        ctx.call(songsRoute.GET, { path: "/api/admin/radio/songs" }),
+        ctx.call(prepareRoute.GET, { path: "/api/admin/radio/prepare" }),
+      ]);
+      const songs = (data.songs || []) as Array<Record<string, any>>;
+      const c = { onAir: 0, gettingReady: 0, needTitleCheck: 0, missingFile: 0, couldNotPrepare: 0, videoCovers: 0, keptAsMusicVideos: 0, archived: 0 };
+      for (const s of songs) {
+        const st = songStatus(s as any);
+        if (st === "archived") {
+          c.archived++;
+          continue;
+        }
+        if (st === "on-air") c.onAir++;
+        else if (st === "getting-ready") {
+          c.gettingReady++;
+          if (!s.metaCheckedAt) c.needTitleCheck++;
+        } else if (st === "missing") c.missingFile++;
+        else c.couldNotPrepare++;
+        if (s.audioCheck === "unmatched") c.keptAsMusicVideos++;
+        if (typeof s.thumbnail === "string" && /\.ytimg\.com\//.test(s.thumbnail)) c.videoCovers++;
+      }
+      const runs = ((prep.runs || []) as Array<Record<string, any>>).map((r) => {
+        const left = Math.max(0, r.total - r.done - r.failed);
+        return {
+          id: r.id,
+          on: `${r.userName}'s PC`,
+          analysesAtOnce: r.workers,
+          prepared: r.done,
+          of: r.total,
+          couldNotPrepare: r.failed,
+          minutesLeft: r.perMin ? Math.max(1, Math.round(left / r.perMin)) : null,
+          minutesLeftNote: r.perMin ? "measured from this run's pace" : "still measuring (first few minutes)",
+          stopRequested: r.stopRequested,
+        };
+      });
+      return { songs: c, prepareRuns: runs, note: runs.length ? null : c.gettingReady ? "Nothing is being prepared. Someone has to press Prepare on the Library page (in a browser)." : null };
+    },
+  },
+  {
+    name: "stop_prepare",
+    title: "Stop a Prepare run",
+    description: "Stops a Prepare run (get_library_status) on whichever PC it runs: that tab stops at its next song. Songs already done stay on air; the next run carries on with the rest.",
+    input: { id: S.str("The run's id (get_library_status)") },
+    required: ["id"],
+    kind: "write",
+    summary: (a) => `Stop Prepare run ${a.id}`,
+    run: (ctx, a) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "stop", runId: a.id } }),
+  },
+  {
+    name: "retry_unprepared_songs",
+    title: "Try unprepared songs again",
+    description: "Puts the songs that couldn't be prepared back in Getting ready, so the next Prepare run tries them again.",
+    input: {},
+    kind: "write",
+    summary: () => "Put songs that couldn't be prepared back in Getting ready",
+    run: (ctx) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "retry" } }),
+  },
+  {
+    name: "redownload_missing_songs",
+    title: "Download missing song files again",
+    description: "For songs whose audio file is missing: downloads each again from its link (follow with list_imports). They go back to Getting ready.",
+    input: {},
+    kind: "write",
+    openWorld: true,
+    summary: () => "Download the songs whose file is missing again",
+    run: (ctx) => ctx.call(prepareRoute.POST, { method: "POST", path: "/api/admin/radio/prepare", body: { op: "redownload" } }),
+  },
+  {
     name: "add_songs",
     title: "Add songs to the library",
     description:
-      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews.",
+      "Adds music by link: one song, or a whole playlist / album (YouTube, YouTube Music, SoundCloud or Spotify), which also becomes a library playlist. The FTN downloader fetches the files; follow progress with list_imports. Spotify tracks it isn't sure about wait in list_imports reviews. New songs arrive as Getting ready: the AutoDJ plays them once someone runs Prepare on the Library page (get_library_status). A broadcaster's songs queued in the Studio are prepared by their own browser.",
     input: { url: S.str("The link") },
     required: ["url"],
     kind: "write",
@@ -245,7 +324,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "list_imports",
     title: "Song imports in progress",
-    description: "Recent imports with their progress, and Spotify tracks waiting for someone to choose the right match (reviews).",
+    description: "Recent imports with their progress, and Spotify tracks waiting for someone to choose the right match (reviews). Downloaded songs land in Getting ready (get_library_status).",
     input: {},
     kind: "read",
     openWorld: true,

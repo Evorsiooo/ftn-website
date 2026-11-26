@@ -23,6 +23,8 @@ type Body = {
   runId?: string;
   workers?: number;
   total?: number;
+  done?: number;
+  failed?: number;
   n?: number;
   songId?: string;
   titleChecked?: boolean;
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
   try {
     switch (body.op) {
       case "start":
-        return NextResponse.json(await startRun(ctx.db, ctx.user, Number(body.workers) || 1, Number(body.total) || 0));
+        return NextResponse.json(await startRun(ctx.db, ctx.user, Number(body.workers) || 1, Number(body.total) || 0, { done: Number(body.done) || 0, failed: Number(body.failed) || 0 }));
       case "claim":
         return NextResponse.json(await claim(ctx.db, runId, Number(body.n) || 1));
       case "done": {

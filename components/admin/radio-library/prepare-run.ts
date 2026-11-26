@@ -196,7 +196,7 @@ export function usePrepareRun(onSongDone: (r: SongPrepResult) => void) {
       const workers = mod.defaultWorkers();
       // a refreshed tab carries on: the old run is closed (its songs given back) and this one continues its count
       if (carried) await prepApi({ op: "end", runId: carried.runId }).catch(() => {});
-      const startRes = await steady(() => prepApi<{ id: string }>({ op: "start", workers, total }), stopped, waiting);
+      const startRes = await steady(() => prepApi<{ id: string }>({ op: "start", workers, total, done, failed }), stopped, waiting);
       runId = startRes.id;
       const id = runId;
       remember({ runId: id, total, done, failed });
@@ -377,9 +377,4 @@ export function useStudioPrepare(keys: string[], mine: string[]): StudioPrep {
 }
 
 /** A song's state in the Library (On air, Getting ready, or set aside). */
-export function songStatus(s: Pick<Song, "archived" | "analysedAt" | "metaCheckedAt" | "prepError">): "archived" | "on-air" | "getting-ready" | "missing" | "failed" {
-  if (s.archived) return "archived";
-  if (s.prepError === "missing") return "missing";
-  if (s.prepError === "failed") return "failed";
-  return s.analysedAt && s.metaCheckedAt ? "on-air" : "getting-ready";
-}
+export { songStatus } from "@/lib/radio/song-status";
