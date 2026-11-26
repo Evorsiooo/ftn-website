@@ -35,6 +35,9 @@ export interface ReportDiagnostics {
     songsLinedUp?: number | null;
     rev?: number | null;
     maxFreezeMs?: number | null;
+    jumps?: number | null;
+    speedChanges?: number | null;
+    listeningSec?: number | null;
   } | null;
   log?: string[];
 }
@@ -106,6 +109,10 @@ export function describeDiagnostics(d: ReportDiagnostics | null | undefined): { 
     if (typeof e.outputLatencyMs === "number") rows.push(["Sound delay", `${ms(e.outputLatencyMs)} (speakers and browser)`]);
     if (e.audioState && e.audioState !== "running") rows.push(["Audio", `Browser audio is ${e.audioState}`]);
     if (typeof e.maxFreezeMs === "number") rows.push(["Longest freeze", e.maxFreezeMs >= 1000 ? `${(e.maxFreezeMs / 1000).toFixed(1)} s` : ms(e.maxFreezeMs)]);
+    if (typeof e.jumps === "number" && typeof e.speedChanges === "number") {
+      const over = typeof e.listeningSec === "number" ? ` in ${mmss(e.listeningSec)} of listening` : "";
+      rows.push(["Keeping in step", `${e.jumps} jump${e.jumps === 1 ? "" : "s"}, ${e.speedChanges} speed change${e.speedChanges === 1 ? "" : "s"}${over}`]);
+    }
     if (typeof e.songsLinedUp === "number") rows.push(["Songs lined up", `${e.songsLinedUp}${typeof e.rev === "number" ? ` (running order v${e.rev})` : ""}`]);
   }
   if (rows.length) groups.push({ title: "The player", rows });
@@ -178,6 +185,9 @@ export function cleanDiagnostics(raw: unknown): ReportDiagnostics | null {
       songsLinedUp: num(e.songsLinedUp) ?? null,
       rev: num(e.rev) ?? null,
       maxFreezeMs: num(e.maxFreezeMs) ?? null,
+      jumps: num(e.jumps) ?? null,
+      speedChanges: num(e.speedChanges) ?? null,
+      listeningSec: num(e.listeningSec) ?? null,
     };
   }
   if (Array.isArray(r.log)) out.log = r.log.filter((l: unknown) => typeof l === "string").slice(-LOG_LINES).map((l: string) => str(l, 300)!);

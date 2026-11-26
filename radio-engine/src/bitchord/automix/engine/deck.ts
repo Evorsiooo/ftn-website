@@ -48,6 +48,8 @@ const SERVO_MS = 40;
  * otherwise drifts with rate nudges. Being a few hundred ms out is fine for a radio; audible
  * repeats aren't.
  */
+/** FTN radio: how long the deck must read as off before it jumps. */
+const JUMP_AFTER_SEC = 1;
 const SEEK_STORM = { count: 3, windowSec: 10, looseSec: 60, looseErrorSec: 3 };
 
 /**
@@ -99,6 +101,13 @@ export class Deck {
   /** Firefox: correcting a drift (see COARSE_SERVO). */
   private correcting = false;
   private appliedNudge = 0;
+  /** Recent [ctx time, error] readings, for the jump decision. */
+  private jumpReadings: [number, number][] = [];
+  /** For the problem report: jumps and speed changes the servo made to stay in step. */
+  jumps = 0;
+  speedChanges = 0;
+  /** Told about each jump (the engine logs it). */
+  onCorrection?: (line: string) => void;
 
   constructor(
     readonly id: string,
@@ -211,6 +220,7 @@ export class Deck {
     this.errors = [];
     this.correcting = false;
     this.appliedNudge = 0;
+    this.jumpReadings = [];
     this.ensureTimer();
     this.dispatch();
   }
@@ -338,7 +348,14 @@ export class Deck {
     if (expected === null || !this.timeline.activeAt(at) || audio.paused || audio.seeking || now < this.seekingUntil) return;
     const error = audio.currentTime - expected;
     const loose = now < this.looseUntil;
-    if (Math.abs(error) > (loose ? SEEK_STORM.looseErrorSec : SEEK_ERROR_SEC)) {
+    // FTN radio: a jump only when the deck has been off for JUMP_AFTER_SEC of readings (their
+    // median), never on one reading: Firefox's currentTime wobbles by up to ~180 ms and a busy
+    // device's freeze adds to it, and one bad reading made the song jump for nothing.
+    this.jumpReadings = this.jumpReadings.filter(([t]) => now - t < JUMP_AFTER_SEC);
+    this.jumpReadings.push([now, error]);
+    const spanned = now - this.jumpReadings[0]![0] >= JUMP_AFTER_SEC * 0.8;
+    const offBy = [...this.jumpReadings.map(([, e]) => e)].sort((a, b) => a - b)[this.jumpReadings.length >> 1]!;
+    if (spanned && Math.abs(offBy) > (loose ? SEEK_STORM.looseErrorSec : SEEK_ERROR_SEC)) {
       this.seekTimes = this.seekTimes.filter((t) => now - t < SEEK_STORM.windowSec);
       this.seekTimes.push(now);
       if (!loose && this.seekTimes.length >= SEEK_STORM.count) {
@@ -349,6 +366,9 @@ export class Deck {
       audio.currentTime = expected + this.latencySec * rate;
       this.seekingUntil = now + 0.3;
       this.errors = [];
+      this.jumpReadings = [];
+      this.jumps++;
+      this.onCorrection?.(`jumped ${Math.round(Math.abs(offBy) * 1000)} ms ${offBy > 0 ? 'back' : 'ahead'} to stay in step`);
       return;
     }
     // currentTime moves in audio-callback steps; a short median keeps the
@@ -362,7 +382,10 @@ export class Deck {
     const limit = this.gain.gain.value < 0.3 ? MAX_QUIET_NUDGE : MAX_NUDGE;
     const nudge = Math.abs(smoothed) < DEADBAND_SEC ? 0 : Math.max(-limit, Math.min(limit, -smoothed * SERVO_GAIN * (limit / MAX_NUDGE)));
     const want = rate * (1 + nudge);
-    if (Math.abs(audio.playbackRate - want) > 0.0015) audio.playbackRate = want;
+    if (Math.abs(audio.playbackRate - want) > 0.0015) {
+      audio.playbackRate = want;
+      this.speedChanges++;
+    }
   }
 
   /** Firefox's servo (see COARSE_SERVO): few, steady rate changes. */
@@ -378,7 +401,10 @@ export class Deck {
     const settled = rate === 1 && nudge === 0 && this.audio.playbackRate !== 1; // a glide's last small step
     if (nudge !== this.appliedNudge || settled || Math.abs(this.audio.playbackRate - want) > c.rateStep) {
       this.appliedNudge = nudge;
-      if (Math.abs(this.audio.playbackRate - want) > 0.0015) this.audio.playbackRate = want;
+      if (Math.abs(this.audio.playbackRate - want) > 0.0015) {
+        this.audio.playbackRate = want;
+        this.speedChanges++;
+      }
     }
   }
 
