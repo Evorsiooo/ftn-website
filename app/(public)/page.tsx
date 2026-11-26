@@ -12,6 +12,7 @@ import { syncAllConfiguredChannels, isChannelMatching } from "@/lib/youtube";
 import { desc, eq } from "drizzle-orm";
 import { getRequestContext } from "@cloudflare/next-on-pages";
 import { plusHref, watchPath } from "@/lib/plus-links";
+import { heroTitleSize } from "@/lib/hero-title";
 import { isPendingTwitchRecording } from "@/lib/twitch-id";
 import type { Metadata } from "next";
 import { homeJsonLd, jsonLdString, SITE_DESCRIPTION, SITE_URL } from "@/lib/seo";
@@ -21,6 +22,13 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   alternates: { canonical: SITE_URL },
 };
+
+// Long video titles get a smaller headline so the hero keeps its shape (see lib/hero-title.ts).
+const HERO_TITLE_CLASSES = {
+  short: "text-4xl sm:text-5xl lg:text-6xl xl:text-7xl",
+  medium: "text-3xl sm:text-4xl lg:text-5xl xl:text-6xl",
+  long: "text-[1.75rem] sm:text-4xl lg:text-[2.6rem] xl:text-5xl",
+} as const;
 
 export default async function HomePage() {
   let articleList: any[] = [];
@@ -128,7 +136,9 @@ export default async function HomePage() {
                     <span aria-hidden className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" /> Live now on FTN+
                   </div>
                 )}
-                <h1 className="text-4xl font-extrabold leading-[0.98] sm:text-5xl lg:text-6xl xl:text-7xl">{featuredVideo.title}</h1>
+                <h1 className={`line-clamp-4 pb-[0.06em] font-extrabold leading-[0.98] [overflow-wrap:anywhere] ${HERO_TITLE_CLASSES[heroTitleSize(featuredVideo.title)]}`} title={featuredVideo.title}>
+                  {featuredVideo.title}
+                </h1>
                 {featuredVideo.description && (
                   <p className="mt-5 line-clamp-3 max-w-xl text-lg opacity-85 sm:text-xl">{featuredVideo.description}</p>
                 )}
