@@ -357,9 +357,9 @@ export default function StudioPage() {
                 <button type="button" className="btn ghost hide-m" disabled={busy} onClick={() => void act({ op: "leave" })} title="Leave the show; it carries on without you">
                   Leave
                 </button>
-                <button type="button" className={muted ? "btn strong" : "btn"} onClick={() => setMuted((m) => !m)} aria-pressed={muted}>
+                <button type="button" className={muted ? "btn strong has-lbl-m" : "btn has-lbl-m"} onClick={() => setMuted((m) => !m)} aria-pressed={muted} aria-label={muted ? "Unmute me" : "Mute me"}>
                   {muted ? <MicOff className="ic" /> : <Mic className="ic" />}
-                  {muted ? "Unmute me" : "Mute me"}
+                  <span className="lbl-m">{muted ? "Unmute me" : "Mute me"}</span>
                 </button>
                 <button type="button" className="btn danger" disabled={busy} onClick={endShow}>
                   End show

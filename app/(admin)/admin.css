@@ -532,7 +532,8 @@
   .adm .vi { border-left: 0; border-top: 1px solid var(--a-border); overflow: visible; padding: 12px; }
   .adm .studio2 { display: block; height: 100%; overflow-y: auto; }
   .adm .studio2 .left { overflow: visible; border-right: 0; }
-  .adm .music { display: block; border-top: 1px solid var(--a-border); }
+  .adm .music { display: block; }
+  .adm .studio2 .left section:last-child .col-body { border-bottom: 1px solid var(--a-border); }
   .adm .music .q { overflow: visible; border-right: 0; padding: 12px; }
   .adm .add { border-top: 1px solid var(--a-border); }
   .adm .add-list { overflow: visible; }
@@ -779,6 +780,8 @@
 /* The radio bar (components/plus/plus.css .pbar, 76px; 64px up to 1000px wide) is a row of the screen, not
    on top of the admin: the frame ends where the bar starts, so it never hides anything. */
 html[data-radio-mini] .adm-app { height: calc(100dvh - 76px); }
+/* the public site makes room with body padding (plus.css); here the frame itself is shorter */
+body:has(.adm-app) { padding-bottom: 0 !important; }
 html[data-radio-mini] .adm .savebar { bottom: calc(76px + 16px); }
 html[data-radio-mini] .adm-toasts { bottom: calc(76px + 16px); }
 @media (max-width: 1000px) {
@@ -791,8 +794,10 @@ html[data-radio-mini] .adm-toasts { bottom: calc(76px + 16px); }
 }
 
 /* Library › Collections */
-.adm .coll { height: 100%; padding: 16px 20px 32px; display: grid; gap: 16px; align-content: start; max-width: 900px; }
+.adm .coll { height: 100%; padding: 16px 20px 32px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-content: start; max-width: 900px; }
 .adm .coll > select { justify-self: start; }
+.adm .coll > *, .adm .coll .rows > .r > * { min-width: 0; }
+.adm .coll .rows > .r > .coll-cover, .adm .coll .rows > .r > .coll-dj, .adm .coll .rows > .r > .iconbtn { flex: none; }
 .adm .coll-h { font-size: 14px; font-weight: 600; margin: 0 0 8px; }
 .adm .coll-h .muted { font-weight: 400; }
 .adm .coll .rows > .r { padding: 8px 12px; gap: 10px; }
