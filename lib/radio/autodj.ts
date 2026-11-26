@@ -12,6 +12,12 @@ export const TIMELINE_VERSION = 1;
 export const ANALYSIS_VERSION = 8;
 /** A new mix must start at least this far in the server's future when it's stored. */
 export const MIN_MIX_LEAD_MS = 20_000;
+/**
+ * The radio counts as run out (a fresh start is allowed) this long before its last song ends: the same
+ * rule as the browsers' (radio-engine needsWork/extend), so a song that couldn't be mixed hands over at
+ * once rather than after a refused try and a 15 s wait.
+ */
+export const RUN_OUT_EARLY_MS = 5_000;
 /** A fresh start begins within this window of the server's now. */
 export const FRESH_START_WINDOW_MS = 60_000;
 export const MAX_ITEMS = 12;
@@ -199,7 +205,7 @@ export function historyAfter(tl: RadioTimeline | null): string[] {
 export function withPlayed(current: RadioTimeline | null, next: RadioTimeline, nowMs: number, heardBefore = nowMs): RadioTimeline {
   const kept = { ...next, storedAtMs: nowMs, playlists: current?.playlists ?? {} };
   if (!current) return { ...kept, played: [], recent: [] };
-  const fresh = endOfTimelineMs(current) < nowMs;
+  const fresh = endOfTimelineMs(current) < nowMs + RUN_OUT_EARLY_MS;
   const dropped = fresh ? current.items.length : Math.min(current.items.length, Math.max(0, next.firstK - current.firstK));
   const before = fresh ? Math.min(heardBefore, (current.storedAtMs ?? Infinity) + 1) : heardBefore;
   const left: string[] = [];
@@ -557,7 +563,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 
 /** The index in [next] of its first song that [current] didn't have (all of them for a fresh start). */
 export function firstNewItem(current: RadioTimeline | null, next: RadioTimeline, nowMs: number): number {
-  if (!current || endOfTimelineMs(current) < nowMs) return 0;
+  if (!current || endOfTimelineMs(current) < nowMs + RUN_OUT_EARLY_MS) return 0;
   return Math.max(0, current.items.length - (next.firstK - current.firstK));
 }
 
@@ -579,7 +585,7 @@ export function checkTimelineChange(current: RadioTimeline | null, next: unknown
   // Songs already lined up were checked when they were added (and must stay
   // identical, below); only new ones are compared with the library, so a song
   // renamed or archived in the admin panel since doesn't block the next write.
-  const fresh = !current || endOfTimelineMs(current) < nowMs;
+  const fresh = !current || endOfTimelineMs(current) < nowMs + RUN_OUT_EARLY_MS;
   const newFrom = firstNewItem(current, tl, nowMs);
   for (const [i, item] of tl.items.entries()) {
     if (!isObj(item)) return 'bad item';

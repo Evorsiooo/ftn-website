@@ -340,10 +340,12 @@ export class RadioEngine {
   // ---- The running order ------------------------------------------------------------------
 
   private adopt(tl: RadioTimeline | null): void {
-    if (tl && (!this.timeline || tl.rev > this.timeline.rev)) {
-      this.timeline = tl;
-      this.log(`running order rev ${tl.rev}: ${tl.items.map((i) => i.title).join(' → ')}`);
-    }
+    if (!tl || (this.timeline && tl.rev < this.timeline.rev)) return;
+    // the same revision too: after this browser stores a running order, the website's copy of it carries
+    // what the website added (the next song it picked, nextPick), which this browser's own copy lacks
+    const newer = !this.timeline || tl.rev > this.timeline.rev;
+    this.timeline = tl;
+    if (newer) this.log(`running order rev ${tl.rev}: ${tl.items.map((i) => i.title).join(' → ')}`);
   }
 
   private async refresh(): Promise<void> {
