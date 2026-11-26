@@ -147,6 +147,7 @@ export class RadioEngine {
     };
     this.elements = [make(), make()];
     this.decks = [new Deck('A', this.ctx, this.elements[0], this.master), new Deck('B', this.ctx, this.elements[1], this.master)];
+    for (const d of this.decks) d.onCorrection = (line) => this.log(`deck ${d.id}: ${line}`);
   }
 
   private log(line: string) {
@@ -507,6 +508,9 @@ export class RadioEngine {
       autodj: this.workNote,
       rev: tl.rev,
       maxTickGapMs: Math.round(this.maxTickGapMs),
+      jumps: this.decks[0].jumps + this.decks[1].jumps,
+      speedChanges: this.decks[0].speedChanges + this.decks[1].speedChanges,
+      listeningSec: Math.round(this.ctx.currentTime),
     };
   }
 

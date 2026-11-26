@@ -47,6 +47,9 @@ export interface EngineDiagnostics {
   songsLinedUp: number | null;
   rev: number | null;
   maxFreezeMs: number | null;
+  jumps: number | null;
+  speedChanges: number | null;
+  listeningSec: number | null;
 }
 type StationModule = { startStation(opts: { listenerId?: string; volume?: number; log?: (line: string) => void }): Promise<Station> };
 

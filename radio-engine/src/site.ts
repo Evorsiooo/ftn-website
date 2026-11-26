@@ -39,6 +39,10 @@ export interface StationDiagnostics {
   rev: number | null;
   /** The longest gap between two engine ticks (a frozen tab or a busy device). */
   maxFreezeMs: number | null;
+  /** Jumps and speed changes the decks made to stay in step, over listeningSec. */
+  jumps: number | null;
+  speedChanges: number | null;
+  listeningSec: number | null;
 }
 
 function diagnosticsOf(engine: RadioEngine): StationDiagnostics {
@@ -53,6 +57,9 @@ function diagnosticsOf(engine: RadioEngine): StationDiagnostics {
     songsLinedUp: num(s.songsLinedUp),
     rev: num(s.rev),
     maxFreezeMs: num(s.maxTickGapMs),
+    jumps: num(s.jumps),
+    speedChanges: num(s.speedChanges),
+    listeningSec: num(s.listeningSec),
   };
 }
 
