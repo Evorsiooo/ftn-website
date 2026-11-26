@@ -11,6 +11,7 @@ import { ListenButton, Volume } from "./radio-controls";
 import { CallInButton, CallInCard, CallInProvider, useCallInOpen } from "./call-in";
 import { Replays } from "./replays";
 import { RecentlyPlayed } from "./recently-played";
+import { ReportButton } from "./report-problem";
 import { MotionArtwork } from "@/components/radio/motion-artwork";
 import { useRadioShortcuts } from "@/components/radio/use-radio-shortcuts";
 import { useTrackMotion } from "@/lib/radio/apple/motionArt";
@@ -302,6 +303,7 @@ function Secondary({ v }: { v: StationView }) {
     <>
       <span className="gap" />
       <Votes songKey={v.songKey} />
+      <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source="page" />
       <Volume />
       <RecentlyPlayed songKey={v.songKey} />
       <button className="ib" aria-label="Open in a popout window" onClick={r.popout}>
@@ -475,6 +477,7 @@ export function FullScreen() {
             <ListenButton big={false} />
             <span className="gap" />
             <Votes songKey={v.songKey} />
+            <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source="full" />
             <Volume />
           </div>
           {meta(v) && <div className="rmeta">{meta(v)}</div>}
@@ -592,6 +595,7 @@ export function PopoutPage() {
             {v.mode !== "offair" && <ListenButton big={false} />}
             <span className="gap" />
             <Votes songKey={v.songKey} />
+            <ReportButton songKey={v.songKey} songTitle={v.songTitle} songArtist={v.songArtist} art={v.cover ? v.art : null} source="popout" />
             <Volume />
           </div>
           {meta(v) && <div className="rmeta">{meta(v)}</div>}

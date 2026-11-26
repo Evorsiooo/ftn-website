@@ -330,7 +330,7 @@ export const siteTools: ToolDef[] = [
   {
     name: "get_site_settings",
     title: "Site settings",
-    description: "Site-wide settings: sign-in, who sees FTN+ and the tip line, auto-mod and banned words, YouTube/Twitch channels, home page rows, hidden videos, links, donation banner.",
+    description: "Site-wide settings: sign-in, who sees FTN+ and the tip line, who can send radio problem reports, auto-mod and banned words, YouTube/Twitch channels, home page rows, hidden videos, links, donation banner.",
     input: {},
     kind: "read",
     run: (ctx) => ctx.call(configRoute.GET, { path: "/api/radio/config" }),
@@ -339,7 +339,7 @@ export const siteTools: ToolDef[] = [
     name: "update_site_settings",
     title: "Change site settings",
     description:
-      "Changes site settings: only the fields given (same names as get_site_settings, e.g. donationBannerEnabled, bannedWords, autoModEnabled, youtubeChannels, twitchChannels, hiddenVideoIds, socialLinks, discordUrl, ftnPlusAccess, tiplineAccess, allowSignIn, authMode).",
+      "Changes site settings: only the fields given (same names as get_site_settings, e.g. donationBannerEnabled, bannedWords, autoModEnabled, youtubeChannels, twitchChannels, hiddenVideoIds, socialLinks, discordUrl, ftnPlusAccess, tiplineAccess, reportsAccess (public, members_only or off: who can send radio problem reports), allowSignIn, authMode).",
     input: { settings: S.obj("The settings to change") },
     required: ["settings"],
     kind: "danger",

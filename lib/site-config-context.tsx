@@ -11,6 +11,8 @@ interface SiteConfigContextType {
   streamUrl: string;
   webradioEnabled: boolean;
   ftnPlusAccess: "public" | "members_only";
+  /** Who can send radio problem reports (Settings > Sign-in). "off" hides the report button. */
+  reportsAccess: "public" | "members_only" | "off";
   discordUrl: string;
   socialLinks: SocialLink[];
 }
@@ -19,6 +21,7 @@ const DEFAULTS: SiteConfigContextType = {
   streamUrl: "https://icecast.ftnmedia.org/live.mp3",
   webradioEnabled: true,
   ftnPlusAccess: "public",
+  reportsAccess: "public",
   discordUrl: "https://discord.gg/ftn",
   socialLinks: [
     { id: "sl-discord", name: "Discord Server", url: "https://discord.gg/ftn" },
@@ -41,6 +44,7 @@ export function SiteConfigProvider({ children }: { children: React.ReactNode }) 
           streamUrl: data.streamUrl || prev.streamUrl,
           webradioEnabled: data.webradioEnabled !== undefined ? data.webradioEnabled : prev.webradioEnabled,
           ftnPlusAccess: data.ftnPlusAccess === "members_only" ? "members_only" : data.ftnPlusAccess === "public" ? "public" : prev.ftnPlusAccess,
+          reportsAccess: data.reportsAccess === "members_only" || data.reportsAccess === "off" ? data.reportsAccess : "public",
           discordUrl: data.discordUrl || prev.discordUrl,
           socialLinks: Array.isArray(data.socialLinks) && data.socialLinks.length > 0 ? data.socialLinks : prev.socialLinks,
         }));

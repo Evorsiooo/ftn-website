@@ -14,6 +14,7 @@ import * as playlistsRoute from "@/app/api/admin/radio/playlists/route";
 import * as playlistRoute from "@/app/api/admin/radio/playlists/[id]/route";
 import * as resyncRoute from "@/app/api/admin/radio/playlists/[id]/resync/route";
 import * as ratingsRoute from "@/app/api/admin/radio/ratings/route";
+import * as reportsRoute from "@/app/api/admin/radio/reports/route";
 import * as replaysRoute from "@/app/api/admin/radio/replays/route";
 import * as replayRoute from "@/app/api/admin/radio/replays/[id]/route";
 import * as prepareRoute from "@/app/api/admin/radio/prepare/route";
@@ -463,6 +464,57 @@ export const radioTools: ToolDef[] = [
     input: {},
     kind: "read",
     run: (ctx) => ctx.call(ratingsRoute.GET, { path: "/api/admin/radio/ratings" }),
+  },
+  // ── problem reports (the flag on the radio player) ──
+  {
+    name: "list_reports",
+    title: "List radio problem reports",
+    description:
+      "Problems listeners reported from the radio player, newest first (at most 300): song reports (too long, wrong song, wrong title or artist, bad sound, wrong lyrics, not for the radio) and bugs. Each says whether the sender was signed in (username) or not, and whether diagnostics were attached. Also returns how many reports have each status.",
+    input: {
+      status: S.enum(["new", "fixed", "dismissed", "all"], "Which reports (default new)"),
+      kind: S.enum(["song", "bug"], "Only song reports or only bug reports"),
+      q: S.str("Search in the reason, comment, song, artist and username"),
+      diagnostics: S.bool("Include each report's diagnostics (browser, player state, sync, last player messages)"),
+    },
+    kind: "read",
+    run: (ctx, a) =>
+      ctx.call(reportsRoute.GET, { path: "/api/admin/radio/reports", query: { status: a.status, kind: a.kind, q: a.q, diagnostics: a.diagnostics ? "1" : undefined } }),
+  },
+  {
+    name: "get_report",
+    title: "Read a radio problem report",
+    description: "One report with its diagnostics, if the listener attached them: browser and device, player state, how far from the station clock, longest freeze, songs lined up, and the player's last messages.",
+    input: { id: S.str("The report's id (list_reports)") },
+    required: ["id"],
+    kind: "read",
+    run: (ctx, a) => ctx.call(reportsRoute.GET, { path: "/api/admin/radio/reports", query: { id: a.id } }),
+  },
+  {
+    name: "set_report_status",
+    title: "Mark radio reports fixed or dismissed",
+    description: "Changes the status of one or more reports: fixed, dismissed, or back to new.",
+    input: { ids: S.strArr("The reports' ids (list_reports)"), status: S.enum(["new", "fixed", "dismissed"], "The new status") },
+    required: ["ids", "status"],
+    kind: "write",
+    summary: (a) => `Mark ${Array.isArray(a.ids) ? a.ids.length : 0} radio report(s) ${a.status}`,
+    run: (ctx, a) => ctx.call(reportsRoute.PUT, { method: "PUT", path: "/api/admin/radio/reports", body: { ids: a.ids, status: a.status } }),
+  },
+  {
+    name: "block_report_sender",
+    title: "Block a report sender",
+    description:
+      "Stops the sender of a report from sending more reports (their account if they were signed in, otherwise their network) and dismisses their new reports. unblock: true lifts it.",
+    input: {
+      id: S.str("A report they sent (list_reports)"),
+      days: S.int("How long, in days (default 30; 0 = for good)", { minimum: 0, maximum: 3650 }),
+      unblock: S.bool("Lift the block instead"),
+    },
+    required: ["id"],
+    kind: "danger",
+    summary: (a) => (a.unblock ? `Unblock the sender of report ${a.id}` : `Block the sender of report ${a.id}${a.days === 0 ? " for good" : ` for ${a.days ?? 30} days`}`),
+    run: (ctx, a) =>
+      ctx.call(reportsRoute.PUT, { method: "PUT", path: "/api/admin/radio/reports", body: a.unblock ? { action: "unblock", id: a.id } : { action: "block", id: a.id, days: a.days } }),
   },
   // ── playlists ──
   {
