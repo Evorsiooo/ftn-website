@@ -11,7 +11,7 @@ import {
   radioStudioQueue,
   radioStudioSessions,
 } from "@/db/schema";
-import { endOfTimelineMs, nowPlaying, onAirSongs, playHistory, PLAYED_MAX, repeatWindow, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
+import { endOfTimelineMs, nowPlaying, onAirSongs, playHistory, repeatWindow, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
 import { rotationFilter } from "./rotation";
 import { serverPick } from "./server-pick";
 import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
@@ -334,13 +334,8 @@ export async function resumeMusic(db: DbClient, s: Session, publish = true): Pro
   const item = tl?.items.find((i) => i.key === s.pausedKey) ?? null;
   if (bucket && tl && item) {
     const startMs = now + 4000;
-    // the songs before the paused one were heard; the paused one plays again from where it stopped, and the
-    // ones lined up after it never played
-    const before = tl.items.slice(0, tl.items.indexOf(item)).map((i) => i.key).reverse();
     const fresh: RadioTimeline = {
       ...tl,
-      played: [...before, ...(tl.played ?? [])].slice(0, PLAYED_MAX),
-      storedAtMs: now,
       rev: tl.rev + 1,
       firstK: tl.firstK + tl.items.length + 1,
       anchorMs: startMs,
@@ -349,9 +344,14 @@ export async function resumeMusic(db: DbClient, s: Session, publish = true): Pro
       items: [item],
       mixes: [],
     };
-    fresh.nextPick = await serverPick(db, bucket, fresh, new Map()).catch(() => null);
-    await bucket.put(AUTODJ_KEY, JSON.stringify(fresh), { httpMetadata: { contentType: "application/json" } });
-    if (s.replayId) await saveTimelinePart(db, s.replayId, fresh);
+    // the history keeps what was heard before the pause (the songs lined up after it never played); the paused
+    // song carries on, so it isn't listed yet
+    const stored = withPlayed(tl, fresh, now, s.pausedAt.getTime());
+    if (stored.recent?.[0]?.key === item.key) stored.recent = stored.recent.slice(1);
+    if (stored.played?.[0] === item.key) stored.played = stored.played.slice(1);
+    stored.nextPick = await serverPick(db, bucket, stored, new Map()).catch(() => null);
+    await bucket.put(AUTODJ_KEY, JSON.stringify(stored), { httpMetadata: { contentType: "application/json" } });
+    if (s.replayId) await saveTimelinePart(db, s.replayId, stored);
   }
   await db.update(radioStudioSessions).set({ pausedAt: null, pausedKey: null, pausedSec: null }).where(eq(radioStudioSessions.id, s.id));
   if (s.replayId) {

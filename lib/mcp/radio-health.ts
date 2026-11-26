@@ -3,7 +3,7 @@
 // "no Icecast source" just means nobody is live.
 import type { DbClient } from "@/db";
 import { edgeReachable, getSecureRadioSettings, getStreamConfig, probeStream } from "@/lib/radio";
-import { endOfTimelineMs, historyAfter, nowPlaying, virtualOnAir, type RadioTimeline } from "@/lib/radio/autodj";
+import { endOfTimelineMs, historyAfter, nowPlaying, recentlyPlayed, virtualOnAir, type RadioTimeline } from "@/lib/radio/autodj";
 import { cachedPlayableSongs } from "@/lib/radio/library";
 import { LIVE_KEY, type RadioLive } from "@/lib/radio/live";
 import { readMixReports } from "@/lib/radio/mix-reports";
@@ -62,6 +62,9 @@ export async function radioHealth(db: DbClient) {
       : { state: "nothing to play" };
   }
 
+  // The Radio page's "Recently played" list, worked out the same way (lib/radio/autodj.ts).
+  const recent = library?.length ? recentlyPlayed(tl, library, now, 8).map((s) => ({ song: song(s), startedAt: new Date(s.at).toISOString() })) : [];
+
   const { current, next } = schedule ? resolveCurrentAndNext(schedule.shows, schedule.broadcasts) : { current: null, next: null };
   const show = (o: typeof current) =>
     o && { name: o.show?.name ?? null, presenter: o.show?.presenter ?? null, starts: new Date(o.start).toISOString(), ends: new Date(o.end).toISOString() };
@@ -85,6 +88,7 @@ export async function radioHealth(db: DbClient) {
     ok: problems.length === 0,
     problems,
     autodj,
+    recentlyPlayed: recent,
     library: library
       ? {
           playableSongs: library.length,

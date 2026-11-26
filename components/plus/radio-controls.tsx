@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRadio } from "@/components/radio/radio-provider";
 import { loadStationModule } from "@/components/radio/use-radio-player";
+import { gainFromPercent, sliderPercent } from "@/lib/radio/volume";
 import * as I from "./icons";
 
 /** Listen, which becomes Stop. There's no pause: the radio is the same for everyone, and Listen rejoins it live. */
@@ -35,13 +36,13 @@ export function ListenButton({ big = true }: { big?: boolean }) {
 
 export function Volume() {
   const r = useRadio();
-  const v = Math.round((r.muted ? 0 : r.volume) * 100);
+  const v = sliderPercent(r.muted ? 0 : r.volume);
   return (
     <label className="vol">
       <button type="button" className="volbtn" aria-label={r.muted ? "Unmute" : "Mute"} onClick={r.toggleMute}>
         {r.muted || v === 0 ? <I.VolOff /> : <I.Vol />}
       </button>
-      <input type="range" min={0} max={100} value={v} aria-label="Volume" onChange={(e) => r.setVolume(+e.target.value / 100)} style={{ ["--v" as string]: `${v}%` }} />
+      <input type="range" min={0} max={100} value={v} aria-label="Volume" onChange={(e) => r.setVolume(gainFromPercent(+e.target.value))} style={{ ["--v" as string]: `${v}%` }} />
     </label>
   );
 }
