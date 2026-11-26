@@ -11,7 +11,9 @@ import {
   radioStudioQueue,
   radioStudioSessions,
 } from "@/db/schema";
-import { endOfTimelineMs, nowPlaying, onAirSongs, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
+import { endOfTimelineMs, nowPlaying, onAirSongs, playHistory, repeatWindow, slotAt, trackPositionSec, withPlayed, type RadioTimeline, type TimelineItem } from "./autodj";
+import { rotationFilter } from "./rotation";
+import { serverPick } from "./server-pick";
 import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImport } from "./library";
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
@@ -342,11 +344,14 @@ export async function resumeMusic(db: DbClient, s: Session, publish = true): Pro
       items: [item],
       mixes: [],
     };
-    // the history keeps what was heard before the pause; the paused song carries on, so it isn't listed yet
+    // the history keeps what was heard before the pause (the songs lined up after it never played); the paused
+    // song carries on, so it isn't listed yet
     const stored = withPlayed(tl, fresh, now, s.pausedAt.getTime());
     if (stored.recent?.[0]?.key === item.key) stored.recent = stored.recent.slice(1);
+    if (stored.played?.[0] === item.key) stored.played = stored.played.slice(1);
+    stored.nextPick = await serverPick(db, bucket, stored, new Map()).catch(() => null);
     await bucket.put(AUTODJ_KEY, JSON.stringify(stored), { httpMetadata: { contentType: "application/json" } });
-    if (s.replayId) await saveTimelinePart(db, s.replayId, fresh);
+    if (s.replayId) await saveTimelinePart(db, s.replayId, stored);
   }
   await db.update(radioStudioSessions).set({ pausedAt: null, pausedKey: null, pausedSec: null }).where(eq(radioStudioSessions.id, s.id));
   if (s.replayId) {
@@ -493,23 +498,25 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
         const outSec = mixes[0]?.outSec ?? items[0]!.durationSec;
         if (startSec > Math.min(outSec - 1, items[0]!.durationSec - 75)) startSec = 0;
       } else {
-        const item = await skipTo(db, s, tl.items.map((i) => i.key));
+        const item = await skipTo(db, s, playHistory(tl));
         if (!item) throw new StudioError("There's no other song to play.", 409);
         if (item.fromQueue) fromQueue = [item.key];
         items = [{ key: item.key, title: item.title, artist: item.artist, durationSec: item.durationSec, loudnessDb: item.loudnessDb }];
         mixes = [];
       }
-      next = { ...tl, rev: tl.rev + 1, firstK: k + 1, anchorMs: at, startSec: Math.round(startSec * 1000) / 1000, repeat: false, items, mixes };
+      // the songs it drops (the skipped one too) go into the play history, like any that finished
+      next = withPlayed(tl, { ...tl, rev: tl.rev + 1, firstK: k + 1, anchorMs: at, startSec: Math.round(startSec * 1000) / 1000, repeat: false, items, mixes }, now);
     } else {
       const j = k - tl.firstK;
       const cut: RadioTimeline = { ...tl, rev: tl.rev + 1, items: tl.items.slice(0, j), mixes: tl.mixes.slice(0, j - 1) };
       const last = slotAt(cut, k - 1)!;
       if (last.endMs - now < DROP_MARGIN_MS) throw new StudioError("Too close to the mix to drop it now: skip it once it plays.", 409);
       backToQueue = tl.items.slice(j + 1).map((i) => i.key);
-      next = cut;
+      // the songs cut never played: they don't count as played
+      next = withPlayed(tl, cut, now);
     }
-    // the songs a skip moves past go into the play history, as when listeners line songs up
-    next = withPlayed(tl, next, now);
+    // the website's pick to follow the new last song (the one picked before followed another song)
+    next = { ...next, nextPick: await serverPick(db, bucket, next, new Map()).catch(() => null) };
     const put = await bucket.put(AUTODJ_KEY, JSON.stringify(next), { httpMetadata: { contentType: "application/json" }, onlyIf: { etagMatches: stored.etag } });
     if (!put) continue; // a listener's browser lined up a song at the same moment: look again
     if (fromQueue.length) await markQueuedPlayed(db, fromQueue);
@@ -520,8 +527,12 @@ export async function skipSong(db: DbClient, s: Session, k: number, key: string)
   throw new StudioError("The songs lined up kept changing: try again.", 409);
 }
 
-/** The song to play after a skip when nothing is lined up: the queue's next song, else one from the library. */
-async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(TimelineItem & { fromQueue: boolean }) | null> {
+/**
+ * The song to play after a skip when nothing is lined up: the queue's next song, else one from the library
+ * that hasn't played lately ([history]: most recent first; the same no-repeat window as the AutoDJ), with the
+ * artist and album rules where they leave a choice.
+ */
+async function skipTo(db: DbClient, s: Session, history: string[]): Promise<(TimelineItem & { fromQueue: boolean }) | null> {
   const songs = await cachedPlayableSongs(db);
   const byKey = new Map(songs.map((x) => [x.key, x]));
   const queued = await db
@@ -532,9 +543,12 @@ async function skipTo(db: DbClient, s: Session, recent: string[]): Promise<(Time
   const q = queued.map((r) => byKey.get(r.key!)).find((x) => x && x.durationSec > 1);
   if (q) return { ...q, fromQueue: true };
   // from the library: songs on air only, like the AutoDJ
-  const onAir = onAirSongs(songs);
-  const fresh = onAir.filter((x) => x.durationSec > 1 && !recent.includes(x.key));
-  const pool = fresh.length ? fresh : onAir.filter((x) => x.durationSec > 1 && x.key !== recent[recent.length - 1]);
+  const onAir = onAirSongs(songs).filter((x) => x.durationSec > 1);
+  const recent = new Set(history.slice(0, repeatWindow(onAir.length)));
+  const fresh = onAir.filter((x) => !recent.has(x.key));
+  // none left: the one that played longest ago
+  const ago = (key: string) => { const i = history.indexOf(key); return i < 0 ? Infinity : i; };
+  const pool = fresh.length ? rotationFilter(fresh, (x) => x.key, history, byKey) : [...onAir].sort((a, b) => ago(b.key) - ago(a.key)).slice(0, 1);
   const pick = pool[Math.floor(Math.random() * pool.length)];
   return pick ? { ...pick, fromQueue: false } : null;
 }

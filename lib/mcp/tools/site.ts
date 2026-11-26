@@ -411,7 +411,9 @@ export const siteTools: ToolDef[] = [
     title: "Check the radio",
     description:
       "The radio's state: what the 24/7 AutoDJ is playing (or would play, when nobody is listening), the last 8 songs it played (the Radio page's Recently played list, most recent first), the library size, the show on now and next, " +
-      "and whether someone is live from OBS. Icecast only carries live OBS shows, so no Icecast source is normal. problems lists real faults only.",
+      "and whether someone is live from OBS. Icecast only carries live OBS shows, so no Icecast source is normal. problems lists real faults only. " +
+      "Also: websitePick (the next song the website chose; no song repeats within 200), playlistShows (each playlist's shuffle: round and songs played in it), " +
+      "and refusedMixes (mixes the safety checks refused in the last 7 days; the song then played out with no mix).",
     input: {},
     kind: "read",
     openWorld: true,

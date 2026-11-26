@@ -10,7 +10,7 @@
 // - Nobody listening: nothing runs. The first listener back starts a fresh
 //   running order from "now".
 import type { TrackAnalysis } from '../bitchord/automix/analysis/types';
-import { ANALYSIS_INDEX_KEY, AUTODJ_KEY, AUTODJ_WRITE_URL, LIBRARY_URL, analysisKey, analysisWriteUrl, fileUrl } from './config';
+import { ANALYSIS_INDEX_KEY, AUTODJ_KEY, AUTODJ_WRITE_URL, LIBRARY_URL, MIX_REPORT_URL, analysisKey, analysisWriteUrl, fileUrl } from './config';
 import { integratedLufs, YOUTUBE_REFERENCE_LUFS } from './loudness';
 import { setMusicVideos } from './fetchAudio';
 import { analyse, decodeForPlan, DEFAULT_BARS, planMix } from './planner';
@@ -26,6 +26,8 @@ import {
   slotAt,
   slotIndexAt,
   onAirSongs,
+  historyAfter,
+  repeatWindow,
   TIMELINE_VERSION,
   type AnalysisIndex,
   type AnalysisSummary,
@@ -35,6 +37,7 @@ import {
   virtualOnAir,
 } from './timeline';
 import { programPick, type RadioProgram } from './programFile';
+import { pickTop, ROTATION_VERSION, rotationFilter, TOP_MATCHES } from '../../../lib/radio/rotation';
 
 /** Songs lined up after the one on air before a listener plans another. */
 const LOOKAHEAD = 2;
@@ -115,12 +118,6 @@ async function makeItem(song: LibrarySong, buffer: AudioBuffer): Promise<Timelin
   return { key: song.key, title: song.title, artist: song.artist, durationSec: Math.round(buffer.duration * 1e6) / 1e6, loudnessDb };
 }
 
-/**
- * Songs not played again within this many (Adrien, 2026-11-21). Passed to AutoMix's selector as its
- * own excludeFileKeys; the selector's built-in rules (nothing from the last 10, the last 3 artists
- * scored down) apply as they are.
- */
-const REPEAT_WINDOW = 200;
 
 /** The key, tempo and energy of every shared analysis (empty if the index can't be read). */
 async function fetchAnalysisIndex(): Promise<AnalysisIndex['songs']> {
@@ -142,11 +139,13 @@ function asAnalysis(song: LibrarySong, s: AnalysisSummary): TrackAnalysis {
 const byKey = (a: LibrarySong, b: LibrarySong) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
 
 /**
- * The AutoDJ's next song, picked the way AutoMix's AutoDJ picks it: AutoMix's selector
- * (engine/selector.ts, verbatim) ranks the songs on air against the song it follows (Camelot
- * key, tempo, energy, recent songs and artists) and the first candidate plays, with AutoMix's
- * default energy direction (steady). Every input comes from the stored running order and the shared
- * index, and ties fall to the song key, so every listener would pick the same song.
+ * The AutoDJ's next song. AutoMix's selector (engine/selector.ts, verbatim) ranks the songs on air
+ * against the song it follows (Camelot key, tempo, energy, recent songs and artists) with AutoMix's
+ * default energy direction (steady). Then our rotation rules (lib/radio/rotation.ts, Adrien 2026-11-25):
+ * no song within the last 200, no artist within the last 8 (6 at a pinch), at most 2 in a row from one
+ * album, and one of the 3 best matches plays rather than always the first (AutoMix's AutoDJ plays the
+ * first, which brought back the same runs of songs every day). Every input comes from the stored running
+ * order and the shared index, and the draw is seeded by the song's number, so every listener picks the same song.
  *
  * Only songs on air are picked (Adrien, 2026-11-25): a new song is "Getting ready" until it has been
  * analysed and title-checked (Prepare, on the Library page), so the AutoDJ never plays one unanalysed.
@@ -154,8 +153,9 @@ const byKey = (a: LibrarySong, b: LibrarySong) => (a.key < b.key ? -1 : a.key > 
 export async function pickNext(library: LibrarySong[], current: RadioTimeline, after: LibrarySong, k: number, log: (s: string) => void): Promise<LibrarySong> {
   const index = await fetchAnalysisIndex();
   const songs = [...onAirSongs(library)].sort(byKey);
+  const byKeyMap = new Map(library.map((s) => [s.key, s]));
   const history = playHistory(current);
-  const recent = new Set(history.slice(0, REPEAT_WINDOW));
+  const recent = new Set(history.slice(0, repeatWindow(songs.length)));
   const rand = seeded(k * 2654435761);
   const pool = songs.filter((s) => index[s.key]?.bpm).map((s) => asAnalysis(s, index[s.key]!));
 
@@ -164,24 +164,32 @@ export async function pickNext(library: LibrarySong[], current: RadioTimeline, a
   if (!cur) cur = summarizeAnalysis(await storedAnalysis(after));
   if (cur?.bpm) {
     const opts = { energyDirection: 0 as const, recentFileKeys: history };
-    let ranked = rankCandidates(asAnalysis(after, cur), pool, { ...opts, excludeFileKeys: [...recent] });
-    // a library too small for the window: AutoMix's own repeat rules only
-    if (!ranked.length) ranked = rankCandidates(asAnalysis(after, cur), pool, opts);
-    const best = ranked[0];
+    const ranked = rankCandidates(asAnalysis(after, cur), pool, { ...opts, excludeFileKeys: [...recent] });
+    const allowed = rotationFilter(ranked, (c) => c.analysis.fileKey, history, byKeyMap);
+    const best = pickTop(allowed, rand);
     if (best) {
       const song = songs.find((s) => s.key === best.analysis.fileKey)!;
       const r = best.reasons;
-      log(`next: ${song.title} (${best.harmonic ? 'harmonic' : 'not harmonic'}, score ${best.score.toFixed(2)}: key ${r.camelot.toFixed(2)}, tempo ${r.bpm.toFixed(2)}, energy ${r.energy.toFixed(2)}, artist ${r.repeat})`);
+      const place = allowed.indexOf(best) + 1;
+      log(`next: ${song.title} (match ${place} of the top ${Math.min(TOP_MATCHES, allowed.length)}, ${best.harmonic ? 'harmonic' : 'not harmonic'}, score ${best.score.toFixed(2)}: key ${r.camelot.toFixed(2)}, tempo ${r.bpm.toFixed(2)}, energy ${r.energy.toFixed(2)}, artist ${r.repeat})`);
       return song;
     }
   }
 
   // nothing to rank against (the song it follows has no tempo, e.g. a broadcaster's song not prepared yet)
-  // or nothing ranked: as AutoMix starts, any song on air, here one not played lately
+  // or nothing ranked: as AutoMix starts, any song on air, here one not played lately (the artist and
+  // album rules too, where they leave a choice); with none left, the one that played longest ago
   const notLately = (list: string[]) => list.filter((key) => key !== after.key && !recent.has(key));
-  const from = [notLately(pool.map((a) => a.fileKey)), notLately(songs.map((s) => s.key))].find((l) => l.length)
-    ?? songs.map((s) => s.key).filter((key) => key !== after.key);
-  const key = from.length ? from[Math.floor(rand() * from.length)]! : after.key;
+  const fresh = [notLately(pool.map((a) => a.fileKey)), notLately(songs.map((s) => s.key))].find((l) => l.length);
+  let key: string;
+  if (fresh) {
+    const from = rotationFilter(fresh, (x) => x, history, byKeyMap);
+    key = from[Math.floor(rand() * from.length)]!;
+  } else {
+    const last = (x: string) => { const i = history.indexOf(x); return i < 0 ? Infinity : i; };
+    const others = songs.map((s) => s.key).filter((x) => x !== after.key);
+    key = others.sort((a, b) => last(b) - last(a))[0] ?? after.key;
+  }
   const song = songs.find((s) => s.key === key) ?? after;
   log(`next: ${song.title} (no key/tempo match possible)`);
   return song;
@@ -193,6 +201,14 @@ export function needsWork(tl: RadioTimeline | null, serverNow: number): boolean 
   const k = slotIndexAt(tl, serverNow);
   if (k === null) return false; // before its start
   return tl.firstK + tl.items.length - 1 - k < LOOKAHEAD;
+}
+
+/**
+ * Tells the website about a mix the safety checks refused (the song then plays out with no mix), so
+ * it can count how often that happens. Best effort: nothing waits for it.
+ */
+function reportRejectedMix(r: { from: string; to: string; style: string; problem: string }): void {
+  void fetch(MIX_REPORT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(r) }).catch(() => {});
 }
 
 export type Post = (tl: RadioTimeline) => Promise<{ ok: boolean; error?: string }>;
@@ -213,9 +229,10 @@ export async function extend(
     // nobody was listening: start with the song the pages have been showing, at the same place (virtualOnAir);
     // near its end, a little earlier, so there's time to line up the next one
     const startMs = serverNow() + 1000;
-    const v = virtualOnAir(library, startMs)!;
+    // (minus what has played lately: the website refuses a repeat, and the pages showing the radio do the same)
+    const v = virtualOnAir(library, startMs, historyAfter(current))!;
     // a Studio show's queue or a playlist show starts its own song, from the top
-    const showKey = programPick(program, startMs, current?.items.map((i) => i.key) ?? [], new Set(library.map((s) => s.key)));
+    const showKey = programPick(program, startMs, current?.items.map((i) => i.key) ?? [], new Set(library.map((s) => s.key)), current?.playlists);
     const showSong = showKey ? library.find((s) => s.key === showKey) : undefined;
     const song = showSong ?? v.song;
     // The library already knows the song's length and loudness (the downloader measured them): then
@@ -239,7 +256,7 @@ export async function extend(
       mixes: [],
       plannedWith: { bars: DEFAULT_BARS, analysisVersion: ANALYSIS_VERSION, engine: 'bitchord-automix@acf219a7' },
     };
-    const res = await post(tl);
+    const res = await post({ ...tl, picker: ROTATION_VERSION });
     log(res.ok ? `started the radio with ${song.title}` : `fresh start refused: ${res.error}`);
     return res.ok ? tl : null;
   }
@@ -250,8 +267,11 @@ export async function extend(
   const lastSong = library.find((s) => s.key === lastSlot.item.key)!;
   const recent = current.items.map((i) => i.key);
   // a show's song (the Studio queue, a playlist show) when one is due as this song starts
-  const showKey = programPick(program, endOfTimelineMs(current), recent, new Set(library.map((s) => s.key)));
-  const next = (showKey && library.find((s) => s.key === showKey)) || (await pickNext(library, current, lastSong, lastK + 1, log));
+  const showKey = programPick(program, endOfTimelineMs(current), recent, new Set(library.map((s) => s.key)), current.playlists);
+  // otherwise the website's pick (it refuses any other), else, from an older website, our own
+  const picked = current.nextPick?.k === lastK + 1 && current.nextPick.after === lastSong.key ? library.find((s) => s.key === current.nextPick!.key) : undefined;
+  if (picked && !showKey) log(`next: ${picked.title} (picked by the website)`);
+  const next = (showKey && library.find((s) => s.key === showKey)) || picked || (await pickNext(library, current, lastSong, lastK + 1, log));
   log(`lining up ${next.title} after ${lastSong.title}`);
   const [bLast, bNext, storedLast, storedNext] = await Promise.all([
     decodeForPlan(lastSong.key),
@@ -284,6 +304,7 @@ export async function extend(
   const problem = checkMix(mix, lastSlot.item.durationSec, item.durationSec);
   if (problem) {
     log(`no mix possible (${problem}); the song will play out`);
+    reportRejectedMix({ from: lastSong.key, to: next.key, style: mix.style, problem });
     return null;
   }
   // drop songs that are over (keep the one before the song on air, for listeners mid-mix)
@@ -291,7 +312,7 @@ export async function extend(
   const r = Math.max(0, onAir - 1 - current.firstK);
   const longer: RadioTimeline = { ...current, rev: current.rev + 1, items: [...current.items, item], mixes: [...current.mixes, mix] };
   const tl = rebase(longer, r);
-  const res = await post(tl);
+  const res = await post({ ...tl, picker: ROTATION_VERSION });
   log(res.ok ? `lined up ${next.title} (${mix.style}${mix.reason ? `, ${mix.reason}` : ''})` : `not stored: ${res.error}`);
   return res.ok ? tl : null;
 }
