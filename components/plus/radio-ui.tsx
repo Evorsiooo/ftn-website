@@ -10,6 +10,7 @@ import { useNowPlaying, type ShowInfo } from "@/components/radio/use-now-playing
 import { ListenButton, Volume } from "./radio-controls";
 import { CallInButton, CallInCard, CallInProvider, useCallInOpen } from "./call-in";
 import { Replays } from "./replays";
+import { RecentlyPlayed } from "./recently-played";
 import { MotionArtwork } from "@/components/radio/motion-artwork";
 import { useRadioShortcuts } from "@/components/radio/use-radio-shortcuts";
 import { useTrackMotion } from "@/lib/radio/apple/motionArt";
@@ -302,6 +303,7 @@ function Secondary({ v }: { v: StationView }) {
       <span className="gap" />
       <Votes songKey={v.songKey} />
       <Volume />
+      <RecentlyPlayed songKey={v.songKey} />
       <button className="ib" aria-label="Open in a popout window" onClick={r.popout}>
         <I.Pop />
       </button>
