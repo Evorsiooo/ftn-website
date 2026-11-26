@@ -8,6 +8,7 @@ import { songStatus } from "./prepare-run";
 import { api, duration, fileUrl, type Song } from "./types";
 import { SongLyrics } from "./song-lyrics";
 import { parseGenres } from "@/lib/radio/genres";
+import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 
 const SOURCE_LABEL: Record<Song["source"], string> = { youtube: "YouTube", soundcloud: "SoundCloud", upload: "Uploaded" };
 
@@ -167,6 +168,8 @@ export function SongPane({
   const [genre, setGenre] = useState(song.genre || "");
   const [genres, setGenres] = useState(parseGenres(song.genres).join(", "));
   const [origYear, setOrigYear] = useState(song.originalYear ? String(song.originalYear) : "");
+  const spotifyLink = song.spotifyId ? `https://open.spotify.com/track/${song.spotifyId}` : "";
+  const [spotify, setSpotify] = useState(spotifyLink);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     setEditing(false);
@@ -174,8 +177,9 @@ export function SongPane({
     setArtist(song.artist);
     setGenre(song.genre || "");
     setGenres(parseGenres(song.genres).join(", "));
+    setSpotify(spotifyLink);
     setOrigYear(song.originalYear ? String(song.originalYear) : "");
-  }, [song.id, song.title, song.artist, song.genre, song.genres, song.originalYear]);
+  }, [song.id, song.title, song.artist, song.genre, song.genres, song.originalYear, spotifyLink]);
 
   const setArchived = async (archived: boolean) => {
     try {
@@ -201,6 +205,8 @@ export function SongPane({
     setBusy(true);
     try {
       const patch: Record<string, unknown> = { title, artist };
+      const spotifyChanged = spotify.trim() !== spotifyLink;
+      if (spotifyChanged) patch.spotify = spotify.trim() || null;
       const list = genres.split(",").map((g) => g.trim().toLowerCase()).filter(Boolean);
       const year = origYear.trim() ? Number(origYear) : null;
       const genreChanged = genre.trim() !== (song.genre || "") || list.join(",") !== parseGenres(song.genres).join(",") || year !== (song.originalYear ?? null);
@@ -208,12 +214,13 @@ export function SongPane({
         // typed in by hand: the lookups leave them alone from now on
         Object.assign(patch, { genre: genre.trim() || null, genres: list.length ? list : null, originalYear: year, genreByHand: true });
       }
-      await api(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify(patch) });
+      const res = await api<{ song?: { spotifyId?: string | null } }>(`/api/admin/radio/songs/${song.id}`, { method: "PATCH", body: JSON.stringify(patch) });
       setEditing(false);
       onPatched(song.id, {
         title: title.trim(),
         artist: artist.trim(),
         ...(genreChanged ? { genre: genre.trim() || null, genres: list.length ? JSON.stringify([...new Set(list)]) : null, originalYear: year, genreByHand: true } : {}),
+        ...(spotifyChanged ? { spotifyId: res?.song?.spotifyId ?? null } : {}),
       });
     } catch (err: any) {
       toast(err.message);
@@ -266,6 +273,18 @@ export function SongPane({
             <div className="field">
               <label>First came out</label>
               <input className="input" value={origYear} onChange={(e) => setOrigYear(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" placeholder="Year" style={{ maxWidth: 120 }} />
+            </div>
+            <div className="field">
+              <label>Spotify link</label>
+              <input
+                className="input"
+                value={spotify}
+                onChange={(e) => setSpotify(e.target.value)}
+                maxLength={300}
+                placeholder="https://open.spotify.com/track/…"
+                inputMode="url"
+              />
+              <span className="muted t12">Listeners who liked this song open it on Spotify. Left empty, they get a Spotify search.</span>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               <button type="submit" className="btn strong" disabled={busy || !title.trim() || !artist.trim() || (!!origYear && (Number(origYear) < 1800 || Number(origYear) > 2200))}>
@@ -320,6 +339,17 @@ export function SongPane({
                   ] as [string, React.ReactNode],
                 ]
               : []),
+            [
+              "Listen on",
+              <span key="l" style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <a href={youtubeMusicUrl(song.source === "youtube" ? song.sourceId : null, song.artist, song.title)} target="_blank" rel="noopener noreferrer" className="link">
+                  YouTube Music
+                </a>
+                <a href={spotifyUrl(song.spotifyId, song.artist, song.title)} target="_blank" rel="noopener noreferrer" className="link">
+                  {song.spotifyId ? "Spotify" : "Spotify (search)"}
+                </a>
+              </span>,
+            ],
             ["Loudness", song.loudnessDb == null ? "Not known (no levelling)" : `${song.loudnessDb > 0 ? "+" : ""}${song.loudnessDb.toFixed(1)} dB`],
             ["Added", added(song.createdAt)],
             ["File", <span key="f" className="t12" style={{ fontFamily: "ui-monospace, monospace", overflowWrap: "anywhere" }}>{song.key}</span>],

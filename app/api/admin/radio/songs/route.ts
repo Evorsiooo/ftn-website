@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
       key: radioSongs.r2Key,
       source: radioSongs.source,
       sourceUrl: radioSongs.sourceUrl,
+      sourceId: radioSongs.sourceId,
+      spotifyId: radioSongs.spotifyId,
       title: radioSongs.title,
       artist: radioSongs.artist,
       album: radioSongs.album,

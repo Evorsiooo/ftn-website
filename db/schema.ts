@@ -393,9 +393,11 @@ export const posts = sqliteTable("posts", {
 }, (t) => [index("posts_scheduled_idx").on(t.scheduledAt), index("posts_status_idx").on(t.status)]);
 
 // Radio song ratings: one vote per listener per song. voter_id is a random id kept in the listener's
-// cookie, so no sign-in is needed. value is 1 (up) or -1 (down).
+// cookie, so no sign-in is needed. value is 1 (up) or -1 (down). A like (1) is also in the listener's Liked songs
+// on FTN+ Saved; user_id is set when they were signed in, so those follow their account (migration 0038).
 export const songVotes = sqliteTable("song_votes", {
   voterId: text("voter_id").notNull(),
+  userId: text("user_id"),
   songKey: text("song_key").notNull(),
   artist: text("artist").notNull(),
   title: text("title").notNull(),
@@ -405,6 +407,7 @@ export const songVotes = sqliteTable("song_votes", {
 }, (t) => [
   primaryKey({ columns: [t.voterId, t.songKey] }),
   index("song_votes_song_idx").on(t.songKey),
+  index("song_votes_user_idx").on(t.userId),
 ]);
 
 // Radio song library (BitChord-based webradio). Each song is one audio file in the ftn-radio R2

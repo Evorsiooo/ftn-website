@@ -23,6 +23,7 @@ import { inArray } from "drizzle-orm";
 import { radioSongs } from "@/db/schema";
 import { lookUpGenres, mbGate, parseGenres } from "@/lib/radio/genres";
 import { findInCatalog } from "@/lib/radio/metadata";
+import { spotifyUrl, youtubeMusicUrl } from "@/lib/radio/song-links";
 import { S, ToolDef, ToolError, pick } from "../types";
 
 const RO_STATE_KEYS = ["harrison", "ridgeway", "madison", "clark", "firestone", "international"];
@@ -196,7 +197,7 @@ export const radioTools: ToolDef[] = [
     name: "search_songs",
     title: "Search the song library",
     description:
-      "Finds songs in the radio library by title, artist or album, or by genre. Each song has a status: on-air (the AutoDJ may play it), getting-ready (waiting for Prepare: its mixing analysis and, for new songs, title check), missing (no audio file), failed (couldn't be prepared) or archived. Genre tags: genre (broad, from Apple), genres (detailed, from MusicBrainz), originalYear (year it first came out), genreCheckedAt (null: not looked up yet) and genreByHand (typed in by a person). Playlists (list_playlists, get_playlist) are the songs' show tags.",
+      "Finds songs in the radio library by title, artist or album, or by genre. Each song has a status: on-air (the AutoDJ may play it), getting-ready (waiting for Prepare: its mixing analysis and, for new songs, title check), missing (no audio file), failed (couldn't be prepared) or archived. Genre tags: genre (broad, from Apple), genres (detailed, from MusicBrainz), originalYear (year it first came out), genreCheckedAt (null: not looked up yet) and genreByHand (typed in by a person). Where to listen elsewhere: youtubeMusic (the exact song) and spotify (the exact track when spotifyId is set, otherwise a Spotify search; set it with update_song). Playlists (list_playlists, get_playlist) are the songs' show tags.",
     input: {
       query: S.str("Words to look for in title, artist or album (leave out to list)"),
       status: S.enum(["on-air", "getting-ready", "missing", "failed", "archived"], "Only songs with this status"),
@@ -221,7 +222,12 @@ export const radioTools: ToolDef[] = [
       songs = songs.map((s) => ({ ...s, genres: parseGenres(s.genres as string | null) }));
       const limit = Math.min(Math.max(Number(a.limit) || 50, 1), 500);
       const offset = Math.max(Number(a.offset) || 0, 0);
-      return { total: songs.length, songs: songs.slice(offset, offset + limit) };
+      const page = songs.slice(offset, offset + limit).map((s) => {
+        const artist = String(s.artist || ""), title = String(s.title || "");
+        const youtubeId = s.source === "youtube" ? (s.sourceId as string | null) : null;
+        return { ...s, youtubeMusic: youtubeMusicUrl(youtubeId, artist, title), spotify: spotifyUrl(s.spotifyId as string | null, artist, title) };
+      });
+      return { total: songs.length, songs: page };
     },
   },
   {
@@ -359,7 +365,7 @@ export const radioTools: ToolDef[] = [
     name: "update_song",
     title: "Edit a song",
     description:
-      "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing. Genre tags: genre, genres, originalYear; setting any of them marks them as typed in by hand (genreByHand), so lookups no longer change them, unless genreByHand false is sent.",
+      "Fixes a song's details, archives it (the radio stops playing it) or brings it back. Lyrics: lyricsSource forces one lyrics provider (or none), lyricsOffsetMs shifts their timing. Genre tags: genre, genres, originalYear; setting any of them marks them as typed in by hand (genreByHand), so lookups no longer change them, unless genreByHand false is sent. spotify sets the song's Spotify track, which the Spotify button on listeners' Liked songs opens (without it, that button searches Spotify).",
     input: {
       id: S.str("The song's id (search_songs)"),
       title: S.str("Title"),
@@ -369,6 +375,7 @@ export const radioTools: ToolDef[] = [
       thumbnail: S.str("Cover image URL"),
       lyricsSource: { type: ["string", "null"], enum: [...LYRIC_SOURCE_IDS, "none", null], description: "A lyrics provider to always use, 'none' for no lyrics, or null for automatic" },
       lyricsOffsetMs: S.int("Lyrics timing shift: -5000 to 5000 ms in steps of 100 (positive = later)"),
+      spotify: { type: ["string", "null"], description: "The song's Spotify track link (open.spotify.com/track/…), or null to clear it" },
       archived: S.bool("true archives it, false brings it back"),
       genre: { type: ["string", "null"], description: "Broad genre, e.g. R&B/Soul (null clears it)" },
       genres: { type: ["array", "null"], items: { type: "string" }, description: "Detailed genres, most fitting first, up to 8, e.g. [\"disco\", \"funk\"] (null clears them)" },
@@ -385,7 +392,7 @@ export const radioTools: ToolDef[] = [
         path: `/api/admin/radio/songs/${a.id}`,
         params: { id: a.id },
         body: {
-          ...pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived", "genre", "genres", "originalYear", "genreByHand"]),
+          ...pick(a, ["title", "artist", "album", "releaseYear", "thumbnail", "lyricsSource", "lyricsOffsetMs", "archived", "spotify", "genre", "genres", "originalYear", "genreByHand"]),
           // genre tags set by the AI count as typed in by hand, as in the Library's Edit form
           ...(["genre", "genres", "originalYear"].some((k) => a[k] !== undefined) && a.genreByHand === undefined ? { genreByHand: true } : {}),
         },
@@ -452,7 +459,7 @@ export const radioTools: ToolDef[] = [
   {
     name: "list_song_ratings",
     title: "Song ratings",
-    description: "Listeners' up/down votes per song.",
+    description: "Listeners' up/down votes per song (a thumbs up also puts the song in that listener's Liked songs on FTN+ Saved).",
     input: {},
     kind: "read",
     run: (ctx) => ctx.call(ratingsRoute.GET, { path: "/api/admin/radio/ratings" }),

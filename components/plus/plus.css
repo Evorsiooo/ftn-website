@@ -631,3 +631,34 @@ body:has(.fp-site .pbar) { padding-bottom: var(--fp-bar-h, 76px); }
 .fp .recent .none { padding: 8px 12px 14px; font-size: 14px; color: var(--text-2); }
 .fp .recentscrim { position: fixed; inset: 0 0 var(--tabs-h) 0; background: rgba(0, 0, 0, 0.5); z-index: 41; }
 .fp .recent.sheet { position: fixed; left: 0; right: 0; bottom: var(--tabs-h); width: auto; max-width: none; border-radius: 16px 16px 0 0; border-width: 1px 0 0; padding: 8px 8px 12px; z-index: 42; box-shadow: none; }
+
+/* Saved: liked songs (thumbs up on the radio), two columns on wide screens, with YouTube Music / Spotify buttons. */
+.fp .likes { margin-top: 32px; }
+.fp .lcount { font-size: 14px; margin: 4px 0 16px; }
+.fp .tracks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
+.fp .tracks.two { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: repeat(var(--rows), auto); column-gap: 32px; }
+.fp .tracks li { display: flex; align-items: center; gap: 8px; padding: 8px 4px 8px 8px; border-radius: 10px; min-width: 0; transition: background-color 150ms; }
+.fp .tracks li:hover { background: var(--surface); }
+.fp .tracks img, .fp .tracks .ph { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; flex: none; margin-right: 6px; }
+.fp .tracks .ph { display: grid; place-items: center; background: var(--surface-2); color: var(--text-3); }
+.fp .tracks .ph svg { width: 20px; height: 20px; }
+.fp .tracks .tx { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.fp .tracks .a { font: 600 15px/1.3 var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp .tracks .b { font-size: 13px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fp .tracks .svc { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px 0 9px; border-radius: 999px; background: var(--surface-2); color: var(--text); font: 600 13px/1 var(--body); white-space: nowrap; flex: none; transition: background-color 150ms; }
+.fp .tracks .svc:hover { background: var(--surface-3); }
+.fp .tracks .svc svg { width: 18px; height: 18px; }
+.fp .tracks .liked { width: 36px; height: 36px; }
+.fp .tracks .liked svg { width: 18px; height: 18px; }
+.fp .tracks .liked[aria-pressed="true"] { background: none; color: var(--text); }
+.fp .tracks .liked[aria-pressed="true"]:hover { background: rgba(255, 248, 230, 0.08); }
+.fp .allbtn { margin: 8px 0 0 -6px; }
+@media (max-width: 1200px) {
+  .fp .tracks .svc { width: 34px; padding: 0; justify-content: center; }
+  .fp .tracks .svc span { display: none; }
+}
+@media (max-width: 720px) {
+  .fp .tracks.two { grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; grid-template-rows: none; }
+  .fp .tracks li { padding: 8px 0; gap: 6px; }
+  .fp .tracks .liked { width: 32px; }
+}
