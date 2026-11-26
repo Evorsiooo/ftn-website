@@ -394,7 +394,7 @@ export const posts = sqliteTable("posts", {
 
 // Radio song ratings: one vote per listener per song. voter_id is a random id kept in the listener's
 // cookie, so no sign-in is needed. value is 1 (up) or -1 (down). A like (1) is also in the listener's Liked songs
-// on FTN+ Saved; user_id is set when they were signed in, so those follow their account (migration 0036).
+// on FTN+ Saved; user_id is set when they were signed in, so those follow their account (migration 0038).
 export const songVotes = sqliteTable("song_votes", {
   voterId: text("voter_id").notNull(),
   userId: text("user_id"),
