@@ -9,6 +9,7 @@ import { canManageRadio } from "@/lib/rbac";
 import { AddSongs, ReviewMatches } from "@/components/admin/radio-library/add-songs";
 import { SongPane, SongTable, UploadSong, usePreview } from "@/components/admin/radio-library/songs";
 import { PlaylistList } from "@/components/admin/radio-library/playlists";
+import { Collections } from "@/components/admin/radio-library/collections";
 import { useMetadataCheck } from "@/components/admin/radio-library/metadata-check";
 import { songStatus, usePrepareRun, type SongPrepResult } from "@/components/admin/radio-library/prepare-run";
 import { countLibrary, isVideoCover, LibraryStatus, type OtherRun, type ShowFilter } from "@/components/admin/radio-library/library-status";
@@ -19,12 +20,12 @@ import { cn } from "@/lib/utils";
 
 const n = (x: number) => x.toLocaleString("en-US");
 
-type Tab = "songs" | "playlists" | "ratings";
+type Tab = "songs" | "playlists" | "collections" | "ratings";
 
 function LibraryPage() {
   const router = useRouter();
   const params = useSearchParams();
-  const tab = ((["songs", "playlists", "ratings"] as const).find((t) => t === params.get("tab")) ?? "songs") as Tab;
+  const tab = ((["songs", "playlists", "collections", "ratings"] as const).find((t) => t === params.get("tab")) ?? "songs") as Tab;
   const setTab = (t: Tab) => router.replace(t === "songs" ? "/admin/radio/library" : `/admin/radio/library?tab=${t}`, { scroll: false });
 
   const [songs, setSongs] = useState<Song[] | null>(null);
@@ -183,6 +184,11 @@ function LibraryPage() {
   }, [othersDone, loadChanged]);
 
   const [busy, setBusy] = useState(false);
+  // how many collections there are (yours only, unless you're a site admin or manager)
+  const [collectionCount, setCollectionCount] = useState<number | null>(null);
+  useEffect(() => {
+    api<{ owners: unknown[] }>("/api/admin/radio/collections?owners=1").then((d) => setCollectionCount(d.owners.length), () => {});
+  }, []);
   const prepOp = async (body: Record<string, unknown>, done: (r: any) => void) => {
     setBusy(true);
     try {
@@ -194,7 +200,10 @@ function LibraryPage() {
     }
   };
 
-  const counts = useMemo(() => countLibrary(songs || []), [songs]);
+  // The Songs tab is the AutoDJ's library: songs only in broadcasters' collections are on the Collections tab
+  // (archived ones stay under Archived, where they can be deleted).
+  const autodjSongs = useMemo(() => (songs || []).filter((s) => s.autodj !== false || s.archived), [songs]);
+  const counts = useMemo(() => countLibrary(autodjSongs), [autodjSongs]);
   const setShow = (f: ShowFilter) => {
     setShowState(f);
     setSelected(null);
@@ -236,7 +245,7 @@ function LibraryPage() {
       : null;
 
   const shown = useMemo(() => {
-    const list = (songs || []).filter((s) => {
+    const list = autodjSongs.filter((s) => {
       const st = songStatus(s);
       switch (show) {
         case "archived":
@@ -259,7 +268,7 @@ function LibraryPage() {
     });
     const q = query.trim().toLowerCase();
     return q ? list.filter((s) => `${s.title} ${s.artist} ${s.album || ""}`.toLowerCase().includes(q)) : list;
-  }, [show, songs, query]);
+  }, [show, autodjSongs, query]);
   const current = (songs || []).find((s) => s.id === selected) ?? null;
 
   useEffect(() => {
@@ -272,6 +281,7 @@ function LibraryPage() {
   const tabs = [
     { value: "songs" as const, label: "Songs", n: songs ? counts.all : undefined },
     { value: "playlists" as const, label: "Playlists", n: playlists.length },
+    { value: "collections" as const, label: "Collections", n: collectionCount ?? undefined },
     { value: "ratings" as const, label: "Ratings" },
   ];
   const showOptions: { value: ShowFilter; label: string; n: number; always?: boolean }[] = [
@@ -433,6 +443,8 @@ function LibraryPage() {
           <div className="empty">{error}</div>
         ) : !songs ? (
           <div className="pane-empty">Loading the library…</div>
+        ) : tab === "collections" ? (
+          <Collections onCount={setCollectionCount} onChanged={loadLibrary} />
         ) : tab === "playlists" ? (
           <PlaylistList playlists={playlists} imports={imports} library={songs} onChange={reload} preview={preview} />
         ) : songs.length === 0 ? (

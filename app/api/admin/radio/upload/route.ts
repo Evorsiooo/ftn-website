@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { radioSongs } from "@/db/schema";
 import { failure, radioAdmin } from "@/lib/radio/admin-route";
-import { duplicateCandidates, findDuplicate, radioBucket } from "@/lib/radio/library";
+import { addToCollection, duplicateCandidates, findDuplicate, radioBucket } from "@/lib/radio/library";
 
 export const runtime = "edge";
 
@@ -40,8 +40,14 @@ export async function POST(request: NextRequest) {
   if (!Number.isFinite(durationSec) || durationSec < 5 || durationSec > 3 * 3600) return NextResponse.json({ error: "Could not read the song's length." }, { status: 400 });
   if (loudnessDb !== null && (!Number.isFinite(loudnessDb) || loudnessDb < -60 || loudnessDb > 30)) return NextResponse.json({ error: "Bad loudness figure." }, { status: 400 });
 
+  // into the uploader's collection, and on the AutoDJ unless autodj is "false" (migration 0039)
+  const autodj = form.get("autodj") !== "false";
   const same = findDuplicate({ title, artist, durationSec }, await duplicateCandidates(ctx.db, { durationSec }));
-  if (same) return NextResponse.json({ error: `Already in the library: “${same.title}” by ${same.artist}.` }, { status: 409 });
+  if (same) {
+    // already in the library: it goes into the collection all the same
+    await addToCollection(ctx.db, ctx.user.id, [same.id], autodj).catch(() => {});
+    return NextResponse.json({ error: `Already in the library: “${same.title}” by ${same.artist}. It's in your collection.` }, { status: 409 });
+  }
 
   const id = crypto.randomUUID();
   const r2Key = `songs/upload/${id}.${type.ext}`;
@@ -52,8 +58,9 @@ export async function POST(request: NextRequest) {
     const now = new Date();
     const [song] = await ctx.db
       .insert(radioSongs)
-      .values({ id, r2Key, source: "upload", title, artist, durationSec, loudnessDb, bytes: file.size, contentType: type.contentType, addedBy: ctx.user.id, metaCheckedAt: now, createdAt: now, updatedAt: now })
+      .values({ id, r2Key, source: "upload", title, artist, durationSec, loudnessDb, bytes: file.size, contentType: type.contentType, autodj, addedBy: ctx.user.id, metaCheckedAt: now, createdAt: now, updatedAt: now })
       .returning();
+    await addToCollection(ctx.db, ctx.user.id, [id], autodj);
     return NextResponse.json({ song }, { status: 201 });
   } catch (err) {
     await bucket.delete(r2Key).catch(() => {});

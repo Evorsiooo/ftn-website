@@ -479,12 +479,15 @@ export interface LibrarySong {
    * a song a broadcaster queues or a playlist show names plays either way. Absent (an older list): on air.
    */
   ready?: boolean;
+  /** False: only in broadcasters' collections (migration 0039). Never picked by the AutoDJ; a show can still play it. */
+  autodj?: boolean;
 }
 
-/** The songs the AutoDJ may pick from: the ones on air (all of them, if none is yet). */
-export function onAirSongs<T extends { ready?: boolean }>(library: T[]): T[] {
-  const ready = library.filter((s) => s.ready !== false);
-  return ready.length ? ready : library;
+/** The songs the AutoDJ may pick from: the ones on air (all of them, if none is yet), never collection-only ones. */
+export function onAirSongs<T extends { ready?: boolean; autodj?: boolean }>(library: T[]): T[] {
+  const pool = library.filter((s) => s.autodj !== false);
+  const ready = pool.filter((s) => s.ready !== false);
+  return ready.length ? ready : pool;
 }
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);

@@ -18,6 +18,8 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  // the songs always go into your collection; on the AutoDJ too when ticked
+  const [autodj, setAutodj] = useState(true);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +37,7 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
         );
         if (!ok) return;
       }
-      await api("/api/admin/radio/imports", { method: "POST", body: JSON.stringify({ url: link }) });
+      await api("/api/admin/radio/imports", { method: "POST", body: JSON.stringify({ url: link, autodj }) });
       setUrl("");
       onChange();
     } catch (err: any) {
@@ -81,6 +83,10 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
         </div>
         <div className="help">Albums and playlists also become a playlist here, linked to the original so you can re-sync it later.</div>
       </form>
+      <label className="chk">
+        <input type="checkbox" className="check" checked={autodj} onChange={(e) => setAutodj(e.target.checked)} />
+        Also add to the AutoDJ
+      </label>
 
       {shown.length > 0 && (
         <section className="todo">
@@ -102,6 +108,7 @@ export function AddSongs({ imports, onChange }: { imports: Import[]; onChange: (
                       {i.sourceTotal && i.sourceTotal > total ? ` (first ${total} of ${i.sourceTotal}, Spotify's limit: import a YouTube Music copy for the rest)` : ""}
                       {i.failed > 0 && ` · ${i.failed} failed`}
                       {i.error && ` · ${i.error}`}
+                      {i.collectionOf && i.mine && (i.autodj === false ? " · Your collection" : " · Your collection and the AutoDJ")}
                     </div>
                     {live && total > 0 && (
                       <div className="meter" style={{ marginTop: 6 }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>

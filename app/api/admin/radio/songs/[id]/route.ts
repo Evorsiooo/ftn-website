@@ -15,7 +15,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const ctx = await radioAdmin(request);
   if ("error" in ctx) return ctx.error;
   const { id } = await params;
-  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown; lyricsSource?: unknown; lyricsOffsetMs?: unknown } | null;
+  const body = (await request.json().catch(() => null)) as { title?: unknown; artist?: unknown; album?: unknown; releaseYear?: unknown; thumbnail?: unknown; archived?: unknown; autodj?: unknown; lyricsSource?: unknown; lyricsOffsetMs?: unknown } | null;
   if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
   const set: Partial<typeof radioSongs.$inferInsert> = {};
@@ -54,6 +54,10 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (body.archived !== undefined) {
     if (typeof body.archived !== "boolean") return NextResponse.json({ error: "archived must be true or false" }, { status: 400 });
     set.archived = body.archived;
+  }
+  if (body.autodj !== undefined) {
+    if (typeof body.autodj !== "boolean") return NextResponse.json({ error: "autodj must be true or false" }, { status: 400 });
+    set.autodj = body.autodj;
   }
   if (!Object.keys(set).length) return NextResponse.json({ error: "Nothing to change" }, { status: 400 });
   set.updatedAt = new Date();

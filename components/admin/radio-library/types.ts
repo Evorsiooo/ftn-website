@@ -17,6 +17,8 @@ export interface Song {
   loudnessDb: number | null;
   thumbnail: string | null;
   archived: boolean;
+  /** False: only in broadcasters' collections, not played by the AutoDJ (migration 0039). */
+  autodj?: boolean;
   /** BitChord's flag: the file is a music video (Automix's loop mixes skip it). */
   musicVideo?: boolean;
   /** Where title and artist came from; "ytmusic" = YouTube Music's catalogue (the album song). */
@@ -87,6 +89,11 @@ export interface Import {
   done: number;
   failed: number;
   error: string | null;
+  /** Migration 0039: whose collection the songs go into (null: imports from before collections), and whether the AutoDJ gets them. */
+  collectionOf?: string | null;
+  autodj?: boolean;
+  /** Started by the person looking. */
+  mine?: boolean;
   createdAt: string;
 }
 

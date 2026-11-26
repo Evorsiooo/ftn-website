@@ -374,14 +374,42 @@ export async function queueSong(db: DbClient, s: Session, user: RobloxUser, song
   await republish(db);
 }
 
-/** Queue by link: the VPS downloads it into the library first; it joins the queue once it's there. */
-export async function queueUrl(db: DbClient, s: Session, user: RobloxUser, url: string): Promise<void> {
+/** Queues several library songs at once, in order (a playlist of the broadcaster's collection). Songs already waiting are skipped. */
+export async function queueSongs(db: DbClient, s: Session, user: RobloxUser, keys: string[]): Promise<void> {
+  const unique = [...new Set(keys)].slice(0, 200);
+  if (!unique.length) return;
+  const waiting = new Set(
+    (await db.select({ key: radioStudioQueue.songKey }).from(radioStudioQueue).where(and(eq(radioStudioQueue.sessionId, s.id), eq(radioStudioQueue.state, "queued")))).map((r) => r.key)
+  );
+  const found = new Map<string, { title: string; artist: string }>();
+  for (let i = 0; i < unique.length; i += 90) {
+    const rows = await db
+      .select({ key: radioSongs.r2Key, title: radioSongs.title, artist: radioSongs.artist, archived: radioSongs.archived })
+      .from(radioSongs)
+      .where(inArray(radioSongs.r2Key, unique.slice(i, i + 90)));
+    for (const r of rows) if (!r.archived) found.set(r.key, r);
+  }
+  let position = await lastPosition(db, s.id);
+  const now = new Date();
+  const rows = unique
+    .filter((k) => found.has(k) && !waiting.has(k))
+    .map((songKey) => ({ id: crypto.randomUUID(), sessionId: s.id, songKey, label: `${found.get(songKey)!.title} · ${found.get(songKey)!.artist}`, position: position++, addedBy: user.id, createdAt: now }));
+  // 7 columns: 14 rows per statement (D1's 100 bound parameters)
+  for (let i = 0; i < rows.length; i += 14) await db.insert(radioStudioQueue).values(rows.slice(i, i + 14));
+  if (rows.length) await republish(db);
+}
+
+/**
+ * Queue by link: the VPS downloads it into the broadcaster's collection first (and the AutoDJ's songs too with
+ * [autodj]); it joins the queue once it's there.
+ */
+export async function queueUrl(db: DbClient, s: Session, user: RobloxUser, url: string, autodj = false): Promise<void> {
   const kind = url.length <= 2000 ? linkKind(url) : null;
   if (!kind) throw new StudioError("Paste a YouTube, YouTube Music, SoundCloud or Spotify song link.");
-  if (kind.collection) throw new StudioError("Paste one song. Whole playlists go in through the Library, then search for them here.");
+  if (kind.collection) throw new StudioError("Paste one song. Add whole playlists on the Song library page: they then show in your collection here.");
   const { jobId, job } = await startJob(db, url, null);
   const now = new Date();
-  await db.insert(radioImports).values({ id: jobId, url, playlistId: null, state: job.state, title: job.title, total: job.total, createdBy: user.id, createdAt: now, updatedAt: now });
+  await db.insert(radioImports).values({ id: jobId, url, playlistId: null, state: job.state, title: job.title, total: job.total, collectionOf: user.id, autodj, createdBy: user.id, createdAt: now, updatedAt: now });
   await db.insert(radioStudioQueue).values({
     id: crypto.randomUUID(), sessionId: s.id, importId: jobId, label: url, position: await lastPosition(db, s.id), addedBy: user.id, createdAt: now,
   });

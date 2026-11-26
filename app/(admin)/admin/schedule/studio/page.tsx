@@ -4,7 +4,7 @@
 // broadcasters join. Listeners' browsers do the playing and mixing; only voices go live.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Copy, Mic, MicOff, Music, Pause, Play, Search, SkipForward, Trash2, UserPlus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Mic, MicOff, Music, Pause, Play, SkipForward, Trash2, X } from "lucide-react";
 import { AdminAuthGuard } from "@/components/admin/admin-auth-guard";
 import { Body, PageBar, Pill, Screen, Switch } from "@/components/admin/ui";
 import { confirmDialog } from "@/components/gs/dialogs";
@@ -17,6 +17,8 @@ import { expandOccurrences, type Occurrence } from "@/lib/schedule-core";
 import { parseBroadcast, type ApiBroadcast, type ShowRecord } from "@/lib/schedule-client";
 import { hm as fmtTime } from "@/components/admin/ui";
 import { useStudioPrepare } from "@/components/admin/radio-library/prepare-run";
+import { StudioAddPanel } from "@/components/admin/studio/add-panel";
+import { loadLibrary } from "@/components/radio/use-on-air";
 
 type Person = { id: string; name: string; avatar: string | null; role: "host" | "cohost" | "caller"; state: "waiting" | "on_air"; connected: boolean; gain?: number };
 type Queued = { id: string; label: string; state: string; ready: boolean; key?: string | null; mine?: boolean };
@@ -41,7 +43,16 @@ async function call<T = any>(url: string, init?: RequestInit): Promise<T> {
 }
 const post = (body: Record<string, unknown>) => call("/api/admin/radio/studio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-const gb = (b: number) => `${(b / 1e9).toFixed(b < 10e9 ? 2 : 0)} GB`;
+/** A queue label, "Title · Artist", with the artist muted (a link still downloading is shown as is). */
+function labelOf(label: string) {
+  const i = label.indexOf(" · ");
+  if (i < 0) return label;
+  return (
+    <>
+      {label.slice(0, i)} <span className="muted">{label.slice(i + 1)}</span>
+    </>
+  );
+}
 const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hour12: false });
 const dateFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -123,9 +134,6 @@ export default function StudioPage() {
   const [muted, setMuted] = useState(false);
   // the show this Studio was opened for, from the Schedule (?b=<broadcast>&at=<airing start, ms>)
   const [occ, setOcc] = useState<Occurrence | null | undefined>(undefined);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<{ key: string; title: string; artist: string }[]>([]);
-  const [url, setUrl] = useState("");
   const [replays, setReplays] = useState<Replay[]>([]);
   const [copied, setCopied] = useState(false);
   const level = useMicLevel(mic);
@@ -178,13 +186,15 @@ export default function StudioPage() {
     }
   }, []);
 
-  const act = async (body: Record<string, unknown>) => {
+  const act = async (body: Record<string, unknown>): Promise<boolean> => {
     setBusy(true);
     try {
       await post(body);
       await load();
+      return true;
     } catch (e: any) {
       setError(e.message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -285,16 +295,11 @@ export default function StudioPage() {
 
   const voice = useOnAirVoice({ personId: onAir ? state!.me!.id : null, mic: onAir ? mic : null, report, muted });
 
-  // library search
+  // how many songs the AutoDJ has (the Library tab's count), from the radio's own cached song list
+  const [libraryCount, setLibraryCount] = useState<number | null>(null);
   useEffect(() => {
-    if (!onAir || query.trim().length < 2) return setResults([]);
-    const t = setTimeout(() => {
-      call<{ songs: { key: string; title: string; artist: string }[] }>(`/api/admin/radio/studio?q=${encodeURIComponent(query.trim())}`)
-        .then((d) => setResults(d.songs))
-        .catch(() => setResults([]));
-    }, 250);
-    return () => clearTimeout(t);
-  }, [query, onAir]);
+    if (onAir) void loadLibrary().then((songs) => setLibraryCount(songs.filter((s) => s.autodj !== false).length));
+  }, [onAir]);
 
   // past episodes of this show (by its show, else its name); every replay when no show is open
   const scope = occ ? { showId: occ.show && !occ.show.oneOff ? occ.show.id : null, title: occ.title } : state?.session ? { showId: null, title: state.session.title } : null;
@@ -304,6 +309,7 @@ export default function StudioPage() {
   const live = state?.people.filter((p) => p.state === "on_air") ?? [];
   const callLink = typeof window !== "undefined" ? `${window.location.origin}/plus/radio?call=1` : "/plus/radio?call=1";
   const usage = state?.usage;
+  const queuedNow = useMemo(() => new Set((state?.queue ?? []).filter((q) => q.key && q.state === "queued").map((q) => q.key!)), [state?.queue]);
 
   const [, tick] = useState(0);
   useEffect(() => {
@@ -372,6 +378,11 @@ export default function StudioPage() {
             )}
           </div>
         )}
+        {usage?.blocked && (
+          <div className="notice warn">
+            <span className="trunc">This month&apos;s voice allowance is used up: voice is off until next month.</span>
+          </div>
+        )}
         <Body scroll={!imOn}>
           {!state || (!state.session && occ === undefined) ? (
             <div className="pane-empty">Loading the Studio…</div>
@@ -418,109 +429,92 @@ export default function StudioPage() {
                 )}
               </section>
               <Replays scope={scope} shown={shown} reload={loadReplays} />
-              {usage && <UsageMeter usage={usage} />}
             </div>
           ) : (
-            <div className="studio">
-              <section className="col" aria-label="On air">
-                <div className="col-head">
-                  <h2>On air</h2>
-                  <span className="t12 muted">
-                    {live.length} of {state.cap}
-                  </span>
-                </div>
-                <div className="col-body">
-                  {live.map((p) => {
-                    const isMe = p.id === state.me!.id;
-                    return (
-                      <div key={p.id} className="person">
-                        <Avatar p={p} talking={speaking.has(p.id)} />
-                        <div className="grow" style={{ flex: 1, minWidth: 0 }}>
-                          <div className="trunc" style={{ fontWeight: 600 }}>
-                            {p.name}
-                            {isMe ? " (you)" : ""}
+            <div className="studio2">
+              <div className="left">
+                <section aria-label="On air">
+                  <div className="col-head">
+                    <h2>On air</h2>
+                    <span className="t12 muted">
+                      {live.length} of {state.cap}
+                    </span>
+                  </div>
+                  <div className="col-body">
+                    {live.map((p) => {
+                      const isMe = p.id === state.me!.id;
+                      return (
+                        <div key={p.id} className="person">
+                          <Avatar p={p} talking={speaking.has(p.id)} />
+                          <div className="grow" style={{ flex: 1, minWidth: 0 }}>
+                            <div className="trunc" style={{ fontWeight: 600 }}>
+                              {p.name}
+                              {isMe ? " (you)" : ""}
+                            </div>
+                            <div className="t12 muted">
+                              {roleName(p)}
+                              {isMe ? (muted ? " · muted" : voice.connected ? " · mic live" : micAsk ? " · mic not connected" : " · connecting…") : p.connected ? "" : " · connecting"}
+                            </div>
+                            <VolumeSlider id={p.id} name={isMe ? "Your" : p.name} gain={p.gain ?? 1} onSave={saveGain} />
                           </div>
-                          <div className="t12 muted">
-                            {roleName(p)}
-                            {isMe ? (muted ? " · muted" : voice.connected ? " · mic live" : micAsk ? " · mic not connected" : " · connecting…") : p.connected ? "" : " · connecting"}
-                          </div>
-                          <VolumeSlider id={p.id} name={isMe ? "Your" : p.name} gain={p.gain ?? 1} onSave={saveGain} />
+                          {isMe && <Levels level={level} off={muted} />}
+                          {!isMe && p.role !== "host" && (
+                            <button type="button" className="btn sm" disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
+                              Take off
+                            </button>
+                          )}
                         </div>
-                        {isMe && <Levels level={level} off={muted} />}
-                        {!isMe && p.role !== "host" && (
-                          <button type="button" className="btn sm" disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
-                            Take off
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                  {micAsk && (
-                    <button
-                      type="button"
-                      className="btn strong"
-                      onClick={() => void ensureMic().then(() => setMicAsk(false), () => setError("The browser didn't give access to the microphone. Allow it in the address bar, then try again."))}
-                    >
-                      <Mic className="ic" /> Connect your microphone
-                    </button>
-                  )}
-                  <p className="help" style={{ margin: 0 }}>
-                    <UserPlus className="ic-sm" style={{ display: "inline", verticalAlign: -2 }} /> Co-hosts join from this page: they open the show in the Schedule, then Join.
-                  </p>
-                  <p className="help" style={{ margin: 0 }}>The music goes down by itself while anyone talks, and back up after.</p>
-                  {usage && <UsageMeter usage={usage} compact />}
-                </div>
-              </section>
+                      );
+                    })}
+                    {micAsk && (
+                      <button
+                        type="button"
+                        className="btn strong"
+                        onClick={() => void ensureMic().then(() => setMicAsk(false), () => setError("The browser didn't give access to the microphone. Allow it in the address bar, then try again."))}
+                      >
+                        <Mic className="ic" /> Connect your microphone
+                      </button>
+                    )}
+                  </div>
+                </section>
 
-              <section className="col" aria-label="Callers">
-                <div className="col-head">
-                  <h2>Callers</h2>
-                  <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }} className="t12 muted">
-                    {state.session!.callIn ? "Calls open" : "Calls closed"}
-                    <Switch checked={state.session!.callIn} disabled={busy} onChange={(on) => void act({ op: "callIn", on })} label="Take calls" />
-                  </label>
-                </div>
-                <div className="col-body">
-                  {!state.session!.callIn ? (
-                    <p className="muted" style={{ margin: 0 }}>
-                      Calls are closed. Open them and listeners get a Call in button on the radio player, plus a link you can share.
-                    </p>
-                  ) : (
-                    <>
-                      <div className="field">
-                        <label>Call link</label>
-                        <div style={{ display: "flex", gap: 8 }}>
-                          <input className="input sm" readOnly value={callLink} style={{ flex: 1 }} onFocus={(e) => e.currentTarget.select()} aria-label="Call link" />
-                          <button type="button" className="btn sm" onClick={copyLink}>
-                            <Copy className="ic-sm" /> {copied ? "Copied" : "Copy link"}
-                          </button>
-                        </div>
+                <section aria-label="Callers">
+                  <div className="col-head">
+                    <h2>Callers</h2>
+                    <label style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }} className="t12 muted">
+                      {state.session!.callIn ? "Calls open" : "Calls closed"}
+                      <Switch checked={state.session!.callIn} disabled={busy} onChange={(on) => void act({ op: "callIn", on })} label="Take calls" />
+                    </label>
+                  </div>
+                  {state.session!.callIn && (
+                    <div className="col-body">
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <input className="input sm" readOnly value={callLink} style={{ flex: 1, minWidth: 0 }} onFocus={(e) => e.currentTarget.select()} aria-label="Call link" />
+                        <button type="button" className="btn sm" onClick={copyLink}>
+                          <Copy className="ic-sm" /> {copied ? "Copied" : "Copy link"}
+                        </button>
                       </div>
                       <div className="sublabel">Waiting ({waiting.length})</div>
-                      {waiting.length === 0 ? (
-                        <p className="muted" style={{ margin: 0 }}>Nobody yet. Callers wait on the radio page until you bring them on.</p>
-                      ) : (
-                        waiting.map((p) => (
-                          <div key={p.id} className="person">
-                            <Avatar p={p} />
-                            <span className="trunc" style={{ flex: 1, fontWeight: 600 }}>
-                              {p.name}
-                            </span>
-                            <button type="button" className="btn sm strong" disabled={busy || live.length >= state.cap} onClick={() => void act({ op: "onAir", id: p.id })}>
-                              Put on air
-                            </button>
-                            <button type="button" className="iconbtn" aria-label={`Remove ${p.name}`} disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
-                              <X className="ic" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </>
+                      {waiting.map((p) => (
+                        <div key={p.id} className="person">
+                          <Avatar p={p} />
+                          <span className="trunc" style={{ flex: 1, fontWeight: 600 }}>
+                            {p.name}
+                          </span>
+                          <button type="button" className="btn sm strong" disabled={busy || live.length >= state.cap} onClick={() => void act({ op: "onAir", id: p.id })}>
+                            Put on air
+                          </button>
+                          <button type="button" className="iconbtn" aria-label={`Remove ${p.name}`} disabled={busy} onClick={() => void act({ op: "takeOff", id: p.id })}>
+                            <X className="ic" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                </div>
-              </section>
+                </section>
+              </div>
 
-              <section className="col" aria-label="Music">
+              <section className="music" aria-label="Music">
                 <div className="col-head">
                   <h2>Music</h2>
                   <button type="button" className="btn sm" style={{ marginLeft: "auto" }} disabled={busy} onClick={() => void act({ op: state.session!.paused ? "resume" : "pause" })}>
@@ -528,7 +522,7 @@ export default function StudioPage() {
                     {state.session!.paused ? "Play music" : "Pause music"}
                   </button>
                 </div>
-                <div className="col-body">
+                <div className="q">
                   <div className="np">
                     {lineup.onAir?.art && !state.session!.paused ? (
                       <img className="cover" src={lineup.onAir.art} alt="" />
@@ -542,42 +536,44 @@ export default function StudioPage() {
                       <div className="trunc" style={{ fontWeight: 600 }}>
                         {lineup.onAir ? lineup.onAir.title : radio.song ? radio.song.title : "AutoDJ"}
                       </div>
-                      <div className="trunc muted">{lineup.onAir ? lineup.onAir.artist : radio.song ? radio.song.artist : "Picks from the library or the show's playlist"}</div>
+                      {(lineup.onAir || radio.song) && <div className="trunc muted">{lineup.onAir ? lineup.onAir.artist : radio.song!.artist}</div>}
                     </div>
                     {lineup.onAir && !state.session!.paused && (
-                      <button type="button" className="btn sm" disabled={busy} onClick={() => skip(lineup.onAir!)} title="Skip this song for everyone: the next one starts in a couple of seconds">
+                      <button type="button" className="btn sm" disabled={busy} onClick={() => skip(lineup.onAir!)} title="Skip this song for everyone">
                         <SkipForward className="ic-sm" /> Skip
                       </button>
                     )}
                   </div>
 
-                  <div className="sublabel">Up next</div>
-                  {lineup.next.length === 0 ? (
-                    <p className="muted" style={{ margin: 0 }}>{state.session!.paused ? "Nothing lined up: the music picks up again where it stopped." : "The AutoDJ is lining up the next song…"}</p>
-                  ) : (
-                    <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
-                      {lineup.next.map((n) => (
-                        <li key={n.k} className="song">
-                          {n.art ? <img className="cover" src={n.art} alt="" /> : <span className="cover" />}
-                          <span style={{ flex: 1, minWidth: 0 }}>
-                            <span className="trunc" style={{ display: "block" }}>
-                              {n.title} <span className="muted">· {n.artist}</span>
+                  {lineup.next.length > 0 && (
+                    <>
+                      <div className="sublabel">Up next</div>
+                      <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
+                        {lineup.next.map((n) => (
+                          <li key={n.k} className="song">
+                            {n.art ? <img className="cover" src={n.art} alt="" /> : <span className="cover" />}
+                            <span style={{ flex: 1, minWidth: 0 }}>
+                              <span className="trunc" style={{ display: "block" }}>
+                                {n.title} <span className="muted">· {n.artist}</span>
+                              </span>
+                              <span className="t12 muted">
+                                {from(n.key)} · {fmtTime(new Date(n.startMs - lineup.serverNow() + Date.now()))}
+                              </span>
                             </span>
-                            <span className="t12 muted">
-                              {from(n.key)} · {fmtTime(new Date(n.startMs - lineup.serverNow() + Date.now()))}
-                            </span>
-                          </span>
-                          <button type="button" className="iconbtn" aria-label={`Skip ${n.title}`} title="Skip this song" disabled={busy || state.session!.paused} onClick={() => skip(n)}>
-                            <SkipForward className="ic-sm" />
-                          </button>
-                        </li>
-                      ))}
-                    </ol>
+                            <button type="button" className="iconbtn" aria-label={`Skip ${n.title}`} title="Skip this song" disabled={busy || state.session!.paused} onClick={() => skip(n)}>
+                              <SkipForward className="ic-sm" />
+                            </button>
+                          </li>
+                        ))}
+                      </ol>
+                    </>
                   )}
 
                   <div className="sublabel">Your queue</div>
                   {state.queue.length === 0 ? (
-                    <p className="muted" style={{ margin: 0 }}>Nothing queued: after Up next, the AutoDJ picks from the library (or the show&apos;s playlist).</p>
+                    <p className="muted" style={{ margin: 0 }}>
+                      Nothing queued.
+                    </p>
                   ) : (
                     <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
                       {state.queue.map((q, i) => (
@@ -586,7 +582,7 @@ export default function StudioPage() {
                             {i + 1}
                           </span>
                           <span className="trunc" style={{ flex: 1 }}>
-                            {q.label}
+                            {labelOf(q.label)}
                           </span>
                           <QueueState q={q} prep={q.key ? prepared[q.key] : undefined} />
                           <button type="button" className="iconbtn" aria-label="Move up" disabled={busy || i === 0} onClick={() => void act({ op: "move", id: q.id, dir: -1 })}>
@@ -602,66 +598,21 @@ export default function StudioPage() {
                       ))}
                     </ol>
                   )}
-                  <p className="help" style={{ margin: 0 }}>Up next is already lined up and mixed; your queue plays after it. Skip a song and the next one takes its place, for everyone.</p>
-                  <p className="help" style={{ margin: 0 }}>
-                    Songs you link are downloaded, then prepared in this tab (checked and analysed, a few at once). Ready songs mix in properly. If a song&apos;s turn comes before it&apos;s ready, it still plays, with a plain crossfade instead of a beat-matched mix.
-                  </p>
-
-                  <div className="sublabel">Add a song</div>
-                  <div className="search">
-                    <Search />
-                    <input id="studio-search" className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the library" aria-label="Search the library" />
-                  </div>
-                  {results.length > 0 && (
-                    <div style={{ display: "grid", gap: 2 }}>
-                      {results.map((s) => (
-                        <div key={s.key} className="song">
-                          <span className="trunc" style={{ flex: 1 }}>
-                            {s.title} <span className="muted">· {s.artist}</span>
-                          </span>
-                          <button type="button" className="btn sm" disabled={busy} onClick={() => void act({ op: "queueSong", key: s.key })}>
-                            Queue
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <form
-                    style={{ display: "flex", gap: 8 }}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (url.trim()) void act({ op: "queueUrl", url }).then(() => setUrl(""));
-                    }}
-                  >
-                    <input className="input" style={{ flex: 1 }} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Or paste a YouTube, SoundCloud or Spotify link" aria-label="Song link" />
-                    <button type="submit" className="btn" disabled={busy || !url.trim()}>
-                      Queue
-                    </button>
-                  </form>
-                  <p className="help" style={{ margin: 0 }}>Usually ready about 1 to 2 minutes after you paste the link (an estimate: under a minute to download, then about 20 to 40 s to prepare).</p>
                 </div>
+
+                <StudioAddPanel
+                  busy={busy}
+                  queuedKeys={queuedNow}
+                  readyCount={state.queue.filter((q) => q.ready).length}
+                  libraryCount={libraryCount}
+                  act={act}
+                />
               </section>
             </div>
           )}
         </Body>
       </Screen>
     </AdminAuthGuard>
-  );
-}
-
-function UsageMeter({ usage, compact }: { usage: Usage; compact?: boolean }) {
-  const pct = Math.min(100, (usage.bytes / usage.capBytes) * 100);
-  return (
-    <div style={{ display: "grid", gap: 6 }} className={compact ? undefined : "todo"}>
-      {compact ? <div className="sublabel">Voice usage this month</div> : <h2>Voice usage this month</h2>}
-      <div className={usage.blocked ? "meter low" : "meter"}>
-        <i style={{ width: `${pct}%` }} />
-      </div>
-      <div className="help">
-        About {gb(usage.bytes)} of the {gb(usage.capBytes)} cap (Cloudflare&apos;s free allowance is {gb(usage.freeBytes)}).{" "}
-        {usage.blocked ? "Voice is off until next month." : "Voice stops by itself at the cap, so it never costs anything."}
-      </div>
-    </div>
   );
 }
 
