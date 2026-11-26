@@ -55,11 +55,17 @@ export function useGenreCheck(songs: Song[] | null, onPatched: (id: string, patc
         const mb = (async () => {
           for (;;) {
             try {
-              return await lookUpGenres(song, get, stopRef, artistGenres);
+              const found = await lookUpGenres(song, get, stopRef, artistGenres);
+              busyTimes = 0;
+              return found;
             } catch (err) {
-              if (!(err instanceof MusicBrainzBusy) || ++busyTimes > 5) throw err;
-              setState((s) => ({ ...s, note: "MusicBrainz asked us to slow down. Carrying on in a minute." }));
-              await sleep(BACKOFF_MS, stopRef);
+              // MusicBrainz busy: wait 1, 2, 4, then 5 minutes each time and carry on by itself. Only 10 busy
+              // answers in a row (about 40 minutes without one song going through) stop the run.
+              if (!(err instanceof MusicBrainzBusy) || busyTimes >= 10) throw err;
+              const mins = Math.min(5, 2 ** busyTimes);
+              busyTimes += 1;
+              setState((s) => ({ ...s, note: `MusicBrainz is busy. Carrying on by itself in ${mins === 1 ? "a minute" : `${mins} minutes`}.` }));
+              await sleep(mins * BACKOFF_MS, stopRef);
               setState((s) => ({ ...s, note: null }));
               if (stopRef.current) return null;
             }

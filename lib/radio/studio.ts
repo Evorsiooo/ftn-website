@@ -18,8 +18,8 @@ import { FINAL_STATES, cachedPlayableSongs, getJob, linkKind, startJob, syncImpo
 import { liveStudio, republish, type RadioProgram } from "./program";
 import { AUTODJ_KEY, radioBucket } from "./store";
 
-/** People on air at once: broadcasters and callers together (Adrien: 4). */
-export const ON_AIR_CAP = 4;
+/** People on air at once: broadcasters and callers together (Adrien: 10). */
+export const ON_AIR_CAP = 10;
 /** Someone whose page hasn't checked in for this long has left. */
 export const STALE_MS = 45_000;
 /** The longest a show runs (from its start) once nobody is left running it. */
