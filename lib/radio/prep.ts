@@ -80,7 +80,13 @@ async function runOf(db: DbClient, runId: string) {
 }
 
 /** A new run on this PC. [total]: the songs getting ready when it started (for "412 of 1,218"). */
-export async function startRun(db: DbClient, user: { id: string; displayName: string; robloxUsername: string }, workers: number, total: number) {
+export async function startRun(
+  db: DbClient,
+  user: { id: string; displayName: string; robloxUsername: string },
+  workers: number,
+  total: number,
+  carried: { done: number; failed: number } = { done: 0, failed: 0 },
+) {
   const now = new Date();
   const id = crypto.randomUUID();
   await db.insert(radioPrepRuns).values({
@@ -89,6 +95,9 @@ export async function startRun(db: DbClient, user: { id: string; displayName: st
     userName: (user.displayName || user.robloxUsername || "Someone").slice(0, 60),
     workers: Math.max(1, Math.min(16, Math.round(workers) || 1)),
     total: Math.max(0, Math.round(total) || 0),
+    // a refreshed tab's run carries on the count of the one it replaces
+    done: Math.max(0, Math.round(carried.done) || 0),
+    failed: Math.max(0, Math.round(carried.failed) || 0),
     startedAt: now,
     updatedAt: now,
   });
