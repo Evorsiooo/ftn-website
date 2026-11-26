@@ -37,7 +37,10 @@ export function useGenreCheck(songs: Song[] | null, onPatched: (id: string, patc
   const stopRef = useRef(false);
   const busy = useRef(false);
 
-  const run = useCallback(async () => {
+  // alongside Prepare, Apple's catalogue is left out: Prepare's title check already asks Apple for the broad
+  // genre, and two searches at once would get Apple to refuse (which stops Prepare)
+  const run = useCallback(async (opts: { apple?: boolean } = {}) => {
+    const appleToo = opts.apple !== false;
     const list = genresToFind(songs);
     if (busy.current || !list.length) return;
     busy.current = true;
@@ -72,7 +75,7 @@ export function useGenreCheck(songs: Song[] | null, onPatched: (id: string, patc
           }
         })();
         const apple = (async () => {
-          if (song.genre || song.source === "upload") return null;
+          if (!appleToo || song.genre || song.source === "upload") return null;
           try {
             return (await search(song.title, song.artist, song.durationSec))?.primaryGenreName?.trim().slice(0, 60) || null;
           } catch (err) {

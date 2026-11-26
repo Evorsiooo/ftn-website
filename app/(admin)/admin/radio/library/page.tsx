@@ -186,6 +186,14 @@ function LibraryPage() {
     [patchSong]
   );
   const prep = usePrepareRun(onSongDone);
+  // Genres and original years are looked up alongside each Prepare run started here (Adrien, 2026-11-26).
+  // Only when a run starts: stopping the lookup doesn't bring it back until the next run.
+  const prepRunning = prep.state.phase === "running";
+  const startGenres = genreRun.run;
+  useEffect(() => {
+    if (prepRunning && genresLeft > 0) void startGenres({ apple: false });
+  }, [prepRunning]);
+
 
   // Prepare runs on any PC (this one's too): read every 30 s while the page is in view, so a phone can follow one
   // and stop it. One small read of the open runs.
@@ -467,7 +475,7 @@ function LibraryPage() {
           <div style={{ flex: 1, minWidth: 0 }}>{showSelect}</div>
         </div>
       )}
-      {tab === "songs" && songs && songs.length > 0 && (
+      {songs && songs.length > 0 && (
         <button type="button" className="ls-open" onClick={() => setSheet("status")}>
           <span className={cn("dot", runningHere || elsewhereRuns.length || counts.gettingReady ? "amber" : "green")} />
           <span className="grow">
