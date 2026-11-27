@@ -11,7 +11,7 @@ export type ReportSource = keyof typeof REPORT_SOURCES;
 
 export const MAX_DETAILS = 500;
 export const MAX_DIAGNOSTICS = 8_000;
-export const LOG_LINES = 20;
+export const LOG_LINES = 30;
 
 /** What the listener's browser attaches when they tick "Send diagnostic data". Every field is optional. */
 export interface ReportDiagnostics {
@@ -38,6 +38,26 @@ export interface ReportDiagnostics {
     jumps?: number | null;
     speedChanges?: number | null;
     listeningSec?: number | null;
+  } | null;
+  /** Browser, audio, network and tab details collected passively (see env-diagnostics). */
+  env?: {
+    browserFull?: string;
+    osFull?: string;
+    privateWindow?: string;
+    autoplay?: string;
+    audioContext?: string;
+    sampleRate?: number;
+    outputChannels?: number;
+    songFormats?: string;
+    downloads?: { total?: number; failed?: number; slowestMs?: number | null };
+    decodeProblems?: number;
+    tab?: string;
+    hiddenSec?: number;
+    battery?: string;
+    dataSaver?: boolean;
+    timerLateMs?: number;
+    pageErrors?: string[];
+    blocker?: string;
   } | null;
   log?: string[];
 }
@@ -88,6 +108,21 @@ export function describeDiagnostics(d: ReportDiagnostics | null | undefined): { 
     if (dev.language) rows.push(["Language", dev.language]);
     if (dev.timeZone) rows.push(["Time zone", dev.timeZone]);
     if (rows.length) groups.push({ title: "Device", rows });
+  }
+  const v = d.env;
+  if (v) {
+    const rows: [string, string][] = [];
+    if (v.browserFull || v.osFull) rows.push(["Exact version", [v.browserFull, v.osFull ? `(${v.osFull})` : ""].filter(Boolean).join(" ")]);
+    if (v.privateWindow) rows.push(["Private window", v.privateWindow]);
+    if (v.autoplay || v.audioContext) rows.push(["Audio", `autoplay ${v.autoplay ?? "unknown"}, engine ${v.audioContext ?? "unknown"}${v.sampleRate ? `, ${v.sampleRate} Hz` : ""}${v.outputChannels ? `, ${v.outputChannels} output channels` : ""}`]);
+    if (v.songFormats || typeof v.decodeProblems === "number") rows.push(["Song files", `${v.songFormats || "none loaded yet"}; ${v.decodeProblems ?? 0} loading or decoding problem${v.decodeProblems === 1 ? "" : "s"} in the log`]);
+    if (v.downloads) rows.push(["Downloads (5 min)", `${v.downloads.total ?? 0} song downloads, ${v.downloads.failed ?? 0} failed${typeof v.downloads.slowestMs === "number" ? `, slowest ${(v.downloads.slowestMs / 1000).toFixed(1)} s` : ""}`]);
+    if (v.tab) rows.push(["Tab", `${v.tab}${v.hiddenSec ? `, hidden for ${v.hiddenSec} s in total` : ""}`]);
+    const pw = [v.battery, v.dataSaver ? "data saver on" : "", typeof v.timerLateMs === "number" ? `browser timers ${v.timerLateMs} ms late` : ""].filter(Boolean).join(", ");
+    if (pw) rows.push(["Power and speed", pw]);
+    if (v.blocker) rows.push(["Ad or tracker blocker", v.blocker]);
+    rows.push(["Page errors (5 min)", v.pageErrors?.length ? v.pageErrors.join(" | ") : "none"]);
+    if (rows.length) groups.push({ title: "Browser", rows });
   }
   const p = d.player;
   const e = d.engine;
@@ -188,6 +223,29 @@ export function cleanDiagnostics(raw: unknown): ReportDiagnostics | null {
       jumps: num(e.jumps) ?? null,
       speedChanges: num(e.speedChanges) ?? null,
       listeningSec: num(e.listeningSec) ?? null,
+    };
+  }
+  if (r.env && typeof r.env === "object") {
+    const v = r.env;
+    const dl = v.downloads && typeof v.downloads === "object" ? { total: num(v.downloads.total), failed: num(v.downloads.failed), slowestMs: num(v.downloads.slowestMs) ?? null } : undefined;
+    out.env = {
+      browserFull: str(v.browserFull, 40),
+      osFull: str(v.osFull, 80),
+      privateWindow: str(v.privateWindow, 30),
+      autoplay: str(v.autoplay, 20),
+      audioContext: str(v.audioContext, 20),
+      sampleRate: num(v.sampleRate),
+      outputChannels: num(v.outputChannels),
+      songFormats: str(v.songFormats, 100),
+      downloads: dl,
+      decodeProblems: num(v.decodeProblems),
+      tab: str(v.tab, 40),
+      hiddenSec: num(v.hiddenSec),
+      battery: str(v.battery, 30),
+      dataSaver: typeof v.dataSaver === "boolean" ? v.dataSaver : undefined,
+      timerLateMs: num(v.timerLateMs),
+      pageErrors: Array.isArray(v.pageErrors) ? v.pageErrors.filter((x: unknown) => typeof x === "string").slice(0, 5).map((x: string) => str(x, 200)!) : undefined,
+      blocker: str(v.blocker, 60),
     };
   }
   if (Array.isArray(r.log)) out.log = r.log.filter((l: unknown) => typeof l === "string").slice(-LOG_LINES).map((l: string) => str(l, 300)!);

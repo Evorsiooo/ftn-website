@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DEFAULT_GAIN } from "@/lib/radio/volume";
+import { installEnvDiagnostics } from "@/lib/radio/env-diagnostics";
 
 export type PlayerStatus = "idle" | "connecting" | "playing" | "buffering" | "reconnecting" | "error" | "off-air";
 
@@ -58,10 +59,11 @@ type StationModule = { startStation(opts: { listenerId?: string; volume?: number
 const playerLog: string[] = [];
 const logTime = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 export function notePlayer(line: string) {
+  installEnvDiagnostics(notePlayer);
   playerLog.push(`${logTime.format(new Date())}  ${line.slice(0, 300)}`);
-  if (playerLog.length > 40) playerLog.splice(0, playerLog.length - 40);
+  if (playerLog.length > 80) playerLog.splice(0, playerLog.length - 80);
 }
-export function recentPlayerLog(n = 20): string[] {
+export function recentPlayerLog(n = 30): string[] {
   return playerLog.slice(-n);
 }
 

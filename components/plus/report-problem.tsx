@@ -10,6 +10,7 @@ import { loadLibrary, serverOffset } from "@/components/radio/use-on-air";
 import { RADIO_FILES } from "@/components/radio/use-radio-source";
 import { useSiteConfig } from "@/lib/site-config-context";
 import { recentlyPlayed, type RadioTimeline } from "@/lib/radio/autodj";
+import { collectEnv } from "@/lib/radio/env-diagnostics";
 import { BUG_REASONS, MAX_DETAILS, REPORT_SOURCES, SONG_REASONS, describeDiagnostics, type ReportDiagnostics, type ReportSource } from "@/lib/radio/reports";
 import * as I from "./icons";
 
@@ -221,13 +222,14 @@ function ReportWindow({ current, source, anchor, onClose }: { current: Song | nu
     box.current?.querySelector<HTMLElement>("[data-first]")?.focus();
   }, [view, host]);
 
-  const collect = useCallback((): ReportDiagnostics => {
+  const collect = useCallback(async (): Promise<ReportDiagnostics> => {
     const d = r.diagnostics();
-    return { device: device(), player: d.player, engine: d.engine, log: d.log };
+    const env = await collectEnv(d.log ?? []).catch(() => null);
+    return { device: device(), player: d.player, engine: d.engine, env, log: d.log };
   }, [r]);
 
-  const showData = () => {
-    setSnapshot(collect());
+  const showData = async () => {
+    setSnapshot(await collect());
     setView("data");
   };
 
@@ -257,7 +259,7 @@ function ReportWindow({ current, source, anchor, onClose }: { current: Song | nu
           songKey: song?.key ?? playing?.key ?? null,
           songTitle: song?.title ?? playing?.title ?? null,
           songArtist: song?.artist ?? playing?.artist ?? null,
-          diagnostics: diag ? collect() : null,
+          diagnostics: diag ? await collect() : null,
           turnstileToken: token.current,
         }),
       });
